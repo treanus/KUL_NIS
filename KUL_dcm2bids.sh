@@ -177,7 +177,8 @@ function kul_untar {
     echo "Searching for $identifier using $search_string"
             
     seq=$(grep $search_string ${preproc}/log/${subj}_dcm_content.txt | head -n 1 | cut -c 49-)
-    seq_file=$(grep $search_string ${preproc}/log/${subj}_dcm_content.txt | awk 'NR==2' | cut -c 49-)
+    # sort files on size (sort -k 5), and take the largest one
+    seq_file=$(grep $search_string ${preproc}/log/${subj}_dcm_content.txt | sort -k 5 | awk END{print} | cut -c 49-)
     if [ "$seq_file" = "" ]; then
 
         kul_e2cl "  $identifier dicoms are NOT FOUND" $log
@@ -186,7 +187,7 @@ function kul_untar {
     else
 
         seq_found=1
-        echo "  $identifier dicoms are in ${seq}"
+        echo "  $identifier dicoms are in ${seq}, taking ${seq_file} for tags"
 
         echo "  Untarring $dcm to $tmp"
         mkdir -p ${tmp}/$subj
