@@ -1,6 +1,12 @@
 #!/bin/bash -e
-# Bash shell script to define main used functions
+# Bash shell script to:
+#  - define global functions used by all sub-scripts
+#  - define defaults
+#  - execute startup
 #
+
+mrtrix_version_needed=100
+dcm2niix_version_needed=20180622
 
 # -- function kul_e2cl to echo to console & log file with matlab tic/toc behavior ---
 function kul_e2cl {
@@ -23,7 +29,7 @@ function kul_e2cl {
     diff_s=$(($elapsed_s-$old_elapsed_s))
     diff_m=$(echo "scale=2; $diff_s/60" | bc) # use bc to get it in float minutes
     if [ "$diff_s" -gt 1 ]; then
-        echo "${b}          computation took ${diff_m} minutes${n} (since start: ${elapsed_m} minutes)"
+        echo "          computation took ${diff_m} minutes ${b}(since start: ${elapsed_m} minutes)${n}"
         echo "          computation took ${diff_m} minutes (since start: ${elapsed_m})" >> $2
     fi
 
@@ -33,3 +39,52 @@ function kul_e2cl {
 
 }
 
+# check version of mrtrix3
+mrtrix_version=$(mrconvert -version | head -n 1 | cut -d'-' -f 2)
+if [ $mrtrix_version -lt $mrtrix_version_needed ]; then
+
+    echo "Your mrtrix3 RC3 subversion is $dcm2niix_version"
+    echo "You need mrtrix3 RC3 subversion => $mrtrix_version_need"
+    exit 2
+
+fi
+
+# check version of dcm2niix
+dcm2niix_version=$(dcm2niix | head -n 1 | cut -d'.' -f 3 | cut -c -8)
+if [ $dcm2niix_version -lt $dcm2niix_version_needed ]; then
+
+    echo "Your version of dcm2nixx is $dcm2niix_version"
+    echo "You need dcm2nixx version more recent than $dcm2niix_version_needed"
+    exit 2
+
+fi
+
+# -- Set global defaults --
+
+silent=1
+tmp=/tmp
+
+
+
+
+# -- Execute global startup --
+
+# timestamp
+start=$(date +%s)
+
+# Directory to write preprocessed data in, i.e $preproc
+preproc=KUL_preproc/${subj}
+
+# Define directory/files to log in 
+log_dir=${preproc}/log/$script
+
+# create preprocessing & log directory/files
+mkdir -p $log_dir
+
+# main log file naming
+d=$(date "+%Y-%m-%d_%H-%M-%S")
+log=$log_dir/main_log_${d}.txt
+
+
+# -- Say Welcome --
+kul_e2cl "Welcome to $script $v - $d" $log

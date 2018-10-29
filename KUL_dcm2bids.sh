@@ -20,7 +20,9 @@ v="v0.1 - dd 26/10/2018"
 #  - kul_e2cl from KUL_main_functions (for logging)
 #  - kul_dcmtags (for reading specific parameters from dicom header)
 
+# source general functions
 kul_main_dir=`dirname "$0"`
+script=`basename "$0"`
 source $kul_main_dir/KUL_main_functions.sh
 
 
@@ -35,7 +37,7 @@ cat <<USAGE
 
 Usage:
 
-  `basename $0` -d dicom_dir -s subject (participant) -c config_file -o bids_dir <OPT_ARGS>
+  `basename $0` -d dicom_dir -p subject (participant) -c config_file -o bids_dir <OPT_ARGS>
 
   Depends on a config file that defines parameters with sequence information, e.g.
 
@@ -52,17 +54,18 @@ Usage:
 
 Example:
 
-  `basename $0` -s pat001 -d pat001.zip -c definitions_of_sequences.txt -o BIDS
+  `basename $0` -p pat001 -d pat001.zip -c definitions_of_sequences.txt -o BIDS
 
 Required arguments:
 
      -d:  dicom_zip_file (the zip or tar.gz containing all your dicoms)
-     -s:  subject (anonymised name of the participant)
-     -c:  definitions of sequences (T1w=MPRAGE,dwi=seq, etc...)
+     -p:  participant (anonymised name of the subject in bids convention)
+     -c:  definitions of sequences (T1w=MPRAGE,dwi=seq, etc..., see above)
      -o:  bids directory
 
 Optional arguments:
 
+     -s:  session (for longitudinal study with multiple timepoints)
      -t:  temporary directory (default = /tmp)
      -e:  copy task-*_events.tsv from config to BIDS dir
      -v:  verbose 
@@ -79,44 +82,57 @@ function kul_dcmtags {
 
     local dcm_file=$1 
 
-    local out=${preproc}/log/${subj}_dcm_tags.txt
-    local seriesdescr=$(dcminfo "$dcm_file" -tag 0008 103E | awk '{print $(NF)}')
-
+    local out=$final_dcm_tags_file
+    
+    # 0/ Read out standard tags for logging
+    local seriesdescr=$(dcminfo "$dcm_file" -tag 0008 103E | cut -c 13-)
+    local manufacturer=$(dcminfo "$dcm_file" -tag 0008 0070 | cut -c 13-)
+    local software=$(dcminfo "$dcm_file" -tag 0018 1020 | cut -c 13-)
+    local imagetype=$(dcminfo "$dcm_file" -tag 0008 0008 2>/dev/null | cut -c 13- | head -n 1)
+    local patid=$(dcminfo "$dcm_file" -tag 0010 0020 | cut -c 13-)
+    local pixelspacing=$(dcminfo "$dcm_file" -tag 0028 0030 2>/dev/null | cut -c 13- | head -n 1)
+    local slicethickness=$(dcminfo "$dcm_file" -tag 0018 0088 2>/dev/null | cut -c 13- | head -n 1)
+    local acquisitionMatrix=$(dcminfo "$dcm_file" -tag 0018 1310 2>/dev/null | cut -c 13- | head -n 1)
+    local FovAP=$(dcminfo "$dcm_file" -tag 2005 1074 | cut -c 13-)
+    local FovFH=$(dcminfo "$dcm_file" -tag 2005 1075 | cut -c 13-)
+    local FovRL=$(dcminfo "$dcm_file" -tag 2005 1076 | cut -c 13-)
 
     # 1/ Calculate ess/trt; needed are : FieldStrength, WaterFatShift, EPIFactor
     
-        local waterfatshift=$(dcminfo "$dcm_file" -tag 2001 1022 | awk '{print $(NF)}')
-        local fieldstrength=$(dcminfo "$dcm_file" -tag 0018 0087 | awk '{print $(NF)}')
-        local epifactor=$(dcminfo "$dcm_file" -tag 2001 1013 | awk '{print $(NF)}')
-        local water_fat_diff_ppm=3.3995
-        local resonance_freq_mhz_tesla=42.576
+    local waterfatshift=$(dcminfo "$dcm_file" -tag 2001 1022 | awk '{print $(NF)}')
+    local fieldstrength=$(dcminfo "$dcm_file" -tag 0018 0087 | awk '{print $(NF)}')
+    local epifactor=$(dcminfo "$dcm_file" -tag 2001 1013 | awk '{print $(NF)}')
+    local water_fat_diff_ppm=3.3995
+    local resonance_freq_mhz_tesla=42.576
 
-        local water_fat_shift_hz=$(echo $fieldstrength $water_fat_diff_ppm $resonance_freq_mhz_tesla echo $fieldstrength $water_fat_diff_ppm | awk '{print $1 * $2 * $3}')
+    local water_fat_shift_hz=$(echo $fieldstrength $water_fat_diff_ppm $resonance_freq_mhz_tesla echo $fieldstrength $water_fat_diff_ppm | awk '{print $1 * $2 * $3}')
     
-        #effective_echo_spacing_msec  = 1000 * WFS_PIXEL/(water_fat_shift_hz * (EPI_FACTOR + 1))
-        ees_sec=$(echo $waterfatshift $water_fat_shift_hz $epifactor | awk '{print $1 / ($2 * ($3 + 1))}')
+    #effective_echo_spacing_msec  = 1000 * WFS_PIXEL/(water_fat_shift_hz * (EPI_FACTOR + 1))
+    ees_sec=$(echo $waterfatshift $water_fat_shift_hz $epifactor | awk '{print $1 / ($2 * ($3 + 1))}')
 
-        #total_readout_time_fsl_msec      = EPI_FACTOR * effective_echo_spacing_msec;
-        trt_sec=$(echo $epifactor $ees_sec | awk '{print $1 * $2 }')
+    #total_readout_time_fsl_msec      = EPI_FACTOR * effective_echo_spacing_msec;
+    trt_sec=$(echo $epifactor $ees_sec | awk '{print $1 * $2 }')
     
     # 2/ Calculate slice SliceTiming
 
-        #function SliceTime=KUL_slicetiming(MB, NS, TR)
-        #%MB = 1; % Multiband factor
-        #%NS = 30; % Number of Slices
-        #%TR = 1.7; % TR in seconds
-        #st = repmat(0:TR/(NS/MB):TR-.0000001,1,MB);
-        #SliceTime = sprintf('%.8f,' , st);
-        #SliceTime = ['"SliceTiming": [' SliceTime(1:end-1) ']'];
-        #end     
+    #function SliceTime=KUL_slicetiming(MB, NS, TR)
+    #%MB = 1; % Multiband factor
+    #%NS = 30; % Number of Slices
+    #%TR = 1.7; % TR in seconds
+    #st = repmat(0:TR/(NS/MB):TR-.0000001,1,MB);
+    #SliceTime = sprintf('%.8f,' , st);
+    #SliceTime = ['"SliceTiming": [' SliceTime(1:end-1) ']'];
+    #end     
 
-        multiband_factor=$mb
+    multiband_factor=$mb
+    
+    #NS
+    local number_of_slices=$(dcminfo "$dcm_file" -tag 2001 1018 | awk '{print $(NF)}')
 
-        #NS
-        local number_of_slices=$(dcminfo "$dcm_file" -tag 2001 1018 | awk '{print $(NF)}')
+    #TR (in milliseconds)
+    local repetion_time_msec=$(dcminfo "$dcm_file" -tag 0018 0080 | awk '{print $(NF)}')
 
-        #TR (in milliseconds)
-        local repetion_time_msec=$(dcminfo "$dcm_file" -tag 0018 0080 | awk '{print $(NF)}')
+    if [ ! $multiband_factor = "" ];then
 
         #single_slice_time (in seconds)
         local single_slice_time=$(echo $repetion_time_msec $number_of_slices $multiband_factor | awk '{print $1 / ($2 / $3) / 1000}')
@@ -144,9 +160,20 @@ function kul_dcmtags {
         
         slice_time=[$slit2]
         
+    fi
 
     if [ $silent -eq 0 ]; then
+        echo "   patid = $patid"
         echo "   the dicom file we are reading = $dcm_file"
+        echo "   manufacturer = $manufacturer"
+        echo "   software version = $software"
+        echo "   imagetype = $imagetype"
+        echo "   acquisitionMatrix = $acquisitionMatrix"
+        echo "   FovAP = $FovAP"
+        echo "   FovFH = $FovFH"
+        echo "   FovRL = $FovRL"
+        echo "   pixelspacing = $pixelspacing"
+        echo "   slicethickness = $slicethickness"
         echo "     series = $seriesdescr"
         echo "      fieldstrength = $fieldstrength"
         echo "      waterfatshift =  $waterfatshift"
@@ -155,43 +182,42 @@ function kul_dcmtags {
         echo "        calculated trt  = $trt_sec"
         echo "      number of slices = $number_of_slices"
         echo "      repetion_time_msec = $repetion_time_msec"
-        echo "      multiband_factor = $mb"
-        echo "        calculated single_slice_time = $single_slice_time"
-        echo "        number of excitations - 1 = $e"
-        echo "        for 1 multiband = $slit"
-        echo "        complete slice_time = $slice_time"
+        
+        if [ ! $multiband_factor = "" ];then
+            echo "      multiband_factor = $mb"
+            echo "        calculated single_slice_time = $single_slice_time"
+            echo "        number of excitations - 1 = $e"
+            echo "        for 1 multiband = $slit"
+            echo "        complete slice_time = $slice_time"
+        fi
+
     fi
 
     if [ ! -f $out ]; then
-        echo -e "series \t field \t epi \t wfs \t ees_sec \t trt_sec \t #slices \t repetion_time_msec \t multiband_factor" > $out
+        echo -e "participant,dcm_file,manufacturer,software_version,series_descr,imagetype,fieldstrength,acquisitionMatrix,FovAP,FovFH,FovRL,pixelspacing,slicethickness,epifactor,wfs,ees_sec,trt_sec,#slices,repetion_time_msec,multiband_factor" > $out
     fi
-    echo -e "$seriesdescr \t $fieldstrength \t $epifactor \t $waterfatshift \t $ees_sec \t $trt_sec \t $number_of_slices \t $repetion_time_msec \t $multiband_factor" >> $out
+    echo -e "$subj,$dcm_file,$manufacturer,$software,$seriesdescr,$imagetype,$fieldstrength,$acquisitionMatrix,$FovAP,$FovFH,$FovRL,$pixelspacing,$slicethickness,$epifactor,$waterfatshift,$ees_sec,$trt_sec,$number_of_slices,$repetion_time_msec,$multiband_factor" >> $out
 
     
 }
 
-function kul_untar {
+function kul_find_relevant_dicom_file {
 
-    # find the search_string in the zip file with dicoms and extract
+    kul_e2cl "  Searching for $identifier using search_string $search_string" $log
 
-    echo "Searching for $identifier using $search_string"
-            
-    seq=$(grep $search_string ${preproc}/log/${subj}_dcm_content.txt | head -n 1 | cut -c 49-)
-    # sort files on size (sort -k 5), and take the largest one
-    seq_file=$(grep $search_string ${preproc}/log/${subj}_dcm_content.txt | sort -k 5 | awk END{print} | cut -c 49-)
+    # find the search_string in the dicom dump_file            
+    # search for search_string in dump_file, find ORIGINAL, remove dicom tags, sort, take first line, remove trailing space 
+    seq_file=$(grep $search_string $dump_file | grep ORIGINAL - | cut -f1 -d"[" | sort | head -n 1 | sed -e 's/[[:space:]]*$//')
+
     if [ "$seq_file" = "" ]; then
 
-        kul_e2cl "  $identifier dicoms are NOT FOUND" $log
+        kul_e2cl "    $identifier dicoms are NOT FOUND" $log
         seq_found=0
 
     else
 
         seq_found=1
-        echo "  $identifier dicoms are in ${seq}, taking ${seq_file} for tags"
-
-        echo "  Untarring $dcm to $tmp"
-        mkdir -p ${tmp}/$subj
-        tar -C ${tmp}/$subj -xzf ${dcm} "${seq}"
+        kul_e2cl "    a relevant $identifier dicom is $(basename "${seq_file}") " $log
 
     fi
 
@@ -206,27 +232,31 @@ function kul_untar {
 # CHECK COMMAND LINE OPTIONS -------------
 # 
 # Set defaults
-silent=1
-tmp=/tmp
+sess=""
 
-# Set required options
+# Set flags
 subj_flag=0
+sess_flag=0
 dcm_flag=0
 conf_flag=0
 bids_flag=0
 tmp_flag=0
 events_flag=0
 
-if [ "$#" -lt 3 ]; then
+if [ "$#" -lt 4 ]; then
     Usage >&2
     exit 1
 
 else
 
-    while getopts "d:s:c:o:vet" OPT; do
+    while getopts "c:d:p:o:s:veth" OPT; do
 
         case $OPT in
-        s) #subject
+        d) #dicom_zip_file
+            dcm_flag=1
+            dcm=$OPTARG
+        ;;
+        p) #participant
             subj_flag=1
             subj=$OPTARG
         ;;
@@ -234,13 +264,13 @@ else
             conf_flag=1
             conf=$OPTARG
         ;;
-        d) #dicom_zip_file
-            dcm_flag=1
-            dcm=$OPTARG
-        ;;
         o) #bids output directory
             bids_flag=1
             bids_output=$OPTARG
+        ;;
+        s) #session
+            sess_flag=1
+            sess=$OPTARG
         ;;
         v) #verbose
             silent=0
@@ -309,37 +339,49 @@ if [ $bids_flag -eq 0 ] ; then
     exit 2 
 fi 
 
-# REST OF SETTINGS ---
+# INITIATE ---
 
-# timestamp
-start=$(date +%s)
-
-# Directory to write preprocessed data in
-preproc=${subj}_preproc
-
-# set up preprocessing & logdirectory
-mkdir -p ${preproc}/log
-
+# main log file naming
 d=$(date "+%Y-%m-%d_%H-%M-%S")
-log=${preproc}/log/log_${d}.txt
+log=$log_dir/${subj}_main_log_${d}.txt
 
+# file for initial dicom tags
+dump_file=$log_dir/${subj}_initial_dicom_info.txt
 
+# file with final dicom tags
+final_dcm_tags_file=$log_dir/${subj}_final_dicom_info.csv
+
+# location of bids_config_json_file
+bids_config_json_file=$log_dir/${subj}_bids_config.json
 
 # ----------- SAY HELLO ----------------------------------------------------------------------------------
 
-kul_e2cl "Welcome to KUL_dcm2bids $v - $d" $log
 
 if [ $silent -eq 0 ]; then
     echo "  The script you are running has basename `basename "$0"`, located in dirname $kul_main_dir"
     echo "  The present working directory is `pwd`"
 fi
 
-# dump the content of the zip file with dicoms
-kul_e2cl "  reading the compressed dicom file $dcm" $log
-tar -ztvf ${dcm} > ${preproc}/log/${subj}_dcm_content.txt
+# uncompress the zip file with dicoms
+kul_e2cl "  uncompressing the zip file $dcm to $tmp/$subj" $log
+mkdir -p ${tmp}/$subj
+#tar -C ${tmp}/$subj -xzf ${dcm}
+unzip -q -o ${dcm} -d ${tmp}/$subj
 
+# dump the dicom tags of all dicoms in a file
+kul_e2cl "  brute force extraction of some relevant dicom tags of all dicom files of subject $subj into file $dump_file" $log
 
-# we will untar the relevant bits of dicoms using the config file
+echo hello > $dump_file
+find ${tmp}/$subj -type f | 
+while IFS= read -r dcm_file; do
+    
+    dcm1=$(dcminfo "$dcm_file" -tag 0008 103E -tag 0008 0008 -tag 0008 0070 -nthreads 4 | tr -s '\n' ' ')
+    echo "$dcm_file" $dcm1 >> $dump_file
+
+done
+
+kul_e2cl "    done reading dicom tags of $dcm" $log
+
 # create empty bids description
 bids=""
 
@@ -348,20 +390,26 @@ while IFS=, read identifier search_string task mb pe_dir; do
     
     if [ $identifier = "T1w" ]; then 
         
-        kul_untar
+        kul_find_relevant_dicom_file
 
-        sub_bids=$(cat <<EOF
-        {
-        "dataType": "anat",
-        "suffix": "T1w",
-        "criteria": {
-            "in": {
-            "SeriesDescription": "${search_string}",
-            "ImageType": "ORIGINAL"
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids=$(cat <<EOF
+            {
+            "dataType": "anat",
+            "suffix": "T1w",
+            "criteria": {
+                "in": {
+                "SeriesDescription": "${search_string}",
+                "ImageType": "ORIGINAL"
+                    }
                 }
-            }
-        })
-        #echo $sub_bids
+            })
+
+        fi
 
         bids="$bids,$sub_bids"
 
@@ -369,20 +417,26 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
     if [ $identifier = "FLAIR" ]; then 
         
-        kul_untar
+        kul_find_relevant_dicom_file
 
-        sub_bids=$(cat <<EOF
-        {
-        "dataType": "anat",
-        "suffix": "FLAIR",
-        "criteria": {
-            "in": {
-            "SeriesDescription": "${search_string}",
-            "ImageType": "ORIGINAL"
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids=$(cat <<EOF
+            {
+            "dataType": "anat",
+            "suffix": "FLAIR",
+            "criteria": {
+                "in": {
+                "SeriesDescription": "${search_string}",
+                "ImageType": "ORIGINAL"
+                    }
                 }
-            }
-        })
-        #echo $sub_bids
+            })
+
+        fi    
 
         bids="$bids,$sub_bids"
 
@@ -390,12 +444,12 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
     if [ $identifier = "func" ]; then 
 
-        kul_untar
+        kul_find_relevant_dicom_file
 
         if [ $seq_found -eq 1 ]; then
 
             # read the relevant dicom tags
-            kul_dcmtags "${tmp}/$subj/${seq_file}"
+            kul_dcmtags "${seq_file}"
 
             sub_bids=$(cat <<EOF
             {
@@ -416,7 +470,6 @@ while IFS=, read identifier search_string task mb pe_dir; do
                 "SliceTiming": $slice_time
             }
             })
-            #echo $sub_bids
 
             bids="$bids,$sub_bids"
 
@@ -426,12 +479,12 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
     if [ $identifier = "dwi" ]; then 
 
-        kul_untar
+        kul_find_relevant_dicom_file
 
         if [ $seq_found -eq 1 ]; then
 
             # read the relevant dicom tags
-            kul_dcmtags "${tmp}/$subj/${seq_file}"
+            kul_dcmtags "${seq_file}"
 
             sub_bids=$(cat <<EOF
             {
@@ -470,17 +523,23 @@ bids_conf=$(cat <<EOF
 }
 EOF)
 
-echo $bids_conf  > ${preproc}/log/${subj}_bids_config.json 
+echo $bids_conf  > $bids_config_json_file 
 
 # invoke dcm2bids
-kul_e2cl "Calling dcm2bids..." $log
-dcm2bids  -d "${tmp}/$subj" -p $subj -c ${preproc}/log/${subj}_bids_config.json -o $bids_output
+kul_e2cl "  Calling dcm2bids..." $log
+if [ $sess_flag -eq 1 ]; then
+    dcm2bids_session=" -s ${sess} "
+else
+    dcm2bids_session=""
+fi
+
+dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file -o $bids_output
 rm -rf $bids_output/tmp_dcm2bids
 
 # copying task based events.tsv to BIDS directory
 if [ $events_flag -eq 1 ]; then
     kul_e2cl "Copying task based events.tsv to BIDS directory" $log
-    cp config/task-*_events.tsv $bids_output
+    cp Study_config/task-*_events.tsv $bids_output
 fi
 
 # clean up
