@@ -1,5 +1,5 @@
 # KUL_neuroimaging_tools
-Tools to analyse (resting/task-based) fMRI, diffusion & structural 3D-T1w MRI data
+Tools to analyse (resting/task-based) fMRI, diffusion & structural MRI data
 
 Project PI's: Stefan Sunaert
 
