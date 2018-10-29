@@ -366,7 +366,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
     # BIDS
     kul_e2cl " Preparing datasets from BIDS directory..." ${preproc}/${log}
     
-    bids_subj=BIDS/"sub-$subj"
+    bids_subj=BIDS/"sub-$subj"/ses-tp1/
 
     # convert raw T1w data, using -strides 1:3 to get orientation correct for FSL
     bids_t1w="$bids_subj/anat/sub-${subj}_T1w.nii.gz"
