@@ -45,7 +45,7 @@ Usage:
     BIDS_participant will be the anonymised participant name in the BIDS subfolder
     EAD  = an internal reference number
     dicom_zip_file = name of the zipfile containing all dicoms
-    config_file = description of sequences acquired (see KUL_dcm2bids)
+    config_file = description of the subjects (see above)
     session = e.g. tp01 (timepoint 1) in a longitudinal study with multiple timepoints
 
 Example:
@@ -191,7 +191,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
 
     else
     
-        if [ ! $silent -eq 0 ]; then
+        if [ $silent -eq 0 ]; then
 
             echo " Information about the config file:"
             echo "  BIDS_participant = $BIDS_participant"
@@ -204,6 +204,9 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
         
         # check if already converted
         bids_dir_to_check=${bids_output}/sub-${BIDS_participant}
+        
+        #echo $BIDS_participant
+        #echo $bids_dir_to_check
 
         if [ ! -d $bids_dir_to_check ]; then
 
@@ -225,3 +228,12 @@ if [ $events_flag -eq 1 ]; then
     kul_e2cl "Copying task based events.tsv to BIDS directory" $log
     cp Study_config/task-*_events.tsv $bids_output
 fi
+
+# make a full .cvs file with final dicom tag info of all subjects
+kul_e2cl "Making a full .cvs file with final dicom tag info of all subjects" $log
+csv_all_subjects=$log_dir/ALL_subjects_dicom_info.csv
+csv_single_subject=${preproc}/log/KUL_dcm2bids.sh/\*_final_dicom_info.csv
+#echo "cat $csv_single_subject > $csv_all_subjects"
+cat $csv_single_subject > $csv_all_subjects
+
+kul_e2cl "Finished $script" $log
