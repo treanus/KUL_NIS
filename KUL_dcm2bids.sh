@@ -354,6 +354,11 @@ final_dcm_tags_file=$log_dir/${subj}_final_dicom_info.csv
 # location of bids_config_json_file
 bids_config_json_file=$log_dir/${subj}_bids_config.json
 
+# remove previous existances to start fresh
+rm -f $dump_file
+rm -f $final_dcm_tags_file
+rm -f $bids_config_json_file
+
 # ----------- SAY HELLO ----------------------------------------------------------------------------------
 
 
@@ -372,15 +377,26 @@ unzip -q -o ${dcm} -d ${tmp}/$subj
 kul_e2cl "  brute force extraction of some relevant dicom tags of all dicom files of subject $subj into file $dump_file" $log
 
 echo hello > $dump_file
+
+task(){
+    dcm1=$(dcminfo "$dcm_file" -tag 0008 103E -tag 0008 0008 -tag 0008 0070 -nthreads 4 | tr -s '\n' ' ')
+    echo "$dcm_file" $dcm1 >> $dump_file
+}
+
+N=4
+(
 find ${tmp}/$subj -type f | 
 while IFS= read -r dcm_file; do
     
-    dcm1=$(dcminfo "$dcm_file" -tag 0008 103E -tag 0008 0008 -tag 0008 0070 -nthreads 4 | tr -s '\n' ' ')
-    echo "$dcm_file" $dcm1 >> $dump_file
+    ((i=i%N)); ((i++==0)) && wait
+    task &
 
 done
+)
+
 
 kul_e2cl "    done reading dicom tags of $dcm" $log
+wait
 
 # create empty bids description
 bids=""
@@ -409,9 +425,9 @@ while IFS=, read identifier search_string task mb pe_dir; do
                 }
             })
 
-        fi
-
         bids="$bids,$sub_bids"
+
+        fi
 
     fi
 
@@ -436,9 +452,9 @@ while IFS=, read identifier search_string task mb pe_dir; do
                 }
             })
 
-        fi    
-
         bids="$bids,$sub_bids"
+
+        fi     
 
     fi
 
@@ -545,4 +561,4 @@ fi
 # clean up
 rm -rf "${tmp}/$subj"
 
-kul_e2cl "Finished" $log
+kul_e2cl "Finished $script" $log

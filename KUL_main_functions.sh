@@ -50,7 +50,7 @@ if [ $mrtrix_version -lt $mrtrix_version_needed ]; then
 fi
 
 # check version of dcm2niix
-dcm2niix_version=$(dcm2niix | head -n 1 | cut -d'.' -f 3 | cut -c -8)
+dcm2niix_version=$(dcm2niix | grep version | cut -d'.' -f 3 | cut -c -8)
 if [ $dcm2niix_version -lt $dcm2niix_version_needed ]; then
 
     echo "Your version of dcm2nixx is $dcm2niix_version"

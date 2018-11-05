@@ -26,7 +26,7 @@ v="v0.1 - dd 11/10/2018"
 # A few fixed (for now) parameters:
 
     # Specify additional options for FSL eddy
-    eddy_options="--slm=linear --repol "
+    eddy_options="--data_is_shelled --slm=linear --repol "
 
     # Number of desired streamlines
     nods=2000
@@ -379,29 +379,47 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
     # convert dwi
     bids_dwi_search="$bids_subj/dwi/sub-*_dwi.nii.gz"
 
-    dwi_i=1
-    for dwi_file in $(ls $bids_dwi_search); do
-        dwi_base=${dwi_file%%.*}
-        echo $dwi_base
+    bids_dwi_found=$(ls $bids_dwi_search)
+    echo $bids_dwi_found
+    
+    number_of_bids_dwi_found=$(echo $bids_dwi_found | wc -w)
+
+    if [ $number_of_bids_dwi_found -eq 1 ]; then
+
+        kul_e2cl "   only 1 dwi dataset, scaling not necessary" ${preproc}/${log}
+        dwi_base=${bids_dwi_found%%.*}
+        mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
+        -json_import ${dwi_base}.json ${preproc}/dwi_orig.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu 
+
+    else 
         
-        mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval -json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu
-
-        dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
+        kul_e2cl "   found $number_of_bids_dwi_found dwi datasets, scaling & catting" ${preproc}/${log}
         
-        # read the median b0 values
-        scale[dwi_i]=$(mrstats ${raw}/b0s_p1.mif -mask `dwi2mask ${raw}/dwi_p${dwi_i}.mif - -quiet` -output median)
-        kul_e2cl "   dataset p${dwi_i} has ${scale[dwi_i]} as mean b0 intensity$" ${preproc}/${log}
+        dwi_i=1
+        for dwi_file in $bids_dwi_found; do
+            dwi_base=${dwi_file%%.*}
+            echo $dwi_base
+        
+            mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
+            -json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu
 
+            dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
+        
+            # read the median b0 values
+            scale[dwi_i]=$(mrstats ${raw}/b0s_p1.mif -mask `dwi2mask ${raw}/dwi_p${dwi_i}.mif - -quiet` -output median)
+            kul_e2cl "   dataset p${dwi_i} has ${scale[dwi_i]} as mean b0 intensity$" ${preproc}/${log}
 
-        echo "scaling ${raw}/dwi_p${dwi_i}_scaled.mif"
-        mrcalc -quiet ${scale[1]} ${scale[dwi_i]} -divide ${raw}/dwi_p${dwi_i}.mif -mult ${raw}/dwi_p${dwi_i}_scaled.mif -force
+            echo "scaling ${raw}/dwi_p${dwi_i}_scaled.mif"
+            mrcalc -quiet ${scale[1]} ${scale[dwi_i]} -divide ${raw}/dwi_p${dwi_i}.mif -mult ${raw}/dwi_p${dwi_i}_scaled.mif -force
 
-        ((dwi_i++))
+            ((dwi_i++))
 
-    done 
+        done 
 
-    echo "catting dwi_orig"
-    mrcat ${raw}/dwi_p*_scaled.mif ${preproc}/dwi_orig.mif
+        echo "catting dwi_orig"
+        mrcat ${raw}/dwi_p*_scaled.mif ${preproc}/dwi_orig.mif
+
+    fi
 
     fi
 
@@ -410,7 +428,6 @@ else
     echo " Conversion has been done already... skipping to next step"
 
 fi
-
 
 
 # STEP 2 - DWI Preprocessing ---------------------------------------------
@@ -440,7 +457,7 @@ if [ ! -f dwi/geomcorr.mif ]; then
     # motion and distortion correction using rpe_header
     kul_e2cl "   dwipreproc using rpe_header (this takes time!)..." ${log}
     dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -nthreads $ncpu -eddy_options "${eddy_options}" 
-    rm dwi/degibbs.mif
+    #rm dwi/degibbs.mif
 
 fi
 
@@ -465,12 +482,14 @@ if [ ! -f dwi_preproced.mif ]; then
 
     # create mask of the dwi data (note masking works best on low b-shells, if high b-shells are noisy)
     kul_e2cl "    create mask of the dwi data (note masking works best on low b-shells, if high b-shells are noisy)..." ${log}
-    dwiextract -shells 0,200,500,1200 dwi_preproced.mif - | dwi2mask - dwi_mask.nii.gz -nthreads $ncpu -force 
+    #dwiextract -shells 0,200,500,1200 dwi_preproced.mif - | dwi2mask - dwi_mask.nii.gz -nthreads $ncpu -force 
+    dwiextract -shells 0,2400 dwi_preproced.mif - | dwi2mask - dwi_mask.nii.gz -nthreads $ncpu -force
 
     # create 2nd mask of the dwi data (using ants)
-    kul_e2cl "    create 2nd mask of the dwi data (using ants)..." ${log}
-    dwiextract -quiet dwi_preproced.mif -bzero - | mrmath -axis 3 - mean dwi_b0.nii.gz -force 
-    antsBrainExtraction.sh -d 3 -a dwi_b0.nii.gz -e ../T2_template_and_tpms/mni_icbm152_t2_tal_nlin_asym_09a.nii -m ../T2_template_and_tpms/mni_icbm152_t2_tal_nlin_asym_09a_mask.nii -o ./dwi_mask2_ -s nii.gz -u 1
+    #kul_e2cl "    create 2nd mask of the dwi data (using ants)..." ${log}
+    #dwiextract -quiet dwi_preproced.mif -bzero - | mrmath -axis 3 - mean dwi_b0.nii.gz -force 
+    #antsBrainExtraction.sh -d 3 -a dwi_b0.nii.gz -e ../T2_template_and_tpms/mni_icbm152_t2_tal_nlin_asym_09a.nii \
+    #    -m ../T2_template_and_tpms/mni_icbm152_t2_tal_nlin_asym_09a_mask.nii -o ./dwi_mask2_ -s nii.gz -u 1
 
 else
 
@@ -495,7 +514,8 @@ fi
 
 if [ ! -f response/wmfod.mif ]; then
     kul_e2cl "   Calculating dwi2fod..." ${log}
-    dwi2fod msmt_csd dwi_preproced.mif response/wm_response.txt response/wmfod.mif response/gm_response.txt response/gm.mif             response/csf_response.txt response/csf.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu 
+    dwi2fod msmt_csd dwi_preproced.mif response/wm_response.txt response/wmfod.mif response/gm_response.txt response/gm.mif \
+        response/csf_response.txt response/csf.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu 
 
 else
 
@@ -512,8 +532,10 @@ if [ ! -f qa/dec.mif ]; then
     tensor2metric dwi_dt.mif -fa qa/fa.nii.gz -mask dwi_mask.nii.gz -force
     fod2dec response/wmfod.mif qa/dec.mif -force
     #fod2dec response/wmfod.mif qa/dec_t1w.mif -contrast T1w_brain_reg2_b0_HR.nii.gz -force
-fi
 
+    mrconvert dwi/noiselevel.mif qa/noiselevel.nii.gz
+
+fi
 
 
 # STEP 4 - Anatomical Processing ---------------------------------------------
@@ -532,6 +554,11 @@ else
 
 fi
 
+
+
+
+
+if 0; then 
 # register betted T1w to mean b0 (rigid)
 if [ ! -f T1w/T1w_brain_reg2_b0_deformed.nii.gz ]; then
 
@@ -584,7 +611,7 @@ else
     echo " warping the T1w to MNI (1 mm) space already done, skipping..."
 
 fi
-
+fi
 
 # freesurfer
 mkdir -p freesurfer
