@@ -365,7 +365,8 @@ fi
 # uncompress the zip file with dicoms
 kul_e2cl "  uncompressing the zip file $dcm to $tmp/$subj" $log
 mkdir -p ${tmp}/$subj
-tar -C ${tmp}/$subj -xzf ${dcm}
+#tar -C ${tmp}/$subj -xzf ${dcm}
+unzip -q -o ${dcm} -d ${tmp}/$subj
 
 # dump the dicom tags of all dicoms in a file
 kul_e2cl "  brute force extraction of some relevant dicom tags of all dicom files of subject $subj into file $dump_file" $log

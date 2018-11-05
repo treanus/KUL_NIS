@@ -5,6 +5,9 @@
 #  - execute startup
 #
 
+mrtrix_version_needed=100
+dcm2niix_version_needed=20180622
+
 # -- function kul_e2cl to echo to console & log file with matlab tic/toc behavior ---
 function kul_e2cl {
 
@@ -36,9 +39,25 @@ function kul_e2cl {
 
 }
 
+# check version of mrtrix3
+mrtrix_version=$(mrconvert -version | head -n 1 | cut -d'-' -f 2)
+if [ $mrtrix_version -lt $mrtrix_version_needed ]; then
 
+    echo "Your mrtrix3 RC3 subversion is $dcm2niix_version"
+    echo "You need mrtrix3 RC3 subversion => $mrtrix_version_need"
+    exit 2
 
+fi
 
+# check version of dcm2niix
+dcm2niix_version=$(dcm2niix | head -n 1 | cut -d'.' -f 3 | cut -c -8)
+if [ $dcm2niix_version -lt $dcm2niix_version_needed ]; then
+
+    echo "Your version of dcm2nixx is $dcm2niix_version"
+    echo "You need dcm2nixx version more recent than $dcm2niix_version_needed"
+    exit 2
+
+fi
 
 # -- Set global defaults --
 
