@@ -7,6 +7,8 @@
 
 mrtrix_version_needed=100
 dcm2niix_version_needed=20180622
+log_every_seconds=120
+
 
 # -- function kul_e2cl to echo to console & log file with matlab tic/toc behavior ---
 function kul_e2cl {
@@ -28,7 +30,7 @@ function kul_e2cl {
     elapsed_m=$(echo "scale=2; $elapsed_s/60" | bc) # use bc to get it in float minutes
     diff_s=$(($elapsed_s-$old_elapsed_s))
     diff_m=$(echo "scale=2; $diff_s/60" | bc) # use bc to get it in float minutes
-    if [ "$diff_s" -gt 1 ]; then
+    if [ "$diff_s" -gt $log_every_seconds ]; then
         echo "          computation took ${diff_m} minutes ${b}(since start: ${elapsed_m} minutes)${n}"
         echo "          computation took ${diff_m} minutes (since start: ${elapsed_m})" >> $2
     fi
