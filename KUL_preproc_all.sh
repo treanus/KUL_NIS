@@ -12,7 +12,8 @@ v="v0.1 - dd 06/11/2018"
 #  - make it work for multiple vendors
 #  - wrap around for multiple subjects
 
-
+ncpu=6
+mem_mb=15000
 
 # -----------------------------------  MAIN  ---------------------------------------------
 # this script defines a few functions:
@@ -65,10 +66,10 @@ USAGE
 # CHECK COMMAND LINE OPTIONS -------------
 # 
 # Set defaults
-#silent=1
+silent=1
 tmp=/tmp
-ncpu=18
-mem_mb=32768
+#ncpu=18
+#mem_mb=32768
 
 # Set flags
 conf_flag=0
@@ -182,7 +183,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
 
         if [ ! -d $mriqc_dir_to_check ]; then
 
-            kul_e2cl "Performing mriqc on participant $BIDS_participant" $log
+            kul_e2cl " Performing mriqc on participant $BIDS_participant" $log
             docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
             -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
             poldracklab/mriqc:latest \
@@ -192,7 +193,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
         
         else
         
-            kul_e2cl "mriqc of participant $BIDS_participant already done, skipping..." $log
+            kul_e2cl " mriqc of participant $BIDS_participant already done, skipping..." $log
 
         fi
 
@@ -200,13 +201,27 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
 
 done < $conf
 
+
+
 kul_e2cl "Performing mriqc group summary" $log
-docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
+
+# check if already performed group mriqc
+mriqc_file_to_check=mriqc/group_bold.html
+        
+#echo $mriqc_file_to_check
+
+if [ ! -f $mriqc_file_to_check ]; then
+    
+    docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
             -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
             poldracklab/mriqc:latest \
             /data /out group
 
+else
 
+    kul_e2cl " group mriqc already done, skipping..." $log
+
+fi
 
 
 
@@ -231,7 +246,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
 
             docker run --rm \
                 -v ${cwd}/${bids_dir}:/data:delegated \
-                -v ${cwd}:/out:delegated \
+                -v ${cwd}/fmriprep:/out:delegated \
                 -v ${cwd}/fmriprep_work:/scratch:delegated \
                 -v /Users/xm52195/apps/Freesurfer_License/license.txt:/opt/freesurfer/license.txt \
                 poldracklab/fmriprep:latest \
@@ -241,6 +256,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
                 --mem_mb $mem_mb \
                 --notrack \
                 --stop-on-first-crash \
+                --anat-only \
                 /data /out \
                 participant
 
