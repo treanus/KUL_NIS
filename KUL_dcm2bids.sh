@@ -354,6 +354,9 @@ final_dcm_tags_file=$log_dir/${subj}_final_dicom_info.csv
 # location of bids_config_json_file
 bids_config_json_file=$log_dir/${subj}_bids_config.json
 
+# location of dcm2niix_log_file
+dcm2niix_log_file=$log_dir/${subj}_dcm2niix_log_file.txt
+
 # remove previous existances to start fresh
 rm -f $dump_file
 rm -f $final_dcm_tags_file
@@ -542,14 +545,17 @@ EOF)
 echo $bids_conf  > $bids_config_json_file 
 
 # invoke dcm2bids
-kul_e2cl "  Calling dcm2bids..." $log
+kul_e2cl "  Calling dcm2bids... (for the output see $dcm2niix_log_file)" $log
 if [ $sess_flag -eq 1 ]; then
     dcm2bids_session=" -s ${sess} "
 else
     dcm2bids_session=""
 fi
 
-dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file -o $bids_output
+dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file \
+    -o $bids_output > $dcm2niix_log_file
+
+
 rm -rf $bids_output/tmp_dcm2bids
 
 # copying task based events.tsv to BIDS directory

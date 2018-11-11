@@ -215,7 +215,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
         
         else
         
-            kul_e2cl "BIDS conversion of participant $BIDS_participant already done, skipping..." $log
+            echo " BIDS conversion of participant $BIDS_participant already done, skipping..."
 
         fi
 
@@ -225,12 +225,12 @@ done < $conf
 
 # copying task based events.tsv to BIDS directory
 if [ $events_flag -eq 1 ]; then
-    kul_e2cl "Copying task based events.tsv to BIDS directory" $log
+    kul_e2cl " Copying task based events.tsv to BIDS directory" $log
     cp Study_config/task-*_events.tsv $bids_output
 fi
 
 # make a full .cvs file with final dicom tag info of all subjects
-kul_e2cl "Making a full .cvs file with final dicom tag info of all subjects" $log
+kul_e2cl " Making a full .cvs file with final dicom tag info of all subjects" $log
 csv_all_subjects=$log_dir/ALL_subjects_dicom_info.csv
 csv_single_subject=${preproc}/log/KUL_dcm2bids.sh/\*_final_dicom_info.csv
 #echo "cat $csv_single_subject > $csv_all_subjects"

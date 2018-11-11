@@ -8,12 +8,12 @@
 # v0.1 - dd 06/11/2018 - alpha version
 v="v0.1 - dd 06/11/2018"
 
-# TODO
-#  - make it work for multiple vendors
-#  - wrap around for multiple subjects
+# task mriqc
+do_mriqc=1
 
-ncpu=6
-mem_mb=15000
+# task fmriprep
+do_fmriprep=1 
+
 
 # -----------------------------------  MAIN  ---------------------------------------------
 # this script defines a few functions:
@@ -38,25 +38,164 @@ cat <<USAGE
 
 Usage:
 
-  `basename $0` -c config_file -o bids_dir
+  `basename $0` -c config_file -o bids_dir -p ncpu
 
 Example:
 
-  `basename $0` -c definitions_of_sequences.txt -o BIDS -t /scratch
+  `basename $0` -c definitions.txt -o BIDS -p 6 -m 12 -t /scratch
+    
+    outputs and works on directory BIDS
+    uses 6 cores & memory of 12 GB (set you docker prefences appropriately)
+    temporary data are written to /scratch
 
 Required arguments:
 
      -c:  description of the subjects (see KUL_multisubjects_dcm2bids)
      -o:  bids directory
+     -p:  number of cores to use 
 
 
 Optional arguments:
     
-    -t:  temporary directory (default = /tmp)
+     -m:  max available memomry (in gigabytes) available in docker
+     -t:  temporary directory (default = /tmp)
 
 USAGE
 
     exit 1
+}
+
+
+function task_mriqc_participant {
+
+# check if already performed mriqc
+mriqc_dir_to_check=mriqc/sub-${BIDS_participant}
+
+if [ ! -d $mriqc_dir_to_check ]; then
+
+    mriqc_log=${preproc}/log/mriqc/${BIDS_participant}.txt
+
+    kul_e2cl " Performing mriqc on participant $BIDS_participant (using $ncpu_mriqc cores, logging to $mriqc_log)" $log
+
+    docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
+        -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
+        poldracklab/mriqc:latest \
+        --participant_label $BIDS_participant \
+        --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
+        /data /out participant \
+        > $mriqc_log 2>&1 
+
+    kul_e2cl "   done mriqc on participant $BIDS_participant" $log
+
+else
+        
+    echo " mriqc of participant $BIDS_participant already done, skipping..."
+
+fi
+
+}
+
+
+
+function task_fmriprep {
+
+# check if already performed fmriprep
+fmriprep_file_to_check=fmriprep/fmriprep/sub-${BIDS_participant}.html
+
+if [ ! -f $fmriprep_file_to_check ]; then
+
+    fmriprep_log=${preproc}/log/fmriprep/${BIDS_participant}.txt
+
+    kul_e2cl " performing fmriprep on subject ${BIDS_participant}... (using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
+
+    docker run --rm \
+        -v ${cwd}/${bids_dir}:/data \
+        -v ${cwd}/fmriprep:/out \
+        -v ${cwd}/fmriprep_work:/scratch \
+        -v /Users/xm52195/apps/Freesurfer_License/license.txt:/opt/freesurfer/license.txt \
+        poldracklab/fmriprep:latest \
+        --participant_label ${BIDS_participant} \
+        -w /scratch \
+        --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
+        --mem_mb $mem_mb \
+        --low-mem \
+        --notrack \
+        --stop-on-first-crash \
+        --fs-no-reconall  \
+        /data /out \
+        participant \
+        > $fmriprep_log 2>&1 
+
+    rm -fr ${cwd}/fmriprep_work
+
+    kul_e2cl "   done fmriprep on participant $BIDS_participant" $log
+
+else
+        
+    echo " fmriprep of participant $BIDS_participant already done, skipping..."
+
+fi
+
+}
+
+
+function task_freesurfer {
+
+# check if already performed freesurfer
+freesurfer_file_to_check=freesurfer/sub-${BIDS_participant}/${BIDS_participant}/scripts/recon-all.done
+        
+if [ ! -f  $freesurfer_file_to_check ]; then
+
+    freesurfer_log=${preproc}/log/freesurfer/${BIDS_participant}.txt
+
+    kul_e2cl " performing freesurfer recon-all on subject ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
+
+    bids_subj=${bids_dir}/sub-${BIDS_participant}/ses-tp1
+    bids_anat=$(ls ${bids_subj}/anat/*_T1w.nii.gz)
+    #echo $bids_anat
+
+    SUBJECTS_DIR=${cwd}/freesurfer/sub-${BIDS_participant}
+
+    #start clean
+    rm -rf $SUBJECTS_DIR
+    mkdir -p $SUBJECTS_DIR
+    export SUBJECTS_DIR
+
+    recon-all -subject $BIDS_participant -i $bids_anat -all -openmp $ncpu_freesurfer -parallel \
+        > $freesurfer_log 2>&1 
+
+    kul_e2cl "   done freesufer on participant $BIDS_participant" $log
+
+else
+
+    echo " freesurfer of subjet $BIDS_participant already done, skipping..."
+        
+fi
+
+}
+
+function task_KUL_dwiprep {
+
+# check if already performed KUL_dwiprep
+dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/dwi_preproced.mif
+
+if [ ! -f  $dwiprep_file_to_check ]; then
+
+    dwiprep_log=${preproc}/log/dwiprep/${BIDS_participant}.txt
+
+    kul_e2cl " performing KUL_dwiprep on subject ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $dwiprep_log)" ${log}
+
+    KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -v \
+        > $dwiprep_log 2>&1 
+
+    kul_e2cl "   done KUL_dwiprep on participant $BIDS_participant" $log
+
+else
+
+    echo " KUL_dwiprep of subjet $BIDS_participant already done, skipping..."
+        
+fi
+
 }
 
 # END LOCAL FUNCTIONS --------------
@@ -67,14 +206,15 @@ USAGE
 # 
 # Set defaults
 silent=1
+mem_gb=16
 tmp=/tmp
-#ncpu=18
-#mem_mb=32768
 
 # Set flags
 conf_flag=0
 bids_flag=0
 tmp_flag=0
+cpu_flag=0
+mem_flag=0
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -82,7 +222,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "c:o:" OPT; do
+    while getopts "c:o:p:m:t" OPT; do
 
         case $OPT in
         c) #config_file
@@ -92,6 +232,14 @@ else
         o) #bids_dir
             bids_flag=1
             bids_dir=$OPTARG
+        ;;
+        p) #ncpu
+            cpu_flag=1
+            ncpu=$OPTARG
+        ;;
+        m) #bids_dir
+            mem_flag=1
+            mem_gb=$OPTARG
         ;;
         t) #temporary directory
             tmp_flag=1
@@ -140,6 +288,14 @@ if [ $bids_flag -eq 0 ] ; then
     exit 2 
 fi 
 
+if [ $cpu_flag -eq 0 ] ; then 
+    echo 
+    echo "Option -p is required: give the number of cpu's to use" >&2
+    echo
+    exit 2 
+fi 
+
+
 # INITIATE ---
 
 
@@ -151,21 +307,50 @@ if [ $silent -eq 0 ]; then
     echo "  The present working directory is `pwd`"
 fi
 
-echo " reading $conf"
+# set mem_mb for mriqc
+gb=1024
+mem_mb=$(echo $mem_gb $gb | awk '{print $1 * $2 }')
+
+# We will be running 4 preprocessings in parallel: mriqc, fmriprep, freesurfer & KUL_dwiprep
+# We need to do some load balancing
+# set number of cores for task mriqc
+load_mriqc=40 # higher number means less cpu need (mriqc does not need much)
+ncpu_mriqc=$(((($ncpu/$load_mriqc))+1))
+ncpu_mriqc_ants=$(((($ncpu/$load_mriqc))+1))
+
+# set number of cores for task fmriprep
+load_fmriprep=6
+ncpu_fmriprep=$(((($ncpu/$load_fmriprep))+1))
+ncpu_fmriprep_ants=$(((($ncpu/$load_fmriprep))+1))
+
+# set number of cores for task freesurfer
+load_freesurfer=1
+ncpu_freesurfer=$(((($ncpu/$load_freesurfer))+1))
+
+# set number of cores for task KUL_dwiprep
+load_dwiprep=2
+ncpu_dwiprep=$(((($ncpu/$load_dwiprep))+1))
 
 
-#docker system prune -a
+# Ask if docker needs to be reset
+docker system prune -a
 
 
-# ----------- STEP 1 ---
+# ----------- STEP 1 - CONVERT TO BIDS ---
 kul_e2cl "Performing KUL_multisubjects_dcm2bids... " $log
-KUL_multisubjects_dcm2bids.sh -d DICOM -c $conf -o $bids_dir -e -v
+KUL_multisubjects_dcm2bids.sh -d DICOM -c $conf -o $bids_dir -e
 
 
+# ----------- STEP 2 - PREPROC ALL ---
+# set up directories and clean
+mkdir -p ${preproc}/log/mriqc
+mkdir -p ${preproc}/log/fmriprep
+rm -fr ${cwd}/fmriprep_work
+mkdir -p freesurfer
+mkdir -p ${preproc}/log/freesurfer
+mkdir -p ${preproc}/log/dwiprep
 
 
-# ----------- STEP 2 ---
-kul_e2cl "Performing multisubject mriqc... " $log
 # we read the config file (and it may be csv, tsv or ;-seperated)
 while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session comment; do
     
@@ -175,27 +360,19 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
         echo "first line" > /dev/null 2>&1
 
     else
-        
-        # check if already performed mriqc
-        mriqc_dir_to_check=mriqc/sub-${BIDS_participant}
-        
-        #echo $mriqc_dir_to_check
 
-        if [ ! -d $mriqc_dir_to_check ]; then
+    kul_e2cl "Performing preprocessing of subject $BIDS_participant... " $log
 
-            kul_e2cl " Performing mriqc on participant $BIDS_participant" $log
-            docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
-            -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
-            poldracklab/mriqc:latest \
-            --participant_label $BIDS_participant \
-            --n_procs $ncpu --ants-nthreads $ncpu --no-sub \
-            /data /out participant 
-        
-        else
-        
-            kul_e2cl " mriqc of participant $BIDS_participant already done, skipping..." $log
+    task_mriqc_participant &
+    echo " mriqc pid is $!"
+    task_fmriprep &
+    echo " fmriprep pid is $!"
+    task_freesurfer &
+    echo " freesurfer pid is $!"
+    task_KUL_dwiprep &
+    echo " KUL_dwiprep pid is $!"
 
-        fi
+    wait
 
     fi
 
@@ -203,94 +380,33 @@ done < $conf
 
 
 
-kul_e2cl "Performing mriqc group summary" $log
+kul_e2cl "Finished all... " $log
 
-# check if already performed group mriqc
-mriqc_file_to_check=mriqc/group_bold.html
-        
-#echo $mriqc_file_to_check
 
-if [ ! -f $mriqc_file_to_check ]; then
+exit 1
+
+
+    kul_e2cl "Performing mriqc group summary" $log
+
+    # check if already performed group mriqc
+    mriqc_file_to_check=mriqc/group_bold.html
+
+    if [ ! -f $mriqc_file_to_check ]; then
     
-    docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
+        docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
             -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
             poldracklab/mriqc:latest \
             /data /out group
 
-else
-
-    kul_e2cl " group mriqc already done, skipping..." $log
-
-fi
-
-
-
-# ----------- STEP 3 ---
-kul_e2cl "Performing multisubject fmriprep... " $log
-# we read the config file (and it may be csv, tsv or ;-seperated)
-while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session comment; do
-    
-    
-    if [ "$dicom_zip" = "dicom_zip" ]; then
-        
-        echo "first line" > /dev/null 2>&1
-
     else
-        
-        # check if already performed fmriprep
-        fmriprep_dir_to_check=fmriprep/sub-${BIDS_participant}
-        
-        #echo $fmriprep_dir_to_check
 
-        if [ ! -d $fmriprep_dir_to_check ]; then
-
-            docker run --rm \
-                -v ${cwd}/${bids_dir}:/data:delegated \
-                -v ${cwd}/fmriprep:/out:delegated \
-                -v ${cwd}/fmriprep_work:/scratch:delegated \
-                -v /Users/xm52195/apps/Freesurfer_License/license.txt:/opt/freesurfer/license.txt \
-                poldracklab/fmriprep:latest \
-                --participant_label ${BIDS_participant} \
-                -w /scratch \
-                --nthreads $ncpu --omp-nthreads $ncpu \
-                --mem_mb $mem_mb \
-                --notrack \
-                --stop-on-first-crash \
-                --anat-only \
-                /data /out \
-                participant
-
-        rm -fr -v ${cwd}/fmriprep_work
-        
-        else
-        
-            kul_e2cl "fmriprep of participant $BIDS_participant already done, skipping..." $log
-
-        fi
+        kul_e2cl " group mriqc already done, skipping..." $log
 
     fi
 
-done < $conf
+
+#if [ $do_mriqc -eq 1 ]; then
+#fi
 
 
-STOP 
 
-
-docker run --rm \
-    -v /Users/xm52195/Dropbox/MIND2_T1/BIDS:/data:delegated \
-    -v /Users/xm52195/Dropbox/MIND2_T1/fmriprep:/out:delegated \
-    -v /Users/xm52195/Dropbox/MIND2_T1/fmriprep_work:/scratch:delegated \
-    -v /Users/xm52195/apps/Freesurfer_License/license.txt:/opt/freesurfer/license.txt \
-    poldracklab/fmriprep:latest \
-    --participant_label P001 \
-    -w /scratch \
-    --nthreads 12 --omp-nthreads 6 \
-    --mem_mb 32768 \
-    --fs-no-reconall --notrack \
-    --stop-on-first-crash \
-    /data /out \
-    participant
-
-#docker run -it --read-only --tmpfs /run --tmpfs /tmp --rm -v /Users/xm52195/Dropbox/MIND2_T1/BIDS:/data:ro -v /Users/xm52195/Dropbox/MIND2_T1/mriqc:/out poldracklab/mriqc:latest --participant_label P002 P003 P004 P005 P006 P007 --no-sub /data /out participant 
-
-#--n_procs 28 --ants-nthreads 28 --mem_gb 46 
