@@ -254,9 +254,15 @@ if [ ! -f dwi/geomcorr.mif ]; then
     # motion and distortion correction using rpe_header
     kul_e2cl "   dwipreproc using rpe_header (this takes time!)..." ${log}
 
-    STOP
+    dwiextract dwi_orig.mif -bzero - | dwiextract - -pe 0,1,0 raw/b0s_pe1.mif -force
+    dwiextract dwi_orig.mif -bzero - | dwiextract - -pe 0,-1,0 raw/b0s_pe2.mif -force
+    mrconvert raw/b0s_pe1.mif -coord 3 1:2 raw/b0s_pe1_first2.mif -force
+    mrconvert raw/b0s_pe2.mif -coord 3 1:2 raw/b0s_pe2_first2.mif -force
+    mrcat raw/b0s_pe1_first2.mif raw/b0s_pe2_first2.mif raw/se_epi_for_topup.mif -force
 
-    dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -nthreads $ncpu -eddy_options "${eddy_options}" 
+    dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
+    -se_epi raw/se_epi_for_topup.mif -nthreads $ncpu -eddy_options "${eddy_options}" 
+    
     #rm dwi/degibbs.mif
 
 fi

@@ -177,7 +177,7 @@ fi
 function task_KUL_dwiprep {
 
 # check if already performed KUL_dwiprep
-dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/dwi_preproced.mif
+dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/qa/dec_reg2T1w_on_t1w.mif
 
 if [ ! -f  $dwiprep_file_to_check ]; then
 
@@ -186,7 +186,7 @@ if [ ! -f  $dwiprep_file_to_check ]; then
     kul_e2cl " performing KUL_dwiprep on subject ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $dwiprep_log)" ${log}
 
     KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -v \
-        > $dwiprep_log 2>&1 
+        #> $dwiprep_log 2>&1 
 
     kul_e2cl "   done KUL_dwiprep on participant $BIDS_participant" $log
 
@@ -314,7 +314,7 @@ mem_mb=$(echo $mem_gb $gb | awk '{print $1 * $2 }')
 # We will be running 4 preprocessings in parallel: mriqc, fmriprep, freesurfer & KUL_dwiprep
 # We need to do some load balancing
 # set number of cores for task mriqc
-load_mriqc=40 # higher number means less cpu need (mriqc does not need much)
+load_mriqc=33 # higher number means less cpu need (mriqc does not need much)
 ncpu_mriqc=$(((($ncpu/$load_mriqc))+1))
 ncpu_mriqc_ants=$(((($ncpu/$load_mriqc))+1))
 
@@ -324,11 +324,11 @@ ncpu_fmriprep=$(((($ncpu/$load_fmriprep))+1))
 ncpu_fmriprep_ants=$(((($ncpu/$load_fmriprep))+1))
 
 # set number of cores for task freesurfer
-load_freesurfer=1
+load_freesurfer=3
 ncpu_freesurfer=$(((($ncpu/$load_freesurfer))+1))
 
 # set number of cores for task KUL_dwiprep
-load_dwiprep=2
+load_dwiprep=3
 ncpu_dwiprep=$(((($ncpu/$load_dwiprep))+1))
 
 
