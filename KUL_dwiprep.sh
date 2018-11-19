@@ -41,7 +41,7 @@ function Usage {
 
 cat <<USAGE
 
-`basename $0` performs dMRI segmentation of the Dentato-rubro-thalamic tract in thalamus for DBS target selection.
+`basename $0` performs dMRI preprocessing.
 
 Usage:
 
@@ -371,12 +371,11 @@ else
 
 fi
 
-#mrresize -voxel 2 T1w/T1w_BrainExtractionBrain.nii.gz T1w/T1w_BrainExtractionBrain_LR.nii.gz -force
+# register mean b0 to betted T1w (rigid)
 ants_b0=dwi_b0.nii.gz
 ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
 ants_type=dwi_reg/rigid
 
-# register mean b0 to betted T1w (rigid)
 if [ ! -f dwi_reg/rigid_outWarped.nii.gz ]; then
 
     kul_e2cl " registering the the dmri b0 to the betted T1w image (rigid)..." ${log}
@@ -395,9 +394,10 @@ else
 
 fi
 
-ants_type=dwi_reg/affine
 
 # register mean b0 to betted T1w (affine)
+ants_type=dwi_reg/affine
+
 if [ ! -f dwi_reg/affine_outWarped.nii.gz ]; then
 
     kul_e2cl " registering the the dmri b0 to the betted T1w image (affine)..." ${log}
@@ -421,18 +421,19 @@ fi
 
 # Apply the rigid transformation of the dMRI to T1 
 #  to the wmfod and the preprocessed dMRI data
+if [ ! -f response/wmfod_reg2T1w.mif ]; then
 
-ConvertTransformFile 3 dwi_reg/rigid_out0GenericAffine.mat dwi_reg/rigid_out0GenericAffine.txt
+    ConvertTransformFile 3 dwi_reg/rigid_out0GenericAffine.mat dwi_reg/rigid_out0GenericAffine.txt
 
-transformconvert dwi_reg/rigid_out0GenericAffine.txt itk_import \
-    dwi_reg/rigid_out0GenericAffine_mrtrix.txt -force
+    transformconvert dwi_reg/rigid_out0GenericAffine.txt itk_import \
+        dwi_reg/rigid_out0GenericAffine_mrtrix.txt -force
 
-mrtransform dwi_preproced.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-    dwi_preproced_reg2T1w.mif -nthreads $ncpu -force 
-mrtransform response/wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-    response/wmfod_reg2T1w.mif -nthreads $ncpu -force 
+    mrtransform dwi_preproced.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+        dwi_preproced_reg2T1w.mif -nthreads $ncpu -force 
+    mrtransform response/wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+        response/wmfod_reg2T1w.mif -nthreads $ncpu -force 
 
-
+fi
 
 # DO QA ---------------------------------------------
 # Make an FA/dec image
@@ -448,8 +449,9 @@ if [ ! -f qa/dec_reg2T1w.mif ]; then
 
 fi
 
+
 kul_e2cl "Finished " ${log}
-exit 1
+exit 0
 
 OLD-CODE:
 ants_type=dwi_reg/syn
@@ -480,6 +482,7 @@ else
 
 fi
 
+# computing and writing 
 warpinit $mrtransform_file dwi_reg/identity_warp[].nii -force
 
 for i in {0..2}; do
