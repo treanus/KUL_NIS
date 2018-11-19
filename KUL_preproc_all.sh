@@ -85,6 +85,8 @@ if [ ! -d $mriqc_dir_to_check ]; then
         /data /out participant \
         > $mriqc_log 2>&1 
 
+    sleep 5
+
     kul_e2cl "   done mriqc on participant $BIDS_participant" $log
 
 else
@@ -128,6 +130,8 @@ if [ ! -f $fmriprep_file_to_check ]; then
 
     rm -fr ${cwd}/fmriprep_work
 
+    sleep 5
+    
     kul_e2cl "   done fmriprep on participant $BIDS_participant" $log
 
 else
@@ -164,6 +168,8 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     recon-all -subject $BIDS_participant -i $bids_anat -all -openmp $ncpu_freesurfer -parallel \
         > $freesurfer_log 2>&1 
 
+    sleep 5
+
     kul_e2cl "   done freesufer on participant $BIDS_participant" $log
 
 else
@@ -186,7 +192,9 @@ if [ ! -f  $dwiprep_file_to_check ]; then
     kul_e2cl " performing KUL_dwiprep on subject ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $dwiprep_log)" ${log}
 
     KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -v \
-        #> $dwiprep_log 2>&1 
+        > $dwiprep_log 2>&1 
+
+    sleep 5
 
     kul_e2cl "   done KUL_dwiprep on participant $BIDS_participant" $log
 
@@ -367,10 +375,10 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
     echo " mriqc pid is $!"
     task_fmriprep &
     echo " fmriprep pid is $!"
-    task_freesurfer &
-    echo " freesurfer pid is $!"
     task_KUL_dwiprep &
     echo " KUL_dwiprep pid is $!"
+    task_freesurfer &
+    echo " freesurfer pid is $!"
 
     wait
 
