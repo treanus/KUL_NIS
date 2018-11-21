@@ -1,0 +1,299 @@
+#!/bin/bash -e
+# Bash shell script to process diffusion & structural 3D-T1w MRI data
+#
+# Requires Mrtrix3, FSL, ants
+#
+# @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
+#
+# v0.1 - dd 09/11/2018 - alpha version
+v="v0.1 - dd 21/11/2018"
+
+# To Do
+#  - register dwi to T1 with ants-syn
+#  - fod calc msmt-5tt in stead of dhollander
+
+# -----------------------------------  MAIN  ---------------------------------------------
+# this script defines a few functions:
+#  - Usage (for information to the novice user)
+#  - kul_e2cl (for logging)
+#
+# this script uses "preprocessing control", i.e. if some steps are already processed it will skip these
+
+kul_main_dir=`dirname "$0"`
+source $kul_main_dir/KUL_main_functions.sh
+cwd=$(pwd)
+
+# FUNCTIONS --------------
+
+# function Usage
+function Usage {
+
+cat <<USAGE
+
+`basename $0` performs dMRI anatomical preprocessing.
+
+Usage:
+
+  `basename $0` -s subject <OPT_ARGS>
+
+Example:
+
+  `basename $0` -s pat001 -p 6 
+
+Required arguments:
+
+     -s:  subject (anonymised name of the subject)
+
+Optional arguments:
+
+     -p:  number of cpu for parallelisation
+     -v:  show output from mrtrix commands
+
+
+USAGE
+
+    exit 1
+}
+
+
+# CHECK COMMAND LINE OPTIONS -------------
+# 
+# Set defaults
+ncpu=6
+silent=1
+
+# Set required options
+s_flag=0
+
+if [ "$#" -lt 1 ]; then
+    Usage >&2
+    exit 1
+
+else
+
+    while getopts "s:p:d:vh" OPT; do
+
+        case $OPT in
+        s) #subject
+            s_flag=1
+            subj=$OPTARG
+        ;;
+        p) #parallel
+            ncpu=$OPTARG
+        ;;
+        v) #verbose
+            silent=0
+        ;;
+        h) #help
+            Usage >&2
+            exit 0
+        ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            echo
+            Usage >&2
+            exit 1
+        ;;
+        :)
+            echo "Option -$OPTARG requires an argument." >&2
+            echo
+            Usage >&2
+            exit 1
+        ;;
+        esac
+
+    done
+
+fi
+
+# check for required options
+if [ $s_flag -eq 0 ] ; then 
+    echo 
+    echo "Option -s is required: give the anonymised name of a subject (this will create a directory subject_preproc with results)." >&2
+    echo
+    exit 2 
+fi 
+
+# MRTRIX verbose or not?
+if [ $silent -eq 1 ] ; then 
+
+    export MRTRIX_QUIET=1
+
+fi
+
+# REST OF SETTINGS ---
+
+# timestamp
+start=$(date +%s)
+
+# Some parallelisation
+FSLPARALLEL=$ncpu; export FSLPARALLEL
+OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
+
+# Directory to write preprocessed data in
+preproc=dwiprep/sub-${subj}
+
+# Directory to put raw mif data in
+raw=${preproc}/raw
+
+# set up preprocessing & logdirectory
+mkdir -p ${preproc}/raw
+mkdir -p ${preproc}/log
+
+d=$(date "+%Y-%m-%d_%H-%M-%S")
+log=log/log_${d}.txt
+
+
+
+# SAY HELLO ---
+cd ${preproc}
+
+kul_e2cl "Welcome to KUL_dwiprep_anat $v - $d" ${log}
+
+
+
+# STEP 1 - Anatomical Processing ---------------------------------------------
+# Brain_extraction, Registration of dmri to T1, MNI Warping, 5tt
+mkdir -p T1w
+mkdir -p dwi_reg
+
+fmriprep_subj=fmriprep/fmriprep/"sub-${subj}"
+fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-preproc_T1w.nii.gz"
+fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-brain_mask.nii.gz"
+ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
+
+# bet the T1w using ants
+if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
+    kul_e2cl " skull stripping the T1w from fmriprep..." $log
+
+    fslmaths $fmriprep_anat -mas $fmriprep_anat_mask $ants_anat
+
+else
+
+    echo " skull stripping of the T1w already done, skipping..."
+
+fi
+
+# register mean b0 to betted T1w (rigid)
+ants_b0=dwi_b0.nii.gz
+ants_type=dwi_reg/rigid
+
+if [ ! -f dwi_reg/rigid_outWarped.nii.gz ]; then
+
+    kul_e2cl " registering the the dmri b0 to the betted T1w image (rigid)..." ${log}
+    antsRegistration --verbose 1 --dimensionality 3 \
+        --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
+        --interpolation Linear \
+        --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
+        --initial-moving-transform [$ants_anat,$ants_b0,1] \
+        --transform Rigid[0.1] \
+        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
+        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
+
+else
+
+    echo " registering the T1w image to  (rigid) already done, skipping..."
+
+fi
+
+
+# Apply the rigid transformation of the dMRI to T1 
+#  to the wmfod and the preprocessed dMRI data
+if [ ! -f response/wmfod_reg2T1w.mif ]; then
+
+    ConvertTransformFile 3 dwi_reg/rigid_out0GenericAffine.mat dwi_reg/rigid_out0GenericAffine.txt
+
+    transformconvert dwi_reg/rigid_out0GenericAffine.txt itk_import \
+        dwi_reg/rigid_out0GenericAffine_mrtrix.txt -force
+
+    mrtransform dwi_preproced.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+        dwi_preproced_reg2T1w.mif -nthreads $ncpu -force 
+    mrtransform response/wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+        response/wmfod_reg2T1w.mif -nthreads $ncpu -force 
+
+fi
+
+# DO QA ---------------------------------------------
+# Make an FA/dec image
+
+
+if [ ! -f qa/dec_reg2T1w.mif ]; then
+
+    kul_e2cl "   Calculating FA/dec..." ${log}
+    dwi2tensor dwi_preproced_reg2T1w.mif dwi_dt_reg2T1w.mif -force
+    tensor2metric dwi_dt_reg2T1w.mif -fa qa/fa_reg2T1w.nii.gz -mask dwi_mask.nii.gz -force
+    fod2dec response/wmfod_reg2T1w.mif qa/dec_reg2T1w.mif -force
+    fod2dec response/wmfod_reg2T1w.mif qa/dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+
+fi
+
+
+kul_e2cl "Finished " ${log}
+
+exit 0
+
+OLD-CODE:
+
+
+# register mean b0 to betted T1w (affine)
+#ants_type=dwi_reg/affine
+
+#if [ ! -f dwi_reg/affine_outWarped.nii.gz ]; then
+
+#    kul_e2cl " registering the the dmri b0 to the betted T1w image (affine)..." ${log}
+#    antsRegistration --verbose 1 --dimensionality 3 \
+#        --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
+#        --interpolation Linear \
+#        --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
+#        --initial-moving-transform [$ants_anat,$ants_b0,1] \
+#        --transform Rigid[0.1] \
+#        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
+#        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox \
+#        --transform Affine[0.1] \
+#        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
+#        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox 
+
+#else
+
+#    echo " registering the T1w image to  (affine) already done, skipping..."
+
+#fi
+
+ants_type=dwi_reg/syn
+syn_convergence=1e-2
+
+# register mean b0 to betted T1w (minimal application of SyN)
+if [ ! -f dwi_reg/syn_outWarped.nii.gz ]; then
+
+    kul_e2cl " registering the the dmri b0 to the betted T1w image (minimal application of SyN)..." ${log}
+    antsRegistration --verbose 1 --dimensionality 3 \
+        --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
+        --interpolation Linear \
+        --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
+        --initial-moving-transform [$ants_anat,$ants_b0,1] \
+        --transform Rigid[0.1] \
+        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
+        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox \
+        --transform Affine[0.1] \
+        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
+        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox \
+        --transform SyN[0.1,3,0] \
+        --metric CC[$ants_anat,$ants_b0,1,4] --convergence [100x70x50x20,1e-2,2] \
+        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
+
+else
+
+    echo " registering the T1w image to  (rigid) already done, skipping..."
+
+fi
+
+# computing and writing 
+warpinit $mrtransform_file dwi_reg/identity_warp[].nii -force
+
+for i in {0..2}; do
+  WarpImageMultiTransform 3 dwi_reg/identity_warp${i}.nii dwi_reg/mrtrix_warp${i}.nii \
+    -R $ants_anat dwi_reg/syn_out1Warp.nii.gz dwi_reg/syn_out0GenericAffine.mat;
+done;
+
+warpcorrect dwi_reg/mrtrix_warp[].nii dwi_reg/mrtrix_warp_corrected.mif -nthreads $ncpu -force 
+

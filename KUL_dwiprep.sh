@@ -158,7 +158,7 @@ log=log/log_${d}.txt
 
 # SAY HELLO ---
 
-kul_e2cl "Welcome to KUL_dwi_preproc $v - $d" ${preproc}/${log}
+kul_e2cl "Welcome to KUL_dwiprep $v - $d" ${preproc}/${log}
 
 bids_subj=BIDS/"sub-$subj"/ses-tp1
 
@@ -228,7 +228,7 @@ fi
 
 
 # STEP 2 - DWI Preprocessing ---------------------------------------------
-# dwidenoise
+
 cd ${preproc}
 mkdir -p dwi
 
@@ -349,146 +349,4 @@ if [ ! -f qa/dec.mif ]; then
 
 fi
 
-# STEP 5 - Anatomical Processing ---------------------------------------------
-# Brain_extraction, Registration of dmri to T1, MNI Warping, freesurfer, 5tt
-mkdir -p T1w
-mkdir -p dwi_reg
-
-bids_anat_search="${cwd}/${bids_subj}/anat/*_T1w.nii.gz"
-echo $bids_anat_search
-bids_anat=$(ls $bids_anat_search)
-#echo $bids_anat
-
-# bet the T1w using ants
-if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
-    kul_e2cl " skull stripping the T1w using ants..." $log
-    antsBrainExtraction.sh -d 3 -a $bids_anat -e $FSLDIR/data/standard/MNI152_T1_1mm.nii.gz \
-        -m $FSLDIR/data/standard/MNI152_T1_1mm_brain_mask.nii.gz -o T1w/T1w_ -u 1 
-
-else
-
-    echo " skull stripping of the T1w already done, skipping..."
-
-fi
-
-# register mean b0 to betted T1w (rigid)
-ants_b0=dwi_b0.nii.gz
-ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
-ants_type=dwi_reg/rigid
-
-if [ ! -f dwi_reg/rigid_outWarped.nii.gz ]; then
-
-    kul_e2cl " registering the the dmri b0 to the betted T1w image (rigid)..." ${log}
-    antsRegistration --verbose 1 --dimensionality 3 \
-        --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
-        --interpolation Linear \
-        --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
-        --initial-moving-transform [$ants_anat,$ants_b0,1] \
-        --transform Rigid[0.1] \
-        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
-        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
-
-else
-
-    echo " registering the T1w image to  (rigid) already done, skipping..."
-
-fi
-
-
-# register mean b0 to betted T1w (affine)
-ants_type=dwi_reg/affine
-
-if [ ! -f dwi_reg/affine_outWarped.nii.gz ]; then
-
-    kul_e2cl " registering the the dmri b0 to the betted T1w image (affine)..." ${log}
-    antsRegistration --verbose 1 --dimensionality 3 \
-        --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
-        --interpolation Linear \
-        --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
-        --initial-moving-transform [$ants_anat,$ants_b0,1] \
-        --transform Rigid[0.1] \
-        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
-        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox \
-        --transform Affine[0.1] \
-        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
-        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox 
-
-else
-
-    echo " registering the T1w image to  (affine) already done, skipping..."
-
-fi
-
-# Apply the rigid transformation of the dMRI to T1 
-#  to the wmfod and the preprocessed dMRI data
-if [ ! -f response/wmfod_reg2T1w.mif ]; then
-
-    ConvertTransformFile 3 dwi_reg/rigid_out0GenericAffine.mat dwi_reg/rigid_out0GenericAffine.txt
-
-    transformconvert dwi_reg/rigid_out0GenericAffine.txt itk_import \
-        dwi_reg/rigid_out0GenericAffine_mrtrix.txt -force
-
-    mrtransform dwi_preproced.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-        dwi_preproced_reg2T1w.mif -nthreads $ncpu -force 
-    mrtransform response/wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-        response/wmfod_reg2T1w.mif -nthreads $ncpu -force 
-
-fi
-
-# DO QA ---------------------------------------------
-# Make an FA/dec image
-
-
-if [ ! -f qa/dec_reg2T1w.mif ]; then
-
-    kul_e2cl "   Calculating FA/dec..." ${log}
-    dwi2tensor dwi_preproced_reg2T1w.mif dwi_dt_reg2T1w.mif -force
-    tensor2metric dwi_dt_reg2T1w.mif -fa qa/fa_reg2T1w.nii.gz -mask dwi_mask.nii.gz -force
-    fod2dec response/wmfod_reg2T1w.mif qa/dec_reg2T1w.mif -force
-    fod2dec response/wmfod_reg2T1w.mif qa/dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
-
-fi
-
-
 kul_e2cl "Finished " ${log}
-exit 0
-
-OLD-CODE:
-ants_type=dwi_reg/syn
-syn_convergence=1e-2
-
-# register mean b0 to betted T1w (minimal application of SyN)
-if [ ! -f dwi_reg/syn_outWarped.nii.gz ]; then
-
-    kul_e2cl " registering the the dmri b0 to the betted T1w image (minimal application of SyN)..." ${log}
-    antsRegistration --verbose 1 --dimensionality 3 \
-        --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
-        --interpolation Linear \
-        --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
-        --initial-moving-transform [$ants_anat,$ants_b0,1] \
-        --transform Rigid[0.1] \
-        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
-        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox \
-        --transform Affine[0.1] \
-        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
-        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox \
-        --transform SyN[0.1,3,0] \
-        --metric CC[$ants_anat,$ants_b0,1,4] --convergence [100x70x50x20,1e-2,2] \
-        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
-
-else
-
-    echo " registering the T1w image to  (rigid) already done, skipping..."
-
-fi
-
-# computing and writing 
-warpinit $mrtransform_file dwi_reg/identity_warp[].nii -force
-
-for i in {0..2}; do
-  WarpImageMultiTransform 3 dwi_reg/identity_warp${i}.nii dwi_reg/mrtrix_warp${i}.nii \
-    -R $ants_anat dwi_reg/syn_out1Warp.nii.gz dwi_reg/syn_out0GenericAffine.mat;
-done;
-
-warpcorrect dwi_reg/mrtrix_warp[].nii dwi_reg/mrtrix_warp_corrected.mif -nthreads $ncpu -force 
-
