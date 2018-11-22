@@ -183,13 +183,13 @@ fi
 function task_KUL_dwiprep {
 
 # check if already performed KUL_dwiprep
-dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/qa/dec_reg2T1w_on_t1w.mif
+dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/qa/dec.mif
 
 if [ ! -f  $dwiprep_file_to_check ]; then
 
-    dwiprep_log=${preproc}/log/dwiprep/${BIDS_participant}.txt
+    dwiprep_log=${preproc}/log/dwiprep/dwiprep_${BIDS_participant}.txt
 
-    kul_e2cl " performing KUL_dwiprep on subject ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $dwiprep_log)" ${log}
+    kul_e2cl " performing KUL_dwiprep on subject ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
     KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -v \
         > $dwiprep_log 2>&1 
@@ -201,6 +201,58 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 else
 
     echo " KUL_dwiprep of subjet $BIDS_participant already done, skipping..."
+        
+fi
+
+}
+
+function task_KUL_dwiprep_anat {
+
+# check if already performed KUL_dwiprep_anat
+dwiprep_anat_file_to_check=dwiprep/sub-${BIDS_participant}/qa/dec_reg2T1w_on_t1w.mif
+
+if [ ! -f  $dwiprep_anat_file_to_check ]; then
+
+    dwiprep_anat_log=${preproc}/log/dwiprep/dwiprep_anat_${BIDS_participant}.txt
+
+    kul_e2cl " performing KUL_dwiprep_anat on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_log)" ${log}
+
+    KUL_dwiprep_anat.sh -s ${BIDS_participant} -p $ncpu -v \
+        > $dwiprep_anat_log 2>&1 
+
+    sleep 5
+
+    kul_e2cl "   done KUL_dwiprep_anat on participant $BIDS_participant" $log
+
+else
+
+    echo " KUL_dwiprep_anat of subjet $BIDS_participant already done, skipping..."
+        
+fi
+
+}
+
+function task_KUL_dwiprep_drtdbs {
+
+# check if already performed KUL_dwiprep_drtdbs
+dwiprep_drtdbs_file_to_check=dwiprep/sub-${BIDS_participant}/qa/void
+
+if [ ! -f  $dwiprep_drtdbs_file_to_check ]; then
+
+    dwiprep_drtdbs_log=${preproc}/log/dwiprep/dwiprep_drtdbs_${BIDS_participant}.txt
+
+    kul_e2cl " performing KUL_dwiprep_drtdbs on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_log)" ${log}
+
+    KUL_dwiprep_drtdbs.sh -s ${BIDS_participant} -p $ncpu -v \
+        > $dwiprep_drtdbs_log 2>&1 
+
+    sleep 5
+
+    kul_e2cl "   done KUL_dwiprep_drtdbs on participant $BIDS_participant" $log
+
+else
+
+    echo " KUL_dwiprep_drtdbs of subjet $BIDS_participant already done, skipping..."
         
 fi
 
@@ -349,7 +401,7 @@ kul_e2cl "Performing KUL_multisubjects_dcm2bids... " $log
 KUL_multisubjects_dcm2bids.sh -d DICOM -c $conf -o $bids_dir -e
 
 
-# ----------- STEP 2 - PREPROC ALL ---
+# ----------- STEP 2 - Preprocess each subject with mriqc, fmriprep, freesurfer and KUL_dwiprep ---
 # set up directories and clean
 mkdir -p ${preproc}/log/mriqc
 mkdir -p ${preproc}/log/fmriprep
@@ -380,41 +432,41 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
     task_freesurfer &
     echo " freesurfer pid is $!"
 
+    # wait for mriqc, fmriprep, freesurfer and KUL_dwiprep to finish
     wait
+
+    # continue with KUL_dwiprep_anat, which depends on finished data from freesurfer, fmriprep & KUL_dwiprep
+    task_KUL_dwiprep_anat
+
+    # continue with KUL_dwiprep_drtdbs
+    task_KUL_dwiprep_drtdbs
+
 
     fi
 
 done < $conf
 
 
+# ----------- STEP 3 - Compute mriqc group summary ---
+
+kul_e2cl "Performing mriqc group summary" $log
+
+# check if already performed group mriqc
+mriqc_file_to_check=mriqc/group_bold.html
+
+if [ ! -f $mriqc_file_to_check ]; then
+    
+    docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
+        -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
+        poldracklab/mriqc:latest \
+        /data /out group
+
+else
+
+    kul_e2cl " group mriqc already done, skipping..." $log
+
+fi
+
+
 
 kul_e2cl "Finished all... " $log
-
-
-exit 1
-
-
-    kul_e2cl "Performing mriqc group summary" $log
-
-    # check if already performed group mriqc
-    mriqc_file_to_check=mriqc/group_bold.html
-
-    if [ ! -f $mriqc_file_to_check ]; then
-    
-        docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
-            -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
-            poldracklab/mriqc:latest \
-            /data /out group
-
-    else
-
-        kul_e2cl " group mriqc already done, skipping..." $log
-
-    fi
-
-
-#if [ $do_mriqc -eq 1 ]; then
-#fi
-
-
-
