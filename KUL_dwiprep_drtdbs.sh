@@ -26,6 +26,15 @@ v="v0.1 - dd 11/10/2018"
     # Number of desired streamlines
     nods=2000
 
+    # Maximum angle between successive steps for iFOD2
+    theta=35
+
+    # sift1 filtering
+    # termination ratio - defined as the ratio between reduction in cost
+    # function, and reduction in density of streamlines.
+    # Smaller values result in more streamlines being filtered out.
+    term_ratio=0.5
+
     # tmp directory for temporary processing
     tmp=/tmp
 # 
@@ -297,7 +306,7 @@ function kul_mrtrix_tracto_drt {
 
     for a in iFOD2 Tensor_Prob; do
 
-        if [ ! -f ${tract}_${a}.nii.gz ]; then
+        if [ ! -f tracts_${a}/Subj_Space_${tract}_${a} ]; then
 
             mkdir -p tracts_${a}
 
@@ -321,7 +330,7 @@ function kul_mrtrix_tracto_drt {
             if [ "${a}" == "iFOD2" ]; then
 
                 # perform IFOD2 tckgen
-                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -nthreads $ncpu -force
+                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu -force
 
             else
 
@@ -330,15 +339,35 @@ function kul_mrtrix_tracto_drt {
 
             fi
 
+            # perform filtering on tracts with tcksift (version 1)
+            tcksift -term_ratio $term_ratio -act ${cwd}/dwiprep/sub-${subj}/5tt/5ttseg.mif tracts_${a}/${tract}.tck \
+                $wmfod tracts_${a}/sift1_${tract}.tck -nthreads $ncpu -force
+
             # convert the tck in nii
             tckmap tracts_${a}/${tract}.tck tracts_${a}/${tract}.nii.gz -template $ants_anat -force 
+            tckmap tracts_${a}/sift1_${tract}.tck tracts_${a}/sift1_${tract}.nii.gz -template $ants_anat -force 
 
             # intersect the nii tract image with the thalamic roi
             fslmaths tracts_${a}/${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/${tract}_masked
-    
+            fslmaths tracts_${a}/sift1_${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/sift1_${tract}_masked
+
             # make a probabilistic image
             local m=$(mrstats -quiet tracts_${a}/${tract}_masked.nii.gz -output max)
-            fslmaths tracts_${a}/${tract}_masked -div $m ${tract}_${a}
+            fslmaths tracts_${a}/${tract}_masked -div $m tracts_${a}/Subj_Space_${tract}_${a}
+            local m=$(mrstats -quiet tracts_${a}/sift1_${tract}_masked.nii.gz -output max)
+            fslmaths tracts_${a}/sift1_${tract}_masked -div $m tracts_${a}/Subj_Space_sift1_${tract}_${a}
+
+            # Warp the probabilistic image to MNI space
+            input=tracts_${a}/Subj_Space_${tract}_${a}.nii.gz
+            output=tracts_${a}/MNI_Space_${tract}_${a}.nii.gz
+            transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+            reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+            KUL_antsApply_Transform
+            input=tracts_${a}/Subj_Space_sift1_${tract}_${a}.nii.gz
+            output=tracts_${a}/MNI_Space_sift1_${tract}_${a}.nii.gz
+            transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+            reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+            KUL_antsApply_Transform
 
         fi
     
@@ -373,12 +402,13 @@ kul_mrtrix_tracto_drt
 
 # SMA_and_PMC-Thalamic tracts
 tract="TH-SMA_and_PMC_R_nods${nods}"
-seeds=("THALAMUS_fs_R" "SMA_and_PMC_fs_L")
+seeds=("THALAMUS_fs_R" "SMA_and_PMC_fs_R")
 exclude="WM_fs_L"
 kul_mrtrix_tracto_drt 
 
 tract="TH-SMA_and_PMC_L_nods${nods}"
 seeds=("THALAMUS_fs_L" "SMA_and_PMC_fs_L")
+exclude="WM_fs_R"
 kul_mrtrix_tracto_drt  
 
 # Dentato-Rubro_Thalamic tracts
