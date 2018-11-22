@@ -24,7 +24,7 @@ v="v0.1 - dd 11/10/2018"
 # A few fixed (for now) parameters:
 
     # Number of desired streamlines
-    nods=20000
+    nods=2000
 
     # tmp directory for temporary processing
     tmp=/tmp
@@ -161,7 +161,7 @@ log=log/log_${d}.txt
 
 # SAY HELLO ---
 
-kul_e2cl "Welcome to KUL_dwi_preproc $v - $d" ${preproc}/${log}
+kul_e2cl "Welcome to KUL_dwiprep_drtdbs $v - $d" ${preproc}/${log}
 
 
 # STEP 1 - PROCESSING  ---------------------------------------------
@@ -219,15 +219,15 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
     # SMA_and_PMC_L are
     # 1003    ctx-lh-caudalmiddlefrontal
     # 1028    ctx-lh-superiorfrontal
-    fslmaths $fs_labels -thr 1003 -uthr 1003 -bin roi/MFG_fs_R
-    fslmaths $fs_labels -thr 1028 -uthr 1028 -bin roi/SFG_fs_R
-    fslmaths roi/MFG_fs_R -add roi/SFG_fs_R -bin roi/SMA_and_PMC_fs_R
+    fslmaths $fs_labels -thr 1003 -uthr 1003 -bin roi/MFG_fs_L
+    fslmaths $fs_labels -thr 1028 -uthr 1028 -bin roi/SFG_fs_L
+    fslmaths roi/MFG_fs_L -add roi/SFG_fs_L -bin roi/SMA_and_PMC_fs_L
     # SMA_and_PMC_L are
     # 2003    ctx-lh-caudalmiddlefrontal
     # 2028    ctx-lh-superiorfrontal
-    fslmaths $fs_labels -thr 2003 -uthr 2003 -bin roi/MFG_fs_L
-    fslmaths $fs_labels -thr 2028 -uthr 2028 -bin roi/SFG_fs_L
-    fslmaths roi/MFG_fs_L -add roi/SFG_fs_L -bin roi/SMA_and_PMC_fs_L
+    fslmaths $fs_labels -thr 2003 -uthr 2003 -bin roi/MFG_fs_R
+    fslmaths $fs_labels -thr 2028 -uthr 2028 -bin roi/SFG_fs_R
+    fslmaths roi/MFG_fs_R -add roi/SFG_fs_R -bin roi/SMA_and_PMC_fs_R
     # 41  Right-Cerebral-White-Matter
     fslmaths $fs_labels -thr 41 -uthr 41 -bin roi/WM_fs_R
     # 2   Left-Cerebral-White-Matter
@@ -236,75 +236,62 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 
 else
 
-echo " Making the Freesurfer ROIS has been done already, skipping" 
+    echo " Making the Freesurfer ROIS has been done already, skipping" 
 
 fi
 
-# transform the T1w into MNI space using fmriprep data
+function KUL_antsApply_Transform {
 
-MNI_transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+    antsApplyTransforms -d 3 --float 1 \
+    --verbose 1 \
+    -i $input \
+    -o $output \
+    -r $reference \
+    -t $transform \
+    -n Linear
+}
 
-# Apply fmriprep MNI normalisation 
-antsApplyTransforms -d 3 --float 1 \
---verbose 1 \
--i $ants_anat \
--o T1w/T1w_MNI152NLin2009cAsym.nii.gz \
--r $reference \
--t $MNI_transform \
--n Linear
+if [ ! -f roi/DENTATE_L.nii.gz ]; then
 
+    kul_e2cl " Warping the SUIT3.3 atlas ROIS of the DENTATE to subject space..." ${log}
+    # transform the T1w into MNI space using fmriprep data
+    input=$ants_anat
+    output=T1w/T1w_MNI152NLin2009cAsym.nii.gz
+    transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+    reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+    KUL_antsApply_Transform
 
-# transform the T1w into MNI space using fmriprep data
+    # inversly transform the T1w in MNI space to subject space (for double checking)
+    input=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz
+    output=T1w/T1w_test_inv_MNI_warp.nii.gz
+    transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+    reference=$ants_anat
+    KUL_antsApply_Transform
 
-input=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz
-MNI_transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
-reference=$ants_anat
+    # We get the Dentate rois out of MNI space, from the SUIT v3.3 atlas
+    # http://www.diedrichsenlab.org/imaging/suit_download.htm
+    # fslmaths Cerebellum-SUIT.nii -thr 30 -uthr 30 Dentate_R
+    # fslmaths Cerebellum-SUIT.nii -thr 29 -uthr 29 Dentate_L
+    input=${kul_main_dir}/atlasses/Local/Dentate_R.nii.gz
+    output=roi/DENTATE_R.nii.gz
+    transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+    reference=$ants_anat
+    KUL_antsApply_Transform
 
-# Apply fmriprep MNI normalisation 
-antsApplyTransforms -d 3 --float 1 \
---verbose 1 \
--i $input \
--o T1w/T1w_test_inv_MNI_warp.nii.gz \
--r $reference \
--t $MNI_transform \
--n Linear
+    input=${kul_main_dir}/atlasses/Local/Dentate_L.nii.gz
+    output=roi/DENTATE_L.nii.gz
+    transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+    reference=$ants_anat
+    KUL_antsApply_Transform
 
-# We get the Dentate rois out of MNI space, from the SUIT v3.3 atlas
-# http://www.diedrichsenlab.org/imaging/suit_download.htm
-# fslmaths Cerebellum-SUIT.nii -thr 30 -uthr 30 Dentate_R
-# fslmaths Cerebellum-SUIT.nii -thr 29 -uthr 29 Dentate_L
+else
 
-input=${kul_main_dir}/atlasses/Local/Dentate_R.nii.gz
-output=roi/DENTATE_R.nii.gz
-MNI_transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
-reference=$ants_anat
+    echo " Warping the SUIT3.3 atlas ROIS of the DENTATE to subject space has been done already, skipping" 
 
-# Apply fmriprep MNI normalisation 
-antsApplyTransforms -d 3 --float 1 \
---verbose 1 \
--i $input \
--o $output \
--r $reference \
--t $MNI_transform \
--n Linear
-
-input=${kul_main_dir}/atlasses/Local/Dentate_L.nii.gz
-output=roi/DENTATE_L.nii.gz
-MNI_transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
-reference=$ants_anat
-
-# Apply fmriprep MNI normalisation 
-antsApplyTransforms -d 3 --float 1 \
---verbose 1 \
--i $input \
--o $output \
--r $reference \
--t $MNI_transform \
--n Linear
+fi
 
 
-# STEP 5 - Tractography Processing ---------------------------------------------
+# STEP 2 - Tractography  ---------------------------------------------
 
 function kul_mrtrix_tracto_drt {
 
@@ -363,44 +350,44 @@ wmfod=response/wmfod_reg2T1w.mif
 dwi_preproced=dwi_preproced_reg2T1w.mif
 
 # M1_fs-Thalamic tracts
-tract="TH-M1_fs_R"
+tract="TH-M1_fs_R_nods${nods}"
 seeds=("THALAMUS_fs_R" "M1_fs_R")
 exclude="WM_fs_L"
 kul_mrtrix_tracto_drt 
 
-tract="TH-M1_fs_L"
+tract="TH-M1_fs_L_nods${nods}"
 seeds=("THALAMUS_fs_L" "M1_fs_L")
 exclude="WM_fs_R"
 kul_mrtrix_tracto_drt 
 
 # S1_fs-Thalamic tracts
-tract="TH-S1_fs_R"
+tract="TH-S1_fs_R_nods${nods}"
 seeds=("THALAMUS_fs_R" "S1_fs_R")
 exclude="WM_fs_L"
 kul_mrtrix_tracto_drt 
 
-tract="TH-S1_fs_L"
+tract="TH-S1_fs_L_nods${nods}"
 seeds=("THALAMUS_fs_L" "S1_fs_L")
 exclude="WM_fs_R"
 kul_mrtrix_tracto_drt 
 
 # SMA_and_PMC-Thalamic tracts
-tract="TH-SMA_and_PMC_R"
+tract="TH-SMA_and_PMC_R_nods${nods}"
 seeds=("THALAMUS_fs_R" "SMA_and_PMC_fs_L")
 exclude="WM_fs_L"
 kul_mrtrix_tracto_drt 
 
-tract="TH-SMA_and_PMC_L"
+tract="TH-SMA_and_PMC_L_nods${nods}"
 seeds=("THALAMUS_fs_L" "SMA_and_PMC_fs_L")
 kul_mrtrix_tracto_drt  
 
 # Dentato-Rubro_Thalamic tracts
-tract="TH-DR_R"
+tract="TH-DR_R_nods${nods}"
 seeds=("THALAMUS_fs_R" "M1_fs_R" "DENTATE_L")
 exclude="WM_fs_L"
 kul_mrtrix_tracto_drt 
 
-tract="TH-DR_L"
+tract="TH-DR_L_nods${nods}"
 seeds=("THALAMUS_fs_L" "M1_fs_L" "DENTATE_R")
 exclude="WM_fs_R"
 kul_mrtrix_tracto_drt 
