@@ -57,6 +57,7 @@ Required arguments:
 
 Optional arguments:
     
+     -r:  reset docker (clean the images and download new ones)
      -m:  max available memomry (in gigabytes) available in docker
      -t:  temporary directory (default = /tmp)
 
@@ -215,7 +216,7 @@ if [ ! -f  $dwiprep_anat_file_to_check ]; then
 
     dwiprep_anat_log=${preproc}/log/dwiprep/dwiprep_anat_${BIDS_participant}.txt
 
-    kul_e2cl " performing KUL_dwiprep_anat on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_log)" ${log}
+    kul_e2cl " performing KUL_dwiprep_anat on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_anat_log)" ${log}
 
     KUL_dwiprep_anat.sh -s ${BIDS_participant} -p $ncpu -v \
         > $dwiprep_anat_log 2>&1 
@@ -241,9 +242,9 @@ if [ ! -f  $dwiprep_drtdbs_file_to_check ]; then
 
     dwiprep_drtdbs_log=${preproc}/log/dwiprep/dwiprep_drtdbs_${BIDS_participant}.txt
 
-    kul_e2cl " performing KUL_dwiprep_drtdbs on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_log)" ${log}
+    kul_e2cl " performing KUL_dwiprep_drtdbs on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_drtdbs_log)" ${log}
 
-    KUL_dwiprep_drtdbs.sh -s ${BIDS_participant} -p $ncpu -v \
+    KUL_dwiprep_drtdbs.sh -s ${BIDS_participant} -p $ncpu #-v \
         #> $dwiprep_drtdbs_log 2>&1 
 
     sleep 5
@@ -275,6 +276,7 @@ bids_flag=0
 tmp_flag=0
 cpu_flag=0
 mem_flag=0
+docker_reset_flag=0
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -282,7 +284,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "c:o:p:m:t" OPT; do
+    while getopts "c:o:p:m:t:r" OPT; do
 
         case $OPT in
         c) #config_file
@@ -304,6 +306,9 @@ else
         t) #temporary directory
             tmp_flag=1
             tmp=$OPTARG
+        ;;
+        r) #reset docker
+            docker_reset_flag=1
         ;;
         h) #help
             Usage >&2
@@ -393,7 +398,9 @@ ncpu_dwiprep=$(((($ncpu/$load_dwiprep))+1))
 
 
 # Ask if docker needs to be reset
-docker system prune -a
+if [ $docker_reset_flag -eq 1 ];then
+    docker system prune -a
+fi
 
 
 # ----------- STEP 1 - CONVERT TO BIDS ---
