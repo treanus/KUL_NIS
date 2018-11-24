@@ -33,7 +33,8 @@ v="v0.1 - dd 11/10/2018"
     # termination ratio - defined as the ratio between reduction in cost
     # function, and reduction in density of streamlines.
     # Smaller values result in more streamlines being filtered out.
-    term_ratio=0.5
+    do_sift_th=5000 # when to do sift? (if more than 5000 streamlines in tract e.g.)
+    term_ratio=0.5 # reduce by e.g. 50%
 
     # tmp directory for temporary processing
     tmp=/tmp
@@ -307,14 +308,14 @@ function kul_mrtrix_tracto_drt {
     for a in iFOD2 Tensor_Prob; do
 
         # do the tracking
-        if [ ! -f tracts_${a}/${tract}.tck ]; then
-
-            kul_e2cl " running tckgen of ${tract} tract with algorithm $a (all seeds with -select $nods, intersect with $intersect)" ${log} 
+        if [ ! -f tracts_${a}/${tract}.tck ]; then 
 
             mkdir -p tracts_${a}
 
             # make the intersect string (this is the first of the seeds)
             intersect=${seeds%% *}
+
+            kul_e2cl " running tckgen of ${tract} tract with algorithm $a (all seeds with -select $nods, intersect with $intersect)" ${log}
 
             # make the seed string
             local s=$(printf " -seed_image roi/%s.nii.gz"  "${seeds[@]}")
@@ -347,7 +348,7 @@ function kul_mrtrix_tracto_drt {
         fi
 
         # Check if any fibers have been found & log to the information file
-        echo "  checking tracts_${a}/${tract}"
+        echo "   checking tracts_${a}/${tract}"
         local count=$(tckinfo tracts_${a}/${tract}.tck | grep count | head -n 1 | awk '{print $(NF)}')
         echo "$subj, $a, $tract, $count" >> tracts_info.csv
 
@@ -357,31 +358,23 @@ function kul_mrtrix_tracto_drt {
             if [ $count -eq 0 ]; then
 
                 # report that no tracts were found and stop further processing
-                kul_e2cl "  no tracts were found for the tracts_${a}/${tract}.tck" ${log}
+                kul_e2cl "  no streamlines were found for the tracts_${a}/${tract}.tck" ${log}
 
             else
 
                 # report how many tracts were found and continue processing
-                echo "  $count tracts were found for the tracts_${a}/${tract}.tck"
-                kul_e2cl "  running tckshift & generation subject/MNI space images" ${log}
-
-                # perform filtering on tracts with tcksift (version 1)
-                tcksift -term_ratio $term_ratio -act ${cwd}/dwiprep/sub-${subj}/5tt/5ttseg.mif tracts_${a}/${tract}.tck \
-                    $wmfod tracts_${a}/sift1_${tract}.tck -nthreads $ncpu -force
-
+                echo "   $count streamlines were found for the tracts_${a}/${tract}.tck"
+                
+                echo "   generating subject/MNI space images"
                 # convert the tck in nii
                 tckmap tracts_${a}/${tract}.tck tracts_${a}/${tract}.nii.gz -template $ants_anat -force 
-                tckmap tracts_${a}/sift1_${tract}.tck tracts_${a}/sift1_${tract}.nii.gz -template $ants_anat -force 
 
                 # intersect the nii tract image with the thalamic roi
                 fslmaths tracts_${a}/${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/${tract}_masked
-                fslmaths tracts_${a}/sift1_${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/sift1_${tract}_masked
 
                 # make a probabilistic image
                 local m=$(mrstats -quiet tracts_${a}/${tract}_masked.nii.gz -output max)
                 fslmaths tracts_${a}/${tract}_masked -div $m tracts_${a}/Subj_Space_${tract}_${a}
-                local m=$(mrstats -quiet tracts_${a}/sift1_${tract}_masked.nii.gz -output max)
-                fslmaths tracts_${a}/sift1_${tract}_masked -div $m tracts_${a}/Subj_Space_sift1_${tract}_${a}
 
                 # Warp the probabilistic image to MNI space
                 input=tracts_${a}/Subj_Space_${tract}_${a}.nii.gz
@@ -389,11 +382,37 @@ function kul_mrtrix_tracto_drt {
                 transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
                 reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
                 KUL_antsApply_Transform
-                input=tracts_${a}/Subj_Space_sift1_${tract}_${a}.nii.gz
-                output=tracts_${a}/MNI_Space_sift1_${tract}_${a}.nii.gz
-                transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-                reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
-                KUL_antsApply_Transform
+                
+                
+                if [ $count -lt $do_sift_th ]; then
+                
+                    kul_e2cl "  NOT running tckshift since less than $do_shift_th streamlines" ${log}
+
+                else
+                    kul_e2cl "  running tckshift & generation subject/MNI space images" ${log}
+
+                    # perform filtering on tracts with tcksift (version 1)
+                    tcksift -term_ratio $term_ratio -act ${cwd}/dwiprep/sub-${subj}/5tt/5ttseg.mif tracts_${a}/${tract}.tck \
+                        $wmfod tracts_${a}/sift1_${tract}.tck -nthreads $ncpu -force
+
+                    # convert the tck in nii
+                    tckmap tracts_${a}/sift1_${tract}.tck tracts_${a}/sift1_${tract}.nii.gz -template $ants_anat -force 
+
+                    # intersect the nii tract image with the thalamic roi
+                    fslmaths tracts_${a}/sift1_${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/sift1_${tract}_masked
+
+                    # make a probabilistic image
+                    local m=$(mrstats -quiet tracts_${a}/sift1_${tract}_masked.nii.gz -output max)
+                    fslmaths tracts_${a}/sift1_${tract}_masked -div $m tracts_${a}/Subj_Space_sift1_${tract}_${a}
+
+                    # Warp the probabilistic image to MNI space
+                    input=tracts_${a}/Subj_Space_sift1_${tract}_${a}.nii.gz
+                    output=tracts_${a}/MNI_Space_sift1_${tract}_${a}.nii.gz
+                    transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+                    reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+                    KUL_antsApply_Transform
+
+                fi
 
             fi
 
