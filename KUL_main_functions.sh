@@ -45,8 +45,8 @@ function kul_e2cl {
 mrtrix_version=$(mrconvert -version | head -n 1 | cut -d'-' -f 2)
 if [ $mrtrix_version -lt $mrtrix_version_needed ]; then
 
-    echo "Your mrtrix3 RC3 subversion is $dcm2niix_version"
-    echo "You need mrtrix3 RC3 subversion => $mrtrix_version_need"
+    echo "Your mrtrix3 RC3 subversion is $mrtrix_version"
+    echo "You need mrtrix3 RC3 subversion => $mrtrix_version_needed"
     exit 2
 
 fi
