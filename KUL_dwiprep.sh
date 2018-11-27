@@ -256,8 +256,24 @@ if [ ! -f dwi/geomcorr.mif ]; then
 
     dwiextract dwi_orig.mif -bzero - | dwiextract - -pe 0,1,0 raw/b0s_pe1.mif -force
     dwiextract dwi_orig.mif -bzero - | dwiextract - -pe 0,-1,0 raw/b0s_pe2.mif -force
-    mrconvert raw/b0s_pe1.mif -coord 3 1:2 raw/b0s_pe1_first2.mif -force
-    mrconvert raw/b0s_pe2.mif -coord 3 1:2 raw/b0s_pe2_first2.mif -force
+
+    # Check how many pe1 b0s there are
+    number_of_b0s_pe1=$(mrinfo -shell_sizes raw/b0s_pe1.mif)
+    echo $number_of_b0s_pe1
+    if [ $number_of_b0s_pe1 -lt 2 ]; then
+        echo "     only 1 b0 found in dwi_orig (pe1 subset)"
+        cut_at_pe1=0
+    else
+        cut_at_pe1=1
+    fi
+    number_of_b0s_pe2=$(mrinfo -shell_sizes raw/b0s_pe2.mif)
+    if [ $number_of_b0s_pe2 -lt 2 ]; then
+        cut_at_pe2=0
+    else
+        cut_at_pe2=1
+    fi
+    mrconvert raw/b0s_pe1.mif -coord 3 0:$cut_at_pe1 raw/b0s_pe1_first2.mif -force
+    mrconvert raw/b0s_pe2.mif -coord 3 0:$cut_at_pe2 raw/b0s_pe2_first2.mif -force
     mrcat raw/b0s_pe1_first2.mif raw/b0s_pe2_first2.mif raw/se_epi_for_topup.mif -force
 
     dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
