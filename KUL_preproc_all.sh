@@ -8,13 +8,6 @@
 # v0.1 - dd 06/11/2018 - alpha version
 v="v0.1 - dd 06/11/2018"
 
-# task mriqc
-do_mriqc=1
-
-# task fmriprep
-do_fmriprep=1 
-
-
 # -----------------------------------  MAIN  ---------------------------------------------
 # this script defines a few functions:
 #  - Usage (for information to the novice user)
@@ -76,7 +69,7 @@ if [ ! -d $mriqc_dir_to_check ]; then
 
     mriqc_log=${preproc}/log/mriqc/${BIDS_participant}.txt
 
-    kul_e2cl " Performing mriqc on participant $BIDS_participant (using $ncpu_mriqc cores, logging to $mriqc_log)" $log
+    kul_e2cl " performing mriqc on participant $BIDS_participant (using $ncpu_mriqc cores, logging to $mriqc_log)" $log
 
     docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
         -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
@@ -419,7 +412,7 @@ mkdir -p ${preproc}/log/dwiprep
 
 
 # we read the config file (and it may be csv, tsv or ;-seperated)
-while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session comment; do
+while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_mriqc do_fmriprep do_freesurfer do_dwiprep do_dwiprep_anat do_dwiprep_drtdbs; do
     
     
     if [ "$dicom_zip" = "dicom_zip" ]; then
@@ -428,26 +421,50 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
 
     else
 
-    kul_e2cl "Performing preprocessing of subject $BIDS_participant... " $log
+        kul_e2cl "Performing preprocessing of subject $BIDS_participant... " $log
 
-    task_mriqc_participant &
-    echo " mriqc pid is $!"
-    task_fmriprep &
-    echo " fmriprep pid is $!"
-    task_KUL_dwiprep &
-    echo " KUL_dwiprep pid is $!"
-    task_freesurfer &
-    echo " freesurfer pid is $!"
+        if [ $do_mriqc -eq 1 ]; then
+            task_mriqc_participant &
+            echo " mriqc pid is $!"
+        fi
 
-    # wait for mriqc, fmriprep, freesurfer and KUL_dwiprep to finish
-    wait
+        if [ $do_fmriprep -eq 1 ]; then
+            task_fmriprep &
+            echo " fmriprep pid is $!"
+        fi
 
-    # continue with KUL_dwiprep_anat, which depends on finished data from freesurfer, fmriprep & KUL_dwiprep
-    task_KUL_dwiprep_anat
+        if [ $do_dwiprep -eq 1 ]; then
+            task_KUL_dwiprep &
+            echo " KUL_dwiprep pid is $!"
+        fi
 
-    # continue with KUL_dwiprep_drtdbs
-    task_KUL_dwiprep_drtdbs
+        if [ $do_freesurfer -eq 1 ]; then
+            task_freesurfer &
+            echo " freesurfer pid is $!"
+        fi
 
+        # wait for mriqc, fmriprep, freesurfer and KUL_dwiprep to finish
+        wait
+
+        # Here we could also have fMRI statistical analysis e.g.
+        # task_KUL_fmri_model # needs to be made
+
+        # Here we could also have rsfMRI processing e.g.
+        # task_KUL_fmri_melodic # needs to be made
+
+        # continue with KUL_dwiprep_anat, which depends on finished data from freesurfer, fmriprep & KUL_dwiprep
+        if [ $do_dwiprep_anat -eq 1 ]; then
+            task_KUL_dwiprep_anat
+        fi 
+
+        # Here we could also have some whole brain tractography processing e.g.
+        # task_KUL_mrtix_wb_tckgen # needs to be made
+        # task_KUL_mrtrix_tractsegment # needs to be made
+        
+        # continue with KUL_dwiprep_drtdbs
+        if [ $do_dwiprep_anat -eq 1 ]; then
+            task_KUL_dwiprep_drtdbs
+        fi
 
     fi
 
@@ -473,6 +490,11 @@ else
     kul_e2cl " group mriqc already done, skipping..." $log
 
 fi
+
+# ----------- STEP 4 - Compute dwiprep group summary ---
+
+cat dwiprep/sub-*/tracts_info.csv > dwiprep/group_tracts_info.csv
+
 
 
 
