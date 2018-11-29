@@ -8,6 +8,10 @@
 # v0.1 - dd 06/11/2018 - alpha version
 v="v0.1 - dd 06/11/2018"
 
+# TODO
+# - make an input option to specify your freesurfr license.
+# - allow KUL_dcm2bids to also start from unzipped directories with DICOMs
+
 # -----------------------------------  MAIN  ---------------------------------------------
 # this script defines a few functions:
 #  - Usage (for information to the novice user)
@@ -108,7 +112,7 @@ if [ ! -f $fmriprep_file_to_check ]; then
         -v ${cwd}/${bids_dir}:/data \
         -v ${cwd}/fmriprep:/out \
         -v ${cwd}/fmriprep_work:/scratch \
-        -v /Users/xm52195/apps/Freesurfer_License/license.txt:/opt/freesurfer/license.txt \
+        -v /KUL_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
         poldracklab/fmriprep:latest \
         --participant_label ${BIDS_participant} \
         -w /scratch \
