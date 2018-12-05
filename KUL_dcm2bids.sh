@@ -561,6 +561,7 @@ rm -rf $bids_output/tmp_dcm2bids
 # copying task based events.tsv to BIDS directory
 if [ $events_flag -eq 1 ]; then
     test_events_exist=$(ls -l Study_config/task-*_events.tsv | grep "No such file")
+    echo $test_events_exist
     if [ $test_events_exist = "" ]; then
         kul_e2cl "Copying task based events.tsv to BIDS directory" $log
         cp Study_config/task-*_events.tsv $bids_output
