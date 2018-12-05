@@ -106,11 +106,11 @@ if [ ! -f $fmriprep_file_to_check ]; then
 
     fmriprep_log=${preproc}/log/fmriprep/${BIDS_participant}.txt
 
-    kul_e2cl " performing fmriprep on subject ${BIDS_participant}... (using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
+    kul_e2cl " performing fmriprep on subject ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
 
     docker run --rm \
         -v ${cwd}/${bids_dir}:/data \
-        -v ${cwd}/fmriprep:/out \
+        -v ${cwd}:/out \
         -v ${cwd}/fmriprep_work:/scratch \
         -v /KUL_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
         poldracklab/fmriprep:latest \
@@ -118,10 +118,9 @@ if [ ! -f $fmriprep_file_to_check ]; then
         -w /scratch \
         --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
         --mem_mb $mem_mb \
-        --low-mem \
         --notrack \
-        --stop-on-first-crash \
         --fs-no-reconall  \
+        $fmriprep_options \
         /data /out \
         participant \
         > $fmriprep_log 2>&1 
