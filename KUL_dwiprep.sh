@@ -302,20 +302,13 @@ if [ ! -f dwi_preproced.mif ]; then
     mrconvert dwi/upsampled.mif dwi_preproced.mif -set_property comments "Preprocessed dMRI data." -nthreads $ncpu -force 
     rm dwi/upsampled.mif
 
-    # create mask of the dwi data (note masking works best on low b-shells, if high b-shells are noisy)
-    kul_e2cl "    creating mask of the dwi data (note masking works best on low b-shells, if high b-shells are noisy)..." ${log}
-    #dwiextract -shells 0,200,500,1200 dwi_preproced.mif - | dwi2mask - dwi_mask.nii.gz -nthreads $ncpu -force 
-    dwiextract -shells 0,2400 dwi_preproced.mif - | dwi2mask - dwi_mask.nii.gz -nthreads $ncpu -force
-    
+    # create mask of the dwi data 
+    kul_e2cl "    creating mask of the dwi data..." ${log}
+    dwi2mask dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+
     # create mean b0 of the dwi data
     kul_e2cl "    creating mean b0 of the dwi data ..." ${log}
     dwiextract -quiet dwi_preproced.mif -bzero - | mrmath -axis 3 - mean dwi_b0.nii.gz -force 
-
-    # create 2nd mask of the dwi data (using ants)
-    #kul_e2cl "    create 2nd mask of the dwi data (using ants)..." ${log}
-    #
-    #antsBrainExtraction.sh -d 3 -a dwi_b0.nii.gz -e ../T2_template_and_tpms/mni_icbm152_t2_tal_nlin_asym_09a.nii \
-    #    -m ../T2_template_and_tpms/mni_icbm152_t2_tal_nlin_asym_09a_mask.nii -o ./dwi_mask2_ -s nii.gz -u 1
 
 else
 
