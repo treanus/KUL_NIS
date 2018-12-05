@@ -13,16 +13,6 @@ v="v0.1 - dd 09/11/2018"
 #  - fod calc msmt-5tt in stead of dhollander
 
 
-# A few fixed (for now) parameters:
-
-    # Specify additional options for FSL eddy
-    # eddy_options="--data_is_shelled --slm=linear --repol "
-    eddy_options="--slm=linear --repol "
-
-    # Number of desired streamlines
-    nods=2000
-
-
 # -----------------------------------  MAIN  ---------------------------------------------
 # this script defines a few functions:
 #  - Usage (for information to the novice user)
@@ -49,7 +39,7 @@ Usage:
 
 Example:
 
-  `basename $0` -s pat001 -p 6 -d pat001.zip 
+  `basename $0` -s pat001 -p 6 
 
 Required arguments:
 
@@ -58,6 +48,9 @@ Required arguments:
 Optional arguments:
 
      -p:  number of cpu for parallelisation
+     -t:  options to pass to topup
+     -e:  options to pass to eddy
+     -d:  options to pass to dwipreproc (can be -rpe_header, -rpe_none, -rpe_all)
      -v:  show output from mrtrix commands
 
 
@@ -70,8 +63,12 @@ USAGE
 # CHECK COMMAND LINE OPTIONS -------------
 # 
 # Set defaults
-ncpu=6
-silent=1
+ncpu=6 # default if option -p is not given
+silent=1 # default if option -v is not given
+# Specify additional options for FSL eddy
+eddy_options="--slm=linear --repol"
+topup_options=""
+dwipreproc_options="-rpe_header"
 
 # Set required options
 s_flag=0
@@ -82,7 +79,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "s:p:d:vh" OPT; do
+    while getopts "s:p:t:e:d:v" OPT; do
 
         case $OPT in
         s) #subject
@@ -92,12 +89,17 @@ else
         p) #parallel
             ncpu=$OPTARG
         ;;
+        d) #dwipreproc_options
+            dwipreproc_options=$OPTARG
+        ;;
+        t) #topup_options
+            topup_options=$OPTARG
+        ;;
+        e) #eddy_options
+            eddy_options=$OPTARG
+        ;;
         v) #verbose
             silent=0
-        ;;
-        h) #help
-            Usage >&2
-            exit 0
         ;;
         \?)
             echo "Invalid option: -$OPTARG" >&2
@@ -160,7 +162,7 @@ log=log/log_${d}.txt
 
 kul_e2cl "Welcome to KUL_dwiprep $v - $d" ${preproc}/${log}
 
-bids_subj=BIDS/"sub-$subj"/ses-tp1
+bids_subj=BIDS/"sub-$subj"/ses-tp1   #FLAG, bad hard coded session!
 
 # STEP 1 - CONVERSION of BIDS to MIF ---------------------------------------------
 
@@ -169,21 +171,13 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
     kul_e2cl " Preparing datasets from BIDS directory..." ${preproc}/${log}
 
-    # convert raw T1w data, using -strides 1:3 to get orientation correct for FSL
-    bids_t1w="$bids_subj/anat/sub-${subj}_T1w.nii.gz"
-    #mrconvert "$bids_t1w" ${raw}/T1w.nii.gz -strides 1:3 -force -nthreads $ncpu -clear_property comments -nthreads $ncpu
-
-    # convert raw FLAIR data, using -strides 1:3 to get orientation correct for FSL
-    bids_flair="$bids_subj/anat/sub-${subj}_FLAIR.nii.gz"
-    #mrconvert "$bids_flair" ${raw}/FLAIR.nii.gz -strides 1:3 -force -nthreads $ncpu -clear_property comments -nthreads $ncpu
-
     # convert dwi
     bids_dwi_search="$bids_subj/dwi/sub-*_dwi.nii.gz"
     bids_dwi_found=$(ls $bids_dwi_search)
     
     number_of_bids_dwi_found=$(echo $bids_dwi_found | wc -w)
 
-    if [ $number_of_bids_dwi_found -eq 1 ]; then
+    if [ $number_of_bids_dwi_found -eq 1 ]; then #FLAG, if comparing dMRI sequences, they should not be catted
 
         kul_e2cl "   only 1 dwi dataset, scaling not necessary" ${preproc}/${log}
         dwi_base=${bids_dwi_found%%.*}
@@ -251,34 +245,73 @@ fi
 # check if step 3 of dwi preprocessing is done (dwipreproc, i.e. motion and distortion correction takes very long)
 if [ ! -f dwi/geomcorr.mif ]; then
 
-    # motion and distortion correction using rpe_header
-    kul_e2cl "   dwipreproc using rpe_header (this takes time!)..." ${log}
+    if [ topup_options = "" ]; then
 
-    dwiextract dwi_orig.mif -bzero - | dwiextract - -pe 0,1,0 raw/b0s_pe1.mif -force
-    dwiextract dwi_orig.mif -bzero - | dwiextract - -pe 0,-1,0 raw/b0s_pe2.mif -force
+        dwipreproc_topup_options=""
 
-    # Check how many pe1 b0s there are
-    number_of_b0s_pe1=$(mrinfo -shell_sizes raw/b0s_pe1.mif)
-    echo $number_of_b0s_pe1
-    if [ $number_of_b0s_pe1 -lt 2 ]; then
-        echo "     only 1 b0 found in dwi_orig (pe1 subset)"
-        cut_at_pe1=0
     else
-        cut_at_pe1=1
-    fi
-    number_of_b0s_pe2=$(mrinfo -shell_sizes raw/b0s_pe2.mif)
-    if [ $number_of_b0s_pe2 -lt 2 ]; then
-        cut_at_pe2=0
-    else
-        cut_at_pe2=1
-    fi
-    mrconvert raw/b0s_pe1.mif -coord 3 0:$cut_at_pe1 raw/b0s_pe1_first2.mif -force
-    mrconvert raw/b0s_pe2.mif -coord 3 0:$cut_at_pe2 raw/b0s_pe2_first2.mif -force
-    mrcat raw/b0s_pe1_first2.mif raw/b0s_pe2_first2.mif raw/se_epi_for_topup.mif -force
 
-    dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
-    -se_epi raw/se_epi_for_topup.mif -nthreads $ncpu -eddy_options "${eddy_options}" 
+        dwipreproc_topup_options="-topup_options $topup_options "
+
+    fi
+
+
+    if [ dwipreproc_options = "-rpe_header" ]; then
+
+        # motion and distortion correction using rpe_header
+        kul_e2cl "   dwipreproc using rpe_header (this takes time!)..." ${log}
+
+        dwiextract dwi_orig.mif -bzero - | dwiextract - -pe 0,1,0 raw/b0s_pe1.mif -force
+        dwiextract dwi_orig.mif -bzero - | dwiextract - -pe 0,-1,0 raw/b0s_pe2.mif -force
+
+        # Check how many pe1 b0s there are
+        number_of_b0s_pe1=$(mrinfo -shell_sizes raw/b0s_pe1.mif)
+        echo $number_of_b0s_pe1
+        if [ $number_of_b0s_pe1 -lt 2 ]; then
+            echo "     only 1 b0 found in dwi_orig (pe1 subset)"
+            cut_at_pe1=0
+        else
+            cut_at_pe1=1
+        fi
+        number_of_b0s_pe2=$(mrinfo -shell_sizes raw/b0s_pe2.mif)
+        if [ $number_of_b0s_pe2 -lt 2 ]; then
+            cut_at_pe2=0
+        else
+            cut_at_pe2=1
+        fi
+        mrconvert raw/b0s_pe1.mif -coord 3 0:$cut_at_pe1 raw/b0s_pe1_first2.mif -force
+        mrconvert raw/b0s_pe2.mif -coord 3 0:$cut_at_pe2 raw/b0s_pe2_first2.mif -force
+        mrcat raw/b0s_pe1_first2.mif raw/b0s_pe2_first2.mif raw/se_epi_for_topup.mif -force
+
+        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
+        -se_epi raw/se_epi_for_topup.mif -nthreads $ncpu -eddy_options "${eddy_options} " $dwipreproc_topup_options
     
+    
+    elseif [ dwipreproc_options = "-rpe_none" ]; then
+
+        # motion and distortion correction using rpe_none
+        kul_e2cl "   dwipreproc using rpe_none (this takes time!)..." ${log}
+        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_none \
+        -nthreads $ncpu -eddy_options "${eddy_options} " $dwipreproc_topup_options
+
+
+    elseif [ dwipreproc_options = "-rpe_all" ]; then
+                
+        # motion and distortion correction using rpe_all
+        kul_e2cl "   dwipreproc using rpe_all (this takes time!)..." ${log}
+        echo "This will only work if your dwi_orig nicely has half acquired AP and other half PA; else script will fail"
+        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_all \
+        -nthreads $ncpu -eddy_options "${eddy_options} " $dwipreproc_topup_options
+
+    elseif [ dwipreproc_options = "-rpe_pair" ]; then
+
+        # motion and distortion correction using rpe_pair
+        kul_e2cl "   you try running dwipreproc using rpe_pair..." ${log}
+        echo "This will not work since it is not implemented in KUL_dwiprep, since it is useless if you start from BIDS and therefore have all rpe info in your mif. So use -rpe_header instead, please"
+        exit 1
+
+    fi
+
     #rm dwi/degibbs.mif
 
 fi

@@ -183,13 +183,15 @@ function task_KUL_dwiprep {
 # check if already performed KUL_dwiprep
 dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/qa/dec.mif
 
+#FLAG we still need to implement topup_options
+
 if [ ! -f  $dwiprep_file_to_check ]; then
 
     dwiprep_log=${preproc}/log/dwiprep/dwiprep_${BIDS_participant}.txt
 
     kul_e2cl " performing KUL_dwiprep on subject ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
-    KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -v \
+    KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -d $dwipreproc_options -e $eddy_options -v \
         > $dwiprep_log 2>&1 
 
     sleep 5
@@ -374,7 +376,8 @@ gb=1024
 mem_mb=$(echo $mem_gb $gb | awk '{print $1 * $2 }')
 
 # We will be running 4 preprocessings in parallel: mriqc, fmriprep, freesurfer & KUL_dwiprep
-# We need to do some load balancing
+# We need to do some load balancing #FLAG, needs optimisation, a.o. if some processes finished already!
+
 # set number of cores for task mriqc
 load_mriqc=33 # higher number means less cpu need (mriqc does not need much)
 ncpu_mriqc=$(((($ncpu/$load_mriqc))+1))
@@ -416,7 +419,7 @@ mkdir -p ${preproc}/log/dwiprep
 
 
 # we read the config file (and it may be csv, tsv or ;-seperated)
-while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_mriqc do_fmriprep do_freesurfer do_dwiprep do_dwiprep_anat do_dwiprep_drtdbs; do
+while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_drtdbs drtdbs_options; do
     
     
     if [ "$dicom_zip" = "dicom_zip" ]; then
