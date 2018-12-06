@@ -100,7 +100,7 @@ fi
 function task_fmriprep {
 
 # check if already performed fmriprep
-fmriprep_file_to_check=fmriprep/fmriprep/sub-${BIDS_participant}.html
+fmriprep_file_to_check=fmriprep/sub-${BIDS_participant}.html
 
 if [ ! -f $fmriprep_file_to_check ]; then
 
