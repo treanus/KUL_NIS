@@ -24,7 +24,8 @@ v="v0.1 - dd 11/10/2018"
 # A few fixed (for now) parameters:
 
     # Number of desired streamlines
-    nods=2000
+    # nods=2000
+    # this has become a command line optional parameter
 
     # Maximum angle between successive steps for iFOD2
     theta=35
@@ -76,6 +77,7 @@ Required arguments:
 
 Optional arguments:
 
+     -n:  number of desired streamlines to select in tckgen (default nods=2000)
      -p:  number of cpu for parallelisation
      -v:  show output from mrtrix commands
 
@@ -89,6 +91,7 @@ USAGE
 # CHECK COMMAND LINE OPTIONS -------------
 # 
 # Set defaults
+nods=2000
 ncpu=6
 silent=1
 
@@ -101,12 +104,15 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "s:p:vh" OPT; do
+    while getopts "s:n:p:vh" OPT; do
 
         case $OPT in
         s) #subject
             s_flag=1
             subj=$OPTARG
+        ;;
+        n) #nods
+            nods=$OPTARG
         ;;
         p) #parallel
             ncpu=$OPTARG
@@ -368,6 +374,13 @@ function kul_mrtrix_tracto_drt {
                 echo "   generating subject/MNI space images"
                 # convert the tck in nii
                 tckmap tracts_${a}/${tract}.tck tracts_${a}/${tract}.nii.gz -template $ants_anat -force 
+
+                # Warp the full tract image to MNI space
+                input=tracts_${a}/${tract}_${a}.nii.gz
+                output=tracts_${a}/MNI_Space_FULL_${tract}_${a}.nii.gz
+                transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+                reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+                KUL_antsApply_Transform
 
                 # intersect the nii tract image with the thalamic roi
                 fslmaths tracts_${a}/${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/${tract}_masked
