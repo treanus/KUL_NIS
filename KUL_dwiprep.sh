@@ -245,6 +245,8 @@ fi
 # check if step 3 of dwi preprocessing is done (dwipreproc, i.e. motion and distortion correction takes very long)
 if [ ! -f dwi/geomcorr.mif ]; then
 
+    mkdir -p qa
+
     if [ topup_options = "" ]; then
 
         dwipreproc_topup_options=""
@@ -284,7 +286,7 @@ if [ ! -f dwi/geomcorr.mif ]; then
         mrcat raw/b0s_pe1_first2.mif raw/b0s_pe2_first2.mif raw/se_epi_for_topup.mif -force
 
         dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
-        -se_epi raw/se_epi_for_topup.mif -nthreads $ncpu -eddy_options "${eddy_options} " $dwipreproc_topup_options
+        -se_epi raw/se_epi_for_topup.mif -eddyqc_all qa -nthreads $ncpu -eddy_options "${eddy_options} " $dwipreproc_topup_options
     
     
     elseif [ dwipreproc_options = "-rpe_none" ]; then
