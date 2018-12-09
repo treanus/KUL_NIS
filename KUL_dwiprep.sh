@@ -160,7 +160,7 @@ log=log/log_${d}.txt
 
 # SAY HELLO ---
 
-kul_e2cl "Welcome to KUL_dwiprep $v - $d" ${preproc}/${log}
+#kul_e2cl "Welcome to KUL_dwiprep $v - $d" ${preproc}/${log}
 
 bids_subj=BIDS/"sub-$subj"/ses-tp1   #FLAG, bad hard coded session!
 
@@ -229,7 +229,7 @@ mkdir -p dwi
 # check if first 2 steps of dwi preprocessing are done 
 if [ ! -f dwi/degibbs.mif ]; then
 
-    kul_e2cl " Start part 1 of Preprocessing" ${log}
+    kul_e2cl " Start part 1 of preprocessing: dwidenoise & mrdegibbs" ${log}
 
     # dwidenoise
     kul_e2cl "   dwidenoise..." ${log}
@@ -240,88 +240,134 @@ if [ ! -f dwi/degibbs.mif ]; then
     mrdegibbs dwi/denoise.mif dwi/degibbs.mif -nthreads $ncpu -force
     rm dwi/denoise.mif
 
+else
+
+    echo "   part 1 of preprocessing has been done already... skipping to next step"
+
 fi
+
 
 # check if step 3 of dwi preprocessing is done (dwipreproc, i.e. motion and distortion correction takes very long)
 if [ ! -f dwi/geomcorr.mif ]; then
 
-    mkdir -p qa
+    # motion and distortion correction using rpe_header
+    kul_e2cl "   Start part 2 of preprocessing: dwipreproc using rpe_header (this takes time!)..." ${log}
 
-    if [ topup_options = "" ]; then
+    # Make the directory for the output of eddy_qc
+    mkdir -p eddy_qc
 
-        dwipreproc_topup_options=""
+    # prepare eddy_options
+    # clean eddy_options from the \ we added in the config file
+    echo "eddy_options: $eddy_options"
+    #clean_eddy_options=${eddy_options//\\-/-}
+    #echo "clean_eddy_options: $clean_eddy_options"
+    #cleaner_eddy_options=${clean_eddy_options//\#/ }
+    #echo "cleaner_eddy_options: $cleaner_eddy_options"
+    #cleaner_eddy_options=${eddy_options}
+
+
+    # NOT RELEVANT YET (not yet implemented)
+    #if [ -z "$topup_options" ]; then
+    #    dwipreproc_topup_options=""
+    #else
+    #    dwipreproc_topup_options="-topup_options $topup_options "
+    #fi
+
+    # PREPARE FOR TOPUP and EDDY, but allways use rpe_header, since we start from BIDS format
+    # 
+    # Check whether:
+    #  - is there only 1 b0?
+    #      -> do regular mrtrix-dwiprep (topup will not be called)
+    #  - are there less than 5 b0s?
+    #      -> do regular mrtrix-dwiprep (topup will be called if necessary)
+    #  - when equal to or more than 5 b0s, are there different pe_schemes (i.e. reversed phase)?
+    #    - if not: continue with regular mrtrix-dwipreproc (topup will not be called)
+    #    - if so, only keep one of each pe_scheme and call mrtrix-dwipreproc with -se_epi option
+
+    regular_dwipreproc=1
+    
+    # read the pe table of the b0s of dwi_orig.mif
+    IFS=$'\n' 
+    pe=($(dwiextract dwi_orig.mif -bzero - | mrinfo -petable -))
+    echo $pe
+    # count how many b0s there are
+    n_pe=$(echo ${#pe[@]})
+    echo $n_pe
+    
+    
+    # in case there is only 1 b0
+    if [ $n_pe -eq 1 ]; then 
+        
+        info_dwipreproc="only 1 b0"
+    
+    elif [ $n_pe -lt 5 ]; then
+
+        info_dwipreproc="less than 5 b0s"
 
     else
 
-        dwipreproc_topup_options="-topup_options $topup_options "
+        info_dwipreproc="more than or equal to 5 b0s, but all same pe_scheme"
 
-    fi
+        # extract first b0
+        dwiextract dwi_orig.mif -bzero - | mrconvert - -coord 3 0 raw/b0s_pe0.mif -force
+        # get the pe_scheme of the first b0
+        previous_pe=$(echo ${pe[0]})
 
+        # read over the following b0s, and only keep 1 with a new b0 scheme
 
-    if [ dwipreproc_options = "-rpe_header" ]; then
+        for i in `seq 1 $(($n_pe-1))`; do
+        
+            current_pe=$(echo ${pe[$i]})
+        
+            if [ $previous_pe = $current_pe ]; then
+                echo previous_pe=$previous_pe, current_pe=$current_pe
+                echo "same pe scheme, skip"
 
-        # motion and distortion correction using rpe_header
-        kul_e2cl "   dwipreproc using rpe_header (this takes time!)..." ${log}
-
-        dwiextract dwi_orig.mif -bzero - | dwiextract - -pe 0,1,0 raw/b0s_pe1.mif -force
-        dwiextract dwi_orig.mif -bzero - | dwiextract - -pe 0,-1,0 raw/b0s_pe2.mif -force
-
-        # Check how many pe1 b0s there are
-        number_of_b0s_pe1=$(mrinfo -shell_sizes raw/b0s_pe1.mif)
-        echo $number_of_b0s_pe1
-        if [ $number_of_b0s_pe1 -lt 2 ]; then
-            echo "     only 1 b0 found in dwi_orig (pe1 subset)"
-            cut_at_pe1=0
-        else
-            cut_at_pe1=1
-        fi
-        number_of_b0s_pe2=$(mrinfo -shell_sizes raw/b0s_pe2.mif)
-        if [ $number_of_b0s_pe2 -lt 2 ]; then
-            cut_at_pe2=0
-        else
-            cut_at_pe2=1
-        fi
-        mrconvert raw/b0s_pe1.mif -coord 3 0:$cut_at_pe1 raw/b0s_pe1_first2.mif -force
-        mrconvert raw/b0s_pe2.mif -coord 3 0:$cut_at_pe2 raw/b0s_pe2_first2.mif -force
-        mrcat raw/b0s_pe1_first2.mif raw/b0s_pe2_first2.mif raw/se_epi_for_topup.mif -force
-
-        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
-        -se_epi raw/se_epi_for_topup.mif -eddyqc_all qa -nthreads $ncpu -eddy_options "${eddy_options} " $dwipreproc_topup_options
-    
-    
-    elseif [ dwipreproc_options = "-rpe_none" ]; then
-
-        # motion and distortion correction using rpe_none
-        kul_e2cl "   dwipreproc using rpe_none (this takes time!)..." ${log}
-        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_none \
-        -nthreads $ncpu -eddy_options "${eddy_options} " $dwipreproc_topup_options
-
-
-    elseif [ dwipreproc_options = "-rpe_all" ]; then
+            else
+            
+                info_dwipreproc="more than or equal to 5 b0s, but some have different pe_scheme"
+                regular_dwipreproc=0
                 
-        # motion and distortion correction using rpe_all
-        kul_e2cl "   dwipreproc using rpe_all (this takes time!)..." ${log}
-        echo "This will only work if your dwi_orig nicely has half acquired AP and other half PA; else script will fail"
-        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_all \
-        -nthreads $ncpu -eddy_options "${eddy_options} " $dwipreproc_topup_options
+                echo previous_pe=$previous_pe, current_pe=$current_pe
+                echo "new pe_scheme, convert"
+                dwiextract dwi_orig.mif -bzero - | mrconvert - -coord 3 $i raw/b0s_pe${i}.mif -force
 
-    elseif [ dwipreproc_options = "-rpe_pair" ]; then
+            fi
 
-        # motion and distortion correction using rpe_pair
-        kul_e2cl "   you try running dwipreproc using rpe_pair..." ${log}
-        echo "This will not work since it is not implemented in KUL_dwiprep, since it is useless if you start from BIDS and therefore have all rpe info in your mif. So use -rpe_header instead, please"
-        exit 1
+            previous_pe=$current_pe
+
+        done    
 
     fi
 
-    #rm dwi/degibbs.mif
+    #echo $cleaner_eddy_options
 
-fi
+    if [ $regular_dwipreproc -eq 1 ]; then
+
+        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc -eddy_options $cleaner_eddy_options -force -nthreads $ncpu 
+	
+    else
+
+        # concat all b0 with different pe_schemes
+        mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force    
+        
+        dwipreproc -se_epi raw/se_epi_for_topup.mif dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc -eddy_options "${eddy_options} " -force -nthreads $ncpu -nocleanup
+        #dwipreproc -se_epi raw/se_epi_for_topup.mif dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddy_options "--slm=linear " -eddyqc_all eddy_qc -force -nthreads $ncpu -nocleanup
+    
+    fi
+
+else
+
+    echo "   part 2 of preprocessing has been done already... skipping to next step"
+
+fi        
+
+
 
 # check if next 4 steps of dwi preprocessing are done
 if [ ! -f dwi_preproced.mif ]; then
 
-    kul_e2cl " Start part 2 of Preprocessing" ${log}
+    kul_e2cl " Start part 3 of preprocessing: dwibiascorrect, upsampling & creation of dwi_mask" ${log}
 
     # bias field correction
     kul_e2cl "    dwibiascorrect" ${log}
@@ -347,7 +393,7 @@ if [ ! -f dwi_preproced.mif ]; then
 
 else
 
-    echo " Preprocessing already done, skipping"
+    echo "   part 3 of preprocessing has been done already... skipping to next step"
 
 fi
 

@@ -75,13 +75,19 @@ if [ ! -d $mriqc_dir_to_check ]; then
 
     kul_e2cl " performing mriqc on participant $BIDS_participant (using $ncpu_mriqc cores, logging to $mriqc_log)" $log
 
-    docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
-        -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
-        poldracklab/mriqc:latest \
-        --participant_label $BIDS_participant \
-        --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
-        /data /out participant \
-        > $mriqc_log 2>&1 
+    echo "   mriqc pid is $!"
+
+    local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
+ -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
+ poldracklab/mriqc:latest \
+ --participant_label $BIDS_participant \
+ --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
+ /data /out participant \
+ > $mriqc_log 2>&1 ") 
+
+    kul_e2cl "   started task mriqc using cmd: $task_mriqc_cmd" ${log}
+
+    eval $task_mriqc_cmd
 
     sleep 5
 
@@ -106,24 +112,30 @@ if [ ! -f $fmriprep_file_to_check ]; then
 
     fmriprep_log=${preproc}/log/fmriprep/${BIDS_participant}.txt
 
-    kul_e2cl " performing fmriprep on subject ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
+    kul_e2cl " performing fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
 
-    docker run --rm \
-        -v ${cwd}/${bids_dir}:/data \
-        -v ${cwd}:/out \
-        -v ${cwd}/fmriprep_work:/scratch \
-        -v /KUL_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
-        poldracklab/fmriprep:latest \
-        --participant_label ${BIDS_participant} \
-        -w /scratch \
-        --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
-        --mem_mb $mem_mb \
-        --notrack \
-        --fs-no-reconall  \
-        $fmriprep_options \
-        /data /out \
-        participant \
-        > $fmriprep_log 2>&1 
+    echo "   fmriprep pid is $!"
+
+    local task_fmriprep_cmd=$(echo "docker run --rm \
+ -v ${cwd}/${bids_dir}:/data \
+ -v ${cwd}:/out \
+ -v ${cwd}/fmriprep_work:/scratch \
+ -v /KUL_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
+ poldracklab/fmriprep:latest \
+ --participant_label ${BIDS_participant} \
+ -w /scratch \
+ --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
+ --mem_mb $mem_mb \
+ --fs-no-reconall \
+ $fmriprep_options \
+ --notrack \
+ /data /out \
+ participant \
+ > $fmriprep_log  2>&1") 
+
+    kul_e2cl "   started task fmriprep using cmd: $task_fmriprep_cmd" ${log}
+
+    eval $task_fmriprep_cmd
 
     rm -fr ${cwd}/fmriprep_work
 
@@ -149,7 +161,9 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
     freesurfer_log=${preproc}/log/freesurfer/${BIDS_participant}.txt
 
-    kul_e2cl " performing freesurfer recon-all on subject ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
+    kul_e2cl " performing freesurfer recon-all on participant ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
+
+    echo "   freesurfer pid is $!"
 
     mkdir -p freesurfer
 
@@ -164,9 +178,13 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     mkdir -p $SUBJECTS_DIR
     export SUBJECTS_DIR
 
-    recon-all -subject $BIDS_participant -i $bids_anat -all -openmp $ncpu_freesurfer -parallel \
-        > $freesurfer_log 2>&1 
+    local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant -i $bids_anat -all -openmp $ncpu_freesurfer \
+ -parallel > $freesurfer_log 2>&1 ")
 
+    kul_e2cl "   started task freesurfer using cmd: $task_freesurfer_cmd" ${log}
+
+    eval $task_freesurfer_cmd
+    
     sleep 5
 
     kul_e2cl "   done freesufer on participant $BIDS_participant" $log
@@ -190,9 +208,22 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     dwiprep_log=${preproc}/log/dwiprep/dwiprep_${BIDS_participant}.txt
 
-    kul_e2cl " performing KUL_dwiprep on subject ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
+    kul_e2cl " performing KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
-    KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -d $dwipreproc_options -e $eddy_options -v \
+    echo "   KUL_dwiprep pid is $!"
+
+    #prepare eddy_options to be given to KUL_swiprep.sh
+    #dirty_eddy_options=${eddy_options//-/\\-}
+    #dirty_eddy_options=$eddy_options # (given change on line 210 with quotes?)
+    #is the removal of the space (changing it to #) necessary? 
+    #dirty_eddy_options=${dirty_eddy_options// /#} #is removing space necesarry? NO
+    #echo $dirty_eddy_options
+    
+    # quoting is not necessary.
+    #quoted_eddy_options="\"$dirty_eddy_options\""
+    #echo $quoted_eddy_options
+
+    KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -d $dwipreproc_options -e "${eddy_options}" -v \
         > $dwiprep_log 2>&1 
 
     sleep 5
@@ -201,7 +232,7 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
 else
 
-    echo " KUL_dwiprep of subjet $BIDS_participant already done, skipping..."
+    echo " KUL_dwiprep of participant $BIDS_participant already done, skipping..."
         
 fi
 
@@ -394,7 +425,7 @@ ncpu_mriqc=$(((($ncpu/$load_mriqc))+1))
 ncpu_mriqc_ants=$(((($ncpu/$load_mriqc))+1))
 
 # set number of cores for task fmriprep
-load_fmriprep=6
+load_fmriprep=5
 ncpu_fmriprep=$(((($ncpu/$load_fmriprep))+1))
 ncpu_fmriprep_ants=$(((($ncpu/$load_fmriprep))+1))
 
@@ -403,7 +434,7 @@ load_freesurfer=3
 ncpu_freesurfer=$(((($ncpu/$load_freesurfer))+1))
 
 # set number of cores for task KUL_dwiprep
-load_dwiprep=3
+load_dwiprep=2
 ncpu_dwiprep=$(((($ncpu/$load_dwiprep))+1))
 
 
@@ -462,22 +493,26 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
 
         if [ $do_mriqc -eq 1 ]; then
             task_mriqc_participant &
-            echo " mriqc pid is $!"
+            #echo " mriqc pid is $!"
+            sleep 2
         fi
 
         if [ $do_fmriprep -eq 1 ]; then
             task_fmriprep &
-            echo " fmriprep pid is $!"
+            #echo " fmriprep pid is $!"
+            sleep 2
         fi
 
         if [ $do_dwiprep -eq 1 ]; then
             task_KUL_dwiprep &
-            echo " KUL_dwiprep pid is $!"
+            #echo " KUL_dwiprep pid is $!"
+            sleep 2
         fi
 
         if [ $do_freesurfer -eq 1 ]; then
             task_freesurfer &
-            echo " freesurfer pid is $!"
+            #echo " freesurfer pid is $!"
+            sleep 2
         fi
 
         # wait for mriqc, fmriprep, freesurfer and KUL_dwiprep to finish
