@@ -177,6 +177,9 @@ log=log/log_${d}.txt
 
 
 #---------- MAIN ---------------------------------------------------------------------------------------
+echo $subj
+echo $nods
+
 
 # STEP 1 - PROCESSING  ---------------------------------------------
 cd ${preproc}
@@ -271,14 +274,14 @@ if [ ! -f roi/DENTATE_L.nii.gz ]; then
     # transform the T1w into MNI space using fmriprep data
     input=$ants_anat
     output=T1w/T1w_MNI152NLin2009cAsym.nii.gz
-    transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
     reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
     KUL_antsApply_Transform
 
     # inversly transform the T1w in MNI space to subject space (for double checking)
-    input=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz
+    input=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz
     output=T1w/T1w_test_inv_MNI_warp.nii.gz
-    transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
     reference=$ants_anat
     KUL_antsApply_Transform
 
@@ -288,13 +291,13 @@ if [ ! -f roi/DENTATE_L.nii.gz ]; then
     # fslmaths Cerebellum-SUIT.nii -thr 29 -uthr 29 Dentate_L
     input=${kul_main_dir}/atlasses/Local/Dentate_R.nii.gz
     output=roi/DENTATE_R.nii.gz
-    transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
     reference=$ants_anat
     KUL_antsApply_Transform
 
     input=${kul_main_dir}/atlasses/Local/Dentate_L.nii.gz
     output=roi/DENTATE_L.nii.gz
-    transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
     reference=$ants_anat
     KUL_antsApply_Transform
 
@@ -374,9 +377,9 @@ function kul_mrtrix_tracto_drt {
                 tckmap tracts_${a}/${tract}.tck tracts_${a}/${tract}.nii.gz -template $ants_anat -force 
 
                 # Warp the full tract image to MNI space
-                input=tracts_${a}/${tract}_${a}.nii.gz
+                input=tracts_${a}/${tract}.nii.gz
                 output=tracts_${a}/MNI_Space_FULL_${tract}_${a}.nii.gz
-                transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+                transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
                 reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
                 KUL_antsApply_Transform
 
@@ -390,14 +393,14 @@ function kul_mrtrix_tracto_drt {
                 # Warp the probabilistic image to MNI space
                 input=tracts_${a}/Subj_Space_${tract}_${a}.nii.gz
                 output=tracts_${a}/MNI_Space_${tract}_${a}.nii.gz
-                transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+                transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
                 reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
                 KUL_antsApply_Transform
                 
                 
                 if [ $count -lt $do_sift_th ]; then
                 
-                    kul_e2cl "  NOT running tckshift since less than $do_shift_th streamlines" ${log}
+                    kul_e2cl "  NOT running tckshift since less than $do_sift_th streamlines" ${log}
 
                 else
                     kul_e2cl "  running tckshift & generation subject/MNI space images" ${log}
@@ -419,7 +422,7 @@ function kul_mrtrix_tracto_drt {
                     # Warp the probabilistic image to MNI space
                     input=tracts_${a}/Subj_Space_sift1_${tract}_${a}.nii.gz
                     output=tracts_${a}/MNI_Space_sift1_${tract}_${a}.nii.gz
-                    transform=${cwd}/fmriprep/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+                    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
                     reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
                     KUL_antsApply_Transform
 

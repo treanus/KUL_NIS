@@ -151,6 +151,8 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
     kul_e2cl " performing freesurfer recon-all on subject ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
 
+    mkdir -p freesurfer
+
     bids_subj=${bids_dir}/sub-${BIDS_participant}/ses-tp1
     bids_anat=$(ls ${bids_subj}/anat/*_T1w.nii.gz)
     #echo $bids_anat
@@ -242,8 +244,17 @@ if [ ! -f  $dwiprep_drtdbs_file_to_check ]; then
 
     kul_e2cl " performing KUL_dwiprep_drtdbs on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_drtdbs_log)" ${log}
 
-    KUL_dwiprep_drtdbs.sh -s ${BIDS_participant} -p $ncpu -v $drtdbs_options \
-        #> $dwiprep_drtdbs_log 2>&1 
+    echo " local drtdbs_options is: $drtdbs_options"
+
+    #local cmd=$(echo "KUL_dwiprep_drtdbs.sh -s ${BIDS_participant} -p $ncpu -v -n 4000") \
+    #    #> $dwiprep_drtdbs_log 2>&1 
+
+    local cmd=$(echo "KUL_dwiprep_drtdbs.sh -s ${BIDS_participant} -p $ncpu -v -n 4000")
+    #KUL_dwiprep_drtdbs.sh -s "${BIDS_participant}" -p "$ncpu" -v -n "${drtdbs_options}"
+    #echo " the cmd is: $cmd"
+    
+    #exit 1
+    eval $cmd
 
     sleep 5
 
@@ -403,8 +414,8 @@ fi
 
 
 # ----------- STEP 1 - CONVERT TO BIDS ---
-kul_e2cl "Performing KUL_multisubjects_dcm2bids... " $log
-KUL_multisubjects_dcm2bids.sh -d DICOM -c $conf -o $bids_dir -e
+#kul_e2cl "Performing KUL_multisubjects_dcm2bids... " $log
+#KUL_multisubjects_dcm2bids.sh -d DICOM -c $conf -o $bids_dir -e
 
 
 # ----------- STEP 2 - Preprocess each subject with mriqc, fmriprep, freesurfer and KUL_dwiprep ---
@@ -412,7 +423,6 @@ KUL_multisubjects_dcm2bids.sh -d DICOM -c $conf -o $bids_dir -e
 mkdir -p ${preproc}/log/mriqc
 mkdir -p ${preproc}/log/fmriprep
 rm -fr ${cwd}/fmriprep_work
-mkdir -p freesurfer
 mkdir -p ${preproc}/log/freesurfer
 mkdir -p ${preproc}/log/dwiprep
 
@@ -428,6 +438,27 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
     else
 
         kul_e2cl "Performing preprocessing of subject $BIDS_participant... " $log
+
+        echo "BIDS_participant: $BIDS_participant"
+        echo "EAD: $EAD"
+        echo "dicom_zip: $dicom_zip"
+        echo "config_file: $config_file"
+        echo "session: $session"
+        echo "do_mriqc: $do_mriqc"
+        echo "mriqc_options: $mriqc_options"
+        echo "do_fmriprep: $do_fmriprep"
+        echo "fmriprep_options: $fmriprep_options"
+        echo "do_freesurfer: $do_freesurfer"
+        echo "freesurfer_options: $freesurfer_options"
+        echo "do_dwiprep: $do_dwiprep"
+        echo "dwipreproc_options: $dwipreproc_options"
+        echo "topup_options: $topup_options"
+        echo "eddy_options: $eddy_options"
+        echo "do_dwiprep_anat: $do_dwiprep_anat"
+        echo "anat_options: $anat_options"
+        echo "do_dwiprep_drtdbs: $do_dwiprep_drtdbs"
+        echo "drtdbs_options: $drtdbs_options"
+
 
         if [ $do_mriqc -eq 1 ]; then
             task_mriqc_participant &
@@ -468,7 +499,8 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
         # task_KUL_mrtrix_tractsegment # needs to be made
         
         # continue with KUL_dwiprep_drtdbs
-        if [ $do_dwiprep_anat -eq 1 ]; then
+        if [ $do_dwiprep_drtdbs -eq 1 ]; then
+            echo $drtdbs_options
             task_KUL_dwiprep_drtdbs
         fi
 
