@@ -242,7 +242,7 @@ if [ ! -f  $dwiprep_drtdbs_file_to_check ]; then
 
     kul_e2cl " performing KUL_dwiprep_drtdbs on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_drtdbs_log)" ${log}
 
-    KUL_dwiprep_drtdbs.sh -s ${BIDS_participant} -p $ncpu -v \
+    KUL_dwiprep_drtdbs.sh -s ${BIDS_participant} -p $ncpu -v $drtdbs_options \
         #> $dwiprep_drtdbs_log 2>&1 
 
     sleep 5
