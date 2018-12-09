@@ -52,7 +52,6 @@ v="v0.1 - dd 11/10/2018"
 
 kul_main_dir=`dirname "$0"`
 script=`basename "$0"`
-command_line_options=$@
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
 
@@ -177,11 +176,7 @@ log=log/log_${d}.txt
 
 
 
-# SAY HELLO ---
-
-kul_e2cl "Welcome to $script, version $v, invoked with options $command_line_options" ${preproc}/${log}
-echo "   starting at $d"
-exit 1
+#---------- MAIN ---------------------------------------------------------------------------------------
 
 # STEP 1 - PROCESSING  ---------------------------------------------
 cd ${preproc}
