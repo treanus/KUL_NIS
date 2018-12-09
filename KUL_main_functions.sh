@@ -89,4 +89,6 @@ log=$log_dir/main_log_${d}.txt
 
 
 # -- Say Welcome --
-kul_e2cl "Welcome to $script $v - $d" $log
+command_line_options=$@
+kul_e2cl "Welcome to $script, version $v, invoked with parameters $command_line_options" $log
+echo "   starting at $d"
