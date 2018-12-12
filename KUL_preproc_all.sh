@@ -207,7 +207,7 @@ if [ ! -f  $dwiprep_file_to_check ]; then
     kul_e2cl " performing KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
 
-    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -d $dwipreproc_options -e "${eddy_options}" -v \
+    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -d $dwipreproc_options -e \"${eddy_options} \" -v \
         > $dwiprep_log 2>&1 ")
 
     echo "   started task KUL_dwiprep using cmd: $task_dwiprep_cmd"
