@@ -257,14 +257,10 @@ if [ ! -f dwi/geomcorr.mif ]; then
     mkdir -p eddy_qc
 
     # prepare eddy_options
-    # clean eddy_options from the \ we added in the config file
+    # 
     echo "eddy_options: $eddy_options"
-    #clean_eddy_options=${eddy_options//\\-/-}
-    #echo "clean_eddy_options: $clean_eddy_options"
-    #cleaner_eddy_options=${clean_eddy_options//\#/ }
-    #echo "cleaner_eddy_options: $cleaner_eddy_options"
-    #cleaner_eddy_options=${eddy_options}
-
+    full_eddy_options="--cnr_maps --residuals "${eddy_options}
+    echo "full_eddy_options: $full_eddy_options"
 
     # NOT RELEVANT YET (not yet implemented)
     #if [ -z "$topup_options" ]; then
@@ -289,10 +285,10 @@ if [ ! -f dwi/geomcorr.mif ]; then
     # read the pe table of the b0s of dwi_orig.mif
     IFS=$'\n' 
     pe=($(dwiextract dwi_orig.mif -bzero - | mrinfo -petable -))
-    echo $pe
+    #echo $pe
     # count how many b0s there are
     n_pe=$(echo ${#pe[@]})
-    echo $n_pe
+    #echo $n_pe
     
     
     # in case there is only 1 b0
@@ -340,21 +336,28 @@ if [ ! -f dwi/geomcorr.mif ]; then
 
     fi
 
-    #echo $cleaner_eddy_options
+    
 
     if [ $regular_dwipreproc -eq 1 ]; then
 
-        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc -eddy_options $cleaner_eddy_options -force -nthreads $ncpu 
+        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 	
     else
 
         # concat all b0 with different pe_schemes
         mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force    
         
-        dwipreproc -se_epi raw/se_epi_for_topup.mif dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc -eddy_options "${eddy_options} " -force -nthreads $ncpu -nocleanup
-        #dwipreproc -se_epi raw/se_epi_for_topup.mif dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddy_options "--slm=linear " -eddyqc_all eddy_qc -force -nthreads $ncpu -nocleanup
+        dwipreproc -se_epi raw/se_epi_for_topup.mif dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
     
     fi
+
+    # Let's run eddy_quad
+    temp_dir=$(ls -d dwipreproc*)
+	if [ ! -f eddy_quad ]; then
+		kul_e2cl "   running eddy_quad..." ${log}
+		eddy_quad $temp_dir/dwi_post_eddy --eddyIdx $temp_dir/eddy_indices.txt --eddyParams $temp_dir/dwi_post_eddy.eddy_parameters --mask $temp_dir/eddy_mask.nii \ 
+            --bvals $temp_dir/bvals --bvecs $temp_dir/bvecs --output-dir eddy_quad --verbose 
+	fi
 
 else
 
