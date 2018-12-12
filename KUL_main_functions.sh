@@ -78,7 +78,7 @@ if [ $dcm2bids_version -lt $dcm2bids_version_needed ]; then
 fi
 
 # check version of fsl
-fsl_version=$(lirt -version | cut -d' ' -f 3 | cut -d'.' -f 1)
+fsl_version=$(flirt -version | cut -d' ' -f 3 | cut -d'.' -f 1)
 if [ $fsl_version -lt $fsl_version_needed ]; then
 
     echo "Your version of FSL is $fsl_version"

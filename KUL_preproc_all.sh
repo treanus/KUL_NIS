@@ -73,7 +73,7 @@ if [ ! -d $mriqc_dir_to_check ]; then
 
     mriqc_log=${preproc}/log/mriqc/${BIDS_participant}.txt
 
-    kul_e2cl " performing mriqc on participant $BIDS_participant (using $ncpu_mriqc cores, logging to $mriqc_log)" $log
+    kul_e2cl " started (in parallel) mriqc on participant $BIDS_participant (using $ncpu_mriqc cores, logging to $mriqc_log)" $log
 
     local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
  -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
@@ -83,7 +83,7 @@ if [ ! -d $mriqc_dir_to_check ]; then
  /data /out participant \
  > $mriqc_log 2>&1 ") 
 
-    echo "   started task mriqc using cmd: $task_mriqc_cmd"
+    echo "   using cmd: $task_mriqc_cmd"
 
     eval $task_mriqc_cmd
 
@@ -110,7 +110,7 @@ if [ ! -f $fmriprep_file_to_check ]; then
 
     fmriprep_log=${preproc}/log/fmriprep/${BIDS_participant}.txt
 
-    kul_e2cl " performing fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
+    kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
 
     local task_fmriprep_cmd=$(echo "docker run --rm \
  -v ${cwd}/${bids_dir}:/data \
@@ -129,7 +129,7 @@ if [ ! -f $fmriprep_file_to_check ]; then
  participant \
  > $fmriprep_log  2>&1") 
 
-    echo "   started task fmriprep using cmd: $task_fmriprep_cmd"
+    echo "   using cmd: $task_fmriprep_cmd"
 
     eval $task_fmriprep_cmd
 
@@ -157,9 +157,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
     freesurfer_log=${preproc}/log/freesurfer/${BIDS_participant}.txt
 
-    kul_e2cl " performing freesurfer recon-all on participant ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
-
-    echo "   freesurfer pid is $!"
+    kul_e2cl " started (in parallel) freesurfer recon-all on participant ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
 
     mkdir -p freesurfer
 
@@ -177,7 +175,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant -i $bids_anat -all -openmp $ncpu_freesurfer \
  -parallel > $freesurfer_log 2>&1 ")
 
-    echo "   started task freesurfer using cmd: $task_freesurfer_cmd"
+    echo "   using cmd: $task_freesurfer_cmd"
 
     eval $task_freesurfer_cmd
     
@@ -204,13 +202,13 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     dwiprep_log=${preproc}/log/dwiprep/dwiprep_${BIDS_participant}.txt
 
-    kul_e2cl " performing KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
+    kul_e2cl " started (in parallel) KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
 
     local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -d $dwipreproc_options -e \"${eddy_options} \" -v \
         > $dwiprep_log 2>&1 ")
 
-    echo "   started task KUL_dwiprep using cmd: $task_dwiprep_cmd"
+    echo "   using cmd: $task_dwiprep_cmd"
 
     eval $task_dwiprep_cmd
 
@@ -504,6 +502,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
         fi
 
         # wait for mriqc, fmriprep, freesurfer and KUL_dwiprep to finish
+        kul_e2cl " waiting for processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant to finish before continuing with further processing... " $log
         wait
 
         # Here we could also have fMRI statistical analysis e.g.
