@@ -75,8 +75,6 @@ if [ ! -d $mriqc_dir_to_check ]; then
 
     kul_e2cl " performing mriqc on participant $BIDS_participant (using $ncpu_mriqc cores, logging to $mriqc_log)" $log
 
-    echo "   mriqc pid is $!"
-
     local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
  -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
  poldracklab/mriqc:latest \
@@ -85,7 +83,7 @@ if [ ! -d $mriqc_dir_to_check ]; then
  /data /out participant \
  > $mriqc_log 2>&1 ") 
 
-    kul_e2cl "   started task mriqc using cmd: $task_mriqc_cmd" ${log}
+    echo "   started task mriqc using cmd: $task_mriqc_cmd"
 
     eval $task_mriqc_cmd
 
@@ -114,8 +112,6 @@ if [ ! -f $fmriprep_file_to_check ]; then
 
     kul_e2cl " performing fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
 
-    echo "   fmriprep pid is $!"
-
     local task_fmriprep_cmd=$(echo "docker run --rm \
  -v ${cwd}/${bids_dir}:/data \
  -v ${cwd}:/out \
@@ -133,7 +129,7 @@ if [ ! -f $fmriprep_file_to_check ]; then
  participant \
  > $fmriprep_log  2>&1") 
 
-    kul_e2cl "   started task fmriprep using cmd: $task_fmriprep_cmd" ${log}
+    echo "   started task fmriprep using cmd: $task_fmriprep_cmd"
 
     eval $task_fmriprep_cmd
 
@@ -181,7 +177,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant -i $bids_anat -all -openmp $ncpu_freesurfer \
  -parallel > $freesurfer_log 2>&1 ")
 
-    kul_e2cl "   started task freesurfer using cmd: $task_freesurfer_cmd" ${log}
+    echo "   started task freesurfer using cmd: $task_freesurfer_cmd"
 
     eval $task_freesurfer_cmd
     
@@ -210,21 +206,13 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     kul_e2cl " performing KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
-    echo "   KUL_dwiprep pid is $!"
 
-    #prepare eddy_options to be given to KUL_swiprep.sh
-    #dirty_eddy_options=${eddy_options//-/\\-}
-    #dirty_eddy_options=$eddy_options # (given change on line 210 with quotes?)
-    #is the removal of the space (changing it to #) necessary? 
-    #dirty_eddy_options=${dirty_eddy_options// /#} #is removing space necesarry? NO
-    #echo $dirty_eddy_options
-    
-    # quoting is not necessary.
-    #quoted_eddy_options="\"$dirty_eddy_options\""
-    #echo $quoted_eddy_options
+    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -d $dwipreproc_options -e "${eddy_options}" -v \
+        > $dwiprep_log 2>&1 ")
 
-    KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -d $dwipreproc_options -e "${eddy_options}" -v \
-        > $dwiprep_log 2>&1 
+    echo "   started task KUL_dwiprep using cmd: $task_dwiprep_cmd"
+
+    eval $task_dwiprep_cmd
 
     sleep 5
 
