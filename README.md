@@ -35,6 +35,7 @@ They will procces an entire study (multiple subjects) with structural, functiona
                 - correct setup of your .bashrc and .bash_profile
  
  It uses a major config file, e.g. "study_config/subjects_and_options.csv" in which one informs the tools about:
+ 
         What and how (options) to perform:
                 - mriqc (yes/no) 
                     (no options implemented yet)
