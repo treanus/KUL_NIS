@@ -98,21 +98,57 @@ function kul_dcmtags {
     local FovRL=$(dcminfo "$dcm_file" -tag 2005 1076 | cut -c 13-)
 
     # 1/ Calculate ess/trt; needed are : FieldStrength, WaterFatShift, EPIFactor
-    
-    local waterfatshift=$(dcminfo "$dcm_file" -tag 2001 1022 | awk '{print $(NF)}')
-    local fieldstrength=$(dcminfo "$dcm_file" -tag 0018 0087 | awk '{print $(NF)}')
-    local epifactor=$(dcminfo "$dcm_file" -tag 2001 1013 | awk '{print $(NF)}')
-    local water_fat_diff_ppm=3.3995
-    local resonance_freq_mhz_tesla=42.576
+         
+    # Note: only calculate it when it is provided (sometimes this has been thrown away by anonymising the dicom-data)
+    # We check whether needed tags exist
+        
+    tags_are_present=1
 
-    local water_fat_shift_hz=$(echo $fieldstrength $water_fat_diff_ppm $resonance_freq_mhz_tesla echo $fieldstrength $water_fat_diff_ppm | awk '{print $1 * $2 * $3}')
-    
-    #effective_echo_spacing_msec  = 1000 * WFS_PIXEL/(water_fat_shift_hz * (EPI_FACTOR + 1))
-    ees_sec=$(echo $waterfatshift $water_fat_shift_hz $epifactor | awk '{print $1 / ($2 * ($3 + 1))}')
+    test_waterfatshift=$(dcminfo "$dcm_file" -tag 2001 1022)
+    if [ -z "$test_waterfatshift" ]; then
+        tags_are_present=0
+        local waterfatshift="empty"
+    else
+        local waterfatshift=$(dcminfo "$dcm_file" -tag 2001 1022 | awk '{print $(NF)}')
+    fi
 
-    #total_readout_time_fsl_msec      = EPI_FACTOR * effective_echo_spacing_msec;
-    trt_sec=$(echo $epifactor $ees_sec | awk '{print $1 * $2 }')
+    test_fieldstrength=$(dcminfo "$dcm_file" -tag 0018 0087)
+    if [ -z "$test_fieldstrength" ]; then
+        tags_are_present=0
+        local fieldstrength="empty"
+    else
+        local fieldstrength=$(dcminfo "$dcm_file" -tag 0018 0087 | awk '{print $(NF)}')
+    fi
+
+    test_epifactor=$(dcminfo "$dcm_file" -tag 2001 1013)
+    if [ -z "$test_epifactor" ]; then
+        tags_are_present=0
+        local epifactor="empty"
+    else
+        local epifactor=$(dcminfo "$dcm_file" -tag 2001 1013 | awk '{print $(NF)}')
+    fi
+
+
+    if [ $tags_are_present -eq 0 ]; then
+
+        ees_sec="empty"
+        trt_sec="empty"
+
+    else
+
+        local water_fat_diff_ppm=3.3995
+        local resonance_freq_mhz_tesla=42.576
+
+        local water_fat_shift_hz=$(echo $fieldstrength $water_fat_diff_ppm $resonance_freq_mhz_tesla echo $fieldstrength $water_fat_diff_ppm | awk '{print $1 * $2 * $3}')
     
+        #effective_echo_spacing_msec  = 1000 * WFS_PIXEL/(water_fat_shift_hz * (EPI_FACTOR + 1))
+        ees_sec=$(echo $waterfatshift $water_fat_shift_hz $epifactor | awk '{print $1 / ($2 * ($3 + 1))}')
+
+        #total_readout_time_fsl_msec      = EPI_FACTOR * effective_echo_spacing_msec;
+        trt_sec=$(echo $epifactor $ees_sec | awk '{print $1 * $2 }')
+    
+    fi
+
     # 2/ Calculate slice SliceTiming
 
     #function SliceTime=KUL_slicetiming(MB, NS, TR)
@@ -126,41 +162,64 @@ function kul_dcmtags {
 
     multiband_factor=$mb
     
-    #NS
-    local number_of_slices=$(dcminfo "$dcm_file" -tag 2001 1018 | awk '{print $(NF)}')
 
-    #TR (in milliseconds)
-    local repetion_time_msec=$(dcminfo "$dcm_file" -tag 0018 0080 | awk '{print $(NF)}')
+    tags_are_present=1
 
-    if [ ! $multiband_factor = "" ];then
-
-        #single_slice_time (in seconds)
-        local single_slice_time=$(echo $repetion_time_msec $number_of_slices $multiband_factor | awk '{print $1 / ($2 / $3) / 1000}')
-
-    
-        # number of excitations given multiband
-        local e=$(echo $number_of_slices $multiband_factor | awk '{print ($1 / $2) -1 }')
-        
-
-        slit=0
-
-        for (( c=1; c<=$e; c++ )); do 
-            sl=$(echo $c $single_slice_time | awk '{print $1 * $2}')
-            slit="$slit, $sl"
-        done
-
-        slit2=$slit
-    
-        rep=$(echo $multiband_factor | awk '{print $1 - 1}')
-
-        for (( c=1; c<=$rep; c++ )); do 
-            slit2="$slit2, $slit"
-        done
-    
-        
-        slice_time=[$slit2]
-        
+    test_number_of_slices=$(dcminfo "$dcm_file" -tag 2001 1018)
+    if [ -z "$test_number_of_slices" ]; then
+        tags_are_present=0
+        local number_of_slices="empty"
+    else
+        local number_of_slices=$(dcminfo "$dcm_file" -tag 2001 1018 | awk '{print $(NF)}')
     fi
+
+    test_repetion_time_msec=$(dcminfo "$dcm_file" -tag 0018 0080 )
+    if [ -z "$test_repetion_time_msec" ]; then
+        tags_are_present=0
+        local repetion_time_msec="empty"
+    else
+        local repetion_time_msec=$(dcminfo "$dcm_file" -tag 0018 0080 | awk '{print $(NF)}')
+    fi
+    
+
+    if [ $tags_are_present -eq 1 ]; then
+
+        if [ ! $multiband_factor = "" ];then
+
+            #single_slice_time (in seconds)
+            local single_slice_time=$(echo $repetion_time_msec $number_of_slices $multiband_factor | awk '{print $1 / ($2 / $3) / 1000}')
+
+    
+            # number of excitations given multiband
+            local e=$(echo $number_of_slices $multiband_factor | awk '{print ($1 / $2) -1 }')
+        
+
+            slit=0
+
+            for (( c=1; c<=$e; c++ )); do 
+                sl=$(echo $c $single_slice_time | awk '{print $1 * $2}')
+                slit="$slit, $sl"
+            done
+
+            slit2=$slit
+    
+            rep=$(echo $multiband_factor | awk '{print $1 - 1}')
+
+            for (( c=1; c<=$rep; c++ )); do 
+                slit2="$slit2, $slit"
+            done
+    
+        
+            slice_time=[$slit2]
+        
+        fi
+    
+    else
+
+        slice_time="empty"
+
+    fi
+
 
     if [ $silent -eq 0 ]; then
         echo "   patid = $patid"
@@ -194,9 +253,9 @@ function kul_dcmtags {
     fi
 
     if [ ! -f $out ]; then
-        echo -e "participant,dcm_file,manufacturer,software_version,series_descr,imagetype,fieldstrength,acquisitionMatrix,FovAP,FovFH,FovRL,pixelspacing,slicethickness,epifactor,wfs,ees_sec,trt_sec,#slices,repetion_time_msec,multiband_factor" > $out
+        echo -e "participant,session,dcm_file,manufacturer,software_version,series_descr,imagetype,fieldstrength,acquisitionMatrix,FovAP,FovFH,FovRL,pixelspacing,slicethickness,epifactor,wfs,ees_sec,trt_sec,#slices,repetion_time_msec,multiband_factor" > $out
     fi
-    echo -e "$subj,$dcm_file,$manufacturer,$software,$seriesdescr,$imagetype,$fieldstrength,$acquisitionMatrix,$FovAP,$FovFH,$FovRL,$pixelspacing,$slicethickness,$epifactor,$waterfatshift,$ees_sec,$trt_sec,$number_of_slices,$repetion_time_msec,$multiband_factor" >> $out
+    echo -e "$subj,${sess},$dcm_file,$manufacturer,$software,$seriesdescr,$imagetype,$fieldstrength,$acquisitionMatrix,$FovAP,$FovFH,$FovRL,$pixelspacing,$slicethickness,$epifactor,$waterfatshift,$ees_sec,$trt_sec,$number_of_slices,$repetion_time_msec,$multiband_factor" >> $out
 
     
 }
@@ -346,21 +405,22 @@ d=$(date "+%Y-%m-%d_%H-%M-%S")
 log=$log_dir/${subj}_main_log_${d}.txt
 
 # file for initial dicom tags
-dump_file=$log_dir/${subj}_initial_dicom_info.txt
+dump_file=$log_dir/${subj}_${sess}_initial_dicom_info.txt
 
 # file with final dicom tags
-final_dcm_tags_file=$log_dir/${subj}_final_dicom_info.csv
+final_dcm_tags_file=$log_dir/${subj}_${sess}_final_dicom_info.csv
 
 # location of bids_config_json_file
-bids_config_json_file=$log_dir/${subj}_bids_config.json
+bids_config_json_file=$log_dir/${subj}_${sess}_bids_config.json
 
 # location of dcm2niix_log_file
-dcm2niix_log_file=$log_dir/${subj}_dcm2niix_log_file.txt
+dcm2niix_log_file=$log_dir/${subj}_${sess}_dcm2niix_log_file.txt
 
 # remove previous existances to start fresh
 rm -f $dump_file
 rm -f $final_dcm_tags_file
 rm -f $bids_config_json_file
+rm -fr ${tmp}/$subj
 
 # ----------- SAY HELLO ----------------------------------------------------------------------------------
 
@@ -372,6 +432,7 @@ fi
 
 # uncompress the zip file with dicoms
 kul_e2cl "  uncompressing the zip file $dcm to $tmp/$subj" $log
+# clear the /tmp directory
 mkdir -p ${tmp}/$subj
 #tar -C ${tmp}/$subj -xzf ${dcm}
 unzip -q -o ${dcm} -d ${tmp}/$subj
@@ -470,25 +531,46 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids=$(cat <<EOF
-            {
-            "dataType": "func",
-            "suffix": "bold",
-            "criteria": {
-                "in": {
-                "SeriesDescription": "${search_string}",
-                "ImageType": "ORIGINAL"
+            if [ ! $ees_sec = "empty" ]; then 
+
+                sub_bids=$(cat <<EOF
+                {
+                "dataType": "func",
+                "suffix": "bold",
+                "criteria": {
+                    "in": {
+                    "SeriesDescription": "${search_string}",
+                    "ImageType": "ORIGINAL"
+                    }
+                },
+                "customHeader": {
+                    "TaskName": "${task}",
+                    "EffectiveEchoSpacing": ${ees_sec},
+                    "TotalReadoutTime": ${trt_sec},
+                    "MultibandAccelerationFactor": ${mb},
+                    "PhaseEncodingDirection": "${pe_dir}",
+                    "SliceTiming": $slice_time
                 }
-            },
-            "customHeader": {
-                "TaskName": "${task}",
-                "EffectiveEchoSpacing": ${ees_sec},
-                "TotalReadoutTime": ${trt_sec},
-                "MultibandAccelerationFactor": ${mb},
-                "PhaseEncodingDirection": "${pe_dir}",
-                "SliceTiming": $slice_time
-            }
-            })
+                })
+            
+            else
+
+                sub_bids=$(cat <<EOF
+                {
+                "dataType": "func",
+                "suffix": "bold",
+                "criteria": {
+                    "in": {
+                    "SeriesDescription": "${search_string}",
+                    "ImageType": "ORIGINAL"
+                    }
+                },
+                "customHeader": {
+                    "TaskName": "${task}"
+                }
+                })
+
+            fi
 
             bids="$bids,$sub_bids"
 
@@ -556,7 +638,7 @@ dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file
     -o $bids_output > $dcm2niix_log_file
 
 
-rm -rf $bids_output/tmp_dcm2bids
+#rm -rf $bids_output/tmp_dcm2bids
 
 # copying task based events.tsv to BIDS directory
 if [ $events_flag -eq 1 ]; then
