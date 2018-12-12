@@ -9,7 +9,7 @@ Requires Mrtrix3, FSL, ants, dcm2niix, dcm2bids (jooh fork), docker, fmriprep an
 
 v0.2a - dd 12/12/2018 - pre beta version
 
-These tools are intended for MRI processing at Stefan's lab
+These tools are only intended for MRI processing at Stefan's lab
 
 They will procces an entire study (multiple subjects) with structural, functional and diffusion data:
 
@@ -22,7 +22,8 @@ They will procces an entire study (multiple subjects) with structural, functiona
             - perform combined structural and dMRI data analysis (depends on fmriprep, freesurfer and mrtrix3 above)
             - perfrom dbsdrt (automated tractography of the dentato-rubro-thalamic tract) on dMRI + structural data (depends on all above)
  
-    Requirements:
+ Requirements:
+ 
         A correct installation of your mac (for now, maybe later also a hpc) at the lab
             - including:
                 - dcm2niix (in KUL_apps)
@@ -33,7 +34,7 @@ They will procces an entire study (multiple subjects) with structural, functiona
                 - last but not least, a correct installation of up-to-date KUL_NeuroImaging_Tools (in KUL_apps)
                 - correct setup of your .bashrc and .bash_profile
  
-   It uses a major config file, e.g. "study_config/subjects_and_options.csv" in which one informs the tools about:
+ It uses a major config file, e.g. "study_config/subjects_and_options.csv" in which one informs the tools about:
         What and how (options) to perform:
                 - mriqc (yes/no) 
                     (no options implemented yet)
@@ -50,4 +51,3 @@ They will procces an entire study (multiple subjects) with structural, functiona
                     (no options implemented yet)
                 - KUL_dwiprep_dbsdrt processing (yes/no)
                         option nods e.g. 4000
-
