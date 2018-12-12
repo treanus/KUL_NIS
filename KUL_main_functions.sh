@@ -5,7 +5,7 @@
 #  - execute startup
 #
 
-mrtrix_version_needed=100
+mrtrix_version_needed=133
 dcm2niix_version_needed=20180622
 log_every_seconds=120
 
