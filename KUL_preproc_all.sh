@@ -1,32 +1,89 @@
 #!/bin/bash -e
-# Bash shell script to preprocces an entire study
-#
-# Requires dcm2bids (jooh fork), dcm2niix, Mrtrix3
-#
-# @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
+# @ Stefan Sunaert & Ahmed Radwan- UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 06/11/2018 - alpha version
-v="v0.1 - dd 06/11/2018"
+# v0.2a - dd 12/12/2018 - preparing for beta release 0.2
+v="v0.2a - dd 12/12/2018"
 
-# TODO
-# - make an input option to specify your freesurfr license.
-# - allow KUL_dcm2bids to also start from unzipped directories with DICOMs
+# This is the main script of the KUL_NeuroImaging_Toools
+#
+# Description:
+#    This script preprocces an entire study (multiple subjects) with structural, functional and diffusion data at Stefan's lab
+#      It will:
+#       - convert dicom files to BIDS format
+#       - perform mriqc on structural and functional data
+#       - perform fmriprep on structural and functional data
+#       - perform freesurfer on the structural data (only T1w for now) 
+#       - perform mrtix3 and related processing on dMRI data
+#       - optionally:
+#           - perform combined structural and dMRI data analysis (depends on fmriprep, freesurfer and mrtrix3 above)
+#           - perfrom dbsdrt (automated tractography of the dentato-rubro-thalamic tract) on dMRI + structural data (depends on all above)
+#
+#   Requirements:
+#       A correct installation of your mac (for now, maybe later also a hpc) at the lab
+#           - including:
+#               - dcm2niix (in KUL_apps)
+#               - dcm2bids (jooh fork, using pip)
+#               - docker
+#               - freesurfer (in KUL_apps)
+#               - mrtrix (in KUL_apps)  
+#               - last but not least, a correct installation of up-to-date KUL_NeuroImaging_Tools (in KUL_apps)
+#               - correct setup of your .bashrc and .bash_profile
+#
+#  It depends on a major config file, e.g. "study_config/subjects_and_options.csv" in which one informs the script:
+#       What and how (options) to perform:
+#               - mriqc (yes/no) 
+#                   (no options implemented yet)
+#               - fmriprep (yes/no), and specifies options:
+#                   all fmriprep options may be given,
+#                   e.g.:
+#                       --anat-only (to only process structural)
+#               - freesurfer (yes/no) 
+#                   (no options implemented yet)
+#               - KUL_dwiprep processing, i.e. a full mrtrix processing pipeline (yes/no)
+#                   options may be e.g.:
+#                       --slm=linear --repol (to provide to eddy)
+#               - KUL_dwiprep_anat processing (yes/no) 
+#                   (no options implemented yet)
+#               - KUL_dwiprep_dbsdrt processing (yes/no)
+#                       option nods e.g. 4000
+#
 
-# -----------------------------------  MAIN  ---------------------------------------------
-# this script defines a few functions:
-#  - Usage (for information to the novice user)
-#  - kul_e2cl from KUL_main_functions (for logging)
-#  - kul_dcmtags (for reading specific parameters from dicom header)
 
-# source general functions
-kul_main_dir=`dirname "$0"`
-script=`basename "$0"`
+
+
+
+
+# To do:
+# - update the description above (section DESCRIPTION) of what this script does exactly!
+#
+#       - other ideas:
+#               - add KUL_dcm2bids in the loop of processing (was implemented, but temporarily out again)
+#               - add processing for fmri stats
+#               - add processing for automated tracking of major tracts (similar to tractseg e.g.)
+
+
+
+
+
+# Source KUL_main_functions
+# KUL_main_functions will:
+#  - Say Welcome
+#  - check wether all necessary software is installed (and exit if needed)
+#  - provide some general functions like logging
+kul_main_dir=$(dirname "$0")
 source $kul_main_dir/KUL_main_functions.sh
+script=$(basename "$0")
 cwd=$(pwd)
 
-# BEGIN LOCAL FUNCTIONS --------------
 
-# --- function Usage ---
+
+
+# Start with defining local functions
+
+
+# A Function to provide Usage information
+#   - gives information about the script
 function Usage {
 
 cat <<USAGE
@@ -35,28 +92,36 @@ cat <<USAGE
 
 Usage:
 
-  `basename $0` -c config_file -o bids_dir -p ncpu
-
-Example:
-
-  `basename $0` -c definitions.txt -o BIDS -p 6 -m 12 -t /scratch
-    
-    outputs and works on directory BIDS
-    uses 6 cores & memory of 12 GB (set you docker prefences appropriately)
-    temporary data are written to /scratch
+  `basename $0` -c config_file -b bids_dir
 
 Required arguments:
 
-     -c:  description of the subjects (see KUL_multisubjects_dcm2bids)
-     -o:  bids directory
-     -p:  number of cores to use 
-
+     -c:  description of the subjects and settings for processing
+     -b:  bids directory
 
 Optional arguments:
     
-     -r:  reset docker (clean the images and download new ones)
-     -m:  max available memomry (in gigabytes) available in docker
+     -p:  number of cores to use (distrubuted over mriqc/fmriprep/freesurfer/etc...)
+     -m:  max memory (in gigabytes) available in docker
      -t:  temporary directory (default = /tmp)
+     -r:  reset docker (clean the images and download new ones)
+     -v:  verbose
+
+Example:
+
+  `basename $0` -c study_config/subjects_and_options.csv -b BIDS -p 6 -m 12 -t /scratch -v 
+    
+    uses "study_config/subjects_and_options.csv" to 
+        - reads the subjects (participants) on which to do processing
+        - reads what processing (mriqc/fmriprep/freesurfer/etc...) to do on those
+        - reads the options to give to mriqc/fmriprep/etc...
+    uses the (already converted) BIDS data in directory "BIDS"
+    uses 6 cores in total for all processes (distrubuted over mriqc/fmriprep/freesurfer/etc...)
+    uses & memory of 12 GB
+        - for fmriprep & mriqc 
+        - (set this option equal to, or slightly less than what you specify in your docker prefences)
+    specifies that temporary data are written to /scratch
+    spits out more verbose logging to the terminal
 
 USAGE
 
@@ -64,6 +129,7 @@ USAGE
 }
 
 
+# A Function to start mriqc processing (in parallel)
 function task_mriqc_participant {
 
 # check if already performed mriqc
@@ -100,7 +166,7 @@ fi
 }
 
 
-
+# A function to start fmriprep processing (in parallel)
 function task_fmriprep {
 
 # check if already performed fmriprep
@@ -147,7 +213,7 @@ fi
 
 }
 
-
+# A Function to start freesurfer processing (in parallel)
 function task_freesurfer {
 
 # check if already performed freesurfer
@@ -191,6 +257,9 @@ fi
 
 }
 
+
+
+# A function to start KUL_dwiprep processing (in parallel)
 function task_KUL_dwiprep {
 
 # check if already performed KUL_dwiprep
@@ -206,7 +275,7 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
 
     local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -d $dwipreproc_options -e \"${eddy_options} \" -v \
-        > $dwiprep_log 2>&1 ")
+ > $dwiprep_log 2>&1 ")
 
     echo "   using cmd: $task_dwiprep_cmd"
 
@@ -224,6 +293,10 @@ fi
 
 }
 
+
+
+
+# A Function to start KUL_dwiprep_anat processing
 function task_KUL_dwiprep_anat {
 
 # check if already performed KUL_dwiprep_anat
@@ -250,6 +323,10 @@ fi
 
 }
 
+
+
+
+# A Function to start KUL_dwiprep_drtdbs processing
 function task_KUL_dwiprep_drtdbs {
 
 # check if already performed KUL_dwiprep_drtdbs
@@ -285,13 +362,15 @@ fi
 
 }
 
-# END LOCAL FUNCTIONS --------------
+# end of local function --------------
 
 
 
-# CHECK COMMAND LINE OPTIONS -------------
-# 
-# Set defaults
+
+
+# MAIN STARTS HERE
+
+# Set some defaults
 silent=1
 mem_gb=16
 tmp=/tmp
@@ -304,20 +383,21 @@ cpu_flag=0
 mem_flag=0
 docker_reset_flag=0
 
-if [ "$#" -lt 1 ]; then
+# Check command line options, and return function Usage if required options are not given
+if [ "$#" -lt 2 ]; then
     Usage >&2
     exit 1
 
 else
 
-    while getopts "c:o:p:m:t:r" OPT; do
+    while getopts "c:b:p:m:t:rvh" OPT; do
 
         case $OPT in
         c) #config_file
             conf_flag=1
             conf=$OPTARG
         ;;
-        o) #bids_dir
+        b) #bids_dir
             bids_flag=1
             bids_dir=$OPTARG
         ;;
@@ -335,6 +415,9 @@ else
         ;;
         r) #reset docker
             docker_reset_flag=1
+        ;;
+        v) #verbose
+            silent=0
         ;;
         h) #help
             Usage >&2
@@ -391,17 +474,19 @@ fi
 
 
 
-# ----------- SAY HELLO ----------------------------------------------------------------------------------
+# ----------- MAIN ----------------------------------------------------------------------------------
 
-if [ $silent -eq 0 ]; then
+if [ $silent -eq 1 ]; then
     echo "  The script you are running has basename `basename "$0"`, located in dirname $kul_main_dir"
     echo "  The present working directory is `pwd`"
 fi
 
+# ---------- SET MAIN DEFAULTS ---
 # set mem_mb for mriqc
 gb=1024
 mem_mb=$(echo $mem_gb $gb | awk '{print $1 * $2 }')
 
+# ---------- PROCESS CONTROL & LOAD BALANCING --------
 # We will be running 4 preprocessings in parallel: mriqc, fmriprep, freesurfer & KUL_dwiprep
 # We need to do some load balancing #FLAG, needs optimisation, a.o. if some processes finished already!
 
@@ -433,15 +518,21 @@ fi
 # ----------- STEP 1 - CONVERT TO BIDS ---
 #kul_e2cl "Performing KUL_multisubjects_dcm2bids... " $log
 #KUL_multisubjects_dcm2bids.sh -d DICOM -c $conf -o $bids_dir -e
+# TODO:
+#  - this will be changed: KUL_multisubjects_dcm2bids will become obsolete
+#  - instead we will call KUL_dcm2bids for each subject in the loop below.
 
 
 # ----------- STEP 2 - Preprocess each subject with mriqc, fmriprep, freesurfer and KUL_dwiprep ---
-# set up directories and clean
+# set up logging directories and clean left over fmriprep_work directory
+# TODO:
+#  - this should best go into the task_*
 mkdir -p ${preproc}/log/mriqc
-mkdir -p ${preproc}/log/fmriprep
-rm -fr ${cwd}/fmriprep_work
 mkdir -p ${preproc}/log/freesurfer
 mkdir -p ${preproc}/log/dwiprep
+mkdir -p ${preproc}/log/fmriprep
+rm -fr ${cwd}/fmriprep_work
+
 
 
 # we read the config file (and it may be csv, tsv or ;-seperated)
@@ -455,27 +546,33 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
     else
 
         kul_e2cl "Performing preprocessing of subject $BIDS_participant... " $log
+        kul_e2cl "  Now starting (depending on your config-file mriqc, fmriprep, freesurfer and KUL_dwiprep... " $log
+        echo "   note: further processing with KUL_dwiprep_anat, KUL_dwiprep_drtdbs depend on fmriprep, freesurfer and KUL_dwiprep (which need to run fully)"
 
-        echo "BIDS_participant: $BIDS_participant"
-        echo "EAD: $EAD"
-        echo "dicom_zip: $dicom_zip"
-        echo "config_file: $config_file"
-        echo "session: $session"
-        echo "do_mriqc: $do_mriqc"
-        echo "mriqc_options: $mriqc_options"
-        echo "do_fmriprep: $do_fmriprep"
-        echo "fmriprep_options: $fmriprep_options"
-        echo "do_freesurfer: $do_freesurfer"
-        echo "freesurfer_options: $freesurfer_options"
-        echo "do_dwiprep: $do_dwiprep"
-        echo "dwipreproc_options: $dwipreproc_options"
-        echo "topup_options: $topup_options"
-        echo "eddy_options: $eddy_options"
-        echo "do_dwiprep_anat: $do_dwiprep_anat"
-        echo "anat_options: $anat_options"
-        echo "do_dwiprep_drtdbs: $do_dwiprep_drtdbs"
-        echo "drtdbs_options: $drtdbs_options"
-
+        if [ silent -eq 0 ]; then
+            
+            echo "if this script fails, please check your configuration file (given to -c); for now this was what was defined:"
+            echo "  BIDS_participant: $BIDS_participant"
+            echo "  EAD: $EAD"
+            echo "  dicom_zip: $dicom_zip"
+            echo "  config_file: $config_file"
+            echo "  session: $session"
+            echo "  do_mriqc: $do_mriqc"
+            echo "  mriqc_options: $mriqc_options"
+            echo "  do_fmriprep: $do_fmriprep"
+            echo "  fmriprep_options: $fmriprep_options"
+            echo "  do_freesurfer: $do_freesurfer"
+            echo "  freesurfer_options: $freesurfer_options"
+            echo "  do_dwiprep: $do_dwiprep"
+            echo "  dwipreproc_options: $dwipreproc_options"
+            echo "  topup_options: $topup_options"
+            echo "  eddy_options: $eddy_options"
+            echo "  do_dwiprep_anat: $do_dwiprep_anat"
+            echo "  anat_options: $anat_options"
+            echo "  do_dwiprep_drtdbs: $do_dwiprep_drtdbs"
+            echo "  drtdbs_options: $drtdbs_options"
+        
+        fi
 
         if [ $do_mriqc -eq 1 ]; then
             task_mriqc_participant &
