@@ -5,8 +5,13 @@
 #  - execute startup
 #
 
+# parameters for version_checking
 mrtrix_version_needed=133
 dcm2niix_version_needed=20180622
+dcm2bids_version_needed=4
+fsl_version_needed=6
+
+# parameters for logging
 log_every_seconds=120
 
 
@@ -57,6 +62,27 @@ if [ $dcm2niix_version -lt $dcm2niix_version_needed ]; then
 
     echo "Your version of dcm2nixx is $dcm2niix_version"
     echo "You need dcm2nixx version more recent than $dcm2niix_version_needed"
+    exit 2
+
+fi
+
+
+# check version of dcm2bids
+dcm2bids_version=$(dcm2bids -h | grep version | head -n 1 | cut -d'.' -f 2)
+if [ $dcm2bids_version -lt $dcm2bids_version_needed ]; then
+
+    echo "Your version of dcm2bids is $dcm2bids_version"
+    echo "You need dcm2bids version equal or more than $dcm2bids_version_needed"
+    exit 2
+
+fi
+
+# check version of fsl
+fsl_version=$(lirt -version | cut -d' ' -f 3 | cut -d'.' -f 1)
+if [ $fsl_version -lt $fsl_version_needed ]; then
+
+    echo "Your version of FSL is $fsl_version"
+    echo "You need FSL version equal or more than $fsl_version_needed"
     exit 2
 
 fi
