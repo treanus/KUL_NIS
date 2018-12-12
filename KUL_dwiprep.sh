@@ -254,7 +254,7 @@ if [ ! -f dwi/geomcorr.mif ]; then
     kul_e2cl "   Start part 2 of preprocessing: dwipreproc using rpe_header (this takes time!)..." ${log}
 
     # Make the directory for the output of eddy_qc
-    mkdir -p eddy_qc
+    mkdir -p eddy_qc/raw
 
     # prepare eddy_options
     # 
@@ -340,24 +340,26 @@ if [ ! -f dwi/geomcorr.mif ]; then
 
     if [ $regular_dwipreproc -eq 1 ]; then
 
-        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 	
     else
 
         # concat all b0 with different pe_schemes
         mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force    
         
-        dwipreproc -se_epi raw/se_epi_for_topup.mif dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+        dwipreproc -se_epi raw/se_epi_for_topup.mif dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
     
     fi
 
     # Let's run eddy_quad
     temp_dir=$(ls -d dwipreproc*)
-	if [ ! -f eddy_quad ]; then
-		kul_e2cl "   running eddy_quad..." ${log}
-		eddy_quad $temp_dir/dwi_post_eddy --eddyIdx $temp_dir/eddy_indices.txt --eddyParams $temp_dir/dwi_post_eddy.eddy_parameters --mask $temp_dir/eddy_mask.nii \ 
-            --bvals $temp_dir/bvals --bvecs $temp_dir/bvecs --output-dir eddy_quad --verbose 
-	fi
+    rm -rf eddy_qc/quad
+	kul_e2cl "   running eddy_quad..." ${log}
+	eddy_quad $temp_dir/dwi_post_eddy --eddyIdx $temp_dir/eddy_indices.txt \
+        --eddyParams $temp_dir/dwi_post_eddy.eddy_parameters --mask $temp_dir/eddy_mask.nii \
+        --bvals $temp_dir/bvals --bvecs $temp_dir/bvecs --output-dir eddy_qc/quad --verbose 
+    # make an mriqc/fmriprep style report (i.e. just link qc.pdf into main dwiprep directory)
+    ln -s eddy_qc/quad/qc.pdf $cwd/${preproc}.pdf &
 
 else
 
