@@ -214,6 +214,14 @@ function kul_dcmtags {
         local repetion_time_msec=$(dcminfo "$dcm_file" -tag 0018 0080 | awk '{print $(NF)}')
     fi
     
+    test_slice_scan_order=$(dcminfo "$dcm_file" -tag 2005 1081 )
+    if [ -z "$test_slice_scan_order" ]; then
+        #tags_are_present=0
+        local slice_scan_order="empty"
+    else
+        local slice_scan_order=$(dcminfo "$dcm_file" -tag 2005 1081 | awk '{print $(NF)}')
+    fi
+    
 
     if [ $tags_are_present -eq 1 ]; then
 
@@ -274,6 +282,7 @@ function kul_dcmtags {
         echo "        calculated trt  = $trt_sec"
         echo "      number of slices = $number_of_slices"
         echo "      repetion_time_msec = $repetion_time_msec"
+        echo "      slice_scan_order = $slice_scan_order"
         
         if [ ! $multiband_factor = "" ];then
             echo "      multiband_factor = $mb"
@@ -286,9 +295,9 @@ function kul_dcmtags {
     fi
 
     if [ ! -f $out ]; then
-        echo -e "participant,session,dcm_file,manufacturer,software_version,series_descr,imagetype,fieldstrength,acquisitionMatrix,FovAP,FovFH,FovRL,pixelspacing,slicethickness,epifactor,wfs,ees_sec,trt_sec,#slices,repetion_time_msec,multiband_factor" > $out
+        echo -e "participant,session,dcm_file,manufacturer,software_version,series_descr,imagetype,fieldstrength,acquisitionMatrix,FovAP,FovFH,FovRL,pixelspacing,slicethickness,epifactor,wfs,ees_sec,trt_sec,#slices,slice_scan_order,repetion_time_msec,multiband_factor" > $out
     fi
-    echo -e "$subj,${sess},$dcm_file,$manufacturer,$software,$seriesdescr,$imagetype,$fieldstrength,$acquisitionMatrix,$FovAP,$FovFH,$FovRL,$pixelspacing,$slicethickness,$epifactor,$waterfatshift,$ees_sec,$trt_sec,$number_of_slices,$repetion_time_msec,$multiband_factor" >> $out
+    echo -e "$subj,${sess},$dcm_file,$manufacturer,$software,$seriesdescr,$imagetype,$fieldstrength,$acquisitionMatrix,$FovAP,$FovFH,$FovRL,$pixelspacing,$slicethickness,$epifactor,$waterfatshift,$ees_sec,$trt_sec,$number_of_slices,$slice_scan_order,$repetion_time_msec,$multiband_factor" >> $out
 
     
 }
