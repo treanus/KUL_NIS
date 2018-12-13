@@ -151,11 +151,13 @@ if [ ! -d $mriqc_dir_to_check ]; then
 
     echo "   using cmd: $task_mriqc_cmd"
 
-    eval $task_mriqc_cmd
+    # now we start the parallel job
+    eval $task_mriqc_cmd &
+    echo " mriqc pid is $!"
 
-    sleep 5
+    sleep 2
 
-    kul_e2cl "   done mriqc on participant $BIDS_participant" $log
+    #kul_e2cl "   done mriqc on participant $BIDS_participant" $log
 
 else
         
@@ -197,13 +199,13 @@ if [ ! -f $fmriprep_file_to_check ]; then
 
     echo "   using cmd: $task_fmriprep_cmd"
 
-    eval $task_fmriprep_cmd
+    # Now start the parallel job
+    eval $task_fmriprep_cmd &
+    echo " fmriprep pid is $!"
 
-    rm -fr ${cwd}/fmriprep_work
-
-    sleep 5
+    sleep 2
     
-    kul_e2cl "   done fmriprep on participant $BIDS_participant" $log
+    #kul_e2cl "   done fmriprep on participant $BIDS_participant" $log
 
 else
         
@@ -243,11 +245,12 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
     echo "   using cmd: $task_freesurfer_cmd"
 
-    eval $task_freesurfer_cmd
+    eval $task_freesurfer_cmd &
+    echo "   freesurfer pid is $!"
     
-    sleep 5
+    sleep 2
 
-    kul_e2cl "   done freesufer on participant $BIDS_participant" $log
+    #kul_e2cl "   done freesufer on participant $BIDS_participant" $log
 
 else
 
@@ -279,11 +282,13 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     echo "   using cmd: $task_dwiprep_cmd"
 
-    eval $task_dwiprep_cmd
+    # Now we start the parallel job
+    eval $task_dwiprep_cmd &
+    echo " KUL_dwiprep pid is $!"
 
-    sleep 5
+    sleep 2
 
-    kul_e2cl "   done KUL_dwiprep on participant $BIDS_participant" $log
+    #kul_e2cl "   done KUL_dwiprep on participant $BIDS_participant" $log
 
 else
 
@@ -310,8 +315,6 @@ if [ ! -f  $dwiprep_anat_file_to_check ]; then
 
     KUL_dwiprep_anat.sh -s ${BIDS_participant} -p $ncpu -v \
         > $dwiprep_anat_log 2>&1 
-
-    sleep 5
 
     kul_e2cl "   done KUL_dwiprep_anat on participant $BIDS_participant" $log
 
@@ -347,10 +350,7 @@ if [ ! -f  $dwiprep_drtdbs_file_to_check ]; then
     #KUL_dwiprep_drtdbs.sh -s "${BIDS_participant}" -p "$ncpu" -v -n "${drtdbs_options}"
     #echo " the cmd is: $cmd"
     
-    #exit 1
     eval $cmd
-
-    sleep 5
 
     kul_e2cl "   done KUL_dwiprep_drtdbs on participant $BIDS_participant" $log
 
@@ -476,7 +476,7 @@ fi
 
 # ----------- MAIN ----------------------------------------------------------------------------------
 
-if [ $silent -eq 1 ]; then
+if [ $silent -eq 0 ]; then
     echo "  The script you are running has basename `basename "$0"`, located in dirname $kul_main_dir"
     echo "  The present working directory is `pwd`"
 fi
@@ -546,61 +546,72 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
     else
 
         kul_e2cl "Performing preprocessing of subject $BIDS_participant... " $log
-        kul_e2cl "  Now starting (depending on your config-file mriqc, fmriprep, freesurfer and KUL_dwiprep... " $log
+
+        kul_e2cl " Converting dicom to BIDS for subject $BIDS_participant... " $log
+        KUL_dcm2bids.sh -p ${BIDS_participant} -d ${dicom_zip} -c ${config_file} -s {session} -o BIDS -v
+
+        echo "\n\n"
+        
+        kul_e2cl "  Now starting (depending on your config-file) mriqc, fmriprep, freesurfer and KUL_dwiprep... " $log
         echo "   note: further processing with KUL_dwiprep_anat, KUL_dwiprep_drtdbs depend on fmriprep, freesurfer and KUL_dwiprep (which need to run fully)"
 
-        if [ silent -eq 0 ]; then
+        if [ $silent -eq 0 ]; then
             
-            echo "if this script fails, please check your configuration file (given to -c); for now this was what was defined:"
-            echo "  BIDS_participant: $BIDS_participant"
-            echo "  EAD: $EAD"
-            echo "  dicom_zip: $dicom_zip"
-            echo "  config_file: $config_file"
-            echo "  session: $session"
-            echo "  do_mriqc: $do_mriqc"
-            echo "  mriqc_options: $mriqc_options"
-            echo "  do_fmriprep: $do_fmriprep"
-            echo "  fmriprep_options: $fmriprep_options"
-            echo "  do_freesurfer: $do_freesurfer"
-            echo "  freesurfer_options: $freesurfer_options"
-            echo "  do_dwiprep: $do_dwiprep"
-            echo "  dwipreproc_options: $dwipreproc_options"
-            echo "  topup_options: $topup_options"
-            echo "  eddy_options: $eddy_options"
-            echo "  do_dwiprep_anat: $do_dwiprep_anat"
-            echo "  anat_options: $anat_options"
-            echo "  do_dwiprep_drtdbs: $do_dwiprep_drtdbs"
-            echo "  drtdbs_options: $drtdbs_options"
+            echo "  if this script fails, please check your configuration file (given to -c); for now this was what was defined:"
+            echo "    BIDS_participant: $BIDS_participant"
+            echo "    EAD: $EAD"
+            echo "    dicom_zip: $dicom_zip"
+            echo "    config_file: $config_file"
+            echo "    session: $session"
+            echo "    do_mriqc: $do_mriqc"
+            echo "    mriqc_options: $mriqc_options"
+            echo "    do_fmriprep: $do_fmriprep"
+            echo "    fmriprep_options: $fmriprep_options"
+            echo "    do_freesurfer: $do_freesurfer"
+            echo "    freesurfer_options: $freesurfer_options"
+            echo "    do_dwiprep: $do_dwiprep"
+            echo "    dwipreproc_options: $dwipreproc_options"
+            echo "    topup_options: $topup_options"
+            echo "    eddy_options: $eddy_options"
+            echo "    do_dwiprep_anat: $do_dwiprep_anat"
+            echo "    anat_options: $anat_options"
+            echo "    do_dwiprep_drtdbs: $do_dwiprep_drtdbs"
+            echo "    drtdbs_options: $drtdbs_options"
         
         fi
 
+
         if [ $do_mriqc -eq 1 ]; then
-            task_mriqc_participant &
-            #echo " mriqc pid is $!"
-            sleep 2
+            
+            task_mriqc_participant 
+
         fi
 
         if [ $do_fmriprep -eq 1 ]; then
-            task_fmriprep &
-            #echo " fmriprep pid is $!"
-            sleep 2
+            
+            task_fmriprep 
+
         fi
 
         if [ $do_dwiprep -eq 1 ]; then
-            task_KUL_dwiprep &
-            #echo " KUL_dwiprep pid is $!"
-            sleep 2
+            
+            task_KUL_dwiprep
+
         fi
 
         if [ $do_freesurfer -eq 1 ]; then
-            task_freesurfer &
-            #echo " freesurfer pid is $!"
-            sleep 2
+            
+            task_freesurfer 
+
         fi
 
         # wait for mriqc, fmriprep, freesurfer and KUL_dwiprep to finish
         kul_e2cl " waiting for processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant to finish before continuing with further processing... " $log
         wait
+
+        # clean up after jobs finished
+        rm -fr ${cwd}/fmriprep_work
+
 
         # Here we could also have fMRI statistical analysis e.g.
         # task_KUL_fmri_model # needs to be made
