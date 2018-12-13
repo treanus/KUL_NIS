@@ -101,7 +101,7 @@ Required arguments:
 
 Optional arguments:
     
-     -p:  number of cores to use (distrubuted over mriqc/fmriprep/freesurfer/etc...)
+     -n:  number of cores to use (distrubuted over mriqc/fmriprep/freesurfer/etc...)
      -m:  max memory (in gigabytes) available in docker
      -t:  temporary directory (default = /tmp)
      -r:  reset docker (clean the images and download new ones)
@@ -109,7 +109,7 @@ Optional arguments:
 
 Example:
 
-  `basename $0` -c study_config/subjects_and_options.csv -b BIDS -p 6 -m 12 -t /scratch -v 
+  `basename $0` -c study_config/subjects_and_options.csv -b BIDS -n 6 -m 12 -t /scratch -v 
     
     uses "study_config/subjects_and_options.csv" to 
         - reads the subjects (participants) on which to do processing
@@ -280,7 +280,7 @@ if [ ! -f  $dwiprep_file_to_check ]; then
     kul_e2cl " started (in parallel) KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
 
-    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -d $dwipreproc_options -e \"${eddy_options} \" -v \
+    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} -n $ncpu_dwiprep -d $dwipreproc_options -e \"${eddy_options} \" -v \
  > $dwiprep_log 2>&1 ")
 
     echo "   using cmd: $task_dwiprep_cmd"
@@ -394,7 +394,7 @@ if [ "$#" -lt 2 ]; then
 
 else
 
-    while getopts "c:b:p:m:t:rvh" OPT; do
+    while getopts "c:b:n:m:t:rvh" OPT; do
 
         case $OPT in
         c) #config_file
@@ -405,7 +405,7 @@ else
             bids_flag=1
             bids_dir=$OPTARG
         ;;
-        p) #ncpu
+        n) #ncpu
             cpu_flag=1
             ncpu=$OPTARG
         ;;
