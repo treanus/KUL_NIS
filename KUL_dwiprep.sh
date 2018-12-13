@@ -35,19 +35,20 @@ cat <<USAGE
 
 Usage:
 
-  `basename $0` -s subject <OPT_ARGS>
+  `basename $0` -p subject <OPT_ARGS>
 
 Example:
 
-  `basename $0` -s pat001 -p 6 
+  `basename $0` -p pat001 -n 6 
 
 Required arguments:
 
-     -s:  subject (anonymised name of the subject)
+     -p:  praticipant (BIDS name of the subject)
+     -s:  session (BIDS session)
 
 Optional arguments:
 
-     -p:  number of cpu for parallelisation
+     -n:  number of cpu for parallelisation
      -t:  options to pass to topup
      -e:  options to pass to eddy
      -d:  options to pass to dwipreproc (can be -rpe_header, -rpe_none, -rpe_all)
@@ -63,7 +64,7 @@ USAGE
 # CHECK COMMAND LINE OPTIONS -------------
 # 
 # Set defaults
-ncpu=6 # default if option -p is not given
+ncpu=6 # default if option -n is not given
 silent=1 # default if option -v is not given
 # Specify additional options for FSL eddy
 eddy_options="--slm=linear --repol"
@@ -71,7 +72,7 @@ topup_options=""
 dwipreproc_options="-rpe_header"
 
 # Set required options
-s_flag=0
+p_flag=0
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -79,14 +80,17 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "s:p:t:e:d:v" OPT; do
+    while getopts "p:s:n:d:t:e:v" OPT; do
 
         case $OPT in
-        s) #subject
-            s_flag=1
+        p) #participant
+            p_flag=1
             subj=$OPTARG
         ;;
-        p) #parallel
+        s) #session
+            ses=$OPTARG
+        ;;
+        n) #ncpu
             ncpu=$OPTARG
         ;;
         d) #dwipreproc_options
@@ -120,9 +124,16 @@ else
 fi
 
 # check for required options
+if [ $p_flag -eq 0 ] ; then 
+    echo 
+    echo "Option -p is required: give the BIDS name of the participant." >&2
+    echo
+    exit 2 
+fi 
+
 if [ $s_flag -eq 0 ] ; then 
     echo 
-    echo "Option -s is required: give the anonymised name of a subject (this will create a directory subject_preproc with results)." >&2
+    echo "Option -s is required: give the BIDS session of the participant." >&2
     echo
     exit 2 
 fi 
@@ -144,7 +155,7 @@ FSLPARALLEL=$ncpu; export FSLPARALLEL
 OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
 
 # Directory to write preprocessed data in
-preproc=dwiprep/sub-${subj}
+preproc=dwiprep/sub-${subj}/ses-${ses}
 
 # Directory to put raw mif data in
 raw=${preproc}/raw
@@ -157,12 +168,8 @@ d=$(date "+%Y-%m-%d_%H-%M-%S")
 log=log/log_${d}.txt
 
 
-
-# SAY HELLO ---
-
-#kul_e2cl "Welcome to KUL_dwiprep $v - $d" ${preproc}/${log}
-
-bids_subj=BIDS/"sub-$subj"/ses-tp1   #FLAG, bad hard coded session!
+# --- MAIN ----------------
+bids_subj=BIDS/sub-${subj}/ses-{ses}   #FLAG, bad hard coded session!
 
 # STEP 1 - CONVERSION of BIDS to MIF ---------------------------------------------
 
