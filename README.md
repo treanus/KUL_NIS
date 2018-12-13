@@ -43,6 +43,8 @@ They will procces an entire study (multiple subjects) with structural, functiona
                     all fmriprep options may be given,
                     e.g.:
                         --anat-only (to only process structural)
+                        --longitudinal (to process longitudinal data)
+                        --ignore fieldmaps
                 - freesurfer (yes/no) 
                     (no options implemented yet)
                 - KUL_dwiprep processing, i.e. a full mrtrix processing pipeline (yes/no)
