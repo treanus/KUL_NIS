@@ -312,8 +312,9 @@ fi
 
 function kul_mrtrix_tracto_drt {
 
-    for a in iFOD2 Tensor_Prob; do
-
+    #for a in iFOD2 Tensor_Prob; do
+    for a in iFOD2; do
+    
         # do the tracking
         if [ ! -f tracts_${a}/${tract}.tck ]; then 
 
@@ -489,8 +490,6 @@ tract="TH-DR_L_nods${nods}"
 seeds=("THALAMUS_fs_L" "M1_fs_L" "DENTATE_R")
 exclude="WM_fs_R"
 kul_mrtrix_tracto_drt 
-
-kul_e2cl "KUL_dwi_preproc $v - finished processing" ${log}
 
 exit 0
 
