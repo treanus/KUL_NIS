@@ -359,7 +359,7 @@ if [ ! -f dwi/geomcorr.mif ]; then
         --eddyParams $temp_dir/dwi_post_eddy.eddy_parameters --mask $temp_dir/eddy_mask.nii \
         --bvals $temp_dir/bvals --bvecs $temp_dir/bvecs --output-dir eddy_qc/quad --verbose 
     # make an mriqc/fmriprep style report (i.e. just link qc.pdf into main dwiprep directory)
-    ln -s eddy_qc/quad/qc.pdf $cwd/${preproc}.pdf &
+    ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}.pdf &
 
 else
 
