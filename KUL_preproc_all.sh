@@ -610,11 +610,11 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
         fi
 
         # wait for mriqc, fmriprep, freesurfer and KUL_dwiprep to finish
-        kul_e2cl " waiting for processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant to finish before continuing with further processing... " $log
+        kul_e2cl " waiting for processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
         wait $mriqc_pid $fmriprep_pid $dwiprep_pid $freesurfer_pid
 
         # clean up after jobs finished
-        #rm -fr ${cwd}/fmriprep_work
+        rm -fr ${cwd}/fmriprep_work
 
 
         # Here we could also have fMRI statistical analysis e.g.
