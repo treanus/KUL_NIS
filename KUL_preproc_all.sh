@@ -153,7 +153,8 @@ if [ ! -d $mriqc_dir_to_check ]; then
 
     # now we start the parallel job
     eval $task_mriqc_cmd &
-    echo " mriqc pid is $!"
+    mriqc_pid="$!"
+    echo " mriqc pid is $mriqc_pid"
 
     sleep 2
 
@@ -201,7 +202,8 @@ if [ ! -f $fmriprep_file_to_check ]; then
 
     # Now start the parallel job
     eval $task_fmriprep_cmd &
-    echo " fmriprep pid is $!"
+    fmriprep_pid="$!"
+    echo " fmriprep pid is $fmriprep_pid"
 
     sleep 2
     
@@ -246,7 +248,8 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     echo "   using cmd: $task_freesurfer_cmd"
 
     eval $task_freesurfer_cmd &
-    echo "   freesurfer pid is $!"
+    freesurfer_pid="$!"
+    echo "   freesurfer pid is $freesurfer_pid"
     
     sleep 2
 
@@ -284,7 +287,8 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     # Now we start the parallel job
     eval $task_dwiprep_cmd &
-    echo " KUL_dwiprep pid is $!"
+    dwiprep_pid="$!"
+    echo " KUL_dwiprep pid is $dwiprep_pid"
 
     sleep 2
 
@@ -548,7 +552,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
         kul_e2cl "Performing preprocessing of subject $BIDS_participant... " $log
 
         kul_e2cl " Converting dicom to BIDS for subject $BIDS_participant... " $log
-        KUL_dcm2bids.sh -p ${BIDS_participant} -d ${dicom_zip} -c ${config_file} -s {session} -o BIDS -v
+        KUL_dcm2bids.sh -p ${BIDS_participant} -d ${dicom_zip} -c ${config_file} -s ${session} -o BIDS -v
 
         echo "\n\n"
         
@@ -607,10 +611,10 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
 
         # wait for mriqc, fmriprep, freesurfer and KUL_dwiprep to finish
         kul_e2cl " waiting for processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant to finish before continuing with further processing... " $log
-        wait
+        wait $mriqc_pid $fmriprep_pid $dwiprep_pid $freesurfer_pid
 
         # clean up after jobs finished
-        rm -fr ${cwd}/fmriprep_work
+        #rm -fr ${cwd}/fmriprep_work
 
 
         # Here we could also have fMRI statistical analysis e.g.
