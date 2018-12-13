@@ -41,6 +41,7 @@ Usage:
 
   Depends on a config file that defines parameters with sequence information, e.g.
 
+  For Philips dicom we need to manually specify the mb and pe_dir:
   Identifier,search-string,task,mb,pe_dir
   T1w,MPRAGE
   FLAIR,FLAIR
@@ -51,6 +52,15 @@ Usage:
 
   explains that the T1w scan should be found by the search string "MPRAGE"
   func by rsfMRI, and has multiband_factor 8, and pe_dir = j
+  
+  For Siemens dicom it can be as simple as:
+  T1w,MPRAGE
+  FLAIR,FLAIR
+  func,rsfMRI,rest,-,-
+  func,tb_fMRI,nback,-,-
+  dwi,part1,-,-,-
+  dwi,part2,-,-,-
+
 
 Example:
 
@@ -96,6 +106,29 @@ function kul_dcmtags {
     local FovAP=$(dcminfo "$dcm_file" -tag 2005 1074 | cut -c 13-)
     local FovFH=$(dcminfo "$dcm_file" -tag 2005 1075 | cut -c 13-)
     local FovRL=$(dcminfo "$dcm_file" -tag 2005 1076 | cut -c 13-)
+
+    # Now we need to determine what vendor it is.
+    #   Philips needs all the following calculations
+    #   Siemens (only recent versions?) not
+    #   GE most recent version don't need it either?
+
+    #echo $manufacturer
+    if [ "$manufacturer" = "SIEMENS" ]; then
+
+        slicetime_provided_by_vendor=1
+        ees_trt_provided_by_vendor=1
+
+    #elif [ "$manufacturer" = 'GE ]
+
+        # need to be tested
+
+    else
+
+        slicetime_provided_by_vendor=0
+        ees_trt_provided_by_vendor=0
+
+    fi
+
 
     # 1/ Calculate ess/trt; needed are : FieldStrength, WaterFatShift, EPIFactor
          
@@ -531,48 +564,82 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            if [ ! $ees_sec = "empty" ]; then 
+            sub_bids1=$(cat <<EOF
+            {
+            "dataType": "func",
+            "suffix": "bold",
+            "criteria": {
+                "in": {
+                "SeriesDescription": "${search_string}",
+                "ImageType": "ORIGINAL"
+                }
+            },
+            "customHeader": {
+                "KUL_dcm2bids": "yes",
+                "TaskName": "${task}")
 
-                sub_bids=$(cat <<EOF
-                {
-                "dataType": "func",
-                "suffix": "bold",
-                "criteria": {
-                    "in": {
-                    "SeriesDescription": "${search_string}",
-                    "ImageType": "ORIGINAL"
-                    }
-                },
-                "customHeader": {
-                    "TaskName": "${task}",
+
+            #echo $sub_bids1
+
+            # for siemens (& ge?) ess/trt is not necessary as CustomHeader
+            # also not for philips, when it cannot be calculated
+            #echo "ess_trt_provided_by_vendor: $ees_trt_provided_by_vendor"
+            #echo "ees_sec: $ees_sec"
+            if [ $ees_trt_provided_by_vendor -eq 1 ]  || [ $ees_sec = "empty" ]; then
+
+                if [ $ees_trt_provided_by_vendor -eq 1 ]; then
+                    kul_e2cl "   It's a SIEMENS, ees/trt are in the dicom-header" $log
+                else
+                    kul_e2cl "   It's NOT original dicom data (anonymised?): ees/trt could not be calculated" $log
+                fi
+            
+                sub_bids2=""
+
+            else
+
+                kul_e2cl "   It's a PHILIPS, ees/trt are were calculated" $log
+                sub_bids2=$(cat <<EOF
+                    ,
                     "EffectiveEchoSpacing": ${ees_sec},
                     "TotalReadoutTime": ${trt_sec},
                     "MultibandAccelerationFactor": ${mb},
-                    "PhaseEncodingDirection": "${pe_dir}",
+                    "PhaseEncodingDirection": "${pe_dir}")
+                    
+            fi
+
+            #echo $sub_bids2        
+                    
+            # for siemens (& ge?) slicetiming is not necessary as CustomHeader
+            # also not for philips, when it cannot be calculated
+            #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
+            #echo "slice_time: $slice_time"
+            if [ $slicetime_provided_by_vendor -eq 1 ]  || [ $slice_time = "empty" ]; then
+                
+                if [ $slicetime_provided_by_vendor -eq 1 ]; then
+                    kul_e2cl "   It's a SIEMENS, slicetiming is in the dicom-header" $log
+                else
+                    kul_e2cl "   It's NOT original dicom data (anonymised?): slicetiming could not be calculated" $log
+                fi
+
+                sub_bids3=$(cat <<EOF
+                }
+                })    
+
+            else
+
+                kul_e2cl "   It's a PHILIPS, slicetiming was calculated" $log
+                sub_bids3=$(cat <<EOF    
+                    ,
                     "SliceTiming": $slice_time
                 }
                 })
             
-            else
-
-                sub_bids=$(cat <<EOF
-                {
-                "dataType": "func",
-                "suffix": "bold",
-                "criteria": {
-                    "in": {
-                    "SeriesDescription": "${search_string}",
-                    "ImageType": "ORIGINAL"
-                    }
-                },
-                "customHeader": {
-                    "TaskName": "${task}"
-                }
-                })
 
             fi
 
-            bids="$bids,$sub_bids"
+            #echo $sub_bids3
+
+            bids="${bids},${sub_bids1}${sub_bids2}${sub_bids3}"
 
         fi
 
@@ -587,7 +654,7 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids=$(cat <<EOF
+            sub_bids1=$(cat <<EOF
             {
             "dataType": "dwi",
             "suffix": "dwi",
@@ -598,15 +665,70 @@ while IFS=, read identifier search_string task mb pe_dir; do
                 }
             },
             "customHeader": {
-                "EffectiveEchoSpacing": ${ees_sec},
-                "TotalReadoutTime": ${trt_sec},
-                "MultibandAccelerationFactor": ${mb},
-                "PhaseEncodingDirection": "${pe_dir}",
-                "SliceTiming": $slice_time
-            }
-            })
+                "KUL_dcm2bids": "yes")
             
-            bids="$bids,$sub_bids"
+            #echo $sub_bids1
+
+            # for siemens (& ge?) ess/trt is not necessary as CustomHeader
+            # also not for philips, when it cannot be calculated
+            #echo "ees_trt_provided_by_vendor: $ees_trt_provided_by_vendor"
+            #echo "ees_sec: $ees_sec"
+            if [ $ees_trt_provided_by_vendor -eq 1 ]  || [ $ees_sec = "empty" ]; then
+
+                if [ $ees_trt_provided_by_vendor -eq 1 ]; then
+                    kul_e2cl "   It's a SIEMENS, ees/trt are in the dicom-header" $log
+                else
+                    kul_e2cl "   It's NOT original dicom data (anonymised?): ees/trt could not be calculated" $log
+                fi
+            
+                sub_bids2=""
+
+            else
+
+                kul_e2cl "   It's a PHILIPS, ees/trt were calculated" $log
+                sub_bids2=$(cat <<EOF
+                    ,
+                    "EffectiveEchoSpacing": ${ees_sec},
+                    "TotalReadoutTime": ${trt_sec},
+                    "MultibandAccelerationFactor": ${mb},
+                    "PhaseEncodingDirection": "${pe_dir}")
+                    
+            fi
+
+            #echo $sub_bids2        
+                    
+            # for siemens (& ge?) slicetiming is not necessary as CustomHeader
+            # also not for philips, when it cannot be calculated
+            #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
+            #echo "slice_time: $slice_time"
+            if [ $slicetime_provided_by_vendor -eq 1 ]  || [ $slice_time = "empty" ]; then
+
+                if [ $slicetime_provided_by_vendor -eq 1 ]; then
+                    kul_e2cl "   It's a SIEMENS, slicetiming is in the dicom-header" $log
+                else
+                    kul_e2cl "   It's NOT original dicom data (anonymised?): slicetiming could not be calculated" $log
+                fi
+            
+                sub_bids3=$(cat <<EOF
+                }
+                })    
+
+            else
+
+                kul_e2cl "   It's a PHILIPS, slicetiming was calculated" $log
+
+                sub_bids3=$(cat <<EOF    
+                    ,
+                    "SliceTiming": $slice_time
+                }
+                })
+            
+
+            fi
+
+            #echo $sub_bids3
+            
+            bids="${bids},${sub_bids1}${sub_bids2}${sub_bids3}"
 
         fi
 
@@ -635,10 +757,9 @@ else
 fi
 
 dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file \
-    -o $bids_output > $dcm2niix_log_file
+    -o $bids_output --clobber > $dcm2niix_log_file
 
 
-#rm -rf $bids_output/tmp_dcm2bids
 
 # copying task based events.tsv to BIDS directory
 if [ $events_flag -eq 1 ]; then
