@@ -551,10 +551,19 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
 
         kul_e2cl "Performing preprocessing of subject $BIDS_participant... " $log
 
-        kul_e2cl " Converting dicom to BIDS for subject $BIDS_participant... " $log
-        KUL_dcm2bids.sh -p ${BIDS_participant} -d ${dicom_zip} -c ${config_file} -s ${session} -o BIDS -v
+        # check if already performed dcm2bids
+        dcm2bids_dir_to_check=BIDS/sub-${BIDS_participant}
+        
+        if [ ! -d  $dcm2bids_dir_to_check ]; then
 
-        echo "\n\n"
+            kul_e2cl " Converting dicom to BIDS for subject $BIDS_participant... " $log
+            KUL_dcm2bids.sh -p ${BIDS_participant} -d ${dicom_zip} -c ${config_file} -s ${session} -o BIDS -v
+        
+        else
+
+            echo " BIDS conversion for subject $BIDS_participant already done, skipping... "
+
+        fi
         
         kul_e2cl "  Now starting (depending on your config-file) mriqc, fmriprep, freesurfer and KUL_dwiprep... " $log
         echo "   note: further processing with KUL_dwiprep_anat, KUL_dwiprep_drtdbs depend on fmriprep, freesurfer and KUL_dwiprep (which need to run fully)"
