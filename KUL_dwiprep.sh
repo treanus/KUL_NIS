@@ -44,10 +44,11 @@ Example:
 Required arguments:
 
      -p:  praticipant (BIDS name of the subject)
-     -s:  session (BIDS session)
+
 
 Optional arguments:
-
+     
+     -s:  session (BIDS session)
      -n:  number of cpu for parallelisation
      -t:  options to pass to topup
      -e:  options to pass to eddy
@@ -73,6 +74,7 @@ dwipreproc_options="-rpe_header"
 
 # Set required options
 p_flag=0
+s_flag=0
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -88,6 +90,7 @@ else
             subj=$OPTARG
         ;;
         s) #session
+            s_flag=1
             ses=$OPTARG
         ;;
         n) #ncpu
@@ -131,12 +134,6 @@ if [ $p_flag -eq 0 ] ; then
     exit 2 
 fi 
 
-if [ $s_flag -eq 0 ] ; then 
-    echo 
-    echo "Option -s is required: give the BIDS session of the participant." >&2
-    echo
-    exit 2 
-fi 
 
 # MRTRIX verbose or not?
 if [ $silent -eq 1 ] ; then 
@@ -154,8 +151,46 @@ start=$(date +%s)
 FSLPARALLEL=$ncpu; export FSLPARALLEL
 OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
 
-# Directory to write preprocessed data in
-preproc=dwiprep/sub-${subj}/ses-${ses}
+d=$(date "+%Y-%m-%d_%H-%M-%S")
+log=log/log_${d}.txt
+
+
+# --- MAIN ----------------
+
+bids_subj=BIDS/sub-${subj}
+
+# Either a session is given on the command line
+# If not the session(s) need to be determined.
+if [ $s_flag -eq 1 ]; then
+
+    # session is given on the command line
+    search_sessions=BIDS/sub-${subj}/ses-${ses}
+
+else
+
+    # search if any sessions exist
+    search_sessions=($(find BIDS/sub-${subj} -type d | grep dwi))
+
+fi    
+ 
+num_sessions=${#search_sessions[@]}
+    
+echo "  Number of BIDS sessions: $num_sessions"
+echo "    notably: ${search_sessions[@]}"
+
+
+# ---- BIG LOOP for processing each session
+for i in `seq 0 $(($num_sessions-1))`; do
+
+# set up directories 
+cd $cwd
+long_bids_subj=${search_sessions[$i]}
+#echo $long_bids_subj
+bids_subj=${long_bids_subj%dwi}
+
+# Create the Directory to write preprocessed data in
+preproc=dwiprep/sub-${subj}/$(basename $bids_subj) 
+#echo $preproc
 
 # Directory to put raw mif data in
 raw=${preproc}/raw
@@ -164,12 +199,8 @@ raw=${preproc}/raw
 mkdir -p ${preproc}/raw
 mkdir -p ${preproc}/log
 
-d=$(date "+%Y-%m-%d_%H-%M-%S")
-log=log/log_${d}.txt
+kul_e2cl " Start processing $bids_subj" ${preproc}/${log}
 
-
-# --- MAIN ----------------
-bids_subj=BIDS/sub-${subj}/ses-{ses}   #FLAG, bad hard coded session!
 
 # STEP 1 - CONVERSION of BIDS to MIF ---------------------------------------------
 
@@ -450,5 +481,10 @@ if [ ! -f qa/dec.mif ]; then
     #mrconvert dwi/noiselevel.mif qa/noiselevel.nii.gz
 
 fi
+
+echo " Finished processing $bids_subj" 
+# ---- END of the BIG loop over sessions
+
+done
 
 kul_e2cl "Finished " ${log}
