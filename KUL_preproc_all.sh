@@ -279,7 +279,6 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     kul_e2cl " started (in parallel) KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
-
     local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} -n $ncpu_dwiprep -d $dwipreproc_options -e \"${eddy_options} \" -v \
  > $dwiprep_log 2>&1 ")
 
@@ -540,7 +539,7 @@ rm -fr ${cwd}/fmriprep_work
 
 
 # we read the config file (and it may be csv, tsv or ;-seperated)
-while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_drtdbs drtdbs_options; do
+while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_drtdbs drtdbs_options; do
     
     
     if [ "$dicom_zip" = "dicom_zip" ]; then
@@ -557,7 +556,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
         if [ ! -d  $dcm2bids_dir_to_check ]; then
 
             kul_e2cl " Converting dicom to BIDS for subject $BIDS_participant... " $log
-            KUL_dcm2bids.sh -p ${BIDS_participant} -d ${dicom_zip} -c ${config_file} -s ${session} -o BIDS -v
+            KUL_dcm2bids.sh -p ${BIDS_participant} -d ${dicom_zip} -c ${config_file} -o BIDS -v
         
         else
 
@@ -575,7 +574,6 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
             echo "    EAD: $EAD"
             echo "    dicom_zip: $dicom_zip"
             echo "    config_file: $config_file"
-            echo "    session: $session"
             echo "    do_mriqc: $do_mriqc"
             echo "    mriqc_options: $mriqc_options"
             echo "    do_fmriprep: $do_fmriprep"
