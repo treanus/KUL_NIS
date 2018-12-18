@@ -344,10 +344,8 @@ if [ ! -f  $dwiprep_drtdbs_file_to_check ]; then
 
     kul_e2cl " performing KUL_dwiprep_drtdbs on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_drtdbs_log)" ${log}
 
-    echo " local drtdbs_options is: $drtdbs_options"
+    local task_dwiprep_drtdbs_cmd=$(echo "KUL_dwiprep_drtdbs.sh -p ${BIDS_participant} -n $ncpu -v -o $drtdbs_options -v")
 
-    local task_dwiprep_drtdbs_cmd=$(echo "KUL_dwiprep_drtdbs.sh -p ${BIDS_participant} -n $ncpu -v -o \"$drtdbs_options \" -v")
-    
     echo "   using cmd: $task_dwiprep_drtdbs_cmd"
     
     eval $task_dwiprep_drtdbs_cmd
