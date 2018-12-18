@@ -316,7 +316,7 @@ if [ ! -f  $dwiprep_anat_file_to_check ]; then
 
     kul_e2cl " performing KUL_dwiprep_anat on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_anat_log)" ${log}
 
-    KUL_dwiprep_anat.sh -s ${BIDS_participant} -p $ncpu -v \
+    KUL_dwiprep_anat.sh -p ${BIDS_participant} -n $ncpu -v \
         > $dwiprep_anat_log 2>&1 
 
     kul_e2cl "   done KUL_dwiprep_anat on participant $BIDS_participant" $log
@@ -619,6 +619,8 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mr
         # wait for mriqc, fmriprep, freesurfer and KUL_dwiprep to finish
         kul_e2cl " waiting for processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
         wait $mriqc_pid $fmriprep_pid $dwiprep_pid $freesurfer_pid
+
+
 
         # clean up after jobs finished
         rm -fr ${cwd}/fmriprep_work
