@@ -346,14 +346,11 @@ if [ ! -f  $dwiprep_drtdbs_file_to_check ]; then
 
     echo " local drtdbs_options is: $drtdbs_options"
 
-    #local cmd=$(echo "KUL_dwiprep_drtdbs.sh -s ${BIDS_participant} -p $ncpu -v -n 4000") \
-    #    #> $dwiprep_drtdbs_log 2>&1 
-
-    local cmd=$(echo "KUL_dwiprep_drtdbs.sh -s ${BIDS_participant} -p $ncpu -v -n 4000")
-    #KUL_dwiprep_drtdbs.sh -s "${BIDS_participant}" -p "$ncpu" -v -n "${drtdbs_options}"
-    #echo " the cmd is: $cmd"
+    local task_dwiprep_drtdbs_cmd=$(echo "KUL_dwiprep_drtdbs.sh -p ${BIDS_participant} -n $ncpu -v -o \"$drtdbs_options \" -v")
     
-    eval $cmd
+    echo "   using cmd: $task_dwiprep_drtdbs_cmd"
+    
+    eval $task_dwiprep_drtdbs_cmd
 
     kul_e2cl "   done KUL_dwiprep_drtdbs on participant $BIDS_participant" $log
 
@@ -620,7 +617,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mr
         kul_e2cl " waiting for processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
         wait $mriqc_pid $fmriprep_pid $dwiprep_pid $freesurfer_pid
 
-
+        kul_e2cl " processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant have finished" $log
 
         # clean up after jobs finished
         rm -fr ${cwd}/fmriprep_work

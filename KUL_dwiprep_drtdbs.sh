@@ -66,20 +66,21 @@ cat <<USAGE
 
 Usage:
 
-  `basename $0` -s subject <OPT_ARGS>
+  `basename $0` -p subject <OPT_ARGS>
 
 Example:
 
-  `basename $0` -s pat001 -p 6 
+  `basename $0` -p pat001 -n 6 
 
 Required arguments:
 
-     -s:  subject (anonymised name of the subject)
+     -p:  participant (anonymised name of the subject)
 
 Optional arguments:
 
-     -n:  number of desired streamlines to select in tckgen (default nods=2000)
-     -p:  number of cpu for parallelisation
+     -s:  session (of the participant)
+     -o:  number of desired streamlines to select in tckgen (default nods=2000)
+     -n:  number of cpu for parallelisation
      -v:  show output from mrtrix commands
 
 
@@ -97,7 +98,7 @@ ncpu=6
 silent=1
 
 # Set required options
-s_flag=0
+p_flag=0
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -105,17 +106,23 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "s:n:p:vh" OPT; do
+    while getopts "p:s:o:n:vh" OPT; do
 
         case $OPT in
-        s) #subject
-            s_flag=1
+        p) #subject
+            p_flag=1
             subj=$OPTARG
         ;;
-        n) #nods
-            nods=$OPTARG
+        s) #session
+            s_flag=1
+            ses=$OPTARG
         ;;
-        p) #parallel
+        o) #nods
+            nods=$OPTARG
+            #remove leading/trailing spaces
+            #awk '{$nods=$nods;print}'
+        ;;
+        n) #parallel
             ncpu=$OPTARG
         ;;
         v) #verbose
@@ -144,7 +151,7 @@ else
 fi
 
 # check for required options
-if [ $s_flag -eq 0 ] ; then 
+if [ $p_flag -eq 0 ] ; then 
     echo 
     echo "Option -s is required: give the anonymised name of a subject." >&2
     echo
@@ -168,13 +175,52 @@ start=$(date +%s)
 FSLPARALLEL=$ncpu; export FSLPARALLEL
 OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
 
-# Directory to write preprocessed data in
-preproc=dwiprep/sub-${subj}
-
 d=$(date "+%Y-%m-%d_%H-%M-%S")
 log=log/log_${d}.txt
 
 
+# --- MAIN ----------------
+
+bids_subj=BIDS/sub-${subj}
+
+# Either a session is given on the command line
+# If not the session(s) need to be determined.
+if [ $s_flag -eq 1 ]; then
+
+    # session is given on the command line
+    search_sessions=BIDS/sub-${subj}/ses-${ses}
+
+else
+
+    # search if any sessions exist
+    search_sessions=($(find BIDS/sub-${subj} -type d | grep dwi))
+
+fi    
+ 
+num_sessions=${#search_sessions[@]}
+    
+echo "  Number of BIDS sessions: $num_sessions"
+echo "    notably: ${search_sessions[@]}"
+
+
+# ---- BIG LOOP for processing each session
+for i in `seq 0 $(($num_sessions-1))`; do
+
+# set up directories 
+cd $cwd
+long_bids_subj=${search_sessions[$i]}
+#echo $long_bids_subj
+bids_subj=${long_bids_subj%dwi}
+
+# Create the Directory to write preprocessed data in
+preproc=dwiprep/sub-${subj}/$(basename $bids_subj) 
+#echo $preproc
+
+# Directory to put raw mif data in
+raw=${preproc}/raw
+
+
+kul_e2cl " Start processing $bids_subj" ${preproc}/${log}
 
 #---------- MAIN ---------------------------------------------------------------------------------------
 echo $subj
@@ -316,6 +362,8 @@ function kul_mrtrix_tracto_drt {
     for a in iFOD2; do
     
         # do the tracking
+        echo tracts_${a}/${tract}.tck
+        
         if [ ! -f tracts_${a}/${tract}.tck ]; then 
 
             mkdir -p tracts_${a}
@@ -351,7 +399,7 @@ function kul_mrtrix_tracto_drt {
         
         else
 
-            echo "  tckgen of of ${tract} tract already done, skipping"
+            echo "  tckgen of ${tract} tract already done, skipping"
 
         fi
 
@@ -490,6 +538,11 @@ tract="TH-DR_L_nods${nods}"
 seeds=("THALAMUS_fs_L" "M1_fs_L" "DENTATE_R")
 exclude="WM_fs_R"
 kul_mrtrix_tracto_drt 
+
+done
+
+
+
 
 exit 0
 
