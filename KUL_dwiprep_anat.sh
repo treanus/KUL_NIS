@@ -34,19 +34,20 @@ cat <<USAGE
 
 Usage:
 
-  `basename $0` -s subject <OPT_ARGS>
+  `basename $0` -p subject <OPT_ARGS>
 
 Example:
 
-  `basename $0` -s pat001 -p 6 
+  `basename $0` -p pat001 -n 6 
 
 Required arguments:
 
-     -s:  subject (anonymised name of the subject)
+     -p:  participant (anonymised name of the subject)
 
 Optional arguments:
 
-     -p:  number of cpu for parallelisation
+     -s:  session (of the participant)
+     -n:  number of cpu for parallelisation
      -v:  show output from mrtrix commands
 
 
@@ -63,6 +64,7 @@ ncpu=6
 silent=1
 
 # Set required options
+p_flag=0
 s_flag=0
 
 if [ "$#" -lt 1 ]; then
@@ -71,14 +73,18 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "s:p:d:vh" OPT; do
+    while getopts "p:n:s:vh" OPT; do
 
         case $OPT in
-        s) #subject
-            s_flag=1
+        p) #participant
+            p_flag=1
             subj=$OPTARG
         ;;
-        p) #parallel
+        s) #session
+            s_flag=1
+            ses=$OPTARG
+        ;;
+        n) #parallel
             ncpu=$OPTARG
         ;;
         v) #verbose
@@ -107,7 +113,7 @@ else
 fi
 
 # check for required options
-if [ $s_flag -eq 0 ] ; then 
+if [ $p_flag -eq 0 ] ; then 
     echo 
     echo "Option -s is required: give the anonymised name of a subject (this will create a directory subject_preproc with results)." >&2
     echo
@@ -130,22 +136,56 @@ start=$(date +%s)
 FSLPARALLEL=$ncpu; export FSLPARALLEL
 OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
 
-# Directory to write preprocessed data in
-preproc=dwiprep/sub-${subj}
+d=$(date "+%Y-%m-%d_%H-%M-%S")
+log=log/log_${d}.txt
+
+# --- MAIN ----------------
+
+bids_subj=BIDS/sub-${subj}
+
+# Either a session is given on the command line
+# If not the session(s) need to be determined.
+if [ $s_flag -eq 1 ]; then
+
+    # session is given on the command line
+    search_sessions=BIDS/sub-${subj}/ses-${ses}
+
+else
+
+    # search if any sessions exist
+    search_sessions=($(find BIDS/sub-${subj} -type d | grep dwi))
+
+fi    
+ 
+num_sessions=${#search_sessions[@]}
+    
+echo "  Number of BIDS sessions: $num_sessions"
+echo "    notably: ${search_sessions[@]}"
+
+
+# ---- BIG LOOP for processing each session
+for i in `seq 0 $(($num_sessions-1))`; do
+
+# set up directories 
+cd $cwd
+long_bids_subj=${search_sessions[$i]}
+#echo $long_bids_subj
+bids_subj=${long_bids_subj%dwi}
+
+# Create the Directory to write preprocessed data in
+preproc=dwiprep/sub-${subj}/$(basename $bids_subj) 
+#echo $preproc
 
 # Directory to put raw mif data in
 raw=${preproc}/raw
 
 # set up preprocessing & logdirectory
-mkdir -p ${preproc}/raw
-mkdir -p ${preproc}/log
+#mkdir -p ${preproc}/raw
+#mkdir -p ${preproc}/log
 
-d=$(date "+%Y-%m-%d_%H-%M-%S")
-log=log/log_${d}.txt
-
+kul_e2cl " Start processing $bids_subj" ${preproc}/${log}
 
 
-# SAY HELLO ---
 cd ${preproc}
 
 kul_e2cl "Welcome to KUL_dwiprep_anat $v - $d" ${log}
@@ -227,73 +267,10 @@ if [ ! -f qa/dec_reg2T1w.mif ]; then
 
 fi
 
+echo " Finished processing $bids_subj" 
+# ---- END of the BIG loop over sessions
+
+done
 
 kul_e2cl "Finished " ${log}
-
-exit 0
-
-OLD-CODE:
-
-
-# register mean b0 to betted T1w (affine)
-#ants_type=dwi_reg/affine
-
-#if [ ! -f dwi_reg/affine_outWarped.nii.gz ]; then
-
-#    kul_e2cl " registering the the dmri b0 to the betted T1w image (affine)..." ${log}
-#    antsRegistration --verbose 1 --dimensionality 3 \
-#        --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
-#        --interpolation Linear \
-#        --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
-#        --initial-moving-transform [$ants_anat,$ants_b0,1] \
-#        --transform Rigid[0.1] \
-#        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
-#        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox \
-#        --transform Affine[0.1] \
-#        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
-#        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox 
-
-#else
-
-#    echo " registering the T1w image to  (affine) already done, skipping..."
-
-#fi
-
-ants_type=dwi_reg/syn
-syn_convergence=1e-2
-
-# register mean b0 to betted T1w (minimal application of SyN)
-if [ ! -f dwi_reg/syn_outWarped.nii.gz ]; then
-
-    kul_e2cl " registering the the dmri b0 to the betted T1w image (minimal application of SyN)..." ${log}
-    antsRegistration --verbose 1 --dimensionality 3 \
-        --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
-        --interpolation Linear \
-        --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
-        --initial-moving-transform [$ants_anat,$ants_b0,1] \
-        --transform Rigid[0.1] \
-        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
-        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox \
-        --transform Affine[0.1] \
-        --metric MI[$ants_anat,$ants_b0,1,32,Regular,0.25] --convergence [1000x500x250x100,1e-6,10] \
-        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox \
-        --transform SyN[0.1,3,0] \
-        --metric CC[$ants_anat,$ants_b0,1,4] --convergence [100x70x50x20,1e-2,2] \
-        --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
-
-else
-
-    echo " registering the T1w image to  (rigid) already done, skipping..."
-
-fi
-
-# computing and writing 
-warpinit $mrtransform_file dwi_reg/identity_warp[].nii -force
-
-for i in {0..2}; do
-  WarpImageMultiTransform 3 dwi_reg/identity_warp${i}.nii dwi_reg/mrtrix_warp${i}.nii \
-    -R $ants_anat dwi_reg/syn_out1Warp.nii.gz dwi_reg/syn_out0GenericAffine.mat;
-done;
-
-warpcorrect dwi_reg/mrtrix_warp[].nii dwi_reg/mrtrix_warp_corrected.mif -nthreads $ncpu -force 
 
