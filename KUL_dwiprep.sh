@@ -224,14 +224,45 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
     else 
         
-        kul_e2cl "   found $number_of_bids_dwi_found dwi datasets, scaling & catting" ${preproc}/${log}
+        kul_e2cl "   found $number_of_bids_dwi_found dwi datasets, checking number_of slices (and adjusting), scaling & catting" ${preproc}/${log}
         
         dwi_i=1
         for dwi_file in $bids_dwi_found; do
             dwi_base=${dwi_file%%.*}
         
+            #mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
+            #-json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu
+
+            #dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
+        
+            # read the number of slices
+            ns_dwi[dwi_i]=$(mrinfo ${dwi_base}.nii.gz -size | awk '{print $(NF-1)}')
+            kul_e2cl "   dataset p${dwi_i} has ${ns_dwi[dwi_i]} as number of slices" ${preproc}/${log}
+
+            ((dwi_i++))
+
+        done 
+
+        max=10000000
+        for i in "${ns_dwi[@]}"
+        do
+            # Update max if applicable
+            if [[ "$i" -lt "$max" ]]; then
+                max="$i"
+            fi
+
+        done
+
+        # Output results:
+        echo "Max is: $max"
+        ((max--))
+
+        dwi_i=1
+        for dwi_file in $bids_dwi_found; do
+            dwi_base=${dwi_file%%.*}
+        
             mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
-            -json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu
+            -json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} -force -clear_property comments -nthreads $ncpu
 
             dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
         
