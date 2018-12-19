@@ -180,11 +180,11 @@ echo "    notably: ${search_sessions[@]}"
 
 
 # ---- BIG LOOP for processing each session
-for i in `seq 0 $(($num_sessions-1))`; do
+for current_session in `seq 0 $(($num_sessions-1))`; do
 
 # set up directories 
 cd $cwd
-long_bids_subj=${search_sessions[$i]}
+long_bids_subj=${search_sessions[$current_session]}
 #echo $long_bids_subj
 bids_subj=${long_bids_subj%dwi}
 
@@ -427,8 +427,12 @@ if [ ! -f dwi/geomcorr.mif ]; then
 	eddy_quad $temp_dir/dwi_post_eddy --eddyIdx $temp_dir/eddy_indices.txt \
         --eddyParams $temp_dir/dwi_post_eddy.eddy_parameters --mask $temp_dir/eddy_mask.nii \
         --bvals $temp_dir/bvals --bvecs $temp_dir/bvecs --output-dir eddy_qc/quad --verbose 
+    
     # make an mriqc/fmriprep style report (i.e. just link qc.pdf into main dwiprep directory)
-    ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}.pdf &
+    ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${subj}_${preproc}.pdf &
+
+    # clean-up the above dwipreproc temporary directory
+    rm -rf $temp_dir
 
 else
 
@@ -513,7 +517,19 @@ if [ ! -f qa/dec.mif ]; then
 
 fi
 
+
+# We finished processing current session
+# write a "done" log file for this session
+echo "done" > log/${current_session}_done.log
+
+
+# STEP 5 - CLEANUP - here we clean up (large) temporary files
+rm -fr dwi/degibbs.mif
+rm -rf dwi/geomcorr.mif
+rm -rf raw
+
 echo " Finished processing session $bids_subj" 
+
 
 # ---- END of the BIG loop over sessions
 done

@@ -208,60 +208,57 @@ echo "    notably: ${search_sessions[@]}"
 
 
 # ---- BIG LOOP for processing each session
-for i in `seq 0 $(($num_sessions-1))`; do
+for current_session in `seq 0 $(($num_sessions-1))`; do
 
-# set up directories 
-cd $cwd
-long_bids_subj=${search_sessions[$i]}
-#echo $long_bids_subj
-bids_subj=${long_bids_subj%dwi}
+    # set up directories 
+    cd $cwd
+    long_bids_subj=${search_sessions[$current_session]}
+    echo $long_bids_subj
+    bids_subj=${long_bids_subj%dwi}
 
-# Create the Directory to write preprocessed data in
-preproc=dwiprep/sub-${subj}/$(basename $bids_subj) 
-#echo $preproc
+    # Create the Directory to write preprocessed data in
+    preproc=dwiprep/sub-${subj}/$(basename $bids_subj) 
+    echo $preproc
 
-# Directory to put raw mif data in
-raw=${preproc}/raw
+    # Directory to put raw mif data in
+    raw=${preproc}/raw
 
 
-kul_e2cl " Start processing $bids_subj" ${preproc}/${log}
+    kul_e2cl " Start processing $bids_subj" ${preproc}/${log}
 
-#---------- MAIN ---------------------------------------------------------------------------------------
-
-# STEP 1 - PROCESSING  ---------------------------------------------
-cd ${preproc}
-
-# Where is the freesurfer parcellation? 
-fs_aparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/aparc+aseg.mgz
-
-# Where is the T1w anat?
-ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
-
-# Convert FS aparc back to original space
-mkdir -p roi
-fs_labels=roi/labels_from_FS.nii.gz
-if [ ! -f $fs_labels ]; then
-    mri_convert -rl $ants_anat -rt nearest $fs_aparc $fs_labels
-fi
-
-# 5tt segmentation & tracking
-mkdir -p 5tt
-
-if [ ! -f 5tt/5tt2gmwmi.nii.gz ]; then
-
-    kul_e2cl " Performig 5tt..." ${log}
-    #5ttgen fsl $ants_anat 5tt/5ttseg.mif -premasked -nocrop -force -nthreads $ncpu 
-    #5ttgen freesurfer $fs_aparc 5tt/5ttseg.mif -nocrop -force -nthreads $ncpu
-    5ttgen freesurfer $fs_labels 5tt/5ttseg.mif -nocrop -force -nthreads $ncpu
     
-    5ttcheck -masks 5tt/failed_5tt 5tt/5ttseg.mif -force -nthreads $ncpu 
-    5tt2gmwmi 5tt/5ttseg.mif 5tt/5tt2gmwmi.nii.gz -force 
+    # STEP 1 - PROCESSING  ---------------------------------------------
+    cd ${preproc}
 
-else
+    # Where is the freesurfer parcellation? 
+    fs_aparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/aparc+aseg.mgz
 
-    echo " 5tt already done, skipping..."
+    # Where is the T1w anat?
+    ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
 
-fi
+    # Convert FS aparc back to original space
+    mkdir -p roi
+    fs_labels=roi/labels_from_FS.nii.gz
+    mri_convert -rl $ants_anat -rt nearest $fs_aparc $fs_labels
+
+    # 5tt segmentation & tracking
+    mkdir -p 5tt
+
+    if [ ! -f 5tt/5tt2gmwmi.nii.gz ]; then
+
+        kul_e2cl " Performig 5tt..." ${log}
+        #5ttgen fsl $ants_anat 5tt/5ttseg.mif -premasked -nocrop -force -nthreads $ncpu 
+        #5ttgen freesurfer $fs_aparc 5tt/5ttseg.mif -nocrop -force -nthreads $ncpu
+        5ttgen freesurfer $fs_labels 5tt/5ttseg.mif -nocrop -force -nthreads $ncpu
+    
+        5ttcheck -masks 5tt/failed_5tt 5tt/5ttseg.mif -force -nthreads $ncpu 
+        5tt2gmwmi 5tt/5ttseg.mif 5tt/5tt2gmwmi.nii.gz -force 
+
+    else
+
+        echo " 5tt already done, skipping..."
+
+    fi
 
 # Extract relevant freesurfer determined rois
 if [ ! -f roi/WM_fs_R.nii.gz ]; then
@@ -401,8 +398,10 @@ function kul_mrtrix_tracto_drt {
 
             # make the intersect string (this is the first of the seeds)
             intersect=${seeds%% *}
+            
+            echo $log
 
-            kul_e2cl " running tckgen of ${tract} tract with algorithm $a (all seeds with -select $nods, intersect with $intersect)" ${log}
+            kul_e2cl " running tckgen of ${tract} tract with algorithm $a all seeds with -select $nods, intersect with $intersect " ${log}
 
             # make the seed string
             local s=$(printf " -seed_image roi/%s.nii.gz"  "${seeds[@]}")
@@ -571,15 +570,15 @@ exclude="WM_fs_R"
 kul_mrtrix_tracto_drt 
 
 if [ $Donatienne -eq 1 ]; then
-tract="NST_L_nods${nods}"
-seeds=("SUBNIG_L" "PUTAMEN_L")
-exclude="WM_fs_R"
-kul_mrtrix_tracto_drt 
+    tract="NST_L_nods${nods}"
+    seeds=("SUBNIG_L" "PUTAMEN_L")  
+    exclude="WM_fs_R"
+    kul_mrtrix_tracto_drt 
 
-tract="NST_R_nods${nods}"
-seeds=("SUBNIG_R" "PUTAMEN_R")
-exclude="WM_fs_L"
-kul_mrtrix_tracto_drt 
+    tract="NST_R_nods${nods}"
+    seeds=("SUBNIG_R" "PUTAMEN_R")
+    exclude="WM_fs_L"
+    kul_mrtrix_tracto_drt 
 fi
 
 
@@ -589,10 +588,10 @@ if [ ! -f for_iplan/TH_SMAPMC_R.hdr ]; then
     mkdir -p for_iplan
 
     # copy the tracts in analyze format
-    fslmaths tracts_iFOD2/TH-DR_L_nods${nods} -s 0.5 -thr 4 -bin for_iplan/Tract_DRT_L
+    fslmaths tracts_iFOD2/TH-DR_L_nods${nods} -s 0.5 -thr 2 -bin for_iplan/Tract_DRT_L
     fslchfiletype NIFTI_PAIR for_iplan/Tract_DRT_L for_iplan/Tract_DRT_L
 
-    fslmaths tracts_iFOD2/TH-DR_R_nods${nods} -s 0.5 -thr 4 -bin for_iplan/Tract_DRT_R
+    fslmaths tracts_iFOD2/TH-DR_R_nods${nods} -s 0.5 -thr 2 -bin for_iplan/Tract_DRT_R
     fslchfiletype NIFTI_PAIR for_iplan/Tract_DRT_R for_iplan/Tract_DRT_R
 
     # copy the T1w in analyze format
@@ -628,97 +627,10 @@ fi
 # ---- END BIG LOOP for processing each session
 done
 
-exit 0
+# write a file to indicate that dwiprep_drtdbs runned succesfully
+#   this file will be checked by KUL_preproc_all
+
+echo "done" > ../dwiprep_drtdbs_is_done.log
 
 
-
-
-
-
-
-
-
-
-
----- EVERYTHING BELOW IS OLD - needs to be removed in beta version
-
-# M1-Thalamic tracts
-tract="TH-M1_R"
-seeds=("THALAMUS_R" "M1")
-exclude="WM_fs_L"
-kul_mrtrix_tracto_drt 
-
-tract="TH-M1_L"
-seeds=("THALAMUS_L" "M1")
-exclude="WM_fs_R"
-kul_mrtrix_tracto_drt 
-
-# S1-Thalamic tracts
-tract="TH-S1_R"
-seeds=("THALAMUS_R" "S1")
-exclude="WM_fs_L"
-kul_mrtrix_tracto_drt 
-
-tract="TH-S1_L"
-seeds=("THALAMUS_L" "S1")
-exclude="WM_fs_R"
-kul_mrtrix_tracto_drt 
-
-# SMA_and_PMC-Thalamic tracts
-tract="TH-SMA_and_PMC_R"
-seeds=("THALAMUS_R" "SMA_and_PMC")
-exclude="WM_fs_L"
-kul_mrtrix_tracto_drt 
-
-tract="TH-SMA_and_PMC_L"
-seeds=("THALAMUS_L" "SMA_and_PMC")
-exclude="WM_fs_R"
-kul_mrtrix_tracto_drt  
-
-
-# STEP 5 - ROI Processing ---------------------------------------------
-mkdir -p roi
-
-
-
-
-
-# Warp the MNI ROIS into subject space (apply INVERSE warp using ants)
-if [ ! -f atlas/TH-SMA_R.nii.gz ]; then
-kul_e2cl " Warping the MNI ROIS into subjects space..." ${log}
-WarpImageMultiTransform 3 ../ROIS/ROI_DENTATE_L.nii.gz roi/DENTATE_L.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-WarpImageMultiTransform 3 ../ROIS/ROI_DENTATE_R.nii.gz roi/DENTATE_R.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-WarpImageMultiTransform 3 ../ROIS/ROI_THALAMUS_L.nii.gz roi/THALAMUS_L.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-WarpImageMultiTransform 3 ../ROIS/ROI_THALAMUS_R.nii.gz roi/THALAMUS_R.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-WarpImageMultiTransform 3 ../ROIS/ROI_M1.nii.gz roi/M1_full.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz \
-    -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-WarpImageMultiTransform 3 ../ROIS/ROI_S1.nii.gz roi/S1_full.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz \
-    -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-WarpImageMultiTransform 3 ../ROIS/ROI_SMA_and_PMC.nii.gz roi/SMA_and_PMC_full.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz \
-    -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-
-# transect the S1, M1 and SMA_and_PMC ROIS with 5ttgen wm/gm interface
-kul_e2cl " Intersecting ROIS with 5tt WM/GM..." ${log}
-WarpImageMultiTransform 3 5tt/5tt2gmwmi.nii.gz 5tt/5tt2gmwmi_dwi.nii.gz -R roi/M1_full.nii.gz --reslice-by-header
-fslmaths roi/M1_full.nii.gz -mas 5tt/5tt2gmwmi_dwi.nii.gz roi/M1.nii.gz
-fslmaths roi/S1_full.nii.gz -mas 5tt/5tt2gmwmi_dwi.nii.gz roi/S1.nii.gz
-fslmaths roi/SMA_and_PMC_full.nii.gz -mas 5tt/5tt2gmwmi_dwi.nii.gz roi/SMA_and_PMC.nii.gz
-
-# Warp the Atlas ROIS into subjects space (apply INVERSE warp using ants)
-mkdir -p atlas
-kul_e2cl " Warping the Atlas ROIS into subjects space..." ${log}
-WarpImageMultiTransform 3 ../ROIS/Thalamic_DBS_Connectivity_atlas_Akram_2018/lh/Dentate.nii.gz atlas/TH-Dentate_L.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-WarpImageMultiTransform 3 ../ROIS/Thalamic_DBS_Connectivity_atlas_Akram_2018/lh/M1.nii.gz atlas/TH-M1_L.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-WarpImageMultiTransform 3 ../ROIS/Thalamic_DBS_Connectivity_atlas_Akram_2018/lh/S1.nii.gz atlas/TH-S1_L.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-WarpImageMultiTransform 3 ../ROIS/Thalamic_DBS_Connectivity_atlas_Akram_2018/lh/SMA.nii.gz atlas/TH-SMA_L.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-
-WarpImageMultiTransform 3 ../ROIS/Thalamic_DBS_Connectivity_atlas_Akram_2018/rh/Dentate.nii.gz atlas/TH-Dentate_R.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-WarpImageMultiTransform 3 ../ROIS/Thalamic_DBS_Connectivity_atlas_Akram_2018/rh/M1.nii.gz atlas/TH-M1_R.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-WarpImageMultiTransform 3 ../ROIS/Thalamic_DBS_Connectivity_atlas_Akram_2018/rh/S1.nii.gz atlas/TH-S1_R.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-WarpImageMultiTransform 3 ../ROIS/Thalamic_DBS_Connectivity_atlas_Akram_2018/rh/SMA.nii.gz atlas/TH-SMA_R.nii.gz -R T1w/T1w_brain_reg2_b0_deformed.nii.gz -i T1w/T1w_brain_reg2_b0_MNI_0GenericAffine.mat T1w/T1w_brain_reg2_b0_MNI_1InverseWarp.nii.gz 
-
-else
-
-echo " Reverse warping of rois/atlas has been done already, skipping" 
-
-fi
+kul_e2cl "   done KUL_dwiprep_drtdbs on participant $BIDS_participant" $log

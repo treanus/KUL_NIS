@@ -225,6 +225,10 @@ freesurfer_file_to_check=freesurfer/sub-${BIDS_participant}/${BIDS_participant}/
         
 if [ ! -f  $freesurfer_file_to_check ]; then
     
+    freesurfer_log=${preproc}/log/freesurfer/${BIDS_participant}.txt
+
+    kul_e2cl " started (in parallel) freesurfer recon-all on participant ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
+    
     # search if any sessions exist
     search_sessions=($(find BIDS/sub-${BIDS_participant} -type f | grep T1w.nii.gz))
     num_sessions=${#search_sessions[@]}
@@ -241,13 +245,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     done
 
     #echo $freesurfer_invol
-
-
-
-    freesurfer_log=${preproc}/log/freesurfer/${BIDS_participant}.txt
-
-    kul_e2cl " started (in parallel) freesurfer recon-all on participant ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
-
+    
     mkdir -p freesurfer
 
     SUBJECTS_DIR=${cwd}/freesurfer/sub-${BIDS_participant}
@@ -308,8 +306,6 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     sleep 2
 
-    #kul_e2cl "   done KUL_dwiprep on participant $BIDS_participant" $log
-
 else
 
     echo " KUL_dwiprep of participant $BIDS_participant already done, skipping..."
@@ -325,7 +321,7 @@ fi
 function task_KUL_dwiprep_anat {
 
 # check if already performed KUL_dwiprep_anat
-dwiprep_anat_file_to_check=dwiprep/sub-${BIDS_participant}/qa/dec_reg2T1w_on_t1w.mif
+dwiprep_anat_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_anat_is_done.log
 
 if [ ! -f  $dwiprep_anat_file_to_check ]; then
 
@@ -353,7 +349,7 @@ fi
 function task_KUL_dwiprep_drtdbs {
 
 # check if already performed KUL_dwiprep_drtdbs
-dwiprep_drtdbs_file_to_check=dwiprep/sub-${BIDS_participant}/qa/void
+dwiprep_drtdbs_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_drtdbs_is_done.log
 
 if [ ! -f  $dwiprep_drtdbs_file_to_check ]; then
 
@@ -361,13 +357,12 @@ if [ ! -f  $dwiprep_drtdbs_file_to_check ]; then
 
     kul_e2cl " performing KUL_dwiprep_drtdbs on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_drtdbs_log)" ${log}
 
-    local task_dwiprep_drtdbs_cmd=$(echo "KUL_dwiprep_drtdbs.sh -p ${BIDS_participant} -n $ncpu -v -o $drtdbs_options -v")
+    local task_dwiprep_drtdbs_cmd=$(echo "KUL_dwiprep_drtdbs.sh -p ${BIDS_participant} -n $ncpu -v -o $drtdbs_options -v \
+ > $dwiprep_drtdbs_log 2>&1 ")
 
     echo "   using cmd: $task_dwiprep_drtdbs_cmd"
     
     eval $task_dwiprep_drtdbs_cmd
-
-    kul_e2cl "   done KUL_dwiprep_drtdbs on participant $BIDS_participant" $log
 
 else
 
@@ -506,7 +501,7 @@ mem_mb=$(echo $mem_gb $gb | awk '{print $1 * $2 }')
 # We need to do some load balancing #FLAG, needs optimisation, a.o. if some processes finished already!
 
 # set number of cores for task mriqc
-load_mriqc=33 # higher number means less cpu need (mriqc does not need much)
+load_mriqc=37 # higher number means less cpu need (mriqc does not need much)
 ncpu_mriqc=$(((($ncpu/$load_mriqc))+1))
 ncpu_mriqc_ants=$(((($ncpu/$load_mriqc))+1))
 
@@ -516,7 +511,7 @@ ncpu_fmriprep=$(((($ncpu/$load_fmriprep))+1))
 ncpu_fmriprep_ants=$(((($ncpu/$load_fmriprep))+1))
 
 # set number of cores for task freesurfer
-load_freesurfer=3
+load_freesurfer=1
 ncpu_freesurfer=$(((($ncpu/$load_freesurfer))+1))
 
 # set number of cores for task KUL_dwiprep
@@ -616,15 +611,15 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mr
 
         fi
 
-        if [ $do_dwiprep -eq 1 ]; then
-            
-            task_KUL_dwiprep
-
-        fi
-
         if [ $do_freesurfer -eq 1 ]; then
             
             task_freesurfer 
+
+        fi
+
+        if [ $do_dwiprep -eq 1 ]; then
+            
+            task_KUL_dwiprep
 
         fi
 
@@ -663,6 +658,11 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mr
         fi
 
     fi
+
+# leave a few spaces before logging to console
+echo ""
+echo ""
+
 
 done < $conf
 

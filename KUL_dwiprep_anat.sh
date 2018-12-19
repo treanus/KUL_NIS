@@ -6,7 +6,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 09/11/2018 - alpha version
-v="v0.1 - dd 21/11/2018"
+v="v0.2 - dd 19/12/2018"
 
 # To Do
 #  - register dwi to T1 with ants-syn
@@ -271,6 +271,11 @@ echo " Finished processing $bids_subj"
 # ---- END of the BIG loop over sessions
 
 done
+
+# write a file to indicate that dwiprep_anat runned succesfully
+#   this file will be checked by KUL_preproc_all
+
+echo "done" > ../dwiprep_anat_is_done.log
 
 kul_e2cl "Finished " ${log}
 
