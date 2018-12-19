@@ -284,7 +284,7 @@ fi
 function task_KUL_dwiprep {
 
 # check if already performed KUL_dwiprep
-dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/qa/dec.mif
+dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_is_done.log
 
 #FLAG we still need to implement topup_options
 
