@@ -220,27 +220,29 @@ fi
 # A Function to start freesurfer processing (in parallel)
 function task_freesurfer {
 
-# search if any sessions exist
-search_sessions=($(find BIDS/sub-${BIDS_participant} -type f | grep T1w.nii.gz))
-num_sessions=${#search_sessions[@]}
-    
-echo "  Number T1w data in the BIDS folder: $num_sessions"
-echo "    notably: ${search_sessions[@]}"
-
-# make the freesurfer input string
-freesurfer_invol=""
-for i in `seq 0 $(($num_sessions-1))`; do
-    
-    freesurfer_invol=" $freesurfer_invol -i ${search_sessions[$i]} "
-
-done
-
-#echo $freesurfer_invol
-
 # check if already performed freesurfer
 freesurfer_file_to_check=freesurfer/sub-${BIDS_participant}/${BIDS_participant}/scripts/recon-all.done
         
 if [ ! -f  $freesurfer_file_to_check ]; then
+    
+    # search if any sessions exist
+    search_sessions=($(find BIDS/sub-${BIDS_participant} -type f | grep T1w.nii.gz))
+    num_sessions=${#search_sessions[@]}
+    
+    echo "  Freesurfer processing: number T1w data in the BIDS folder: $num_sessions"
+    echo "    notably: ${search_sessions[@]}"
+
+    # make the freesurfer input string
+    freesurfer_invol=""
+    for i in `seq 0 $(($num_sessions-1))`; do
+    
+        freesurfer_invol=" $freesurfer_invol -i ${search_sessions[$i]} "
+
+    done
+
+    #echo $freesurfer_invol
+
+
 
     freesurfer_log=${preproc}/log/freesurfer/${BIDS_participant}.txt
 
