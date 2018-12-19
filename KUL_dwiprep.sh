@@ -513,9 +513,16 @@ if [ ! -f qa/dec.mif ]; then
 
 fi
 
-echo " Finished processing $bids_subj" 
-# ---- END of the BIG loop over sessions
+echo " Finished processing session $bids_subj" 
 
+# ---- END of the BIG loop over sessions
 done
+
+# write a file to indicate that dwiprep runned succesfully
+#   his file will be checked by KUL_preproc_all
+#   dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_is_done.log
+
+echo "done" > ../dwiprep_is_done.log
+
 
 kul_e2cl "Finished " ${log}
