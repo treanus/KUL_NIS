@@ -102,6 +102,7 @@ silent=1
 
 # Set required options
 p_flag=0
+s_flag=0
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -226,9 +227,6 @@ raw=${preproc}/raw
 kul_e2cl " Start processing $bids_subj" ${preproc}/${log}
 
 #---------- MAIN ---------------------------------------------------------------------------------------
-echo $subj
-echo $nods
-
 
 # STEP 1 - PROCESSING  ---------------------------------------------
 cd ${preproc}
@@ -395,7 +393,7 @@ function kul_mrtrix_tracto_drt {
     for a in iFOD2; do
     
         # do the tracking
-        echo tracts_${a}/${tract}.tck
+        # echo tracts_${a}/${tract}.tck
         
         if [ ! -f tracts_${a}/${tract}.tck ]; then 
 
