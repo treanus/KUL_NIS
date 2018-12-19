@@ -3,7 +3,7 @@
 #
 # v0.1 - dd 06/11/2018 - alpha version
 # v0.2a - dd 12/12/2018 - preparing for beta release 0.2
-v="v0.2a - dd 12/12/2018"
+v="v0.2 - dd 19/12/2018"
 
 # This is the main script of the KUL_NeuroImaging_Toools
 #
@@ -220,6 +220,23 @@ fi
 # A Function to start freesurfer processing (in parallel)
 function task_freesurfer {
 
+# search if any sessions exist
+search_sessions=($(find BIDS/sub-${BIDS_participant} -type f | grep T1w.nii.gz))
+num_sessions=${#search_sessions[@]}
+    
+echo "  Number T1w data in the BIDS folder: $num_sessions"
+echo "    notably: ${search_sessions[@]}"
+
+# make the freesurfer input string
+freesurfer_invol=""
+for i in `seq 0 $(($num_sessions-1))`; do
+    
+    freesurfer_invol=" $freesurfer_invol -i ${search_sessions[$i]} "
+
+done
+
+#echo $freesurfer_invol
+
 # check if already performed freesurfer
 freesurfer_file_to_check=freesurfer/sub-${BIDS_participant}/${BIDS_participant}/scripts/recon-all.done
         
@@ -231,10 +248,6 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
     mkdir -p freesurfer
 
-    bids_subj=${bids_dir}/sub-${BIDS_participant}/ses-tp1
-    bids_anat=$(ls ${bids_subj}/anat/*_T1w.nii.gz)
-    #echo $bids_anat
-
     SUBJECTS_DIR=${cwd}/freesurfer/sub-${BIDS_participant}
 
     #start clean
@@ -242,7 +255,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     mkdir -p $SUBJECTS_DIR
     export SUBJECTS_DIR
 
-    local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant -i $bids_anat -all -openmp $ncpu_freesurfer \
+    local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol -all -openmp $ncpu_freesurfer \
  -parallel > $freesurfer_log 2>&1 ")
 
     echo "   using cmd: $task_freesurfer_cmd"
@@ -261,6 +274,8 @@ else
         
 fi
 
+
+#done
 }
 
 

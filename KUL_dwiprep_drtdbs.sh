@@ -10,7 +10,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 11/10/2018 - alpha version
-v="v0.1 - dd 11/10/2018"
+v="v0.2 - dd 19/10/2018"
 
 # To Do
 #  - use 5ttgen with freesurfer
@@ -34,7 +34,7 @@ v="v0.1 - dd 11/10/2018"
     # termination ratio - defined as the ratio between reduction in cost
     # function, and reduction in density of streamlines.
     # Smaller values result in more streamlines being filtered out.
-    do_sift_th=5000 # when to do sift? (if more than 5000 streamlines in tract e.g.)
+    do_sift_th=10000 # when to do sift? (if more than 5000 streamlines in tract e.g.)
     term_ratio=0.5 # reduce by e.g. 50%
 
     # tmp directory for temporary processing
@@ -347,6 +347,38 @@ if [ ! -f roi/DENTATE_L.nii.gz ]; then
     reference=$ants_anat
     KUL_antsApply_Transform
 
+    Donatienne=0
+
+    if [ Donatienne -eq 1 ]; then
+
+    # We get the SN & PATUMEN rois out of MNI space, from Donatienne's PET data
+    # We warp them back to individual subject space
+    input=${cwd}/ROIS/rsn_l.nii
+    output=roi/SUBNIG_L.nii.gz
+    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+    reference=$ants_anat
+    KUL_antsApply_Transform
+
+    input=${cwd}/ROIS/rputamen_l.nii
+    output=roi/PUTAMEN_L.nii.gz
+    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+    reference=$ants_anat
+    KUL_antsApply_Transform
+
+    input=${cwd}/ROIS/rsn_r.nii
+    output=roi/SUBNIG_R.nii.gz
+    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+    reference=$ants_anat
+    KUL_antsApply_Transform
+
+    input=${cwd}/ROIS/rputamen_r.nii
+    output=roi/PUTAMEN_R.nii.gz
+    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+    reference=$ants_anat
+    KUL_antsApply_Transform
+
+    fi
+
 else
 
     echo " Warping the SUIT3.3 atlas ROIS of the DENTATE to subject space has been done already, skipping" 
@@ -538,6 +570,18 @@ tract="TH-DR_L_nods${nods}"
 seeds=("THALAMUS_fs_L" "M1_fs_L" "DENTATE_R")
 exclude="WM_fs_R"
 kul_mrtrix_tracto_drt 
+
+if [ Donatienne -eq 1 ]; then
+tract="NST_L_nods${nods}"
+seeds=("SUBNIG_L" "PUTAMEN_L")
+exclude="WM_fs_R"
+kul_mrtrix_tracto_drt 
+
+tract="NST_R_nods${nods}"
+seeds=("SUBNIG_R" "PUTAMEN_R")
+exclude="WM_fs_L"
+kul_mrtrix_tracto_drt 
+fi
 
 done
 
