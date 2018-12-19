@@ -576,7 +576,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mr
 
         fi
         
-        kul_e2cl "  Now starting (depending on your config-file) mriqc, fmriprep, freesurfer and KUL_dwiprep... " $log
+        kul_e2cl " Now starting (depending on your config-file) mriqc, fmriprep, freesurfer and KUL_dwiprep... " $log
         echo "   note: further processing with KUL_dwiprep_anat, KUL_dwiprep_drtdbs depend on fmriprep, freesurfer and KUL_dwiprep (which need to run fully)"
 
         if [ $silent -eq 0 ]; then
@@ -646,7 +646,9 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mr
 
         # continue with KUL_dwiprep_anat, which depends on finished data from freesurfer, fmriprep & KUL_dwiprep
         if [ $do_dwiprep_anat -eq 1 ]; then
+
             task_KUL_dwiprep_anat
+
         fi 
 
         # Here we could also have some whole brain tractography processing e.g.
@@ -655,8 +657,9 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mr
         
         # continue with KUL_dwiprep_drtdbs
         if [ $do_dwiprep_drtdbs -eq 1 ]; then
-            echo $drtdbs_options
+            
             task_KUL_dwiprep_drtdbs
+
         fi
 
     fi
