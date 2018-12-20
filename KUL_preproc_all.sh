@@ -3,7 +3,7 @@
 #
 # v0.1 - dd 06/11/2018 - alpha version
 # v0.2a - dd 12/12/2018 - preparing for beta release 0.2
-v="v0.2a - dd 12/12/2018"
+v="v0.2 - dd 19/12/2018"
 
 # This is the main script of the KUL_NeuroImaging_Toools
 #
@@ -101,7 +101,7 @@ Required arguments:
 
 Optional arguments:
     
-     -p:  number of cores to use (distrubuted over mriqc/fmriprep/freesurfer/etc...)
+     -n:  number of cores to use (distrubuted over mriqc/fmriprep/freesurfer/etc...)
      -m:  max memory (in gigabytes) available in docker
      -t:  temporary directory (default = /tmp)
      -r:  reset docker (clean the images and download new ones)
@@ -109,7 +109,7 @@ Optional arguments:
 
 Example:
 
-  `basename $0` -c study_config/subjects_and_options.csv -b BIDS -p 6 -m 12 -t /scratch -v 
+  `basename $0` -c study_config/subjects_and_options.csv -b BIDS -n 6 -m 12 -t /scratch -v 
     
     uses "study_config/subjects_and_options.csv" to 
         - reads the subjects (participants) on which to do processing
@@ -224,16 +224,29 @@ function task_freesurfer {
 freesurfer_file_to_check=freesurfer/sub-${BIDS_participant}/${BIDS_participant}/scripts/recon-all.done
         
 if [ ! -f  $freesurfer_file_to_check ]; then
-
+    
     freesurfer_log=${preproc}/log/freesurfer/${BIDS_participant}.txt
 
     kul_e2cl " started (in parallel) freesurfer recon-all on participant ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
+    
+    # search if any sessions exist
+    search_sessions=($(find BIDS/sub-${BIDS_participant} -type f | grep T1w.nii.gz))
+    num_sessions=${#search_sessions[@]}
+    
+    echo "  Freesurfer processing: number T1w data in the BIDS folder: $num_sessions"
+    echo "    notably: ${search_sessions[@]}"
 
+    # make the freesurfer input string
+    freesurfer_invol=""
+    for i in `seq 0 $(($num_sessions-1))`; do
+    
+        freesurfer_invol=" $freesurfer_invol -i ${search_sessions[$i]} "
+
+    done
+
+    #echo $freesurfer_invol
+    
     mkdir -p freesurfer
-
-    bids_subj=${bids_dir}/sub-${BIDS_participant}/ses-tp1
-    bids_anat=$(ls ${bids_subj}/anat/*_T1w.nii.gz)
-    #echo $bids_anat
 
     SUBJECTS_DIR=${cwd}/freesurfer/sub-${BIDS_participant}
 
@@ -242,7 +255,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     mkdir -p $SUBJECTS_DIR
     export SUBJECTS_DIR
 
-    local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant -i $bids_anat -all -openmp $ncpu_freesurfer \
+    local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol -all -openmp $ncpu_freesurfer \
  -parallel > $freesurfer_log 2>&1 ")
 
     echo "   using cmd: $task_freesurfer_cmd"
@@ -261,6 +274,8 @@ else
         
 fi
 
+
+#done
 }
 
 
@@ -269,7 +284,7 @@ fi
 function task_KUL_dwiprep {
 
 # check if already performed KUL_dwiprep
-dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/qa/dec.mif
+dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_is_done.log
 
 #FLAG we still need to implement topup_options
 
@@ -279,8 +294,7 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     kul_e2cl " started (in parallel) KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
-
-    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -s ${BIDS_participant} -p $ncpu_dwiprep -d $dwipreproc_options -e \"${eddy_options} \" -v \
+    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} -n $ncpu_dwiprep -d $dwipreproc_options -e \"${eddy_options} \" -v \
  > $dwiprep_log 2>&1 ")
 
     echo "   using cmd: $task_dwiprep_cmd"
@@ -291,8 +305,6 @@ if [ ! -f  $dwiprep_file_to_check ]; then
     echo " KUL_dwiprep pid is $dwiprep_pid"
 
     sleep 2
-
-    #kul_e2cl "   done KUL_dwiprep on participant $BIDS_participant" $log
 
 else
 
@@ -309,7 +321,7 @@ fi
 function task_KUL_dwiprep_anat {
 
 # check if already performed KUL_dwiprep_anat
-dwiprep_anat_file_to_check=dwiprep/sub-${BIDS_participant}/qa/dec_reg2T1w_on_t1w.mif
+dwiprep_anat_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_anat_is_done.log
 
 if [ ! -f  $dwiprep_anat_file_to_check ]; then
 
@@ -317,7 +329,7 @@ if [ ! -f  $dwiprep_anat_file_to_check ]; then
 
     kul_e2cl " performing KUL_dwiprep_anat on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_anat_log)" ${log}
 
-    KUL_dwiprep_anat.sh -s ${BIDS_participant} -p $ncpu -v \
+    KUL_dwiprep_anat.sh -p ${BIDS_participant} -n $ncpu -v \
         > $dwiprep_anat_log 2>&1 
 
     kul_e2cl "   done KUL_dwiprep_anat on participant $BIDS_participant" $log
@@ -337,7 +349,7 @@ fi
 function task_KUL_dwiprep_drtdbs {
 
 # check if already performed KUL_dwiprep_drtdbs
-dwiprep_drtdbs_file_to_check=dwiprep/sub-${BIDS_participant}/qa/void
+dwiprep_drtdbs_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_drtdbs_is_done.log
 
 if [ ! -f  $dwiprep_drtdbs_file_to_check ]; then
 
@@ -345,18 +357,12 @@ if [ ! -f  $dwiprep_drtdbs_file_to_check ]; then
 
     kul_e2cl " performing KUL_dwiprep_drtdbs on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_drtdbs_log)" ${log}
 
-    echo " local drtdbs_options is: $drtdbs_options"
+    local task_dwiprep_drtdbs_cmd=$(echo "KUL_dwiprep_drtdbs.sh -p ${BIDS_participant} -n $ncpu -v -o $drtdbs_options -v \
+ > $dwiprep_drtdbs_log 2>&1 ")
 
-    #local cmd=$(echo "KUL_dwiprep_drtdbs.sh -s ${BIDS_participant} -p $ncpu -v -n 4000") \
-    #    #> $dwiprep_drtdbs_log 2>&1 
-
-    local cmd=$(echo "KUL_dwiprep_drtdbs.sh -s ${BIDS_participant} -p $ncpu -v -n 4000")
-    #KUL_dwiprep_drtdbs.sh -s "${BIDS_participant}" -p "$ncpu" -v -n "${drtdbs_options}"
-    #echo " the cmd is: $cmd"
+    echo "   using cmd: $task_dwiprep_drtdbs_cmd"
     
-    eval $cmd
-
-    kul_e2cl "   done KUL_dwiprep_drtdbs on participant $BIDS_participant" $log
+    eval $task_dwiprep_drtdbs_cmd
 
 else
 
@@ -394,7 +400,7 @@ if [ "$#" -lt 2 ]; then
 
 else
 
-    while getopts "c:b:p:m:t:rvh" OPT; do
+    while getopts "c:b:n:m:t:rvh" OPT; do
 
         case $OPT in
         c) #config_file
@@ -405,7 +411,7 @@ else
             bids_flag=1
             bids_dir=$OPTARG
         ;;
-        p) #ncpu
+        n) #ncpu
             cpu_flag=1
             ncpu=$OPTARG
         ;;
@@ -495,7 +501,7 @@ mem_mb=$(echo $mem_gb $gb | awk '{print $1 * $2 }')
 # We need to do some load balancing #FLAG, needs optimisation, a.o. if some processes finished already!
 
 # set number of cores for task mriqc
-load_mriqc=33 # higher number means less cpu need (mriqc does not need much)
+load_mriqc=37 # higher number means less cpu need (mriqc does not need much)
 ncpu_mriqc=$(((($ncpu/$load_mriqc))+1))
 ncpu_mriqc_ants=$(((($ncpu/$load_mriqc))+1))
 
@@ -505,7 +511,7 @@ ncpu_fmriprep=$(((($ncpu/$load_fmriprep))+1))
 ncpu_fmriprep_ants=$(((($ncpu/$load_fmriprep))+1))
 
 # set number of cores for task freesurfer
-load_freesurfer=3
+load_freesurfer=1
 ncpu_freesurfer=$(((($ncpu/$load_freesurfer))+1))
 
 # set number of cores for task KUL_dwiprep
@@ -540,7 +546,7 @@ rm -fr ${cwd}/fmriprep_work
 
 
 # we read the config file (and it may be csv, tsv or ;-seperated)
-while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_drtdbs drtdbs_options; do
+while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_drtdbs drtdbs_options; do
     
     
     if [ "$dicom_zip" = "dicom_zip" ]; then
@@ -557,7 +563,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
         if [ ! -d  $dcm2bids_dir_to_check ]; then
 
             kul_e2cl " Converting dicom to BIDS for subject $BIDS_participant... " $log
-            KUL_dcm2bids.sh -p ${BIDS_participant} -d ${dicom_zip} -c ${config_file} -s ${session} -o BIDS -v
+            KUL_dcm2bids.sh -p ${BIDS_participant} -d ${dicom_zip} -c ${config_file} -o BIDS -v
         
         else
 
@@ -565,7 +571,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
 
         fi
         
-        kul_e2cl "  Now starting (depending on your config-file) mriqc, fmriprep, freesurfer and KUL_dwiprep... " $log
+        kul_e2cl " Now starting (depending on your config-file) mriqc, fmriprep, freesurfer and KUL_dwiprep... " $log
         echo "   note: further processing with KUL_dwiprep_anat, KUL_dwiprep_drtdbs depend on fmriprep, freesurfer and KUL_dwiprep (which need to run fully)"
 
         if [ $silent -eq 0 ]; then
@@ -575,7 +581,6 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
             echo "    EAD: $EAD"
             echo "    dicom_zip: $dicom_zip"
             echo "    config_file: $config_file"
-            echo "    session: $session"
             echo "    do_mriqc: $do_mriqc"
             echo "    mriqc_options: $mriqc_options"
             echo "    do_fmriprep: $do_fmriprep"
@@ -606,21 +611,23 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
 
         fi
 
-        if [ $do_dwiprep -eq 1 ]; then
-            
-            task_KUL_dwiprep
-
-        fi
-
         if [ $do_freesurfer -eq 1 ]; then
             
             task_freesurfer 
 
         fi
 
+        if [ $do_dwiprep -eq 1 ]; then
+            
+            task_KUL_dwiprep
+
+        fi
+
         # wait for mriqc, fmriprep, freesurfer and KUL_dwiprep to finish
         kul_e2cl " waiting for processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
         wait $mriqc_pid $fmriprep_pid $dwiprep_pid $freesurfer_pid
+
+        kul_e2cl " processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant have finished" $log
 
         # clean up after jobs finished
         rm -fr ${cwd}/fmriprep_work
@@ -634,7 +641,9 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
 
         # continue with KUL_dwiprep_anat, which depends on finished data from freesurfer, fmriprep & KUL_dwiprep
         if [ $do_dwiprep_anat -eq 1 ]; then
+
             task_KUL_dwiprep_anat
+
         fi 
 
         # Here we could also have some whole brain tractography processing e.g.
@@ -643,11 +652,17 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session do_
         
         # continue with KUL_dwiprep_drtdbs
         if [ $do_dwiprep_drtdbs -eq 1 ]; then
-            echo $drtdbs_options
+            
             task_KUL_dwiprep_drtdbs
+
         fi
 
     fi
+
+# leave a few spaces before logging to console
+echo ""
+echo ""
+
 
 done < $conf
 

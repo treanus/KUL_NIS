@@ -35,19 +35,21 @@ cat <<USAGE
 
 Usage:
 
-  `basename $0` -s subject <OPT_ARGS>
+  `basename $0` -p subject <OPT_ARGS>
 
 Example:
 
-  `basename $0` -s pat001 -p 6 
+  `basename $0` -p pat001 -n 6 
 
 Required arguments:
 
-     -s:  subject (anonymised name of the subject)
+     -p:  praticipant (BIDS name of the subject)
+
 
 Optional arguments:
-
-     -p:  number of cpu for parallelisation
+     
+     -s:  session (BIDS session)
+     -n:  number of cpu for parallelisation
      -t:  options to pass to topup
      -e:  options to pass to eddy
      -d:  options to pass to dwipreproc (can be -rpe_header, -rpe_none, -rpe_all)
@@ -63,7 +65,7 @@ USAGE
 # CHECK COMMAND LINE OPTIONS -------------
 # 
 # Set defaults
-ncpu=6 # default if option -p is not given
+ncpu=6 # default if option -n is not given
 silent=1 # default if option -v is not given
 # Specify additional options for FSL eddy
 eddy_options="--slm=linear --repol"
@@ -71,6 +73,7 @@ topup_options=""
 dwipreproc_options="-rpe_header"
 
 # Set required options
+p_flag=0
 s_flag=0
 
 if [ "$#" -lt 1 ]; then
@@ -79,14 +82,18 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "s:p:t:e:d:v" OPT; do
+    while getopts "p:s:n:d:t:e:v" OPT; do
 
         case $OPT in
-        s) #subject
-            s_flag=1
+        p) #participant
+            p_flag=1
             subj=$OPTARG
         ;;
-        p) #parallel
+        s) #session
+            s_flag=1
+            ses=$OPTARG
+        ;;
+        n) #ncpu
             ncpu=$OPTARG
         ;;
         d) #dwipreproc_options
@@ -120,12 +127,13 @@ else
 fi
 
 # check for required options
-if [ $s_flag -eq 0 ] ; then 
+if [ $p_flag -eq 0 ] ; then 
     echo 
-    echo "Option -s is required: give the anonymised name of a subject (this will create a directory subject_preproc with results)." >&2
+    echo "Option -p is required: give the BIDS name of the participant." >&2
     echo
     exit 2 
 fi 
+
 
 # MRTRIX verbose or not?
 if [ $silent -eq 1 ] ; then 
@@ -143,8 +151,46 @@ start=$(date +%s)
 FSLPARALLEL=$ncpu; export FSLPARALLEL
 OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
 
-# Directory to write preprocessed data in
-preproc=dwiprep/sub-${subj}
+d=$(date "+%Y-%m-%d_%H-%M-%S")
+log=log/log_${d}.txt
+
+
+# --- MAIN ----------------
+
+bids_subj=BIDS/sub-${subj}
+
+# Either a session is given on the command line
+# If not the session(s) need to be determined.
+if [ $s_flag -eq 1 ]; then
+
+    # session is given on the command line
+    search_sessions=BIDS/sub-${subj}/ses-${ses}
+
+else
+
+    # search if any sessions exist
+    search_sessions=($(find BIDS/sub-${subj} -type d | grep dwi))
+
+fi    
+ 
+num_sessions=${#search_sessions[@]}
+    
+echo "  Number of BIDS sessions: $num_sessions"
+echo "    notably: ${search_sessions[@]}"
+
+
+# ---- BIG LOOP for processing each session
+for current_session in `seq 0 $(($num_sessions-1))`; do
+
+# set up directories 
+cd $cwd
+long_bids_subj=${search_sessions[$current_session]}
+#echo $long_bids_subj
+bids_subj=${long_bids_subj%dwi}
+
+# Create the Directory to write preprocessed data in
+preproc=dwiprep/sub-${subj}/$(basename $bids_subj) 
+#echo $preproc
 
 # Directory to put raw mif data in
 raw=${preproc}/raw
@@ -153,16 +199,8 @@ raw=${preproc}/raw
 mkdir -p ${preproc}/raw
 mkdir -p ${preproc}/log
 
-d=$(date "+%Y-%m-%d_%H-%M-%S")
-log=log/log_${d}.txt
+kul_e2cl " Start processing $bids_subj" ${preproc}/${log}
 
-
-
-# SAY HELLO ---
-
-#kul_e2cl "Welcome to KUL_dwiprep $v - $d" ${preproc}/${log}
-
-bids_subj=BIDS/"sub-$subj"/ses-tp1   #FLAG, bad hard coded session!
 
 # STEP 1 - CONVERSION of BIDS to MIF ---------------------------------------------
 
@@ -186,14 +224,45 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
     else 
         
-        kul_e2cl "   found $number_of_bids_dwi_found dwi datasets, scaling & catting" ${preproc}/${log}
+        kul_e2cl "   found $number_of_bids_dwi_found dwi datasets, checking number_of slices (and adjusting), scaling & catting" ${preproc}/${log}
         
         dwi_i=1
         for dwi_file in $bids_dwi_found; do
             dwi_base=${dwi_file%%.*}
         
+            #mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
+            #-json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu
+
+            #dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
+        
+            # read the number of slices
+            ns_dwi[dwi_i]=$(mrinfo ${dwi_base}.nii.gz -size | awk '{print $(NF-1)}')
+            kul_e2cl "   dataset p${dwi_i} has ${ns_dwi[dwi_i]} as number of slices" ${preproc}/${log}
+
+            ((dwi_i++))
+
+        done 
+
+        max=10000000
+        for i in "${ns_dwi[@]}"
+        do
+            # Update max if applicable
+            if [[ "$i" -lt "$max" ]]; then
+                max="$i"
+            fi
+
+        done
+
+        # Output results:
+        echo "Max is: $max"
+        ((max--))
+
+        dwi_i=1
+        for dwi_file in $bids_dwi_found; do
+            dwi_base=${dwi_file%%.*}
+        
             mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
-            -json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu
+            -json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} -force -clear_property comments -nthreads $ncpu
 
             dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
         
@@ -358,8 +427,12 @@ if [ ! -f dwi/geomcorr.mif ]; then
 	eddy_quad $temp_dir/dwi_post_eddy --eddyIdx $temp_dir/eddy_indices.txt \
         --eddyParams $temp_dir/dwi_post_eddy.eddy_parameters --mask $temp_dir/eddy_mask.nii \
         --bvals $temp_dir/bvals --bvecs $temp_dir/bvecs --output-dir eddy_qc/quad --verbose 
+    
     # make an mriqc/fmriprep style report (i.e. just link qc.pdf into main dwiprep directory)
-    ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}.pdf &
+    ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${subj}_${preproc}.pdf &
+
+    # clean-up the above dwipreproc temporary directory
+    rm -rf $temp_dir
 
 else
 
@@ -443,5 +516,29 @@ if [ ! -f qa/dec.mif ]; then
     #mrconvert dwi/noiselevel.mif qa/noiselevel.nii.gz
 
 fi
+
+
+# We finished processing current session
+# write a "done" log file for this session
+echo "done" > log/${current_session}_done.log
+
+
+# STEP 5 - CLEANUP - here we clean up (large) temporary files
+rm -fr dwi/degibbs.mif
+rm -rf dwi/geomcorr.mif
+rm -rf raw
+
+echo " Finished processing session $bids_subj" 
+
+
+# ---- END of the BIG loop over sessions
+done
+
+# write a file to indicate that dwiprep runned succesfully
+#   his file will be checked by KUL_preproc_all
+#   dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_is_done.log
+
+echo "done" > ../dwiprep_is_done.log
+
 
 kul_e2cl "Finished " ${log}
