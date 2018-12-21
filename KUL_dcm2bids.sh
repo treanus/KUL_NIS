@@ -6,7 +6,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 26/10/2018 - alpha version
-v="v0.1 - dd 26/10/2018"
+v="v0.2 - dd 21/12/2018"
 
 # TODO
 #  - make it work for multiple vendors
@@ -622,7 +622,7 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # also not for philips, when it cannot be calculated
             #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
             #echo "slice_time: $slice_time"
-            if [ $slicetime_provided_by_vendor -eq 1 ]  || [ $slice_time = "empty" ]; then
+            if [ $slicetime_provided_by_vendor -eq 1 ]  || [ "$slice_time" = "empty" ]; then
                 
                 if [ $slicetime_provided_by_vendor -eq 1 ]; then
                     kul_e2cl "   It's a SIEMENS, slicetiming is in the dicom-header" $log
@@ -710,7 +710,7 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # also not for philips, when it cannot be calculated
             #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
             #echo "slice_time: $slice_time"
-            if [ $slicetime_provided_by_vendor -eq 1 ]  || [ $slice_time = "empty" ]; then
+            if [ $slicetime_provided_by_vendor -eq 1 ]  || [ "$slice_time" = "empty" ]; then
 
                 if [ $slicetime_provided_by_vendor -eq 1 ]; then
                     kul_e2cl "   It's a SIEMENS, slicetiming is in the dicom-header" $log
