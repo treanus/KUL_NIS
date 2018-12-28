@@ -620,9 +620,9 @@ while IFS=, read identifier search_string task mb pe_dir; do
                     
             # for siemens (& ge?) slicetiming is not necessary as CustomHeader
             # also not for philips, when it cannot be calculated
-            #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
-            #echo "slice_time: $slice_time"
-            if [ $slicetime_provided_by_vendor -eq 1 ]  || [ $slice_time = "empty" ]; then
+            echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
+            echo "slice_time: $slice_time"
+            if [ $slicetime_provided_by_vendor -eq 1 ]  || [ "$slice_time" = "empty" ]; then
                 
                 if [ $slicetime_provided_by_vendor -eq 1 ]; then
                     kul_e2cl "   It's a SIEMENS, slicetiming is in the dicom-header" $log
@@ -710,7 +710,7 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # also not for philips, when it cannot be calculated
             #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
             #echo "slice_time: $slice_time"
-            if [ $slicetime_provided_by_vendor -eq 1 ]  || [ $slice_time = "empty" ]; then
+            if [ $slicetime_provided_by_vendor -eq 1 ]  || [ "$slice_time" = "empty" ]; then
 
                 if [ $slicetime_provided_by_vendor -eq 1 ]; then
                     kul_e2cl "   It's a SIEMENS, slicetiming is in the dicom-header" $log
