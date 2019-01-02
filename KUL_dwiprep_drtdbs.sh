@@ -587,37 +587,39 @@ if [ ! -f for_iplan/TH_SMAPMC_R.hdr ]; then
 
     mkdir -p for_iplan
 
-    # copy the tracts in analyze format
-    fslmaths tracts_iFOD2/TH-DR_L_nods${nods} -s 0.5 -thr 2 -bin for_iplan/Tract_DRT_L
-    #fslchfiletype NIFTI_PAIR for_iplan/Tract_DRT_L for_iplan/Tract_DRT_L
+    smooth_sigma=0.6
 
-    fslmaths tracts_iFOD2/TH-DR_R_nods${nods} -s 0.5 -thr 2 -bin for_iplan/Tract_DRT_R
-    #fslchfiletype NIFTI_PAIR for_iplan/Tract_DRT_R for_iplan/Tract_DRT_R
+    # copy the tracts in analyze format
+    fslmaths tracts_iFOD2/TH-DR_L_nods${nods} -s $smooth_sigma -thr 3 -bin for_iplan/Tract_DRT_L
+    fslchfiletype NIFTI_PAIR for_iplan/Tract_DRT_L for_iplan/Tract_DRT_L
+
+    fslmaths tracts_iFOD2/TH-DR_R_nods${nods} -s $smooth_sigma -thr 3 -bin for_iplan/Tract_DRT_R
+    fslchfiletype NIFTI_PAIR for_iplan/Tract_DRT_R for_iplan/Tract_DRT_R
 
     # copy the T1w in analyze format
     cp T1w/T1w_BrainExtractionBrain.nii.gz for_iplan/anat.nii.gz
-    #fslchfiletype NIFTI_PAIR for_iplan/anat for_iplan/anat
+    fslchfiletype NIFTI_PAIR for_iplan/anat for_iplan/anat
 
     # copy the Thalamic probabilistic images as speudo fmri activation maps
-    fslmaths tracts_iFOD2/Subj_Space_TH-DR_L_nods${nods}_iFOD2.nii.gz -s 0.5 -thr 0.25 for_iplan/TH_DRT_L
-    #fslchfiletype NIFTI_PAIR for_iplan/TH_DRT_L for_iplan/TH_DRT_L
-    fslmaths tracts_iFOD2/Subj_Space_TH-DR_R_nods${nods}_iFOD2.nii.gz -s 0.5 -thr 0.25 for_iplan/TH_DRT_R
-    #fslchfiletype NIFTI_PAIR for_iplan/TH_DRT_R for_iplan/TH_DRT_R
+    fslmaths tracts_iFOD2/Subj_Space_TH-DR_L_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_DRT_L
+    fslchfiletype NIFTI_PAIR for_iplan/TH_DRT_L for_iplan/TH_DRT_L
+    fslmaths tracts_iFOD2/Subj_Space_TH-DR_R_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_DRT_R
+    fslchfiletype NIFTI_PAIR for_iplan/TH_DRT_R for_iplan/TH_DRT_R
 
-    fslmaths tracts_iFOD2/Subj_Space_TH-M1_fs_L_nods${nods}_iFOD2.nii.gz -s 0.5 -thr 0.25 for_iplan/TH_M1_L
-    #fslchfiletype NIFTI_PAIR for_iplan/TH_M1_L for_iplan/TH_M1_L
-    fslmaths tracts_iFOD2/Subj_Space_TH-M1_fs_R_nods${nods}_iFOD2.nii.gz -s 0.5 -thr 0.25 for_iplan/TH_M1_R
-    #fslchfiletype NIFTI_PAIR for_iplan/TH_M1_R for_iplan/TH_M1_R
+    fslmaths tracts_iFOD2/Subj_Space_TH-M1_fs_L_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_M1_L
+    fslchfiletype NIFTI_PAIR for_iplan/TH_M1_L for_iplan/TH_M1_L
+    fslmaths tracts_iFOD2/Subj_Space_TH-M1_fs_R_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_M1_R
+    fslchfiletype NIFTI_PAIR for_iplan/TH_M1_R for_iplan/TH_M1_R
 
-    fslmaths tracts_iFOD2/Subj_Space_TH-S1_fs_L_nods${nods}_iFOD2.nii.gz -s 0.5 -thr 0.25 for_iplan/TH_S1_L
-    #fslchfiletype NIFTI_PAIR for_iplan/TH_S1_L for_iplan/TH_S1_L
-    fslmaths tracts_iFOD2/Subj_Space_TH-S1_fs_R_nods${nods}_iFOD2.nii.gz -s 0.5 -thr 0.25 for_iplan/TH_S1_R
-    #fslchfiletype NIFTI_PAIR for_iplan/TH_S1_R for_iplan/TH_S1_R
+    fslmaths tracts_iFOD2/Subj_Space_TH-S1_fs_L_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_S1_L
+    fslchfiletype NIFTI_PAIR for_iplan/TH_S1_L for_iplan/TH_S1_L
+    fslmaths tracts_iFOD2/Subj_Space_TH-S1_fs_R_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_S1_R
+    fslchfiletype NIFTI_PAIR for_iplan/TH_S1_R for_iplan/TH_S1_R
 
-    fslmaths tracts_iFOD2/Subj_Space_TH-SMA_and_PMC_L_nods${nods}_iFOD2.nii.gz -s 0.5 -thr 0.25 for_iplan/TH_SMAPMC_L
-    #fslchfiletype NIFTI_PAIR for_iplan/TH_SMAPMC_L for_iplan/TH_SMAPMC_L
-    fslmaths tracts_iFOD2/Subj_Space_TH-SMA_and_PMC_R_nods${nods}_iFOD2.nii.gz -s 0.5 -thr 0.25 for_iplan/TH_SMAPMC_R
-    #fslchfiletype NIFTI_PAIR for_iplan/TH_SMAPMC_R for_iplan/TH_SMAPMC_R
+    fslmaths tracts_iFOD2/Subj_Space_TH-SMA_and_PMC_L_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_SMAPMC_L
+    fslchfiletype NIFTI_PAIR for_iplan/TH_SMAPMC_L for_iplan/TH_SMAPMC_L
+    fslmaths tracts_iFOD2/Subj_Space_TH-SMA_and_PMC_R_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_SMAPMC_R
+    fslchfiletype NIFTI_PAIR for_iplan/TH_SMAPMC_R for_iplan/TH_SMAPMC_R
 
     # clean up
     #rm -rf for_iplan/*.nii.gz
