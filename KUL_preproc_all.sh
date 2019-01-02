@@ -97,10 +97,10 @@ Usage:
 Required arguments:
 
      -c:  description of the subjects and settings for processing
-     -b:  bids directory
 
 Optional arguments:
     
+     -b:  bids directory
      -n:  number of cores to use (distrubuted over mriqc/fmriprep/freesurfer/etc...)
      -m:  max memory (in gigabytes) available in docker
      -t:  temporary directory (default = /tmp)
@@ -382,7 +382,9 @@ fi
 
 # Set some defaults
 silent=1
+ncpu=6
 mem_gb=16
+bids_dir=BIDS
 tmp=/tmp
 
 # Set flags
@@ -463,20 +465,6 @@ elif [ ! -f $conf ] ; then
     echo "The config file $conf does not exist"
     echo
     exit 2
-fi 
-
-if [ $bids_flag -eq 0 ] ; then 
-    echo 
-    echo "Option -o is required: give the path to the BIDS directory" >&2
-    echo
-    exit 2 
-fi 
-
-if [ $cpu_flag -eq 0 ] ; then 
-    echo 
-    echo "Option -p is required: give the number of cpu's to use" >&2
-    echo
-    exit 2 
 fi 
 
 
@@ -689,7 +677,7 @@ fi
 
 # ----------- STEP 4 - Compute dwiprep group summary ---
 
-cat dwiprep/sub-*/tracts_info.csv > dwiprep/group_tracts_info.csv
+cat dwiprep/sub-*/tracts_info.csv > dwiprep/group_tracts_info.csv &
 
 
 
