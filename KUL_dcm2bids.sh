@@ -219,7 +219,7 @@ function kul_dcmtags {
         #tags_are_present=0
         local slice_scan_order="empty"
     else
-        local slice_scan_order=$(dcminfo "$dcm_file" -tag 2005 1081 | awk '{print $(NF)}')
+        local slice_scan_order=$(dcminfo "$dcm_file" -tag 2005 1081 | head -n 1 | awk '{print $(NF)}')
     fi
     
 
@@ -295,7 +295,7 @@ function kul_dcmtags {
     fi
 
     if [ ! -f $out ]; then
-        echo -e "participant,session,dcm_file,manufacturer,software_version,series_descr,imagetype,fieldstrength,acquisitionMatrix,FovAP,FovFH,FovRL,pixelspacing,slicethickness,epifactor,wfs,ees_sec,trt_sec,#slices,slice_scan_order,repetion_time_msec,multiband_factor" > $out
+        echo -e "participant,session,dcm_file,manufacturer,software_version,series_descr,imagetype,fieldstrength,acquisitionMatrix,FovAP,FovFH,FovRL,pixelspacing,slicethickness,epifactor,wfs,ees_sec,trt_sec,nr_slices,slice_scan_order,repetion_time_msec,multiband_factor" > $out
     fi
     echo -e "$subj,${sess},$dcm_file,$manufacturer,$software,$seriesdescr,$imagetype,$fieldstrength,$acquisitionMatrix,$FovAP,$FovFH,$FovRL,$pixelspacing,$slicethickness,$epifactor,$waterfatshift,$ees_sec,$trt_sec,$number_of_slices,$slice_scan_order,$repetion_time_msec,$multiband_factor" >> $out
 
