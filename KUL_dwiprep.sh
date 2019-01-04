@@ -229,11 +229,6 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
         for dwi_file in $bids_dwi_found; do
             dwi_base=${dwi_file%%.*}
         
-            #mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
-            #-json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu
-
-            #dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
-        
             # read the number of slices
             ns_dwi[dwi_i]=$(mrinfo ${dwi_base}.nii.gz -size | awk '{print $(NF-1)}')
             kul_e2cl "   dataset p${dwi_i} has ${ns_dwi[dwi_i]} as number of slices" ${preproc}/${log}
@@ -253,7 +248,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
         done
 
         # Output results:
-        echo "Max is: $max"
+        # echo "Max is: $max"
         ((max--))
 
         dwi_i=1
@@ -266,7 +261,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
             dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
         
             # read the median b0 values
-            scale[dwi_i]=$(mrstats ${raw}/b0s_p1.mif -mask `dwi2mask ${raw}/dwi_p${dwi_i}.mif - -quiet` -output median)
+            scale[dwi_i]=$(mrstats ${raw}/b0s_p${dwi_i}.mif -mask `dwi2mask ${raw}/dwi_p${dwi_i}.mif - -quiet` -output median)
             kul_e2cl "   dataset p${dwi_i} has ${scale[dwi_i]} as mean b0 intensity" ${preproc}/${log}
 
             #echo "scaling ${raw}/dwi_p${dwi_i}_scaled.mif"
