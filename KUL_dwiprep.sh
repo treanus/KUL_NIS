@@ -6,7 +6,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 09/11/2018 - alpha version
-v="v0.1 - dd 09/11/2018"
+v="v0.2 - dd 04/01/2019"
 
 # To Do
 #  - register dwi to T1 with ants-syn
@@ -52,7 +52,6 @@ Optional arguments:
      -n:  number of cpu for parallelisation
      -t:  options to pass to topup
      -e:  options to pass to eddy
-     -d:  options to pass to dwipreproc (can be -rpe_header, -rpe_none, -rpe_all)
      -v:  show output from mrtrix commands
 
 
@@ -70,7 +69,7 @@ silent=1 # default if option -v is not given
 # Specify additional options for FSL eddy
 eddy_options="--slm=linear --repol"
 topup_options=""
-dwipreproc_options="-rpe_header"
+dwipreproc_options="not_yet_implemented"
 
 # Set required options
 p_flag=0
