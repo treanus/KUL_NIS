@@ -71,10 +71,10 @@ Required arguments:
      -d:  dicom_zip_file (the zip or tar.gz containing all your dicoms)
      -p:  participant (anonymised name of the subject in bids convention)
      -c:  definitions of sequences (T1w=MPRAGE,dwi=seq, etc..., see above)
-     -o:  bids directory
 
 Optional arguments:
 
+     -o:  bids directory
      -s:  session (for longitudinal study with multiple timepoints)
      -t:  temporary directory (default = /tmp)
      -e:  copy task-*_events.tsv from config to BIDS dir
@@ -334,6 +334,7 @@ function kul_find_relevant_dicom_file {
 # 
 # Set defaults
 sess=""
+bids_output=BIDS
 
 # Set flags
 subj_flag=0
@@ -433,12 +434,6 @@ elif [ ! -f $conf ] ; then
     exit 2
 fi 
 
-if [ $bids_flag -eq 0 ] ; then 
-    echo 
-    echo "Option -o is required: give the path to the BODS directory" >&2
-    echo
-    exit 2 
-fi 
 
 # INITIATE ---
 
@@ -827,11 +822,11 @@ dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file
 
 # copying task based events.tsv to BIDS directory
 if [ $events_flag -eq 1 ]; then
-    test_events_exist=$(ls -l Study_config/task-*_events.tsv | grep "No such file")
+    test_events_exist=$(ls -l *conf*/task-*_events.tsv | grep "No such file")
     echo $test_events_exist
     if [ $test_events_exist = "" ]; then
         kul_e2cl "Copying task based events.tsv to BIDS directory" $log
-        cp Study_config/task-*_events.tsv $bids_output
+        cp *conf*/task-*_events.tsv $bids_output
     fi  
 fi
 
