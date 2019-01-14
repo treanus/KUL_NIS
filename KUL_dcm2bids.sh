@@ -537,6 +537,61 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
     fi
 
+    if [ $identifier = "T2w" ]; then 
+        
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids=$(cat <<EOF
+            {
+            "dataType": "anat",
+            "suffix": "T2w",
+            "criteria": {
+                "in": {
+                "SeriesDescription": "${search_string}",
+                "ImageType": "ORIGINAL"
+                    }
+                }
+            })
+
+        bids="$bids,$sub_bids"
+
+        fi
+
+    fi
+
+    if [ $identifier = "PD" ]; then 
+        
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids=$(cat <<EOF
+            {
+            "dataType": "anat",
+            "suffix": "PD",
+            "criteria": {
+                "in": {
+                "SeriesDescription": "${search_string}",
+                "ImageType": "ORIGINAL"
+                    }
+                }
+            })
+
+        bids="$bids,$sub_bids"
+
+        fi
+
+    fi
+
+
     if [ $identifier = "FLAIR" ]; then 
         
         kul_find_relevant_dicom_file
