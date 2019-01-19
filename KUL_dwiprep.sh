@@ -423,7 +423,9 @@ if [ ! -f dwi/geomcorr.mif ]; then
         --bvals $temp_dir/bvals --bvecs $temp_dir/bvecs --output-dir eddy_qc/quad --verbose 
     
     # make an mriqc/fmriprep style report (i.e. just link qc.pdf into main dwiprep directory)
-    ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${subj}_${preproc}.pdf &
+    echo $cwd
+    echo $preproc
+    ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}/../${subj}.pdf &
 
     # clean-up the above dwipreproc temporary directory
     rm -rf $temp_dir
