@@ -699,13 +699,13 @@ seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
 exclude=("WM_fs_R" "CC_fs_all")
 kul_mrtrix_tracto_drt 
 
-tract="cCing_L_nods${nods}"
-seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
+tract="pCing_L_nods${nods}"
+seeds=("Hippo_fs_L" "PCC_fs_L" "iPCC_fs_L")
 exclude=("WM_fs_R" "CC_fs_all")
 kul_mrtrix_tracto_drt 
 
-tract="cCing_L_nods${nods}"
-seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
+tract="pCing_L_nods${nods}"
+seeds=("Hippo_fs_R" "PCC_fs_L" "iPCC_fs_L")
 exclude=("WM_fs_R" "CC_fs_all")
 kul_mrtrix_tracto_drt 
 
