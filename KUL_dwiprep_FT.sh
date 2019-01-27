@@ -24,6 +24,12 @@ v="v0.3 - dd 26/01/2019"
 #  - CST/SMA/CC/IFOF/ILF/SLF/AF/UF/AC/ML/STR/ATR/FAT/VOF/OT/OR/Cingulum/Fornix/TIF/
 #  - implement whole brain tckgen followed by tckedit or tck2conn/conn2tck
 #  - implement a fiber tract filtering scheme
+#  - we should use wmparc, and to generate lobe specific wm labels for exclusions:
+# mri_annotation2label --subject subject --hemi lh --lobesStrict lobes
+# mri_annotation2label --subject subject --hemi rh --lobesStrict lobes
+# mri_aparc2aseg --s subject --labelwm --hypo-as-wm --rip-unknown \
+#   --volmask --o wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
+#   --annot lobes --base-offset 200
 
 
 # A few fixed (for now) parameters:
@@ -355,8 +361,12 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	# add PCC
 	# 1023	ctx-lh-posteriorcingulate
 	# 2023	ctx-rh-posteriorcingulate
+	# 1010	ctx-lh-isthmuscingulate
+	# 2010	ctx-rh-isthmuscingulate
 	fslmaths $fs_labels -thr 1023 -uthr 1023 -bin roi/PCC_fs_L
 	fslmaths $fs_labels -thr 2023 -uthr 2023 -bin roi/PCC_fs_R
+	fslmaths $fs_labels -thr 1010 -uthr 1010 -bin roi/iPCC_fs_L
+	fslmaths $fs_labels -thr 2010 -uthr 2010 -bin roi/iPCC_fs_R
 	
 	# hippocampi
 	# 17	Left-Hippocampus
@@ -620,19 +630,13 @@ kul_mrtrix_tracto_drt
 # CC, BStem and contralateral WM as excludes
 tract="AF_R_nods${nods}"
 seeds=("IFG_PTr_fs_R" "IFG_POp_fs_R" "STG_fs_R")
-exclude=("WM_fs_L" "BStem" "CC_fs_all")
+exclude=("WM_fs_L" "BStem" "CC_fs_all" "Ins_fs_R")
 kul_mrtrix_tracto_drt 
 
 tract="AF_L_nods${nods}"
 seeds=("IFG_PTr_fs_L" "IFG_POp_fs_L" "STG_fs_L")
-exclude=("WM_fs_R" "BStem" "CC_fs_all")
+exclude=("WM_fs_R" "BStem" "CC_fs_all" "Ins_fs_L")
 kul_mrtrix_tracto_drt 
-
-mri_annotation2label --subject subject --hemi lh --lobesStrict lobes
-mri_annotation2label --subject subject --hemi rh --lobesStrict lobes
-mri_aparc2aseg --s subject --labelwm --hypo-as-wm --rip-unknown \
-  --volmask --o wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
-  --annot lobes --base-offset 200 
 
 # CST
 # we'll use the S1 and M1 + BStem as seeds
@@ -684,13 +688,23 @@ kul_mrtrix_tracto_drt
 
 # Cingulum
 tract="cCing_R_nods${nods}"
-seeds=("cACC_fs_R" "rACC_fs_R" "PCC_fs_R")
+seeds=("cACC_fs_R" "rACC_fs_R" "PCC_fs_R" "iPCC_fs_R")
 exclude=("WM_fs_L" "CC_fs_all")
 kul_mrtrix_tracto_drt 
 
 tract="cCing_L_nods${nods}"
-seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L")
-exclude=("WM_fs_L" "CC_fs_all")
+seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
+exclude=("WM_fs_R" "CC_fs_all")
+kul_mrtrix_tracto_drt 
+
+tract="cCing_L_nods${nods}"
+seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
+exclude=("WM_fs_R" "CC_fs_all")
+kul_mrtrix_tracto_drt 
+
+tract="cCing_L_nods${nods}"
+seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
+exclude=("WM_fs_R" "CC_fs_all")
 kul_mrtrix_tracto_drt 
 
 # Now prepare the data for iPlan
