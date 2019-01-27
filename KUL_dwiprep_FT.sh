@@ -346,7 +346,7 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	fslmaths $fs_labels -thr 253 -uthr 253 -bin roi/CC_fs_central
 	fslmaths $fs_labels -thr 254 -uthr 254 -bin roi/CC_fs_midant
 	fslmaths $fs_labels -thr 255 -uthr 255 -bin roi/CC_fs_ant
-	fslmaths roi/CC_fs_ant -add roi/CC_fs_midant -add roi/CC_fs_central -add roi/CC_fs_midpost -add roi/CC_fs_post -bin roi/CC_fs_all
+	fslmaths roi/CC_fs_ant.nii.gz -add roi/CC_fs_midant.nii.gz -add roi/CC_fs_central.nii.gz -add roi/CC_fs_midpost.nii.gz -add roi/CC_fs_post.nii.gz -bin roi/CC_fs_all
 	
 	# add ACC
 	# 1002	ctx-lh-caudalanteriorcingulate
@@ -578,49 +578,51 @@ dwi_preproced=dwi_preproced_reg2T1w.mif
 # Make an empty log file with information about the tracts
 echo "subject, algorithm, tract, count" > tracts_info.csv
 
-# M1_fs-Thalamic tracts
-tract="TH-M1_fs_R_nods${nods}"
-seeds=("THALAMUS_fs_R" "M1_fs_R")
-exclude="WM_fs_L"
-kul_mrtrix_tracto_drt 
-
-tract="TH-M1_fs_L_nods${nods}"
-seeds=("THALAMUS_fs_L" "M1_fs_L")
-exclude="WM_fs_R"
-kul_mrtrix_tracto_drt 
-
-# S1_fs-Thalamic tracts
-tract="TH-S1_fs_R_nods${nods}"
-seeds=("THALAMUS_fs_R" "S1_fs_R")
-exclude="WM_fs_L"
-kul_mrtrix_tracto_drt 
-
-tract="TH-S1_fs_L_nods${nods}"
-seeds=("THALAMUS_fs_L" "S1_fs_L")
-exclude="WM_fs_R"
-kul_mrtrix_tracto_drt 
-
-# SMA_and_PMC-Thalamic tracts
-tract="TH-SMA_and_PMC_R_nods${nods}"
-seeds=("THALAMUS_fs_R" "SMA_and_PMC_fs_R")
-exclude="WM_fs_L"
-kul_mrtrix_tracto_drt 
-
-tract="TH-SMA_and_PMC_L_nods${nods}"
-seeds=("THALAMUS_fs_L" "SMA_and_PMC_fs_L")
-exclude="WM_fs_R"
-kul_mrtrix_tracto_drt  
-
-# Dentato-Rubro_Thalamic tracts
-tract="TH-DR_R_nods${nods}"
-seeds=("THALAMUS_fs_R" "M1_fs_R" "DENTATE_L")
-exclude="WM_fs_L"
-kul_mrtrix_tracto_drt 
-
-tract="TH-DR_L_nods${nods}"
-seeds=("THALAMUS_fs_L" "M1_fs_L" "DENTATE_R")
-exclude="WM_fs_R"
-kul_mrtrix_tracto_drt 
+# commenting out for debugging
+#
+# # M1_fs-Thalamic tracts
+# tract="TH-M1_fs_R_nods${nods}"
+# seeds=("THALAMUS_fs_R" "M1_fs_R")
+# exclude="WM_fs_L"
+# kul_mrtrix_tracto_drt
+#
+# tract="TH-M1_fs_L_nods${nods}"
+# seeds=("THALAMUS_fs_L" "M1_fs_L")
+# exclude="WM_fs_R"
+# kul_mrtrix_tracto_drt
+#
+# # S1_fs-Thalamic tracts
+# tract="TH-S1_fs_R_nods${nods}"
+# seeds=("THALAMUS_fs_R" "S1_fs_R")
+# exclude="WM_fs_L"
+# kul_mrtrix_tracto_drt
+#
+# tract="TH-S1_fs_L_nods${nods}"
+# seeds=("THALAMUS_fs_L" "S1_fs_L")
+# exclude="WM_fs_R"
+# kul_mrtrix_tracto_drt
+#
+# # SMA_and_PMC-Thalamic tracts
+# tract="TH-SMA_and_PMC_R_nods${nods}"
+# seeds=("THALAMUS_fs_R" "SMA_and_PMC_fs_R")
+# exclude="WM_fs_L"
+# kul_mrtrix_tracto_drt
+#
+# tract="TH-SMA_and_PMC_L_nods${nods}"
+# seeds=("THALAMUS_fs_L" "SMA_and_PMC_fs_L")
+# exclude="WM_fs_R"
+# kul_mrtrix_tracto_drt
+#
+# # Dentato-Rubro_Thalamic tracts
+# tract="TH-DR_R_nods${nods}"
+# seeds=("THALAMUS_fs_R" "M1_fs_R" "DENTATE_L")
+# exclude="WM_fs_L"
+# kul_mrtrix_tracto_drt
+#
+# tract="TH-DR_L_nods${nods}"
+# seeds=("THALAMUS_fs_L" "M1_fs_L" "DENTATE_R")
+# exclude="WM_fs_R"
+# kul_mrtrix_tracto_drt
 
 
 # Trackings for S61759 (radwan)
@@ -653,12 +655,12 @@ kul_mrtrix_tracto_drt
 
 # SMA_PMC
 tract="SMA_PMC_R_nods${nods}"
-seeds=("SSMA_and_PMC_fs_R" "BStem")
+seeds=("SMA_and_PMC_fs_R" "BStem")
 exclude=("WM_fs_L" "CC_fs_all")
 kul_mrtrix_tracto_drt 
 
 tract="SMA_PMC_L_nods${nods}"
-seeds=("SSMA_and_PMC_fs_L" "BStem")
+seeds=("SMA_and_PMC_fs_L" "BStem")
 exclude=("WM_fs_R" "CC_fs_all")
 kul_mrtrix_tracto_drt 
 
@@ -708,48 +710,48 @@ exclude=("WM_fs_R" "CC_fs_all")
 kul_mrtrix_tracto_drt 
 
 # Now prepare the data for iPlan
-if [ ! -f for_iplan/TH_SMAPMC_R.hdr ]; then
-
-    mkdir -p for_iplan
-
-    smooth_sigma=0.6
-
-    # copy the tracts in analyze format
-    fslmaths tracts_iFOD2/TH-DR_L_nods${nods} -s $smooth_sigma -thr 3 -bin for_iplan/Tract_DRT_L
-    fslchfiletype NIFTI_PAIR for_iplan/Tract_DRT_L for_iplan/Tract_DRT_L
-
-    fslmaths tracts_iFOD2/TH-DR_R_nods${nods} -s $smooth_sigma -thr 3 -bin for_iplan/Tract_DRT_R
-    fslchfiletype NIFTI_PAIR for_iplan/Tract_DRT_R for_iplan/Tract_DRT_R
-
-    # copy the T1w in analyze format
-    cp T1w/T1w_BrainExtractionBrain.nii.gz for_iplan/anat.nii.gz
-    fslchfiletype NIFTI_PAIR for_iplan/anat for_iplan/anat
-
-    # copy the Thalamic probabilistic images as speudo fmri activation maps
-    fslmaths tracts_iFOD2/Subj_Space_TH-DR_L_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_DRT_L
-    fslchfiletype NIFTI_PAIR for_iplan/TH_DRT_L for_iplan/TH_DRT_L
-    fslmaths tracts_iFOD2/Subj_Space_TH-DR_R_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_DRT_R
-    fslchfiletype NIFTI_PAIR for_iplan/TH_DRT_R for_iplan/TH_DRT_R
-
-    fslmaths tracts_iFOD2/Subj_Space_TH-M1_fs_L_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_M1_L
-    fslchfiletype NIFTI_PAIR for_iplan/TH_M1_L for_iplan/TH_M1_L
-    fslmaths tracts_iFOD2/Subj_Space_TH-M1_fs_R_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_M1_R
-    fslchfiletype NIFTI_PAIR for_iplan/TH_M1_R for_iplan/TH_M1_R
-
-    fslmaths tracts_iFOD2/Subj_Space_TH-S1_fs_L_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_S1_L
-    fslchfiletype NIFTI_PAIR for_iplan/TH_S1_L for_iplan/TH_S1_L
-    fslmaths tracts_iFOD2/Subj_Space_TH-S1_fs_R_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_S1_R
-    fslchfiletype NIFTI_PAIR for_iplan/TH_S1_R for_iplan/TH_S1_R
-
-    fslmaths tracts_iFOD2/Subj_Space_TH-SMA_and_PMC_L_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_SMAPMC_L
-    fslchfiletype NIFTI_PAIR for_iplan/TH_SMAPMC_L for_iplan/TH_SMAPMC_L
-    fslmaths tracts_iFOD2/Subj_Space_TH-SMA_and_PMC_R_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_SMAPMC_R
-    fslchfiletype NIFTI_PAIR for_iplan/TH_SMAPMC_R for_iplan/TH_SMAPMC_R
-
-    # clean up
-    #rm -rf for_iplan/*.nii.gz
-
-fi
+# if [ ! -f for_iplan/TH_SMAPMC_R.hdr ]; then
+#
+#     mkdir -p for_iplan
+#
+#     smooth_sigma=0.6
+#
+#     # copy the tracts in analyze format
+#     fslmaths tracts_iFOD2/TH-DR_L_nods${nods} -s $smooth_sigma -thr 3 -bin for_iplan/Tract_DRT_L
+#     fslchfiletype NIFTI_PAIR for_iplan/Tract_DRT_L for_iplan/Tract_DRT_L
+#
+#     fslmaths tracts_iFOD2/TH-DR_R_nods${nods} -s $smooth_sigma -thr 3 -bin for_iplan/Tract_DRT_R
+#     fslchfiletype NIFTI_PAIR for_iplan/Tract_DRT_R for_iplan/Tract_DRT_R
+#
+#     # copy the T1w in analyze format
+#     cp T1w/T1w_BrainExtractionBrain.nii.gz for_iplan/anat.nii.gz
+#     fslchfiletype NIFTI_PAIR for_iplan/anat for_iplan/anat
+#
+#     # copy the Thalamic probabilistic images as speudo fmri activation maps
+#     fslmaths tracts_iFOD2/Subj_Space_TH-DR_L_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_DRT_L
+#     fslchfiletype NIFTI_PAIR for_iplan/TH_DRT_L for_iplan/TH_DRT_L
+#     fslmaths tracts_iFOD2/Subj_Space_TH-DR_R_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_DRT_R
+#     fslchfiletype NIFTI_PAIR for_iplan/TH_DRT_R for_iplan/TH_DRT_R
+#
+#     fslmaths tracts_iFOD2/Subj_Space_TH-M1_fs_L_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_M1_L
+#     fslchfiletype NIFTI_PAIR for_iplan/TH_M1_L for_iplan/TH_M1_L
+#     fslmaths tracts_iFOD2/Subj_Space_TH-M1_fs_R_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_M1_R
+#     fslchfiletype NIFTI_PAIR for_iplan/TH_M1_R for_iplan/TH_M1_R
+#
+#     fslmaths tracts_iFOD2/Subj_Space_TH-S1_fs_L_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_S1_L
+#     fslchfiletype NIFTI_PAIR for_iplan/TH_S1_L for_iplan/TH_S1_L
+#     fslmaths tracts_iFOD2/Subj_Space_TH-S1_fs_R_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_S1_R
+#     fslchfiletype NIFTI_PAIR for_iplan/TH_S1_R for_iplan/TH_S1_R
+#
+#     fslmaths tracts_iFOD2/Subj_Space_TH-SMA_and_PMC_L_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_SMAPMC_L
+#     fslchfiletype NIFTI_PAIR for_iplan/TH_SMAPMC_L for_iplan/TH_SMAPMC_L
+#     fslmaths tracts_iFOD2/Subj_Space_TH-SMA_and_PMC_R_nods${nods}_iFOD2.nii.gz -s $smooth_sigma -thr 0.3 for_iplan/TH_SMAPMC_R
+#     fslchfiletype NIFTI_PAIR for_iplan/TH_SMAPMC_R for_iplan/TH_SMAPMC_R
+#
+#     # clean up
+#     #rm -rf for_iplan/*.nii.gz
+#
+#fi
 
 # ---- END BIG LOOP for processing each session
 done
