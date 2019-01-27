@@ -23,6 +23,7 @@ v="v0.3 - dd 26/01/2019"
 #  - add iFOD2 and Tensor_Prob/Tensor_Det fiber tracking for: 
 #  - CST/SMA/CC/IFOF/ILF/SLF/AF/UF/AC/ML/STR/ATR/FAT/VOF/OT/OR/Cingulum/Fornix/TIF/
 #  - implement whole brain tckgen followed by tckedit or tck2conn/conn2tck
+#  - implement a fiber tract filtering scheme
 
 
 # A few fixed (for now) parameters:
@@ -44,9 +45,7 @@ v="v0.3 - dd 26/01/2019"
     # tmp directory for temporary processing
     tmp=/tmp
 
-    # development for Donatienne
-    Donatienne=0
-# 
+
 
 
 # -----------------------------------  MAIN  ---------------------------------------------
@@ -307,67 +306,67 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	# 1020	ctx-lh-parstriangularis
 	# 1019	ctx-lh-parsorbitalis
 	# 1018	ctx-lh-parsopercularis
-	fslmaths $fs_labels -thr 2020 -uthr 2020 -bin roi/IFG_PTr_R	
-	fslmaths $fs_labels -thr 2018 -uthr 2018 -bin roi/IFG_POp_R	
+	fslmaths $fs_labels -thr 2020 -uthr 2020 -bin roi/IFG_PTr_fs_R	
+	fslmaths $fs_labels -thr 2018 -uthr 2018 -bin roi/IFG_POp_fs_R	
 	# fslmaths $fs_labels -thr 2019 -uthr 2019 -bin roi/IFG_POr_R
-	fslmaths $fs_labels -thr 1020 -uthr 1020 -bin roi/IFG_PTr_L	
-	fslmaths $fs_labels -thr 1018 -uthr 1018 -bin roi/IFG_POp_L
+	fslmaths $fs_labels -thr 1020 -uthr 1020 -bin roi/IFG_PTr_fs_L	
+	fslmaths $fs_labels -thr 1018 -uthr 1018 -bin roi/IFG_POp_fs_L
 	# fslmaths $fs_labels -thr 1019 -uthr 1019 -bin roi/IFG_POr_L
 	# add STG
 	# 1030 ctx-lh-superiortemporal
 	# 2030 ctx-rh-superiortemporal
-	fslmaths $fs_labels -thr 1030 -uthr 1030 -bin roi/STG_L	
-	fslmaths $fs_labels -thr 2030 -uthr 2030 -bin roi/STG_R	
+	fslmaths $fs_labels -thr 1030 -uthr 1030 -bin roi/STG_fs_L	
+	fslmaths $fs_labels -thr 2030 -uthr 2030 -bin roi/STG_fs_R	
 	# add FP and TP
 	# 2032	ctx-rh-frontalpole
 	# 2033	ctx-rh-temporalpole
 	# 1032	ctx-lh-frontalpole
 	# 1033	ctx-rh-temporalpole	
-	fslmaths $fs_labels -thr 2032 -uthr 2032 -bin roi/FP_L
-	fslmaths $fs_labels -thr 2033 -uthr 2033 -bin roi/TP_L	
-	fslmaths $fs_labels -thr 1032 -uthr 1032 -bin roi/FP_R	
-	fslmaths $fs_labels -thr 1033 -uthr 1033 -bin roi/TP_R	
+	fslmaths $fs_labels -thr 2032 -uthr 2032 -bin roi/FP_fs_L
+	fslmaths $fs_labels -thr 2033 -uthr 2033 -bin roi/TP_fs_L	
+	fslmaths $fs_labels -thr 1032 -uthr 1032 -bin roi/FP_fs_R	
+	fslmaths $fs_labels -thr 1033 -uthr 1033 -bin roi/TP_fs_R	
 	# add Insula
 	# 1035	ctx-lh-insula
 	# 2035 	ctx-rh-insula
-	fslmaths $fs_labels -thr 1035 -uthr 1035 -bin roi/Ins_L
-	fslmaths $fs_labels -thr 2035 -uthr 2035 -bin roi/Ins_R			
+	fslmaths $fs_labels -thr 1035 -uthr 1035 -bin roi/Ins_fs_L
+	fslmaths $fs_labels -thr 2035 -uthr 2035 -bin roi/Ins_fs_R			
 	
 	# add corpus callosum
 	# this is a tricky one
 	# 251 - 255 CC Post,MidPost,Central,MidAnt,Ant
-	fslmaths $fs_labels -thr 251 -uthr 251 -bin roi/CC_post			
-	fslmaths $fs_labels -thr 252 -uthr 252 -bin roi/CC_midpost
-	fslmaths $fs_labels -thr 253 -uthr 253 -bin roi/CC_central
-	fslmaths $fs_labels -thr 254 -uthr 254 -bin roi/CC_midant
-	fslmaths $fs_labels -thr 255 -uthr 255 -bin roi/CC_ant	
-	fslmaths roi/CC_ant -add roi/CC_midant -add roi/CC_central -add roi/CC_midpost -add roi/CC_post -bin roi/CC_all
+	fslmaths $fs_labels -thr 251 -uthr 251 -bin roi/CC_fs_post			
+	fslmaths $fs_labels -thr 252 -uthr 252 -bin roi/CC_fs_midpost
+	fslmaths $fs_labels -thr 253 -uthr 253 -bin roi/CC_fs_central
+	fslmaths $fs_labels -thr 254 -uthr 254 -bin roi/CC_fs_midant
+	fslmaths $fs_labels -thr 255 -uthr 255 -bin roi/CC_fs_ant
+	fslmaths roi/CC_ant -add roi/CC_midant -add roi/CC_central -add roi/CC_midpost -add roi/CC_post -bin roi/CC_fs_all
 	
 	# add ACC
 	# 1002	ctx-lh-caudalanteriorcingulate
 	# 1026  ctx-lh-rostralanteriorcingulate
 	# 2002	ctx-lh-caudalanteriorcingulate
 	# 2026  ctx-lh-rostralanteriorcingulate
-	fslmaths $fs_labels -thr 1002 -uthr 1002 -bin roi/cACC_L
-	fslmaths $fs_labels -thr 1026 -uthr 1026 -bin roi/rACC_L
-	fslmaths $fs_labels -thr 2002 -uthr 2002 -bin roi/cACC_R	
-	fslmaths $fs_labels -thr 2026 -uthr 2026 -bin roi/rACC_R
+	fslmaths $fs_labels -thr 1002 -uthr 1002 -bin roi/cACC_fs_L
+	fslmaths $fs_labels -thr 1026 -uthr 1026 -bin roi/rACC_fs_L
+	fslmaths $fs_labels -thr 2002 -uthr 2002 -bin roi/cACC_fs_R	
+	fslmaths $fs_labels -thr 2026 -uthr 2026 -bin roi/rACC_fs_R
 	
 	# add PCC
 	# 1023	ctx-lh-posteriorcingulate
 	# 2023	ctx-rh-posteriorcingulate
-	fslmaths $fs_labels -thr 1023 -uthr 1023 -bin roi/PCC_L
-	fslmaths $fs_labels -thr 2023 -uthr 2023 -bin roi/PCC_R
+	fslmaths $fs_labels -thr 1023 -uthr 1023 -bin roi/PCC_fs_L
+	fslmaths $fs_labels -thr 2023 -uthr 2023 -bin roi/PCC_fs_R
 	
 	# hippocampi
 	# 17	Left-Hippocampus
 	# 18	Left-Amygdala
 	# 53	Right-Hippocampus
 	# 54	Right-Amygdala
-	fslmaths $fs_labels -thr 17 -uthr 17 -bin roi/Hippo_L	
-	fslmaths $fs_labels -thr 18 -uthr 18 -bin roi/Hippo_R
-	fslmaths $fs_labels -thr 53 -uthr 53 -bin roi/Amyg_L
-	fslmaths $fs_labels -thr 54 -uthr 54 -bin roi/Amyg_R
+	fslmaths $fs_labels -thr 17 -uthr 17 -bin roi/Hippo_fs_L	
+	fslmaths $fs_labels -thr 18 -uthr 18 -bin roi/Hippo_fs_R
+	fslmaths $fs_labels -thr 53 -uthr 53 -bin roi/Amyg_fs_L
+	fslmaths $fs_labels -thr 54 -uthr 54 -bin roi/Amyg_fs_R
 
 else
 
@@ -418,36 +417,6 @@ if [ ! -f roi/DENTATE_L.nii.gz ]; then
     transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
     reference=$ants_anat
     KUL_antsApply_Transform
-
-    if [ $Donatienne -eq 1 ]; then
-
-    # We get the SN & PATUMEN rois out of MNI space, from Donatienne's PET data
-    # We warp them back to individual subject space
-    input=${cwd}/ROIS/rsn_l.nii
-    output=roi/SUBNIG_L.nii.gz
-    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
-    reference=$ants_anat
-    KUL_antsApply_Transform
-
-    input=${cwd}/ROIS/rputamen_l.nii
-    output=roi/PUTAMEN_L.nii.gz
-    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
-    reference=$ants_anat
-    KUL_antsApply_Transform
-
-    input=${cwd}/ROIS/rsn_r.nii
-    output=roi/SUBNIG_R.nii.gz
-    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
-    reference=$ants_anat
-    KUL_antsApply_Transform
-
-    input=${cwd}/ROIS/rputamen_r.nii
-    output=roi/PUTAMEN_R.nii.gz
-    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
-    reference=$ants_anat
-    KUL_antsApply_Transform
-
-    fi
 
 else
 
@@ -643,18 +612,86 @@ seeds=("THALAMUS_fs_L" "M1_fs_L" "DENTATE_R")
 exclude="WM_fs_R"
 kul_mrtrix_tracto_drt 
 
-if [ $Donatienne -eq 1 ]; then
-    tract="NST_L_nods${nods}"
-    seeds=("SUBNIG_L" "PUTAMEN_L")  
-    exclude="WM_fs_R"
-    kul_mrtrix_tracto_drt 
 
-    tract="NST_R_nods${nods}"
-    seeds=("SUBNIG_R" "PUTAMEN_R")
-    exclude="WM_fs_L"
-    kul_mrtrix_tracto_drt 
-fi
+# Trackings for S61759 (radwan)
 
+# AF
+# we'll use the IFG Pt + Pop and the SFG as seeds
+# CC, BStem and contralateral WM as excludes
+tract="AF_R_nods${nods}"
+seeds=("IFG_PTr_fs_R" "IFG_POp_fs_R" "STG_fs_R")
+exclude=("WM_fs_L" "BStem" "CC_fs_all")
+kul_mrtrix_tracto_drt 
+
+tract="AF_L_nods${nods}"
+seeds=("IFG_PTr_fs_L" "IFG_POp_fs_L" "STG_fs_L")
+exclude=("WM_fs_R" "BStem" "CC_fs_all")
+kul_mrtrix_tracto_drt 
+
+mri_annotation2label --subject subject --hemi lh --lobesStrict lobes
+mri_annotation2label --subject subject --hemi rh --lobesStrict lobes
+mri_aparc2aseg --s subject --labelwm --hypo-as-wm --rip-unknown \
+  --volmask --o wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
+  --annot lobes --base-offset 200 
+
+# CST
+# we'll use the S1 and M1 + BStem as seeds
+# contrateral cerebral WM and CC as excludes
+tract="CST_R_nods${nods}"
+seeds=("M1_fs_R" "S1_fs_R" "BStem")
+exclude=("WM_fs_L" "CC_fs_all")
+kul_mrtrix_tracto_drt 
+
+tract="CST_L_nods${nods}"
+seeds=("M1_fs_L" "S1_fs_L" "BStem")
+exclude=("WM_fs_R" "CC_fs_all")
+kul_mrtrix_tracto_drt 
+
+# SMA_PMC
+tract="SMA_PMC_R_nods${nods}"
+seeds=("SSMA_and_PMC_fs_R" "BStem")
+exclude=("WM_fs_L" "CC_fs_all")
+kul_mrtrix_tracto_drt 
+
+tract="SMA_PMC_L_nods${nods}"
+seeds=("SSMA_and_PMC_fs_L" "BStem")
+exclude=("WM_fs_R" "CC_fs_all")
+kul_mrtrix_tracto_drt 
+
+# ATR
+
+# CST
+
+# ML
+
+# STR
+
+# OT
+
+# OR
+
+# IFOF
+
+# ILF
+
+# SLF
+
+# UF
+
+# TIF
+
+# AIF
+
+# Cingulum
+tract="cCing_R_nods${nods}"
+seeds=("cACC_fs_R" "rACC_fs_R" "PCC_fs_R")
+exclude=("WM_fs_L" "CC_fs_all")
+kul_mrtrix_tracto_drt 
+
+tract="cCing_L_nods${nods}"
+seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L")
+exclude=("WM_fs_L" "CC_fs_all")
+kul_mrtrix_tracto_drt 
 
 # Now prepare the data for iPlan
 if [ ! -f for_iplan/TH_SMAPMC_R.hdr ]; then
