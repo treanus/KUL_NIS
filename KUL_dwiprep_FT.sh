@@ -340,7 +340,7 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	fslmaths $fs_labels -thr 253 -uthr 253 -bin roi/CC_fs_central
 	fslmaths $fs_labels -thr 254 -uthr 254 -bin roi/CC_fs_midant
 	fslmaths $fs_labels -thr 255 -uthr 255 -bin roi/CC_fs_ant
-	fslmaths roi/CC_fs_ant -add roi/CC_fs_midant -add roi/CC_fs_central -add roi/CC_fs_midpost -add roi/CC_fs_post -bin roi/CC_fs_all
+	fslmaths roi/CC_fs_ant.nii.gz -add roi/CC_fs_midant.nii.gz -add roi/CC_fs_central.nii.gz -add roi/CC_fs_midpost.nii.gz -add roi/CC_fs_post.nii.gz -bin roi/CC_fs_all
 	
 	# add ACC
 	# 1002	ctx-lh-caudalanteriorcingulate
@@ -627,12 +627,6 @@ tract="AF_L_nods${nods}"
 seeds=("IFG_PTr_fs_L" "IFG_POp_fs_L" "STG_fs_L")
 exclude=("WM_fs_R" "BStem" "CC_fs_all")
 kul_mrtrix_tracto_drt 
-
-mri_annotation2label --subject subject --hemi lh --lobesStrict lobes
-mri_annotation2label --subject subject --hemi rh --lobesStrict lobes
-mri_aparc2aseg --s subject --labelwm --hypo-as-wm --rip-unknown \
-  --volmask --o wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
-  --annot lobes --base-offset 200 
 
 # CST
 # we'll use the S1 and M1 + BStem as seeds
