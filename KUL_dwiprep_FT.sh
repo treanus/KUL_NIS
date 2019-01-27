@@ -730,8 +730,8 @@ kul_mrtrix_tracto_drt
 #
 #     # clean up
 #     #rm -rf for_iplan/*.nii.gz
-
-fi
+#
+#fi
 
 # ---- END BIG LOOP for processing each session
 done
