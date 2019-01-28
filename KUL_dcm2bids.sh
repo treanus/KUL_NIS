@@ -614,6 +614,62 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
     fi
 
+    if [ $identifier = "fmap" ]; then 
+        
+        kul_find_relevant_dicom_file
+        
+        intended_for_string="func/sub-${subj}_task-${task}_bold.nii.gz"
+        
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids=$(cat <<EOF
+            {
+            "dataType": "fmap",
+            "suffix": "magnitude",
+            "criteria": 
+                {
+                "in": 
+                    {
+                    "SeriesDescription": "${search_string}",
+                    "ImageType": "ORIGINAL"
+                    },
+                "equal": 
+                    {
+                    "EchoNumber": 1
+                    }
+                }
+            },
+            {
+            "dataType": "fmap",
+            "suffix": "fieldmap",
+            "criteria": 
+                {
+                "in": 
+                    {
+                    "SeriesDescription": "${search_string}",
+                    "ImageType": "ORIGINAL"
+                    },
+                "equal": 
+                    {
+                    "EchoNumber": 2
+                    }
+                },
+            "customHeader": 
+                {
+                "Units": "Hz",
+                "IntendedFor": "${intended_for_string}"
+                }
+            })
+
+        bids="$bids,$sub_bids"
+
+        fi     
+
+    fi
+
     if [ $identifier = "func" ]; then 
 
         kul_find_relevant_dicom_file
