@@ -482,7 +482,7 @@ if [ $arch_ext = "zip" ]; then
 
 else
 
-    tar -C ${tmp}/$subj -xzf ${dcm}
+    tar --strip-components=5 -C ${tmp}/$subj -xzf ${dcm}
 
 fi
 
