@@ -471,8 +471,20 @@ fi
 kul_e2cl "  uncompressing the zip file $dcm to $tmp/$subj" $log
 # clear the /tmp directory
 mkdir -p ${tmp}/$subj
-#tar -C ${tmp}/$subj -xzf ${dcm}
-unzip -q -o ${dcm} -d ${tmp}/$subj
+
+# Check the extention of the archive
+arch_ext="${dcm#*.}"
+#echo $arch_ext
+
+if [ $arch_ext = "zip" ]; then 
+
+    unzip -q -o ${dcm} -d ${tmp}/$subj
+
+else
+
+    tar -C ${tmp}/$subj -xzf ${dcm}
+
+fi
 
 # dump the dicom tags of all dicoms in a file
 kul_e2cl "  brute force extraction of some relevant dicom tags of all dicom files of subject $subj into file $dump_file" $log
