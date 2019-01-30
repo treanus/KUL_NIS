@@ -71,10 +71,10 @@ Required arguments:
      -d:  dicom_zip_file (the zip or tar.gz containing all your dicoms)
      -p:  participant (anonymised name of the subject in bids convention)
      -c:  definitions of sequences (T1w=MPRAGE,dwi=seq, etc..., see above)
-     -o:  bids directory
 
 Optional arguments:
 
+     -o:  bids directory
      -s:  session (for longitudinal study with multiple timepoints)
      -t:  temporary directory (default = /tmp)
      -e:  copy task-*_events.tsv from config to BIDS dir
@@ -334,6 +334,7 @@ function kul_find_relevant_dicom_file {
 # 
 # Set defaults
 sess=""
+bids_output=BIDS
 
 # Set flags
 subj_flag=0
@@ -433,12 +434,6 @@ elif [ ! -f $conf ] ; then
     exit 2
 fi 
 
-if [ $bids_flag -eq 0 ] ; then 
-    echo 
-    echo "Option -o is required: give the path to the BODS directory" >&2
-    echo
-    exit 2 
-fi 
 
 # INITIATE ---
 
@@ -476,8 +471,20 @@ fi
 kul_e2cl "  uncompressing the zip file $dcm to $tmp/$subj" $log
 # clear the /tmp directory
 mkdir -p ${tmp}/$subj
-#tar -C ${tmp}/$subj -xzf ${dcm}
-unzip -q -o ${dcm} -d ${tmp}/$subj
+
+# Check the extention of the archive
+arch_ext="${dcm#*.}"
+#echo $arch_ext
+
+if [ $arch_ext = "zip" ]; then 
+
+    unzip -q -o ${dcm} -d ${tmp}/$subj
+
+else
+
+    tar -C ${tmp}/$subj -xzf ${dcm}
+
+fi
 
 # dump the dicom tags of all dicoms in a file
 kul_e2cl "  brute force extraction of some relevant dicom tags of all dicom files of subject $subj into file $dump_file" $log
@@ -537,6 +544,61 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
     fi
 
+    if [ $identifier = "T2w" ]; then 
+        
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids=$(cat <<EOF
+            {
+            "dataType": "anat",
+            "suffix": "T2w",
+            "criteria": {
+                "in": {
+                "SeriesDescription": "${search_string}",
+                "ImageType": "ORIGINAL"
+                    }
+                }
+            })
+
+        bids="$bids,$sub_bids"
+
+        fi
+
+    fi
+
+    if [ $identifier = "PD" ]; then 
+        
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids=$(cat <<EOF
+            {
+            "dataType": "anat",
+            "suffix": "PD",
+            "criteria": {
+                "in": {
+                "SeriesDescription": "${search_string}",
+                "ImageType": "ORIGINAL"
+                    }
+                }
+            })
+
+        bids="$bids,$sub_bids"
+
+        fi
+
+    fi
+
+
     if [ $identifier = "FLAIR" ]; then 
         
         kul_find_relevant_dicom_file
@@ -555,6 +617,62 @@ while IFS=, read identifier search_string task mb pe_dir; do
                 "SeriesDescription": "${search_string}",
                 "ImageType": "ORIGINAL"
                     }
+                }
+            })
+
+        bids="$bids,$sub_bids"
+
+        fi     
+
+    fi
+
+    if [ $identifier = "fmap" ]; then 
+        
+        kul_find_relevant_dicom_file
+        
+        intended_for_string="func/sub-${subj}_task-${task}_bold.nii.gz"
+        
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids=$(cat <<EOF
+            {
+            "dataType": "fmap",
+            "suffix": "magnitude",
+            "criteria": 
+                {
+                "in": 
+                    {
+                    "SeriesDescription": "${search_string}",
+                    "ImageType": "ORIGINAL"
+                    },
+                "equal": 
+                    {
+                    "EchoNumber": 1
+                    }
+                }
+            },
+            {
+            "dataType": "fmap",
+            "suffix": "fieldmap",
+            "criteria": 
+                {
+                "in": 
+                    {
+                    "SeriesDescription": "${search_string}",
+                    "ImageType": "ORIGINAL"
+                    },
+                "equal": 
+                    {
+                    "EchoNumber": 2
+                    }
+                },
+            "customHeader": 
+                {
+                "Units": "Hz",
+                "IntendedFor": "${intended_for_string}"
                 }
             })
 
@@ -772,11 +890,11 @@ dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file
 
 # copying task based events.tsv to BIDS directory
 if [ $events_flag -eq 1 ]; then
-    test_events_exist=$(ls -l Study_config/task-*_events.tsv | grep "No such file")
+    test_events_exist=$(ls -l *conf*/task-*_events.tsv | grep "No such file")
     echo $test_events_exist
     if [ $test_events_exist = "" ]; then
         kul_e2cl "Copying task based events.tsv to BIDS directory" $log
-        cp Study_config/task-*_events.tsv $bids_output
+        cp *conf*/task-*_events.tsv $bids_output
     fi  
 fi
 
