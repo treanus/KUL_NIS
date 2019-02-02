@@ -1,17 +1,16 @@
 #!/bin/bash -e
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
-#  Developed for Segmentation of the Dentato-rubro-thalamic tract in thalamus for DBS target selection
-#   following the paper "Connectivity derived thalamic segmentation in deep brain stimulation for tremor"
-#       of Akram et al. 2018 (https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5790021/pdf/main.pdf)
-#  Project PI's: Stefan Sunaert & Bart Nuttin
+#  Developed for generating major fiber bundles for presurgical mapping with Tensor_Prof abd iFOD2 msmt_CSD
+#	for S61759.
+#	 Project PI: Stefan Sunaert
 #
 # Requires Mrtrix3, FSL, ants, freesurfer
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 # @ Ahmed Radwan - UZ/KUL - ahmed.radwan@kuleuven.be
 #
-# v0.1 - dd 11/10/2018 - alpha version
-v="v0.3 - dd 26/01/2019"
+# v0.1 - dd 02/02/2019 - Dev - AR
+v="v0.1 - dd 02/02/2019"
 
 # To Do
 #  - use 5ttgen with freesurfer
@@ -241,15 +240,32 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
     # Where is the freesurfer parcellation? 
     fs_aparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/aparc+aseg.mgz
-
+	
+	# there are other parcellation files we're interested in namely:
+	# wm_parc 
+	fs_wm_parc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/wm_parc.mgz
+	
+	# lobe specific wm segmentations from wm+parc
+	mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi lh --lobesStrict lobes
+	mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi rh --lobesStrict lobes
+	mri_aparc2aseg --s ${subj} --sd ${cwd}/freesurfer/sub-${subj}  --labelwm --hypo-as-wm --rip-unknown \
+	  --volmask --o ${cwd}/freesurfer/sub-${subj}/${subj}/wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
+	  --annot lobes --base-offset 200
+	
+	fs_wm_lobes=${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.lobes.mgz
+	
     # Where is the T1w anat?
     ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
 
     # Convert FS aparc back to original space
     mkdir -p roi
     fs_labels=roi/labels_from_FS.nii.gz
+    fs_wm_labels=roi/wm_labels_from_FS.nii.gz
+	fs_wm_lobes=roi/wm_lobes_labels_from_FS.nii.gz
     mri_convert -rl $ants_anat -rt nearest $fs_aparc $fs_labels
-
+	mri_convert -rl $ants_anat -rt nearest $fs_wm_parc $fs_wm_labels
+	mri_convert -rl $ants_anat -rt nearest $fs_wm_lobes $fs_wm_lobes
+	
     # 5tt segmentation & tracking
     mkdir -p 5tt
 
@@ -346,7 +362,8 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	fslmaths $fs_labels -thr 253 -uthr 253 -bin roi/CC_fs_central
 	fslmaths $fs_labels -thr 254 -uthr 254 -bin roi/CC_fs_midant
 	fslmaths $fs_labels -thr 255 -uthr 255 -bin roi/CC_fs_ant
-	fslmaths roi/CC_fs_ant.nii.gz -add roi/CC_fs_midant.nii.gz -add roi/CC_fs_central.nii.gz -add roi/CC_fs_midpost.nii.gz -add roi/CC_fs_post.nii.gz -bin roi/CC_fs_all
+	fslmaths roi/CC_fs_ant.nii.gz -add roi/CC_fs_midant.nii.gz -add roi/CC_fs_central.nii.gz \
+		-add roi/CC_fs_midpost.nii.gz -add roi/CC_fs_post.nii.gz -bin roi/CC_fs_all
 	
 	# add ACC
 	# 1002	ctx-lh-caudalanteriorcingulate
