@@ -318,7 +318,6 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
     fslmaths $fs_labels -thr 41 -uthr 41 -bin roi/WM_fs_R
     # 2   Left-Cerebral-White-Matter
     fslmaths $fs_labels -thr 2 -uthr 2 -bin roi/WM_fs_L
-	
 	# add brainstem as a VOI
 	fslmaths $fs_labels -thr 16 -uthr 16 -bin roi/BStem
 	# add IFG PTr and POp w/wo POr
@@ -353,7 +352,6 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	# 2035 	ctx-rh-insula
 	fslmaths $fs_labels -thr 1035 -uthr 1035 -bin roi/Ins_fs_L
 	fslmaths $fs_labels -thr 2035 -uthr 2035 -bin roi/Ins_fs_R			
-	
 	# add corpus callosum
 	# this is a tricky one
 	# 251 - 255 CC Post,MidPost,Central,MidAnt,Ant
@@ -374,7 +372,6 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	fslmaths $fs_labels -thr 1026 -uthr 1026 -bin roi/rACC_fs_L
 	fslmaths $fs_labels -thr 2002 -uthr 2002 -bin roi/cACC_fs_R	
 	fslmaths $fs_labels -thr 2026 -uthr 2026 -bin roi/rACC_fs_R
-	
 	# add PCC
 	# 1023	ctx-lh-posteriorcingulate
 	# 2023	ctx-rh-posteriorcingulate
@@ -384,7 +381,6 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	fslmaths $fs_labels -thr 2023 -uthr 2023 -bin roi/PCC_fs_R
 	fslmaths $fs_labels -thr 1010 -uthr 1010 -bin roi/iPCC_fs_L
 	fslmaths $fs_labels -thr 2010 -uthr 2010 -bin roi/iPCC_fs_R
-	
 	# hippocampi
 	# 17	Left-Hippocampus
 	# 18	Left-Amygdala
@@ -394,6 +390,20 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	fslmaths $fs_labels -thr 18 -uthr 18 -bin roi/Hippo_fs_R
 	fslmaths $fs_labels -thr 53 -uthr 53 -bin roi/Amyg_fs_L
 	fslmaths $fs_labels -thr 54 -uthr 54 -bin roi/Amyg_fs_R
+	# Pericalcarine cortex
+	# 2021	ctx-rh-pericalcarine
+	# 1021	ctx-rh-pericalcarine
+	fslmaths $fs_labels -thr 2021 -uthr 2021 -bin roi/periCalc_fs_R
+	fslmaths $fs_labels -thr 1021 -uthr 1021 -bin roi/periCalc_fs_L
+	# Ventral DC VOIs for exclude in OR tracking
+	fslmaths $fs_labels -thr 28 -uthr 28 -bin roi/vDC_fs_L
+	fslmaths $fs_labels -thr 60 -uthr 60 -bin roi/vDC_fs_R
+	# Lateral ventricles may also be used as exclude ROIs
+	fslmaths $fs_labels -thr 4 -uthr 4 -bin roi/Lat_V_fs_L
+	fslmaths $fs_labels -thr 43 -uthr 43 -bin roi/Lat_V_fs_R
+	# Caudates may also be used as exclude for ORs
+	fslmaths $fs_labels -thr 11 -uthr 11 -bin roi/Caudate_fs_L
+	fslmaths $fs_labels -thr 50 -uthr 50 -bin roi/Caudate_fs_R
 
 else
 
@@ -644,42 +654,42 @@ echo "subject, algorithm, tract, count" > tracts_info.csv
 
 # Trackings for S61759 (radwan)
 
-# AF
-# we'll use the IFG Pt + Pop and the SFG as seeds
-# CC, BStem and contralateral WM as excludes
-tract="AF_R_nods${nods}"
-seeds=("IFG_PTr_fs_R" "IFG_POp_fs_R" "STG_fs_R")
-exclude=("WM_fs_L" "BStem" "CC_fs_all" "Ins_fs_R")
-kul_mrtrix_tracto_drt 
-
-tract="AF_L_nods${nods}"
-seeds=("IFG_PTr_fs_L" "IFG_POp_fs_L" "STG_fs_L")
-exclude=("WM_fs_R" "BStem" "CC_fs_all" "Ins_fs_L")
-kul_mrtrix_tracto_drt 
-
-# CST
-# we'll use the S1 and M1 + BStem as seeds
-# contrateral cerebral WM and CC as excludes
-tract="CST_R_nods${nods}"
-seeds=("M1_fs_R" "S1_fs_R" "BStem")
-exclude=("WM_fs_L" "CC_fs_all")
-kul_mrtrix_tracto_drt 
-
-tract="CST_L_nods${nods}"
-seeds=("M1_fs_L" "S1_fs_L" "BStem")
-exclude=("WM_fs_R" "CC_fs_all")
-kul_mrtrix_tracto_drt 
-
-# SMA_PMC
-tract="SMA_PMC_R_nods${nods}"
-seeds=("SMA_and_PMC_fs_R" "BStem")
-exclude=("WM_fs_L" "CC_fs_all")
-kul_mrtrix_tracto_drt 
-
-tract="SMA_PMC_L_nods${nods}"
-seeds=("SMA_and_PMC_fs_L" "BStem")
-exclude=("WM_fs_R" "CC_fs_all")
-kul_mrtrix_tracto_drt 
+# # AF
+# # we'll use the IFG Pt + Pop and the SFG as seeds
+# # CC, BStem and contralateral WM as excludes
+# tract="AF_R_nods${nods}"
+# seeds=("IFG_PTr_fs_R" "IFG_POp_fs_R" "STG_fs_R")
+# exclude=("WM_fs_L" "BStem" "CC_fs_all" "Ins_fs_R")
+# kul_mrtrix_tracto_drt
+#
+# tract="AF_L_nods${nods}"
+# seeds=("IFG_PTr_fs_L" "IFG_POp_fs_L" "STG_fs_L")
+# exclude=("WM_fs_R" "BStem" "CC_fs_all" "Ins_fs_L")
+# kul_mrtrix_tracto_drt
+#
+# # CST
+# # we'll use the S1 and M1 + BStem as seeds
+# # contrateral cerebral WM and CC as excludes
+# tract="CST_R_nods${nods}"
+# seeds=("M1_fs_R" "S1_fs_R" "BStem")
+# exclude=("WM_fs_L" "CC_fs_all")
+# kul_mrtrix_tracto_drt
+#
+# tract="CST_L_nods${nods}"
+# seeds=("M1_fs_L" "S1_fs_L" "BStem")
+# exclude=("WM_fs_R" "CC_fs_all")
+# kul_mrtrix_tracto_drt
+#
+# # SMA_PMC
+# tract="SMA_PMC_R_nods${nods}"
+# seeds=("SMA_and_PMC_fs_R" "BStem")
+# exclude=("WM_fs_L" "CC_fs_all")
+# kul_mrtrix_tracto_drt
+#
+# tract="SMA_PMC_L_nods${nods}"
+# seeds=("SMA_and_PMC_fs_L" "BStem")
+# exclude=("WM_fs_R" "CC_fs_all")
+# kul_mrtrix_tracto_drt
 
 # ATR
 
@@ -692,7 +702,15 @@ kul_mrtrix_tracto_drt
 # OT
 
 # OR
+tract="OR_L_nods${nods}"
+seeds=("THALAMUS_fs_L" "periCalc_fs_L")
+exclude=("WM_fs_R" "CC_fs_all" "vDC_fs_L" "BStem" "THALAMUS_fs_R" "Caudate_fs_L" "Lat_V_fs_L")
+kul_mrtrix_tracto_drt 
 
+tract="OR_R_nods${nods}"
+seeds=("THALAMUS_fs_R" "periCalc_fs_R")
+exclude=("WM_fs_L" "CC_fs_all" "vDC_fs_R" "BStem" "THALAMUS_fs_L" "Caudate_fs_R" "Lat_V_fs_R")
+kul_mrtrix_tracto_drt 
 # IFOF
 
 # ILF
