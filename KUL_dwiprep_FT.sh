@@ -243,16 +243,21 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 	
 	# there are other parcellation files we're interested in namely:
 	# wm_parc 
-	fs_wm_parc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/wm_parc.mgz
+	fs_wm_parc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.mgz
+	fs_wm_lobes=${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.lobes.mgz
 	
 	# lobe specific wm segmentations from wm+parc
+	if [ ! -f $fs_wm_lobes ]; then
 	mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi lh --lobesStrict lobes
 	mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi rh --lobesStrict lobes
 	mri_aparc2aseg --s ${subj} --sd ${cwd}/freesurfer/sub-${subj}  --labelwm --hypo-as-wm --rip-unknown \
-	  --volmask --o ${cwd}/freesurfer/sub-${subj}/${subj}/wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
+	  --volmask --o ${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
 	  --annot lobes --base-offset 200
-	
-	fs_wm_lobes=${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.lobes.mgz
+	else 
+		
+		echo " wm lobe specific labels already done, skipping ..."
+		
+	fi
 	
     # Where is the T1w anat?
     ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
@@ -261,10 +266,10 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
     mkdir -p roi
     fs_labels=roi/labels_from_FS.nii.gz
     fs_wm_labels=roi/wm_labels_from_FS.nii.gz
-	fs_wm_lobes=roi/wm_lobes_labels_from_FS.nii.gz
+	fs_wm_lobe_labels=roi/wm_lobes_labels_from_FS.nii.gz
     mri_convert -rl $ants_anat -rt nearest $fs_aparc $fs_labels
 	mri_convert -rl $ants_anat -rt nearest $fs_wm_parc $fs_wm_labels
-	mri_convert -rl $ants_anat -rt nearest $fs_wm_lobes $fs_wm_lobes
+	mri_convert -rl $ants_anat -rt nearest $fs_wm_lobes $fs_wm_lobe_labels
 	
     # 5tt segmentation & tracking
     mkdir -p 5tt
@@ -337,7 +342,11 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	# 1030 ctx-lh-superiortemporal
 	# 2030 ctx-rh-superiortemporal
 	fslmaths $fs_labels -thr 1030 -uthr 1030 -bin roi/STG_fs_L	
-	fslmaths $fs_labels -thr 2030 -uthr 2030 -bin roi/STG_fs_R	
+	fslmaths $fs_labels -thr 2030 -uthr 2030 -bin roi/STG_fs_R
+	fslmaths $fs_labels -thr 1001 -uthr 1001 -bin roi/bSTG_fs_L	
+	fslmaths $fs_labels -thr 2001 -uthr 2001 -bin roi/bSTG_fs_R
+	fslmaths $fs_labels -thr 1031 -uthr 1031 -bin roi/SMG_fs_L
+	fslmaths $fs_labels -thr 2031 -uthr 2031 -bin roi/SMG_fs_R
 	# add FP and TP
 	# 2032	ctx-rh-frontalpole
 	# 2033	ctx-rh-temporalpole
@@ -404,6 +413,20 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	# Caudates may also be used as exclude for ORs
 	fslmaths $fs_labels -thr 11 -uthr 11 -bin roi/Caudate_fs_L
 	fslmaths $fs_labels -thr 50 -uthr 50 -bin roi/Caudate_fs_R
+	# WM tract of the limbic system
+	fslmaths $fs_wm_labels -thr 3010 -uthr 3010 -bin roi/iPCC_wm_fs_L
+	fslmaths $fs_wm_labels -thr 4010 -uthr 4010 -bin roi/iPCC_wm_fs_R
+	
+	# add the CSF tpm from ANTs for further cleanup (still trying this out)
+	fslmaths /Users/aradwa0/MR-data/PT03_S61759/analysis/fmriprep/sub-PT03/anat/sub-PT03_label-CSF_probseg.nii.gz \
+		-thr 0.2 /Users/aradwa0/MR-data/PT03_S61759/analysis/dwiprep/sub-PT03/sub-PT03/roi/CSF_ants.nii.gz
+	
+	# Use lobe specific labels
+	fslmaths $fs_wm_lobe_labels -thr 3204 -uthr 3204 -bin roi/Occ_wm_fs_L
+	fslmaths $fs_wm_lobe_labels -thr 4204 -uthr 4204 -bin roi/Occ_wm_fs_R
+	fslmaths $fs_wm_lobe_labels -thr 3207 -uthr 3207 -bin roi/Ins_wm_fs_L
+	fslmaths $fs_wm_lobe_labels -thr 4204 -uthr 4204 -bin roi/Ins_wm_fs_R
+	
 
 else
 
@@ -498,7 +521,9 @@ function kul_mrtrix_tracto_drt {
             if [ "${a}" == "iFOD2" ]; then
 
                 # perform IFOD2 tckgen
-                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu -force
+				# now using the stop option to terminate streamlines within include rois
+                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu  -stop -force
+				
 
             else
 
@@ -559,10 +584,18 @@ function kul_mrtrix_tracto_drt {
                 
                 if [ $count -lt $do_sift_th ]; then
                 
-                    kul_e2cl "  NOT running tckshift since less than $do_sift_th streamlines" ${log}
+                    kul_e2cl "  NOT running tcksift since less than $do_sift_th streamlines" ${log}
+					
+                    tckmap tracts_${a}/${tract}.tck tracts_${a}/${tract}.nii.gz -template $ants_anat -force 
+					
+					fslmaths tracts_${a}/${tract}.nii.gz -thr 2 -s 2 -thr 0.1 -bin tracts_${a}/${tract}_bin_mask.nii.gz
+					
+					# here we add the second tckgen with the resulting thresholded prob mask for filtered bundles
+					tckgen $wmfod tracts_${a}/${tract}_filtered.tck -algorithm $a -select $nods $s $i $e \
+						-mask  tracts_${a}/${tract}_bin_mask.nii.gz -angle $theta -nthreads $ncpu  -stop -force
 
                 else
-                    kul_e2cl "  running tckshift & generation subject/MNI space images" ${log}
+                    kul_e2cl "  running tcksift & generation subject/MNI space images" ${log}
 
                     # perform filtering on tracts with tcksift (version 1)
                     tcksift -term_ratio $term_ratio -act ${cwd}/dwiprep/sub-${subj}/5tt/5ttseg.mif tracts_${a}/${tract}.tck \
@@ -570,20 +603,27 @@ function kul_mrtrix_tracto_drt {
 
                     # convert the tck in nii
                     tckmap tracts_${a}/sift1_${tract}.tck tracts_${a}/sift1_${tract}.nii.gz -template $ants_anat -force 
+					
+					fslmaths tracts_${a}/sift1_${tract}.nii.gz -thr 2 -s 2 -thr 0.1 -bin tracts_${a}/sift1_${tract}_bin_mask.nii.gz
+					
+					# here we add the second tckgen with the resulting thresholded prob mask for filtered bundles
+					tckgen $wmfod tracts_${a}/${tract}_filtered.tck -algorithm $a -select $nods $s $i $e \
+						-mask  tracts_${a}/sift1_${tract}_bin_mask.nii.gz -angle $theta -nthreads $ncpu  -stop -force
+					
 
                     # intersect the nii tract image with the thalamic roi
-                    fslmaths tracts_${a}/sift1_${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/sift1_${tract}_masked
+                    # fslmaths tracts_${a}/sift1_${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/sift1_${tract}_masked
 
-                    # make a probabilistic image
-                    local m=$(mrstats -quiet tracts_${a}/sift1_${tract}_masked.nii.gz -output max)
-                    fslmaths tracts_${a}/sift1_${tract}_masked -div $m tracts_${a}/Subj_Space_sift1_${tract}_${a}
+                    # # make a probabilistic image
+                    # local m=$(mrstats -quiet tracts_${a}/sift1_${tract}_masked.nii.gz -output max)
+                    # fslmaths tracts_${a}/sift1_${tract}_masked -div $m tracts_${a}/Subj_Space_sift1_${tract}_${a}
 
-                    # Warp the probabilistic image to MNI space
-                    input=tracts_${a}/Subj_Space_sift1_${tract}_${a}.nii.gz
-                    output=tracts_${a}/MNI_Space_sift1_${tract}_${a}.nii.gz
-                    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-                    reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
-                    KUL_antsApply_Transform
+                    # # Warp the probabilistic image to MNI space
+                    # input=tracts_${a}/Subj_Space_sift1_${tract}_${a}.nii.gz
+                    # output=tracts_${a}/MNI_Space_sift1_${tract}_${a}.nii.gz
+                    # transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+                    # reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+                    # KUL_antsApply_Transform
 
                 fi
 
@@ -591,7 +631,7 @@ function kul_mrtrix_tracto_drt {
 
         else
         
-            echo "  tckshift & generation subject/MNI space images already done, skipping..."
+            echo "  tcksift & generation subject/MNI space images already done, skipping..."
         
         fi
     
@@ -603,7 +643,7 @@ wmfod=response/wmfod_reg2T1w.mif
 dwi_preproced=dwi_preproced_reg2T1w.mif
 
 # Make an empty log file with information about the tracts
-echo "subject, algorithm, tract, count" > tracts_info.csv
+echo "subject, algorithm, tract, count" > tracts_FT_info.csv
 
 # commenting out for debugging
 #
@@ -657,16 +697,17 @@ echo "subject, algorithm, tract, count" > tracts_info.csv
 # # AF
 # # we'll use the IFG Pt + Pop and the SFG as seeds
 # # CC, BStem and contralateral WM as excludes
+# # for further refinement use lobe wm labels
 # tract="AF_R_nods${nods}"
-# seeds=("IFG_PTr_fs_R" "IFG_POp_fs_R" "STG_fs_R")
+# seeds=("IFG_PTr_fs_R" "IFG_POp_fs_R" "bSTG_fs_R" "SMG_fs_R")
 # exclude=("WM_fs_L" "BStem" "CC_fs_all" "Ins_fs_R")
 # kul_mrtrix_tracto_drt
 #
 # tract="AF_L_nods${nods}"
-# seeds=("IFG_PTr_fs_L" "IFG_POp_fs_L" "STG_fs_L")
+# seeds=("IFG_PTr_fs_L" "IFG_POp_fs_L" "bSTG_fs_L" "SMG_fs_L")
 # exclude=("WM_fs_R" "BStem" "CC_fs_all" "Ins_fs_L")
 # kul_mrtrix_tracto_drt
-#
+# 
 # # CST
 # # we'll use the S1 and M1 + BStem as seeds
 # # contrateral cerebral WM and CC as excludes
@@ -690,59 +731,60 @@ echo "subject, algorithm, tract, count" > tracts_info.csv
 # seeds=("SMA_and_PMC_fs_L" "BStem")
 # exclude=("WM_fs_R" "CC_fs_all")
 # kul_mrtrix_tracto_drt
-
+#
 # ATR
-
+#
 # CST
-
+#
 # ML
-
+#
 # STR
-
+#
 # OT
-
+#
 # OR
 tract="OR_L_nods${nods}"
 seeds=("THALAMUS_fs_L" "periCalc_fs_L")
-exclude=("WM_fs_R" "CC_fs_all" "vDC_fs_L" "BStem" "THALAMUS_fs_R" "Caudate_fs_L" "Lat_V_fs_L")
+exclude=("WM_fs_R" "CC_fs_all" "vDC_fs_L" "BStem" "THALAMUS_fs_R" "Caudate_fs_L" "Lat_V_fs_L" "iPCC_wm_fs_L" "CSF_ants")
 kul_mrtrix_tracto_drt 
 
 tract="OR_R_nods${nods}"
 seeds=("THALAMUS_fs_R" "periCalc_fs_R")
-exclude=("WM_fs_L" "CC_fs_all" "vDC_fs_R" "BStem" "THALAMUS_fs_L" "Caudate_fs_R" "Lat_V_fs_R")
+exclude=("WM_fs_L" "CC_fs_all" "vDC_fs_R" "BStem" "THALAMUS_fs_L" "Caudate_fs_R" "Lat_V_fs_R" "iPCC_wm_fs_R" "CSF_ants")
 kul_mrtrix_tracto_drt 
+#
 # IFOF
-
+#
 # ILF
-
+#
 # SLF
-
+#
 # UF
-
+#
 # TIF
-
+#
 # AIF
-
-# Cingulum
-tract="cCing_R_nods${nods}"
-seeds=("cACC_fs_R" "rACC_fs_R" "PCC_fs_R" "iPCC_fs_R")
-exclude=("WM_fs_L" "CC_fs_all")
-kul_mrtrix_tracto_drt 
-
-tract="cCing_L_nods${nods}"
-seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
-exclude=("WM_fs_R" "CC_fs_all")
-kul_mrtrix_tracto_drt 
-
-tract="pCing_R_nods${nods}"
-seeds=("Hippo_fs_R" "PCC_fs_R" "iPCC_fs_R")
-exclude=("WM_fs_L" "CC_fs_all")
-kul_mrtrix_tracto_drt 
-
-tract="pCing_L_nods${nods}"
-seeds=("Hippo_fs_L" "PCC_fs_L" "iPCC_fs_L")
-exclude=("WM_fs_R" "CC_fs_all")
-kul_mrtrix_tracto_drt 
+#
+# # Cingulum
+# tract="cCing_R_nods${nods}"
+# seeds=("cACC_fs_R" "rACC_fs_R" "PCC_fs_R" "iPCC_fs_R")
+# exclude=("WM_fs_L" "CC_fs_all")
+# kul_mrtrix_tracto_drt
+#
+# tract="cCing_L_nods${nods}"
+# seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
+# exclude=("WM_fs_R" "CC_fs_all")
+# kul_mrtrix_tracto_drt
+#
+# tract="pCing_R_nods${nods}"
+# seeds=("Hippo_fs_R" "PCC_fs_R" "iPCC_fs_R")
+# exclude=("WM_fs_L" "CC_fs_all")
+# kul_mrtrix_tracto_drt
+#
+# tract="pCing_L_nods${nods}"
+# seeds=("Hippo_fs_L" "PCC_fs_L" "iPCC_fs_L")
+# exclude=("WM_fs_R" "CC_fs_all")
+# kul_mrtrix_tracto_drt
 
 # Now prepare the data for iPlan
 # if [ ! -f for_iplan/TH_SMAPMC_R.hdr ]; then
@@ -794,7 +836,7 @@ done
 # write a file to indicate that dwiprep_drtdbs runned succesfully
 #   this file will be checked by KUL_preproc_all
 
-echo "done" > ../dwiprep_drtdbs_is_done.log
+echo "done" > ../dwiprep_FT_is_done.log
 
 
 kul_e2cl "   done KUL_dwiprep_drtdbs on participant $BIDS_participant" $log
