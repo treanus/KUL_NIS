@@ -10,16 +10,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 11/10/2018 - alpha version
-v="v0.2 - dd 19/10/2018"
-
-# To Do
-#  - use 5ttgen with freesurfer
-#  - register dwi to T1 with ants-syn
-#  - fod calc msmt-5tt in stead of dhollander
-#  - use HPC of KUL?
-#  - how to import in neuronavigation?
-#  - warp the resulted TH-* back into MNI space for group analysis 
-
+v="v0.21 - dd 13/02/2019"
 
 # A few fixed (for now) parameters:
 
