@@ -38,7 +38,11 @@ v="v0.1 - dd 02/02/2019"
     # this has become a command line optional parameter
 
     # Maximum angle between successive steps for iFOD2
-    theta=35
+	# still harcoded but now defined separately for each bundle
+	# added $stop for stopping or not, depending on the bundle tracked
+	# need to also define another var for nods per bundle
+	# another var also for thr for filtering (should be related to how many fibers I get from first tckgen e.g. 0.2% of 10k fibers would be 2 fibers)
+
 
     # sift1 filtering
     # termination ratio - defined as the ratio between reduction in cost
@@ -104,7 +108,7 @@ USAGE
 # CHECK COMMAND LINE OPTIONS -------------
 # 
 # Set defaults
-nods=2000
+# nods=2000
 ncpu=6
 silent=1
 
@@ -416,18 +420,34 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	# WM tract of the limbic system
 	fslmaths $fs_wm_labels -thr 3010 -uthr 3010 -bin roi/iPCC_wm_fs_L
 	fslmaths $fs_wm_labels -thr 4010 -uthr 4010 -bin roi/iPCC_wm_fs_R
+	# Putamina for exclusions of AF
+	fslmaths $fs_labels -thr 12 -uthr 12 -dilM -bin roi/putamen_dil_fs_L
+	fslmaths $fs_labels -thr 51 -uthr 51 -dilM -bin roi/putamen_dil_fs_R
 	
 	# add the CSF tpm from ANTs for further cleanup (still trying this out)
-	fslmaths /Users/aradwa0/MR-data/PT03_S61759/analysis/fmriprep/sub-PT03/anat/sub-PT03_label-CSF_probseg.nii.gz \
-		-thr 0.2 /Users/aradwa0/MR-data/PT03_S61759/analysis/dwiprep/sub-PT03/sub-PT03/roi/CSF_ants.nii.gz
+	fslmaths $cwd/fmriprep/sub-${subj}/anat/sub-${subj}_label-CSF_probseg.nii.gz \
+		-thr 0.2 $cwd/dwiprep/sub-${subj}/sub-${subj}/roi/CSF_ants.nii.gz
 	
 	# Use lobe specific labels
 	fslmaths $fs_wm_lobe_labels -thr 3204 -uthr 3204 -bin roi/Occ_wm_fs_L
 	fslmaths $fs_wm_lobe_labels -thr 4204 -uthr 4204 -bin roi/Occ_wm_fs_R
 	fslmaths $fs_wm_lobe_labels -thr 3207 -uthr 3207 -bin roi/Ins_wm_fs_L
 	fslmaths $fs_wm_lobe_labels -thr 4204 -uthr 4204 -bin roi/Ins_wm_fs_R
+	fslmaths $fs_wm_labels -thr 4022 -uthr 4022 -bin roi/S1_wm_fs_R	
+	fslmaths $fs_wm_labels -thr 3022 -uthr 3022 -bin roi/S1_wm_fs_L	
+	fslmaths $fs_wm_labels -thr 4024 -uthr 4024 -bin roi/M1_wm_fs_R	
+	fslmaths $fs_wm_labels -thr 3024 -uthr 3024 -bin roi/M1_wm_fs_L	
+	fslmaths $fs_wm_labels -thr 4030 -uthr 4030 -bin roi/STG_wm_fs_R	
+	fslmaths $fs_wm_labels -thr 3030 -uthr 3030 -bin roi/STG_wm_fs_L
+	fslmaths $fs_wm_labels -thr 4015 -uthr 4015 -bin roi/MTG_wm_fs_R	
+	fslmaths $fs_wm_labels -thr 3015 -uthr 3015 -bin roi/MTG_wm_fs_L
+	fslmaths $fs_wm_labels -thr 4031 -uthr 4031 -bin roi/SMG_wm_fs_R
+	fslmaths $fs_wm_labels -thr 3031 -uthr 3031 -bin roi/SMG_wm_fs_L
+	fslmaths $fs_wm_labels -thr 4020 -uthr 4020 -bin roi/IFG_PTr_wm_fs_R	
+	fslmaths $fs_wm_labels -thr 3020 -uthr 3020 -bin roi/IFG_PTr_wm_fs_L
+	fslmaths $fs_wm_labels -thr 4018 -uthr 4018 -bin roi/IFG_POp_wm_fs_R
+	fslmaths $fs_wm_labels -thr 3018 -uthr 3018 -bin roi/IFG_POp_wm_fs_L
 	
-
 else
 
     echo " Making the Freesurfer ROIS has been done already, skipping" 
@@ -445,49 +465,49 @@ function KUL_antsApply_Transform {
     -n Linear
 }
 
-if [ ! -f roi/DENTATE_L.nii.gz ]; then
-
-    kul_e2cl " Warping the SUIT3.3 atlas ROIS of the DENTATE to subject space..." ${log}
-    # transform the T1w into MNI space using fmriprep data
-    input=$ants_anat
-    output=T1w/T1w_MNI152NLin2009cAsym.nii.gz
-    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-    reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
-    KUL_antsApply_Transform
-
+# if [ ! -f roi/DENTATE_L.nii.gz ]; then
+#
+#     kul_e2cl " Warping the SUIT3.3 atlas ROIS of the DENTATE to subject space..." ${log}
+#     # transform the T1w into MNI space using fmriprep data
+#     input=$ants_anat
+#     output=T1w/T1w_MNI152NLin2009cAsym.nii.gz
+#     transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+#     reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+#     KUL_antsApply_Transform
+#
     # inversly transform the T1w in MNI space to subject space (for double checking)
     input=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz
     output=T1w/T1w_test_inv_MNI_warp.nii.gz
     transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
     reference=$ants_anat
     KUL_antsApply_Transform
-
-    # We get the Dentate rois out of MNI space, from the SUIT v3.3 atlas
-    # http://www.diedrichsenlab.org/imaging/suit_download.htm
-    # fslmaths Cerebellum-SUIT.nii -thr 30 -uthr 30 Dentate_R
-    # fslmaths Cerebellum-SUIT.nii -thr 29 -uthr 29 Dentate_L
-    input=${kul_main_dir}/atlasses/Local/Dentate_R.nii.gz
-    output=roi/DENTATE_R.nii.gz
-    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
-    reference=$ants_anat
-    KUL_antsApply_Transform
-
-    input=${kul_main_dir}/atlasses/Local/Dentate_L.nii.gz
-    output=roi/DENTATE_L.nii.gz
-    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
-    reference=$ants_anat
-    KUL_antsApply_Transform
-
-else
-
-    echo " Warping the SUIT3.3 atlas ROIS of the DENTATE to subject space has been done already, skipping" 
-
-fi
+#
+#     # We get the Dentate rois out of MNI space, from the SUIT v3.3 atlas
+#     # http://www.diedrichsenlab.org/imaging/suit_download.htm
+#     # fslmaths Cerebellum-SUIT.nii -thr 30 -uthr 30 Dentate_R
+#     # fslmaths Cerebellum-SUIT.nii -thr 29 -uthr 29 Dentate_L
+#     input=${kul_main_dir}/atlasses/Local/Dentate_R.nii.gz
+#     output=roi/DENTATE_R.nii.gz
+#     transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+#     reference=$ants_anat
+#     KUL_antsApply_Transform
+#
+#     input=${kul_main_dir}/atlasses/Local/Dentate_L.nii.gz
+#     output=roi/DENTATE_L.nii.gz
+#     transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+#     reference=$ants_anat
+#     KUL_antsApply_Transform
+#
+# else
+#
+#     echo " Warping the SUIT3.3 atlas ROIS of the DENTATE to subject space has been done already, skipping"
+#
+# fi
 
 
 # STEP 2 - Tractography  ---------------------------------------------
 
-function kul_mrtrix_tracto_drt {
+function kul_mrtrix_FT {
 
     #for a in iFOD2 Tensor_Prob; do
     for a in iFOD2; do
@@ -522,13 +542,13 @@ function kul_mrtrix_tracto_drt {
 
                 # perform IFOD2 tckgen
 				# now using the stop option to terminate streamlines within include rois
-                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu  -stop -force
+                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu $stop -force
 				
 
             else
 
                 # perform Tensor_Prob tckgen
-                tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a -cutoff 0.01 -select $nods $s $i $e $m -nthreads $ncpu -force
+                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu $stop -force
 
             fi
         
@@ -540,8 +560,12 @@ function kul_mrtrix_tracto_drt {
 
         # Check if any fibers have been found & log to the information file
         echo "   checking tracts_${a}/${tract}"
-        local count=$(tckinfo tracts_${a}/${tract}.tck | grep count | head -n 1 | awk '{print $(NF)}')
-        echo "$subj, $a, $tract, $count" >> tracts_info.csv
+        local count=$(tckinfo tracts_${a}/${tract}.tck -count | grep count | head -n 1 | awk '{print $(NF)}')
+		# setting a relative thr for tract filtering using 0.2% as thr cutoff
+		act_count="$(echo $count | cut -d':' -f2)"
+		thr="$(bc <<< "scale = 2; (($act_count * 0.2) / (100))")"
+		
+        echo "$subj, $a, $tract, $count" >> tracts_FT_info.csv
 
         # do further processing of tracts are found
         if [ ! -f tracts_${a}/MNI_Space_${tract}_${a}.nii.gz ]; then
@@ -567,12 +591,12 @@ function kul_mrtrix_tracto_drt {
                 reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
                 KUL_antsApply_Transform
 
-                # intersect the nii tract image with the thalamic roi
-                fslmaths tracts_${a}/${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/${tract}_masked
+                # # intersect the nii tract image with the thalamic roi
+                # fslmaths tracts_${a}/${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/${tract}_masked
 
-                # make a probabilistic image
-                local m=$(mrstats -quiet tracts_${a}/${tract}_masked.nii.gz -output max)
-                fslmaths tracts_${a}/${tract}_masked -div $m tracts_${a}/Subj_Space_${tract}_${a}
+                # # make a probabilistic image
+                # local m=$(mrstats -quiet tracts_${a}/${tract}_masked.nii.gz -output max)
+                # fslmaths tracts_${a}/${tract}_masked -div $m tracts_${a}/Subj_Space_${tract}_${a}
 
                 # Warp the probabilistic image to MNI space
                 input=tracts_${a}/Subj_Space_${tract}_${a}.nii.gz
@@ -588,11 +612,12 @@ function kul_mrtrix_tracto_drt {
 					
                     tckmap tracts_${a}/${tract}.tck tracts_${a}/${tract}.nii.gz -template $ants_anat -force 
 					
-					fslmaths tracts_${a}/${tract}.nii.gz -thr 2 -s 2 -thr 0.1 -bin tracts_${a}/${tract}_bin_mask.nii.gz
+					fslmaths tracts_${a}/${tract}.nii.gz -thr $thr -s 2 -thr 0.1 -bin tracts_${a}/${tract}_bin_mask.nii.gz
 					
 					# here we add the second tckgen with the resulting thresholded prob mask for filtered bundles
 					tckgen $wmfod tracts_${a}/${tract}_filtered.tck -algorithm $a -select $nods $s $i $e \
-						-mask  tracts_${a}/${tract}_bin_mask.nii.gz -angle $theta -nthreads $ncpu  -stop -force
+						-mask  tracts_${a}/${tract}_bin_mask.nii.gz -angle $theta -nthreads $ncpu $stop -force
+
 
                 else
                     kul_e2cl "  running tcksift & generation subject/MNI space images" ${log}
@@ -604,11 +629,11 @@ function kul_mrtrix_tracto_drt {
                     # convert the tck in nii
                     tckmap tracts_${a}/sift1_${tract}.tck tracts_${a}/sift1_${tract}.nii.gz -template $ants_anat -force 
 					
-					fslmaths tracts_${a}/sift1_${tract}.nii.gz -thr 2 -s 2 -thr 0.1 -bin tracts_${a}/sift1_${tract}_bin_mask.nii.gz
+					fslmaths tracts_${a}/sift1_${tract}.nii.gz -thr $thr -s 2 -thr 0.1 -bin tracts_${a}/sift1_${tract}_bin_mask.nii.gz
 					
 					# here we add the second tckgen with the resulting thresholded prob mask for filtered bundles
 					tckgen $wmfod tracts_${a}/${tract}_filtered.tck -algorithm $a -select $nods $s $i $e \
-						-mask  tracts_${a}/sift1_${tract}_bin_mask.nii.gz -angle $theta -nthreads $ncpu  -stop -force
+						-mask  tracts_${a}/sift1_${tract}_bin_mask.nii.gz -angle $theta -nthreads $ncpu $stop -force
 					
 
                     # intersect the nii tract image with the thalamic roi
@@ -645,96 +670,67 @@ dwi_preproced=dwi_preproced_reg2T1w.mif
 # Make an empty log file with information about the tracts
 echo "subject, algorithm, tract, count" > tracts_FT_info.csv
 
-# commenting out for debugging
-#
-# # M1_fs-Thalamic tracts
-# tract="TH-M1_fs_R_nods${nods}"
-# seeds=("THALAMUS_fs_R" "M1_fs_R")
-# exclude="WM_fs_L"
-# kul_mrtrix_tracto_drt
-#
-# tract="TH-M1_fs_L_nods${nods}"
-# seeds=("THALAMUS_fs_L" "M1_fs_L")
-# exclude="WM_fs_R"
-# kul_mrtrix_tracto_drt
-#
-# # S1_fs-Thalamic tracts
-# tract="TH-S1_fs_R_nods${nods}"
-# seeds=("THALAMUS_fs_R" "S1_fs_R")
-# exclude="WM_fs_L"
-# kul_mrtrix_tracto_drt
-#
-# tract="TH-S1_fs_L_nods${nods}"
-# seeds=("THALAMUS_fs_L" "S1_fs_L")
-# exclude="WM_fs_R"
-# kul_mrtrix_tracto_drt
-#
-# # SMA_and_PMC-Thalamic tracts
-# tract="TH-SMA_and_PMC_R_nods${nods}"
-# seeds=("THALAMUS_fs_R" "SMA_and_PMC_fs_R")
-# exclude="WM_fs_L"
-# kul_mrtrix_tracto_drt
-#
-# tract="TH-SMA_and_PMC_L_nods${nods}"
-# seeds=("THALAMUS_fs_L" "SMA_and_PMC_fs_L")
-# exclude="WM_fs_R"
-# kul_mrtrix_tracto_drt
-#
-# # Dentato-Rubro_Thalamic tracts
-# tract="TH-DR_R_nods${nods}"
-# seeds=("THALAMUS_fs_R" "M1_fs_R" "DENTATE_L")
-# exclude="WM_fs_L"
-# kul_mrtrix_tracto_drt
-#
-# tract="TH-DR_L_nods${nods}"
-# seeds=("THALAMUS_fs_L" "M1_fs_L" "DENTATE_R")
-# exclude="WM_fs_R"
-# kul_mrtrix_tracto_drt
-
-
 # Trackings for S61759 (radwan)
+# will divide the trackings in two, the first will not use -stop, the second will.
+# we keep tract the same but add theta and -stop as another var
 
-# # AF
-# # we'll use the IFG Pt + Pop and the SFG as seeds
-# # CC, BStem and contralateral WM as excludes
-# # for further refinement use lobe wm labels
-# tract="AF_R_nods${nods}"
-# seeds=("IFG_PTr_fs_R" "IFG_POp_fs_R" "bSTG_fs_R" "SMG_fs_R")
-# exclude=("WM_fs_L" "BStem" "CC_fs_all" "Ins_fs_R")
-# kul_mrtrix_tracto_drt
-#
-# tract="AF_L_nods${nods}"
-# seeds=("IFG_PTr_fs_L" "IFG_POp_fs_L" "bSTG_fs_L" "SMG_fs_L")
-# exclude=("WM_fs_R" "BStem" "CC_fs_all" "Ins_fs_L")
-# kul_mrtrix_tracto_drt
-# 
-# # CST
-# # we'll use the S1 and M1 + BStem as seeds
-# # contrateral cerebral WM and CC as excludes
-# tract="CST_R_nods${nods}"
-# seeds=("M1_fs_R" "S1_fs_R" "BStem")
-# exclude=("WM_fs_L" "CC_fs_all")
-# kul_mrtrix_tracto_drt
-#
-# tract="CST_L_nods${nods}"
-# seeds=("M1_fs_L" "S1_fs_L" "BStem")
-# exclude=("WM_fs_R" "CC_fs_all")
-# kul_mrtrix_tracto_drt
-#
-# # SMA_PMC
-# tract="SMA_PMC_R_nods${nods}"
-# seeds=("SMA_and_PMC_fs_R" "BStem")
-# exclude=("WM_fs_L" "CC_fs_all")
-# kul_mrtrix_tracto_drt
-#
-# tract="SMA_PMC_L_nods${nods}"
-# seeds=("SMA_and_PMC_fs_L" "BStem")
-# exclude=("WM_fs_R" "CC_fs_all")
-# kul_mrtrix_tracto_drt
-#
-# ATR
-#
+# AF
+# we'll use the IFG Pt + Pop and the SFG as seeds
+# CC, BStem and contralateral WM as excludes
+# for further refinement use lobe wm labels
+tract="AF_R_nods${nods}"
+seeds=("IFG_PTr_fs_R" "IFG_POp_fs_R" "STG_wm_fs_R" "MTG_wm_fs_R" "SMG_wm_fs_R")
+exclude=("WM_fs_L" "BStem" "CC_fs_all" "Ins_fs_R" "putamen_dil_fs_R")
+theta=50
+stop=-stop
+nods=12000
+kul_mrtrix_FT
+
+tract="AF_L_nods${nods}"
+seeds=("IFG_PTr_fs_L" "IFG_POp_fs_L"  "STG_wm_fs_L" "MTG_wm_fs_L" "SMG_wm_fs_L")
+exclude=("WM_fs_R" "BStem" "CC_fs_all" "Ins_fs_L" "putamen_dil_fs_L")
+theta=50
+stop=-stop
+nods=12000
+kul_mrtrix_FT
+
 # CST
+# we'll use the S1 and M1 + BStem as seeds
+# contrateral cerebral WM and CC as excludes
+tract="CST_R_nods${nods}"
+seeds=("M1_fs_R" "S1_fs_R" "BStem" "S1_wm_fs_R" "M1_wm_fs_R")
+exclude=("WM_fs_L" "CC_fs_all")
+theta=50
+stop=()
+nods=20000
+kul_mrtrix_FT
+
+tract="CST_L_nods${nods}"
+seeds=("M1_fs_L" "S1_fs_L" "BStem" "S1_wm_fs_L" "M1_wm_fs_L")
+exclude=("WM_fs_R" "CC_fs_all")
+theta=50
+stop=()
+nods=20000
+kul_mrtrix_FT
+
+# SMA_PMC
+tract="SMA_PMC_R_nods${nods}"
+seeds=("SMA_and_PMC_fs_R" "BStem")
+exclude=("WM_fs_L" "CC_fs_all")
+theta=50
+stop=()
+nods=20000
+kul_mrtrix_FT
+
+tract="SMA_PMC_L_nods${nods}"
+seeds=("SMA_and_PMC_fs_L" "BStem")
+exclude=("WM_fs_R" "CC_fs_all")
+theta=50
+stop=()
+nods=20000
+kul_mrtrix_FT
+
+# ATR
 #
 # ML
 #
@@ -744,14 +740,20 @@ echo "subject, algorithm, tract, count" > tracts_FT_info.csv
 #
 # OR
 tract="OR_L_nods${nods}"
-seeds=("THALAMUS_fs_L" "periCalc_fs_L")
+seeds=("THALAMUS_fs_L" "periCalc_fs_L" "Occ_wm_fs_L")
 exclude=("WM_fs_R" "CC_fs_all" "vDC_fs_L" "BStem" "THALAMUS_fs_R" "Caudate_fs_L" "Lat_V_fs_L" "iPCC_wm_fs_L" "CSF_ants")
-kul_mrtrix_tracto_drt 
+theta=45
+stop=-stop
+nods=10000
+kul_mrtrix_FT 
 
 tract="OR_R_nods${nods}"
-seeds=("THALAMUS_fs_R" "periCalc_fs_R")
+seeds=("THALAMUS_fs_R" "periCalc_fs_R" "Occ_wm_fs_R")
 exclude=("WM_fs_L" "CC_fs_all" "vDC_fs_R" "BStem" "THALAMUS_fs_L" "Caudate_fs_R" "Lat_V_fs_R" "iPCC_wm_fs_R" "CSF_ants")
-kul_mrtrix_tracto_drt 
+theta=45
+stop=-stop
+nods=10000
+kul_mrtrix_FT 
 #
 # IFOF
 #
@@ -765,26 +767,39 @@ kul_mrtrix_tracto_drt
 #
 # AIF
 #
-# # Cingulum
-# tract="cCing_R_nods${nods}"
-# seeds=("cACC_fs_R" "rACC_fs_R" "PCC_fs_R" "iPCC_fs_R")
-# exclude=("WM_fs_L" "CC_fs_all")
-# kul_mrtrix_tracto_drt
-#
-# tract="cCing_L_nods${nods}"
-# seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
-# exclude=("WM_fs_R" "CC_fs_all")
-# kul_mrtrix_tracto_drt
-#
-# tract="pCing_R_nods${nods}"
-# seeds=("Hippo_fs_R" "PCC_fs_R" "iPCC_fs_R")
-# exclude=("WM_fs_L" "CC_fs_all")
-# kul_mrtrix_tracto_drt
-#
-# tract="pCing_L_nods${nods}"
-# seeds=("Hippo_fs_L" "PCC_fs_L" "iPCC_fs_L")
-# exclude=("WM_fs_R" "CC_fs_all")
-# kul_mrtrix_tracto_drt
+# Cingulum
+# for the time being we consider this guy as part of tract
+tract="cCing_R_nods${nods}"
+seeds=("cACC_fs_R" "rACC_fs_R" "PCC_fs_R" "iPCC_fs_R")
+exclude=("WM_fs_L" "CC_fs_all")
+theta=50
+stop=-stop
+nods=10000
+kul_mrtrix_FT
+
+tract="cCing_L_nods${nods}"
+seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
+exclude=("WM_fs_R" "CC_fs_all")
+theta=50
+stop=-stop
+nods=10000
+kul_mrtrix_FT
+
+tract="pCing_R_nods${nods}"
+seeds=("Hippo_fs_R" "PCC_fs_R" "iPCC_fs_R")
+exclude=("WM_fs_L" "CC_fs_all")
+theta=50
+stop=-stop
+nods=10000
+kul_mrtrix_FT
+
+tract="pCing_L_nods${nods}"
+seeds=("Hippo_fs_L" "PCC_fs_L" "iPCC_fs_L")
+exclude=("WM_fs_R" "CC_fs_all")
+theta=50
+stop=-stop
+nods=10000
+kul_mrtrix_FT
 
 # Now prepare the data for iPlan
 # if [ ! -f for_iplan/TH_SMAPMC_R.hdr ]; then
