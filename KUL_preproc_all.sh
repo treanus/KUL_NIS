@@ -534,7 +534,7 @@ rm -fr ${cwd}/fmriprep_work
 
 
 # we read the config file (and it may be csv, tsv or ;-seperated)
-while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_drtdbs drtdbs_options; do
+while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_drtdbs drtdbs_options; do
     
     
     if [ "$dicom_zip" = "dicom_zip" ]; then
@@ -544,20 +544,6 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mr
     else
 
         kul_e2cl "Performing preprocessing of subject $BIDS_participant... " $log
-
-        # check if already performed dcm2bids
-        dcm2bids_dir_to_check=BIDS/sub-${BIDS_participant}
-        
-        if [ ! -d  $dcm2bids_dir_to_check ]; then
-
-            kul_e2cl " Converting dicom to BIDS for subject $BIDS_participant... " $log
-            KUL_dcm2bids.sh -p ${BIDS_participant} -d ${dicom_zip} -c ${config_file} -o BIDS -v
-        
-        else
-
-            echo " BIDS conversion for subject $BIDS_participant already done, skipping... "
-
-        fi
         
         kul_e2cl " Now starting (depending on your config-file) mriqc, fmriprep, freesurfer and KUL_dwiprep... " $log
         echo "   note: further processing with KUL_dwiprep_anat, KUL_dwiprep_drtdbs depend on fmriprep, freesurfer and KUL_dwiprep (which need to run fully)"
@@ -566,9 +552,6 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mr
             
             echo "  if this script fails, please check your configuration file (given to -c); for now this was what was defined:"
             echo "    BIDS_participant: $BIDS_participant"
-            echo "    EAD: $EAD"
-            echo "    dicom_zip: $dicom_zip"
-            echo "    config_file: $config_file"
             echo "    do_mriqc: $do_mriqc"
             echo "    mriqc_options: $mriqc_options"
             echo "    do_fmriprep: $do_fmriprep"
