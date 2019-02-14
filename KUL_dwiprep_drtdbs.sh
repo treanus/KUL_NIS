@@ -33,6 +33,10 @@ v="v0.21 - dd 13/02/2019"
 
     # development for Donatienne
     Donatienne=0
+
+    # development for Rose Bruffaerts
+    Rose=0
+
 # 
 
 
@@ -284,7 +288,10 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
     fslmaths $fs_labels -thr 41 -uthr 41 -bin roi/WM_fs_R
     # 2   Left-Cerebral-White-Matter
     fslmaths $fs_labels -thr 2 -uthr 2 -bin roi/WM_fs_L
-
+    # 1018   ctx-lh-parsopercularis
+    # 2018   ctx-rh-parsopercularis
+    fslmaths $fs_labels -thr 1018 -uthr 1018 -bin roi/IFGparsopercularis_fs_L
+    fslmaths $fs_labels -thr 2018 -uthr 2018 -bin roi/IFGparsopercularis_fs_R
 
 else
 
@@ -366,6 +373,8 @@ if [ ! -f roi/DENTATE_L.nii.gz ]; then
 
     fi
 
+
+
 else
 
     echo " Warping the SUIT3.3 atlas ROIS of the DENTATE to subject space has been done already, skipping" 
@@ -377,8 +386,8 @@ fi
 
 function kul_mrtrix_tracto_drt {
 
-    #for a in iFOD2 Tensor_Prob; do
-    for a in iFOD2; do
+    for a in iFOD2 Tensor_Prob; do
+    #for a in iFOD2; do
     
         # do the tracking
         # echo tracts_${a}/${tract}.tck
@@ -572,6 +581,19 @@ if [ $Donatienne -eq 1 ]; then
     kul_mrtrix_tracto_drt 
 fi
 
+if [ $Rose -eq 1 ]; then
+    
+    tract="Aslant_L_nods${nods}"
+    seeds=("IFGparsopercularis_fs_L" "SFG_fs_L")  
+    exclude="WM_fs_R"
+    kul_mrtrix_tracto_drt 
+
+    tract="Aslant_R_nods${nods}"
+    seeds=("IFGparsopercularis_fs_R" "SFG_fs_R")  
+    exclude="WM_fs_L"
+    kul_mrtrix_tracto_drt 
+
+fi
 
 # Now prepare the data for iPlan
 if [ ! -f for_iplan/TH_SMAPMC_R.hdr ]; then
