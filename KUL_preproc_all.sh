@@ -537,7 +537,7 @@ rm -fr ${cwd}/fmriprep_work
 while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_drtdbs drtdbs_options; do
     
     
-    if [ "$dicom_zip" = "dicom_zip" ]; then
+    if [ "$BIDS_participant" = "BIDS_participant" ]; then
         
         echo "first line" > /dev/null 2>&1
 
