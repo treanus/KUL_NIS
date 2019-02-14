@@ -13,12 +13,6 @@
 v="v0.1 - dd 02/02/2019"
 
 # To Do
-#  - use 5ttgen with freesurfer
-#  - register dwi to T1 with ants-syn
-#  - fod calc msmt-5tt in stead of dhollander
-#  - use HPC of KUL?
-#  - how to import in neuronavigation?
-#  - warp the resulted TH-* back into MNI space for group analysis 
 #  - add iFOD2 and Tensor_Prob/Tensor_Det fiber tracking for: 
 #  - CST/SMA/CC/IFOF/ILF/SLF/AF/UF/AC/ML/STR/ATR/FAT/VOF/OT/OR/Cingulum/Fornix/TIF/
 #  - implement whole brain tckgen followed by tckedit or tck2conn/conn2tck
@@ -73,7 +67,7 @@ function Usage {
 
 cat <<USAGE
 
-`basename $0` performs dMRI segmentation of the Dentato-rubro-thalamic tract in thalamus for DBS target selection.
+`basename $0` performs fiber tractography.
 
 Usage:
 
@@ -227,10 +221,6 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
     # Create the Directory to write preprocessed data in
     preproc=dwiprep/sub-${subj}/$(basename $bids_subj) 
     echo $preproc
-
-    # Directory to put raw mif data in
-    raw=${preproc}/raw
-
 
     kul_e2cl " Start processing $bids_subj" ${preproc}/${log}
 
