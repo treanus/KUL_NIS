@@ -505,11 +505,6 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	# delete CST rois in MNI space
 	rm $cwd/dwiprep/sub-${subj}/sub-${subj}/roi/*JHU_roi_MNI.nii.gz
 	
-	# found a small bug (the mask we were using for initial tckgen was in native DWI space, while we're tracking in native T1 space)
-	if [ ! -f dwi_reg2T1_mask.nii.gz ]; then
-	dwi2mask -nthreads $cpu -force dwi_preproced_reg2T1w.mif dwi_reg2T1_mask.nii.gz
-	fi
-	
 else
 
     echo " Making the Freesurfer ROIS has been done already, skipping" 
@@ -599,7 +594,7 @@ function kul_mrtrix_FT {
             local e=$(printf " -exclude roi/%s.nii.gz"  "${exclude[@]}")
 
             # make the mask string 
-            local m="-mask dwi_reg2T1_mask.nii.gz"
+            local m="-mask dwi_preproced_reg2T1w_mask.nii.gz"
 
 
             if [ "${a}" == "iFOD2" ]; then
