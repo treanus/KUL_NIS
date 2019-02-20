@@ -307,6 +307,9 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
     fslmaths $fs_labels -thr 2022 -uthr 2022 -bin roi/S1_fs_R
     # S1_L is 1024
     fslmaths $fs_labels -thr 1022 -uthr 1022 -bin roi/S1_fs_L
+    # Add the paracentral lobules for the rest of the SM cortex
+    fslmaths $fs_labels -thr 2017 -uthr 2017 -bin roi/PCent_fs_R
+    fslmaths $fs_labels -thr 1017 -uthr 1017 -bin roi/PCent_fs_L
     # Thalamus_R is 49
     fslmaths $fs_labels -thr 49 -uthr 49 -bin roi/THALAMUS_fs_R
     # Thalamus_L is 10
@@ -360,13 +363,22 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	fslmaths $fs_labels -thr 2033 -uthr 2033 -bin roi/TP_fs_L	
 	fslmaths $fs_labels -thr 1032 -uthr 1032 -bin roi/FP_fs_R	
 	fslmaths $fs_labels -thr 1033 -uthr 1033 -bin roi/TP_fs_R	
+	# add Orbito_frontal ctx
+	fslmaths $fs_labels -thr 1012 -uthr 1012 -bin roi/L_OF_fs_L
+	fslmaths $fs_labels -thr 2012 -uthr 2012 -bin roi/L_OF_fs_R
+	fslmaths $fs_labels -thr 1014 -uthr 1014 -bin roi/M_OF_fs_L
+	fslmaths $fs_labels -thr 2014 -uthr 2014 -bin roi/M_OF_fs_R
+	fslmaths $fs_labels -thr 1019 -uthr 1019 -bin roi/IFG_POr_fs_L
+	fslmaths $fs_labels -thr 2019 -uthr 2019 -bin roi/IFG_POr_fs_R
+	# add entorhinal cortex
+	fslmaths $fs_labels -thr 1006 -uthr 1006 -bin roi/enR_fs_L
+	fslmaths $fs_labels -thr 2006 -uthr 2006 -bin roi/enR_fs_R
 	# add Insula
 	# 1035	ctx-lh-insula
 	# 2035 	ctx-rh-insula
 	fslmaths $fs_labels -thr 1035 -uthr 1035 -bin roi/Ins_fs_L
 	fslmaths $fs_labels -thr 2035 -uthr 2035 -bin roi/Ins_fs_R			
 	# add corpus callosum
-	# this is a tricky one
 	# 251 - 255 CC Post,MidPost,Central,MidAnt,Ant
 	fslmaths $fs_labels -thr 251 -uthr 251 -bin roi/CC_fs_post			
 	fslmaths $fs_labels -thr 252 -uthr 252 -bin roi/CC_fs_midpost
@@ -375,7 +387,6 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	fslmaths $fs_labels -thr 255 -uthr 255 -bin roi/CC_fs_ant
 	fslmaths roi/CC_fs_ant.nii.gz -add roi/CC_fs_midant.nii.gz -add roi/CC_fs_central.nii.gz \
 		-add roi/CC_fs_midpost.nii.gz -add roi/CC_fs_post.nii.gz -bin roi/CC_fs_all
-	
 	# add ACC
 	# 1002	ctx-lh-caudalanteriorcingulate
 	# 1026  ctx-lh-rostralanteriorcingulate
@@ -400,8 +411,8 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	# 53	Right-Hippocampus
 	# 54	Right-Amygdala
 	fslmaths $fs_labels -thr 17 -uthr 17 -bin roi/Hippo_fs_L	
-	fslmaths $fs_labels -thr 18 -uthr 18 -bin roi/Hippo_fs_R
-	fslmaths $fs_labels -thr 53 -uthr 53 -bin roi/Amyg_fs_L
+	fslmaths $fs_labels -thr 53 -uthr 53 -bin roi/Hippo_fs_R
+	fslmaths $fs_labels -thr 18 -uthr 18 -bin roi/Amyg_fs_L
 	fslmaths $fs_labels -thr 54 -uthr 54 -bin roi/Amyg_fs_R
 	# Pericalcarine cortex
 	# 2021	ctx-rh-pericalcarine
@@ -417,36 +428,87 @@ if [ ! -f roi/WM_fs_R.nii.gz ]; then
 	# Caudates may also be used as exclude for ORs
 	fslmaths $fs_labels -thr 11 -uthr 11 -bin roi/Caudate_fs_L
 	fslmaths $fs_labels -thr 50 -uthr 50 -bin roi/Caudate_fs_R
+	# Optic Chiasm
+	fslmaths $fs_labels -thr 85 -uthr 85 -bin roi/OC_fs
 	# WM tract of the limbic system
 	fslmaths $fs_wm_labels -thr 3010 -uthr 3010 -bin roi/iPCC_wm_fs_L
 	fslmaths $fs_wm_labels -thr 4010 -uthr 4010 -bin roi/iPCC_wm_fs_R
-	# Putamina for exclusions of AF
+	# Putamina for exclusions
 	fslmaths $fs_labels -thr 12 -uthr 12 -dilM -bin roi/putamen_dil_fs_L
 	fslmaths $fs_labels -thr 51 -uthr 51 -dilM -bin roi/putamen_dil_fs_R
-	
 	# add the CSF tpm from ANTs for further cleanup (still trying this out)
 	fslmaths $cwd/fmriprep/sub-${subj}/anat/sub-${subj}_label-CSF_probseg.nii.gz \
 		-thr 0.2 $cwd/dwiprep/sub-${subj}/sub-${subj}/roi/CSF_ants.nii.gz
 	
-	# Use lobe specific labels
+	# Lobe specific wm labels
 	fslmaths $fs_wm_lobe_labels -thr 3204 -uthr 3204 -bin roi/Occ_wm_fs_L
 	fslmaths $fs_wm_lobe_labels -thr 4204 -uthr 4204 -bin roi/Occ_wm_fs_R
 	fslmaths $fs_wm_lobe_labels -thr 3207 -uthr 3207 -bin roi/Ins_wm_fs_L
 	fslmaths $fs_wm_lobe_labels -thr 4204 -uthr 4204 -bin roi/Ins_wm_fs_R
+	fslmaths $fs_wm_lobe_labels -thr 3205 -uthr 3205 -bin roi/Temp_wm_fs_L
+	fslmaths $fs_wm_lobe_labels -thr 4205 -uthr 4205 -bin roi/Temp_wm_fs_R
+	fslmaths $fs_wm_lobe_labels -thr 3201 -uthr 3201 -bin roi/Front_wm_fs_L
+	fslmaths $fs_wm_lobe_labels -thr 4201 -uthr 4201 -bin roi/Front_wm_fs_R
+	fslmaths $fs_wm_lobe_labels -thr 3206 -uthr 3206 -bin roi/Par_wm_fs_L
+	fslmaths $fs_wm_lobe_labels -thr 4206 -uthr 4206 -bin roi/Par_wm_fs_R
+	# SM1 and paracentral lobule wm
 	fslmaths $fs_wm_labels -thr 4022 -uthr 4022 -bin roi/S1_wm_fs_R	
 	fslmaths $fs_wm_labels -thr 3022 -uthr 3022 -bin roi/S1_wm_fs_L	
 	fslmaths $fs_wm_labels -thr 4024 -uthr 4024 -bin roi/M1_wm_fs_R	
 	fslmaths $fs_wm_labels -thr 3024 -uthr 3024 -bin roi/M1_wm_fs_L	
+	fslmaths $fs_wm_labels -thr 3017 -uthr 3017 -bin roi/PCent_wm_fs_R
+	fslmaths $fs_wm_labels -thr 4017 -uthr 4017 -bin roi/PCent_wm_fs_L
+	# Temporal gyri wm
 	fslmaths $fs_wm_labels -thr 4030 -uthr 4030 -bin roi/STG_wm_fs_R	
 	fslmaths $fs_wm_labels -thr 3030 -uthr 3030 -bin roi/STG_wm_fs_L
 	fslmaths $fs_wm_labels -thr 4015 -uthr 4015 -bin roi/MTG_wm_fs_R	
 	fslmaths $fs_wm_labels -thr 3015 -uthr 3015 -bin roi/MTG_wm_fs_L
+	# supramarginal gyri
 	fslmaths $fs_wm_labels -thr 4031 -uthr 4031 -bin roi/SMG_wm_fs_R
 	fslmaths $fs_wm_labels -thr 3031 -uthr 3031 -bin roi/SMG_wm_fs_L
+	# Inferior frontal gyri
 	fslmaths $fs_wm_labels -thr 4020 -uthr 4020 -bin roi/IFG_PTr_wm_fs_R	
 	fslmaths $fs_wm_labels -thr 3020 -uthr 3020 -bin roi/IFG_PTr_wm_fs_L
 	fslmaths $fs_wm_labels -thr 4018 -uthr 4018 -bin roi/IFG_POp_wm_fs_R
 	fslmaths $fs_wm_labels -thr 3018 -uthr 3018 -bin roi/IFG_POp_wm_fs_L
+	# Lateral orbitofrontal white matter
+	fslmaths $fs_wm_labels -thr 3012 -uthr 3012 -bin roi/L_OF_wm_fs_L
+	fslmaths $fs_wm_labels -thr 4012 -uthr 4012 -bin roi/L_OF_wm_fs_R
+	# Temporal pole white matter
+	fslmaths $fs_wm_labels -thr 3002 -uthr 3002 -bin roi/TP_wm_fs_L
+	fslmaths $fs_wm_labels -thr 4002 -uthr 4002 -bin roi/TP_wm_fs_R
+	
+	# The CST, SMA/CST and ML need subsegmentation of the brainstem
+	# This can be done using the JHU white matter labels ROIs
+
+	# first we define the template and atlas for JHU_wm_labels
+	JHU_temp=$FSLDIR/data/standard/MNI152_T1_1mm_brain.nii.gz
+	JHU_labels=$FSLDIR/data/atlases/JHU/JHU-ICBM-labels-1mm.nii.gz
+
+	# Extract brainstem ROIs
+	fslmaths $JHU_labels -thr 8 -uthr 8 -s 2 -thr 0.2 -bin roi/LT_CST_JHU_roi_MNI.nii.gz
+	fslmaths $JHU_labels -thr 7 -uthr 7 -s 2 -thr 0.2 -bin roi/RT_CST_JHU_roi_MNI.nii.gz
+	fslmaths $JHU_labels -thr 10 -uthr 10 -s 2 -thr 0.2 -bin roi/LT_ML_JHU_roi_MNI.nii.gz
+	fslmaths $JHU_labels -thr 9 -uthr 9 -s 2 -thr 0.2 -bin roi/RT_ML_JHU_roi_MNI.nii.gz
+
+	# Warp MNI image to native and apply warps to individual ROIs
+	antsRegistrationSyNQuick.sh -d 3 -m $JHU_temp -f $ants_anat -t s -n $ncpu -j 1 -o T1w/JHU_temp_in_native
+	WarpImageMultiTransform 3 $cwd/dwiprep/sub-${subj}/sub-${subj}/roi/LT_CST_JHU_roi_MNI.nii.gz $cwd/dwiprep/sub-${subj}/sub-${subj}/roi/LT_CST_JHU_roi_native.nii.gz -R $ants_anat \
+		$cwd/dwiprep/sub-${subj}/sub-${subj}/T1w/JHU_temp_in_native1Warp.nii.gz $cwd/dwiprep/sub-${subj}/sub-${subj}/T1w/JHU_temp_in_native0GenericAffine.mat
+	WarpImageMultiTransform 3 $cwd/dwiprep/sub-${subj}/sub-${subj}/roi/RT_CST_JHU_roi_MNI.nii.gz $cwd/dwiprep/sub-${subj}/sub-${subj}/roi/RT_CST_JHU_roi_native.nii.gz -R $ants_anat \
+		$cwd/dwiprep/sub-${subj}/sub-${subj}/T1w/JHU_temp_in_native1Warp.nii.gz $cwd/dwiprep/sub-${subj}/sub-${subj}/T1w/JHU_temp_in_native0GenericAffine.mat
+	WarpImageMultiTransform 3 $cwd/dwiprep/sub-${subj}/sub-${subj}/roi/LT_ML_JHU_roi_MNI.nii.gz $cwd/dwiprep/sub-${subj}/sub-${subj}/roi/LT_ML_JHU_roi_native.nii.gz -R $ants_anat \
+		$cwd/dwiprep/sub-${subj}/sub-${subj}/T1w/JHU_temp_in_native1Warp.nii.gz $cwd/dwiprep/sub-${subj}/sub-${subj}/T1w/JHU_temp_in_native0GenericAffine.mat
+	WarpImageMultiTransform 3 $cwd/dwiprep/sub-${subj}/sub-${subj}/roi/RT_ML_JHU_roi_MNI.nii.gz $cwd/dwiprep/sub-${subj}/sub-${subj}/roi/RT_ML_JHU_roi_native.nii.gz -R $ants_anat \
+		$cwd/dwiprep/sub-${subj}/sub-${subj}/T1w/JHU_temp_in_native1Warp.nii.gz $cwd/dwiprep/sub-${subj}/sub-${subj}/T1w/JHU_temp_in_native0GenericAffine.mat
+
+	# delete CST rois in MNI space
+	rm $cwd/dwiprep/sub-${subj}/sub-${subj}/roi/*JHU_roi_MNI.nii.gz
+	
+	# found a small bug (the mask we were using for initial tckgen was in native DWI space, while we're tracking in native T1 space)
+	if [ ! -f dwi_reg2T1_mask.nii.gz ]; then
+	dwi2mask -nthreads $cpu -force dwi_preproced_reg2T1w.mif dwi_reg2T1_mask.nii.gz
+	fi
 	
 else
 
@@ -505,6 +567,7 @@ function KUL_antsApply_Transform {
 # fi
 
 
+
 # STEP 2 - Tractography  ---------------------------------------------
 
 function kul_mrtrix_FT {
@@ -536,19 +599,20 @@ function kul_mrtrix_FT {
             local e=$(printf " -exclude roi/%s.nii.gz"  "${exclude[@]}")
 
             # make the mask string 
-            local m="-mask dwi_mask.nii.gz"
+            local m="-mask dwi_reg2T1_mask.nii.gz"
+
 
             if [ "${a}" == "iFOD2" ]; then
 
                 # perform IFOD2 tckgen
 				# now using the stop option to terminate streamlines within include rois
-                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu $stop -force
+                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu $act $stop -force
 				
 
             else
 
                 # perform Tensor_Prob tckgen
-                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu $stop -force
+                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu $act $stop -force
 
             fi
         
@@ -563,11 +627,11 @@ function kul_mrtrix_FT {
         local count=$(tckinfo tracts_${a}/${tract}.tck -count | grep count | head -n 1 | awk '{print $(NF)}')
 		# setting a relative thr for tract filtering using 0.2% as thr cutoff
 		act_count="$(echo $count | cut -d':' -f2)"
-		thr="$(bc <<< "scale = 2; (($act_count * 0.2) / (100))")"
+		thr="$(bc <<< "scale = 2; (($act_count*0.2/100))")"
 		
         echo "$subj, $a, $tract, $count" >> tracts_FT_info.csv
 
-        # do further processing of tracts are found
+        # do further processing if tracts are found
         if [ ! -f tracts_${a}/MNI_Space_${tract}_${a}.nii.gz ]; then
 
             if [ $count -eq 0 ]; then
@@ -584,29 +648,29 @@ function kul_mrtrix_FT {
                 # convert the tck in nii
                 tckmap tracts_${a}/${tract}.tck tracts_${a}/${tract}.nii.gz -template $ants_anat -force 
 
-                # Warp the full tract image to MNI space
-                input=tracts_${a}/${tract}.nii.gz
-                output=tracts_${a}/MNI_Space_FULL_${tract}_${a}.nii.gz
-                transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-                reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
-                KUL_antsApply_Transform
-
+                # # Warp the full tract image to MNI space
+                # input=tracts_${a}/${tract}.nii.gz
+                # output=tracts_${a}/MNI_Space_FULL_${tract}_${a}.nii.gz
+                # transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+                # reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+                # KUL_antsApply_Transform
+				#
                 # # intersect the nii tract image with the thalamic roi
                 # fslmaths tracts_${a}/${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/${tract}_masked
-
+                #
                 # # make a probabilistic image
                 # local m=$(mrstats -quiet tracts_${a}/${tract}_masked.nii.gz -output max)
                 # fslmaths tracts_${a}/${tract}_masked -div $m tracts_${a}/Subj_Space_${tract}_${a}
-
-                # Warp the probabilistic image to MNI space
-                input=tracts_${a}/Subj_Space_${tract}_${a}.nii.gz
-                output=tracts_${a}/MNI_Space_${tract}_${a}.nii.gz
-                transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-                reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
-                KUL_antsApply_Transform
+                #
+                # # Warp the probabilistic image to MNI space
+                # input=tracts_${a}/Subj_Space_${tract}_${a}.nii.gz
+                # output=tracts_${a}/MNI_Space_${tract}_${a}.nii.gz
+                # transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+                # reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+                # KUL_antsApply_Transform
                 
                 
-                if [ $count -lt $do_sift_th ]; then
+                # if [ $count -lt $do_sift_th ]; then
                 
                     kul_e2cl "  NOT running tcksift since less than $do_sift_th streamlines" ${log}
 					
@@ -614,43 +678,185 @@ function kul_mrtrix_FT {
 					
 					fslmaths tracts_${a}/${tract}.nii.gz -thr $thr -s 2 -thr 0.1 -bin tracts_${a}/${tract}_bin_mask.nii.gz
 					
-					# here we add the second tckgen with the resulting thresholded prob mask for filtered bundles
-					tckgen $wmfod tracts_${a}/${tract}_filtered.tck -algorithm $a -select $nods $s $i $e \
-						-mask  tracts_${a}/${tract}_bin_mask.nii.gz -angle $theta -nthreads $ncpu $stop -force
-
-
-                else
-                    kul_e2cl "  running tcksift & generation subject/MNI space images" ${log}
-
-                    # perform filtering on tracts with tcksift (version 1)
-                    tcksift -term_ratio $term_ratio -act ${cwd}/dwiprep/sub-${subj}/5tt/5ttseg.mif tracts_${a}/${tract}.tck \
-                        $wmfod tracts_${a}/sift1_${tract}.tck -nthreads $ncpu -force
-
-                    # convert the tck in nii
-                    tckmap tracts_${a}/sift1_${tract}.tck tracts_${a}/sift1_${tract}.nii.gz -template $ants_anat -force 
+					# here we add tckedit with the resulting thresholded prob mask for filtered bundles
+					tckedit -number $nods $i $e -mask tracts_${a}/${tract}_bin_mask.nii.gz -nthreads $ncpu -force \
+						tracts_${a}/${tract}.tck tracts_${a}/${tract}_filt.tck
 					
-					fslmaths tracts_${a}/sift1_${tract}.nii.gz -thr $thr -s 2 -thr 0.1 -bin tracts_${a}/sift1_${tract}_bin_mask.nii.gz
-					
-					# here we add the second tckgen with the resulting thresholded prob mask for filtered bundles
-					tckgen $wmfod tracts_${a}/${tract}_filtered.tck -algorithm $a -select $nods $s $i $e \
-						-mask  tracts_${a}/sift1_${tract}_bin_mask.nii.gz -angle $theta -nthreads $ncpu $stop -force
-					
+					# To acquire CST/ML separately we need an if loop to run tckedit with specific ROIs for subsegmentation
+					# if the CST/ML is found initially.
+					if [ ! -f tracts_${a}/CSTML_all_L_nods$nods.tck ]; then
+						nods1=20000
+						nods2=10000
+						# for c in
+						# first tckedit needs whole brain mask, will need to run this 4 times
+							# separate the L_CST
+							tckedit -number $nods2 -include roi/WM_fs_L.nii.gz -include roi/BStem.nii.gz -include roi/S1_wm_fs_L.nii.gz \
+								-include roi/S1_wm_fs_L.nii.gz -include roi/LT_CST_JHU_roi_native.nii.gz \
+									-exclude roi/WM_fs_R.nii.gz -exclude roi/CC_fs_all.nii.gz -exclude roi/LT_ML_JHU_roi_native.nii.gz \
+										-exclude roi/RT_CST_JHU_roi_native.nii.gz -exclude roi/RT_ML_JHU_roi_native.nii.gz \
+											$m -nthreads $ncpu -force tracts_${a}/CSTML_all_L_nods${nods1}.tck tracts_${a}/CST_L_nods${nods2}.tck
+		                    tckmap tracts_${a}/CST_L_nods${nods2}.tck tracts_${a}/CST_L_nods${nods2}.nii.gz -template $ants_anat -force 
+							# count and thr for L_CST
+							count_CST_L=$(tckinfo tracts_${a}/CST_L_nods${nods2}.tck -count | grep count | head -n 1 | awk '{print $(NF)}')
+									# setting a relative thr for tract filtering using 0.2% as thr cutoff
+									act_count_CST_L="$(echo $count_CST_L | cut -d':' -f2)"
+									thr_CST_L="$(bc <<< "scale = 2; (($act_count_CST_L*0.2/100))")"
+							fslmaths tracts_${a}/CST_L_nods${nods2}.nii.gz -thr $thr_CST_L -s 2 -thr 0.1 -bin tracts_${a}/CST_L_nods${nods2}_bin_mask.nii.gz
+							# filter L_CST
+							tckedit -number $nods2 -include roi/WM_fs_L.nii.gz -include roi/BStem.nii.gz -include roi/M1_wm_fs_L.nii.gz \
+								-include roi/S1_wm_fs_L.nii.gz -include roi/LT_CST_JHU_roi_native.nii.gz \
+									-exclude roi/WM_fs_R.nii.gz -exclude roi/CC_fs_all.nii.gz -exclude roi/LT_ML_JHU_roi_native.nii.gz \
+										-exclude roi/RT_CST_JHU_roi_native.nii.gz -exclude roi/RT_ML_JHU_roi_native.nii.gz \
+											-mask tracts_${a}/CST_L_nods${nods2}_bin_mask.nii.gz -nthreads $ncpu \
+												-force tracts_${a}/CST_L_nods${nods2}.tck tracts_${a}/CST_L_nods${nods2}_filt.tck
+							
+							# separate the R_CST
+							tckedit -number $nods2 -include roi/WM_fs_R.nii.gz -include roi/BStem.nii.gz -include roi/M1_wm_fs_R.nii.gz \
+								-include roi/S1_wm_fs_R.nii.gz -include roi/RT_CST_JHU_roi_native.nii.gz \
+									-exclude roi/WM_fs_L.nii.gz -exclude roi/CC_fs_all.nii.gz -exclude roi/RT_ML_JHU_roi_native.nii.gz \
+										-exclude roi/LT_CST_JHU_roi_native.nii.gz -exclude roi/LT_ML_JHU_roi_native.nii.gz \
+											$m -nthreads $ncpu -force tracts_${a}/CSTML_all_R_nods${nods1}.tck tracts_${a}/CST_R_nods${nods2}.tck
+							# count and thr for R_CST
+							count_CST_R=$(tckinfo tracts_${a}/CST_R_nods${nods2}.tck -count | grep count | head -n 1 | awk '{print $(NF)}')
+									# setting a relative thr for tract filtering using 0.2% as thr cutoff
+									act_count_CST_R="$(echo $count_CST_R | cut -d':' -f2)"
+									thr_CST_R="$(bc <<< "scale = 2; (($act_count_CST_R*0.2/100))")"
+		                    tckmap tracts_${a}/CST_R_nods${nods2}.tck tracts_${a}/CST_R_nods${nods2}.nii.gz -template $ants_anat -force 
+							fslmaths tracts_${a}/CST_R_nods${nods2}.nii.gz -thr $thr_CST_R -s 2 -thr 0.1 -bin tracts_${a}/CST_R_nods${nods2}_bin_mask.nii.gz
+							# filter R_CST
+							tckedit -number $nods2 -include roi/WM_fs_R.nii.gz -include roi/BStem.nii.gz -include roi/M1_wm_fs_R.nii.gz \
+								-include roi/S1_wm_fs_R.nii.gz -include roi/RT_CST_JHU_roi_native.nii.gz \
+									-exclude roi/WM_fs_L.nii.gz -exclude roi/CC_fs_all.nii.gz -exclude roi/RT_ML_JHU_roi_native.nii.gz \
+										-exclude roi/LT_CST_JHU_roi_native.nii.gz -exclude roi/LT_ML_JHU_roi_native.nii.gz \
+											-mask tracts_${a}/CST_R_nods${nods2}_bin_mask.nii.gz -nthreads $ncpu \
+												-force tracts_${a}/CST_R_nods${nods2}.tck tracts_${a}/CST_R_nods${nods2}_filt.tck
+							# separate the L_ML
+							tckedit -number $nods2 -include roi/WM_fs_L.nii.gz -include roi/BStem.nii.gz -include roi/M1_wm_fs_L.nii.gz \
+								-include roi/S1_wm_fs_L.nii.gz -include roi/LT_ML_JHU_roi_native.nii.gz \
+									-exclude roi/WM_fs_R.nii.gz -exclude roi/CC_fs_all.nii.gz -exclude roi/LT_CST_JHU_roi_native.nii.gz \
+										-exclude roi/RT_ML_JHU_roi_native.nii.gz -exclude roi/RT_CST_JHU_roi_native.nii.gz \
+											$m -nthreads $ncpu -force tracts_${a}/CSTML_all_L_nods${nods1}.tck tracts_${a}/ML_L_nods${nods2}.tck
+							# count and thr for L_ML
+							count_ML_L=$(tckinfo tracts_${a}/ML_L_nods${nods2}.tck -count | grep count | head -n 1 | awk '{print $(NF)}')
+									# setting a relative thr for tract filtering using 0.2% as thr cutoff
+									act_count_ML_L="$(echo $count_ML_L | cut -d':' -f2)"
+									thr_ML_L="$(bc <<< "scale = 2; (($act_count_ML_L*0.2/100))")"
+		                    tckmap tracts_${a}/ML_L_nods${nods2}.tck tracts_${a}/ML_L_nods${nods2}.nii.gz -template $ants_anat -force 
+							fslmaths tracts_${a}/ML_L_nods${nods2}.nii.gz -thr $thr_ML_L -s 2 -thr 0.1 -bin tracts_${a}/ML_L_nods${nods2}_bin_mask.nii.gz
+							# filter L_ML
+							tckedit -number $nods2 -include roi/WM_fs_L.nii.gz -include roi/BStem.nii.gz -include roi/M1_wm_fs_L.nii.gz \
+								-include roi/S1_wm_fs_L.nii.gz -include roi/LT_ML_JHU_roi_native.nii.gz \
+									-exclude roi/WM_fs_R.nii.gz -exclude roi/CC_fs_all.nii.gz -exclude roi/LT_CST_JHU_roi_native.nii.gz \
+										-exclude roi/RT_ML_JHU_roi_native.nii.gz -exclude roi/RT_CST_JHU_roi_native.nii.gz \
+											-mask tracts_${a}/ML_L_nods${nods2}_bin_mask.nii.gz -nthreads $ncpu \
+												-force tracts_${a}/ML_L_nods${nods2}.tck tracts_${a}/ML_L_nods${nods2}_filt.tck
+							# separate the R_ML
+							tckedit -number $nods -include roi/WM_fs_R.nii.gz -include roi/BStem.nii.gz -include roi/M1_wm_fs_R.nii.gz \
+								-include roi/S1_wm_fs_R.nii.gz -include roi/RT_ML_JHU_roi_native.nii.gz \
+									-exclude roi/WM_fs_L.nii.gz -exclude roi/CC_fs_all.nii.gz -exclude roi/RT_CST_JHU_roi_native.nii.gz \
+										-exclude roi/LT_ML_JHU_roi_native.nii.gz -exclude roi/LT_CST_JHU_roi_native.nii.gz \
+											$m -nthreads $ncpu -force tracts_${a}/CSTML_all_R_nods${nods1}.tck tracts_${a}/ML_R_nods${nods2}.tck
+							# count and thr for R_ML
+							count_ML_R=$(tckinfo tracts_${a}/ML_R_nods${nods2}.tck -count | grep count | head -n 1 | awk '{print $(NF)}')
+									# setting a relative thr for tract filtering using 0.2% as thr cutoff
+									act_count_ML_R="$(echo $count_ML_R | cut -d':' -f2)"
+									thr_ML_R="$(bc <<< "scale = 2; (($act_count_ML_R*0.2/100))")"
+		                    tckmap tracts_${a}/ML_R_nods${nods2}.tck tracts_${a}/ML_R_nods${nods2}.nii.gz -template $ants_anat -force 
+							fslmaths tracts_${a}/ML_R_nods${nods2}.nii.gz -thr $thr_ML_R -s 2 -thr 0.1 -bin tracts_${a}/ML_R_nods${nods2}_bin_mask.nii.gz
+							# filter R_ML
+							tckedit -number $nods2 -include roi/WM_fs_R.nii.gz -include roi/BStem.nii.gz -include roi/M1_wm_fs_R.nii.gz \
+								-include roi/S1_wm_fs_R.nii.gz -include roi/RT_ML_JHU_roi_native.nii.gz \
+									-exclude roi/WM_fs_L.nii.gz -exclude roi/CC_fs_all.nii.gz -exclude roi/RT_CST_JHU_roi_native.nii.gz \
+										-exclude roi/LT_ML_JHU_roi_native.nii.gz -exclude roi/LT_CST_JHU_roi_native.nii.gz \
+											-mask tracts_${a}/ML_R_nods${nods2}_bin_mask.nii.gz -nthreads $ncpu \
+												-force tracts_${a}/ML_R_nods${nods2}.tck tracts_${a}/ML_R_nods${nods2}_filt.tck
+							
+							# fslmaths tracts_${a}/${tract}.nii.gz -thr $thr -s 2 -thr 0.1 -bin tracts_${a}/${tract}_bin_mask.nii.gz
+							# tckedit -number $nods -include roi/WM_fs_L.nii.gz -include roi/BStem.nii.gz -include roi/S1_wm_fs_L.nii.gz \
+							# 	-include roi/S1_wm_fs_L.nii.gz -include roi/LT_CST_JHU_roi_native.nii.gz \
+							# 		-exclude roi/WM_fs_R.nii.gz -exclude roi/CC_fs_all.nii.gz -exclude roi/LT_ML_JHU_roi_native.nii.gz \
+							# 			-exclude roi/RT_CST_JHU_roi_native.nii.gz -exclude roi/RT_ML_JHU_roi_native.nii.gz \
+							# 				-mask tracts_${a}/CSTML_all_L_nods$nods.tck -nthreads $ncpu -force tracts_${a}/CSTML_all_L_nods$nods.tck tracts_${a}/$CST_L_nods$nods.tck
+							# tracts_${a}/CST_all_L_nods$nods.tck tracts_${a}/${tract}_filt.tck
+						# Then we need the filtering step using the fiber density map
+							
+						fi
+						
+						
+						# nods=10000
+						# tract_CST="CST_L_nods${nods}"
+						# seeds_CST=("WM_fs_L" "BStem" "S1_wm_fs_L" "M1_wm_fs_L" "LT_CST_JHU_roi_native")
+						# exclude_CST=("WM_fs_R" "CC_fs_all" "LT_ML_JHU_roi_native" "RT_CST_JHU_roi_native" "RT_ML_JHU_roi_native")
+						# theta=60
+						# stop=()
+						# act=()
+						# kul_mrtrix_FT
+						#
+						# nods=10000
+						# tract_CST="CST_R_nods${nods}"
+						# seeds_CST=("WM_fs_R" "BStem" "S1_wm_fs_R" "M1_wm_fs_R" "RT_CST_JHU_roi_native")
+						# exclude_CST=("WM_fs_L" "CC_fs_all" "RT_ML_JHU_roi_native" "LT_CST_JHU_roi_native" "LT_ML_JHU_roi_native")
+						# theta=60
+						# stop=()
+						# act=()
+						# kul_mrtrix_FT
+						#
+						# # ML
+						# nods=10000
+						# tract_ML="ML_L_nods${nods}"
+						# seeds_ML=("WM_fs_L" "BStem" "S1_wm_fs_L" "M1_wm_fs_L" "LT_ML_JHU_roi_native")
+						# exclude_ML=("WM_fs_R" "CC_fs_all" "LT_CST_JHU_roi_native" "RT_CST_JHU_roi_native" "RT_ML_JHU_roi_native")
+						# theta=60
+						# stop=()
+						# act=()
+						# kul_mrtrix_FT
+						#
+						# nods=10000
+						# tract_ML="ML_R_nods${nods}"
+						# seeds_ML=("WM_fs_R" "BStem" "S1_wm_fs_R" "M1_wm_fs_R" "RT_ML_JHU_roi_native")
+						# exclude_ML=("WM_fs_L" "CC_fs_all" "RT_CST_JHU_roi_native" "LT_CST_JHU_roi_native" "LT_ML_JHU_roi_native")
+						# theta=60
+						# stop=()
+						# act=()
+						# kul_mrtrix_FT
+						
 
-                    # intersect the nii tract image with the thalamic roi
-                    # fslmaths tracts_${a}/sift1_${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/sift1_${tract}_masked
+				# We should start using tcksift2 instead, regardless of nods.
 
-                    # # make a probabilistic image
-                    # local m=$(mrstats -quiet tracts_${a}/sift1_${tract}_masked.nii.gz -output max)
-                    # fslmaths tracts_${a}/sift1_${tract}_masked -div $m tracts_${a}/Subj_Space_sift1_${tract}_${a}
-
-                    # # Warp the probabilistic image to MNI space
-                    # input=tracts_${a}/Subj_Space_sift1_${tract}_${a}.nii.gz
-                    # output=tracts_${a}/MNI_Space_sift1_${tract}_${a}.nii.gz
-                    # transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-                    # reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
-                    # KUL_antsApply_Transform
-
-                fi
+                # else
+#                     kul_e2cl "  running tcksift & generation subject/MNI space images" ${log}
+#
+#                     # perform filtering on tracts with tcksift (version 1)
+#                     tcksift -term_ratio $term_ratio -act ${cwd}/dwiprep/sub-${subj}/sub-${subj}/5tt/5ttseg.mif tracts_${a}/${tract}.tck \
+#                         $wmfod tracts_${a}/sift1_${tract}.tck -nthreads $ncpu -force
+#
+#                     # convert the tck in nii
+#                     tckmap tracts_${a}/sift1_${tract}.tck tracts_${a}/sift1_${tract}.nii.gz -template $ants_anat -force
+#
+# 					fslmaths tracts_${a}/sift1_${tract}.nii.gz -thr $thr -s 2 -thr 0.1 -bin tracts_${a}/sift1_${tract}_bin_mask.nii.gz
+#
+# 					# here we add tckedit with the resulting thresholded prob mask for filtered bundles
+# 					tckedit -number $nods $i $e -mask tracts_${a}/sift1_${tract}_bin_mask.nii.gz -nthreads $ncpu -force \
+# 						tracts_${a}/${tract}.tck tracts_${a}/${tract}_filt.tck
+# 					# tckgen $wmfod tracts_${a}/${tract}_filtered.tck -algorithm $a -select $nods $s $i $e \
+# 					# 	-mask  tracts_${a}/sift1_${tract}_bin_mask.nii.gz -angle $theta -nthreads $ncpu $stop -force
+#
+#
+#                     # intersect the nii tract image with the thalamic roi
+#                     # fslmaths tracts_${a}/sift1_${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/sift1_${tract}_masked
+#
+#                     # # make a probabilistic image
+#                     # local m=$(mrstats -quiet tracts_${a}/sift1_${tract}_masked.nii.gz -output max)
+#                     # fslmaths tracts_${a}/sift1_${tract}_masked -div $m tracts_${a}/Subj_Space_sift1_${tract}_${a}
+#
+#                     # # Warp the probabilistic image to MNI space
+#                     # input=tracts_${a}/Subj_Space_sift1_${tract}_${a}.nii.gz
+#                     # output=tracts_${a}/MNI_Space_sift1_${tract}_${a}.nii.gz
+#                     # transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+#                     # reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+#                     # KUL_antsApply_Transform
+#
+#                 fi
 
             fi
 
@@ -666,6 +872,8 @@ function kul_mrtrix_FT {
 
 wmfod=response/wmfod_reg2T1w.mif
 dwi_preproced=dwi_preproced_reg2T1w.mif
+fs_5tt=5tt/5ttseg.mif
+
 
 # Make an empty log file with information about the tracts
 echo "subject, algorithm, tract, count" > tracts_FT_info.csv
@@ -678,39 +886,63 @@ echo "subject, algorithm, tract, count" > tracts_FT_info.csv
 # we'll use the IFG Pt + Pop and the SFG as seeds
 # CC, BStem and contralateral WM as excludes
 # for further refinement use lobe wm labels
+# Using only WM labels for AF
+
+nods=8000
 tract="AF_R_nods${nods}"
-seeds=("IFG_PTr_fs_R" "IFG_POp_fs_R" "STG_wm_fs_R" "MTG_wm_fs_R" "SMG_wm_fs_R")
+seeds=("IFG_POp_wm_fs_R" "IFG_PTr_wm_fs_R" "Front_wm_fs_R" "Temp_wm_fs_R" "STG_wm_fs_L" "MTG_wm_fs_R" "SMG_wm_fs_R")
 exclude=("WM_fs_L" "BStem" "CC_fs_all" "Ins_fs_R" "putamen_dil_fs_R")
-theta=50
-stop=-stop
-nods=12000
+theta=60
+stop=()
+act=()
 kul_mrtrix_FT
 
+nods=8000
 tract="AF_L_nods${nods}"
-seeds=("IFG_PTr_fs_L" "IFG_POp_fs_L"  "STG_wm_fs_L" "MTG_wm_fs_L" "SMG_wm_fs_L")
+seeds=("IFG_POp_wm_fs_L" "IFG_PTr_wm_fs_L" "Front_wm_fs_L" "Temp_wm_fs_L" "STG_wm_fs_L" "MTG_wm_fs_L" "SMG_wm_fs_L")
 exclude=("WM_fs_R" "BStem" "CC_fs_all" "Ins_fs_L" "putamen_dil_fs_L")
-theta=50
-stop=-stop
-nods=12000
+theta=60
+stop=()
+act=()
 kul_mrtrix_FT
 
 # CST
 # we'll use the S1 and M1 + BStem as seeds
 # contrateral cerebral WM and CC as excludes
-tract="CST_R_nods${nods}"
-seeds=("M1_fs_R" "S1_fs_R" "BStem" "S1_wm_fs_R" "M1_wm_fs_R")
-exclude=("WM_fs_L" "CC_fs_all")
-theta=50
-stop=()
 nods=20000
+tract="CSTML_all_R_nods${nods}"
+seeds=("WM_fs_R" "BStem" "S1_wm_fs_R" "M1_wm_fs_R")
+exclude=("WM_fs_L" "CC_fs_all" "Amyg_fs_R")
+theta=60
+stop=()
+act=()
 kul_mrtrix_FT
 
-tract="CST_L_nods${nods}"
-seeds=("M1_fs_L" "S1_fs_L" "BStem" "S1_wm_fs_L" "M1_wm_fs_L")
-exclude=("WM_fs_R" "CC_fs_all")
-theta=50
-stop=()
 nods=20000
+tract="CSTML_all_L_nods${nods}"
+seeds=("WM_fs_L" "BStem" "S1_wm_fs_L" "M1_wm_fs_L")
+exclude=("WM_fs_R" "CC_fs_all" "Amyg_fs_L")
+theta=60
+stop=()
+act=()
+kul_mrtrix_FT
+
+nods=8000
+tract="pcCST_L_nods${nods}"
+seeds=("WM_fs_L" "BStem" "PCent_wm_fs_L")
+exclude=("WM_fs_R" "CC_fs_all")
+theta=60
+stop=()
+act=()
+kul_mrtrix_FT
+
+nods=8000
+tract="pcCST_R_nods${nods}"
+seeds=("WM_fs_R" "BStem" "PCent_wm_fs_R")
+exclude=("WM_fs_L" "CC_fs_all")
+theta=60
+stop=()
+act=()
 kul_mrtrix_FT
 
 # SMA_PMC
@@ -719,7 +951,8 @@ seeds=("SMA_and_PMC_fs_R" "BStem")
 exclude=("WM_fs_L" "CC_fs_all")
 theta=50
 stop=()
-nods=20000
+act=()
+nods=10000
 kul_mrtrix_FT
 
 tract="SMA_PMC_L_nods${nods}"
@@ -727,78 +960,163 @@ seeds=("SMA_and_PMC_fs_L" "BStem")
 exclude=("WM_fs_R" "CC_fs_all")
 theta=50
 stop=()
-nods=20000
+act=()
+nods=10000
+kul_mrtrix_FT
+
+# FAT
+nods=8000
+tract="FAT_L_nods${nods}"
+seeds=("IFG_PTr_wm_fs_L" "IFG_POp_wm_fs_L" "WM_fs_L" "SFG_fs_L")
+exclude=("IFG_PTr_wm_fs_L" "M1_fs_L" "WM_fs_R" "CC_fs_all" "Ins_fs_L" "putamen_dil_fs_L")
+theta=60
+stop=()
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+nods=8000
+tract="FAT_R_nods${nods}"
+seeds=("IFG_PTr_wm_fs_R" "IFG_POp_wm_fs_R" "WM_fs_R" "SFG_fs_R")
+exclude=("IFG_PTr_wm_fs_R" "M1_fs_R" "WM_fs_L" "CC_fs_all" "Ins_fs_R" "putamen_dil_fs_R")
+theta=60
+stop=()
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
 kul_mrtrix_FT
 
 # ATR
-#
-# ML
-#
+nods=5000
+tract="ATR_R_nods${nods}"
+seeds=("THALAMUS_fs_R" "L_OF_wm_fs_R")
+exclude=("BStem" "WM_fs_L" "CC_fs_all")
+theta=50
+stop=()
+act=
+kul_mrtrix_FT
+
+nods=5000
+tract="ATR_L_nods${nods}"
+seeds=("THALAMUS_fs_L" "L_OF_wm_fs_L")
+exclude=("BStem" "WM_fs_R" "CC_fs_all")
+theta=50
+stop=()
+act=()
+kul_mrtrix_FT
+
 # STR
 #
+
 # OT
-#
+nods=3000
+tract="OT_L_nods${nods}"
+seeds=("THALAMUS_fs_L" "OC_fs")
+exclude=("WM_fs_R" "CC_fs_all" "BStem" "Amyg_fs_L" "THALAMUS_fs_R" "Caudate_fs_L" "iPCC_wm_fs_L" "CSF_ants")
+theta=45
+stop=-stop
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+nods=3000
+tract="OT_R_nods${nods}"
+seeds=("THALAMUS_fs_R" "OC_fs")
+exclude=("WM_fs_L" "CC_fs_all" "BStem" "Amyg_fs_R" "THALAMUS_fs_L" "Caudate_fs_R" "iPCC_wm_fs_R" "CSF_ants")
+theta=45
+stop=-stop
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
 # OR
+nods=8000
 tract="OR_L_nods${nods}"
 seeds=("THALAMUS_fs_L" "periCalc_fs_L" "Occ_wm_fs_L")
 exclude=("WM_fs_R" "CC_fs_all" "vDC_fs_L" "BStem" "THALAMUS_fs_R" "Caudate_fs_L" "Lat_V_fs_L" "iPCC_wm_fs_L" "CSF_ants")
 theta=45
 stop=-stop
-nods=10000
-kul_mrtrix_FT 
+act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
 
+nods=8000
 tract="OR_R_nods${nods}"
 seeds=("THALAMUS_fs_R" "periCalc_fs_R" "Occ_wm_fs_R")
 exclude=("WM_fs_L" "CC_fs_all" "vDC_fs_R" "BStem" "THALAMUS_fs_L" "Caudate_fs_R" "Lat_V_fs_R" "iPCC_wm_fs_R" "CSF_ants")
 theta=45
 stop=-stop
-nods=10000
-kul_mrtrix_FT 
-#
+act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
 # IFOF
 #
+
 # ILF
 #
 # SLF
 #
 # UF
-#
+nods=6000
+tract="UF_L_nods${nods}"
+seeds=("L_OF_wm_fs_L" "TP_wm_fs_L")
+exclude=("WM_fs_R" "CC_fs_all" "BStem" "THALAMUS_fs_L" "Caudate_fs_L" "CSF_ants")
+theta=60
+stop=-stop
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+nods=6000
+tract="UF_R_nods${nods}"
+seeds=("L_OF_wm_fs_R" "TP_wm_fs_R")
+exclude=("WM_fs_L" "CC_fs_all" "BStem" "THALAMUS_fs_R" "Caudate_fs_R" "CSF_ants")
+theta=60
+stop=-stop
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
 # TIF
 #
 # AIF
 #
 # Cingulum
-# for the time being we consider this guy as part of tract
+nods=8000
 tract="cCing_R_nods${nods}"
 seeds=("cACC_fs_R" "rACC_fs_R" "PCC_fs_R" "iPCC_fs_R")
 exclude=("WM_fs_L" "CC_fs_all")
 theta=50
 stop=-stop
-nods=10000
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
 kul_mrtrix_FT
 
+nods=8000
 tract="cCing_L_nods${nods}"
 seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
 exclude=("WM_fs_R" "CC_fs_all")
 theta=50
 stop=-stop
-nods=10000
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
 kul_mrtrix_FT
 
+nods=8000
 tract="pCing_R_nods${nods}"
 seeds=("Hippo_fs_R" "PCC_fs_R" "iPCC_fs_R")
 exclude=("WM_fs_L" "CC_fs_all")
 theta=50
 stop=-stop
-nods=10000
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
 kul_mrtrix_FT
 
+nods=8000
 tract="pCing_L_nods${nods}"
 seeds=("Hippo_fs_L" "PCC_fs_L" "iPCC_fs_L")
 exclude=("WM_fs_R" "CC_fs_all")
 theta=50
 stop=-stop
-nods=10000
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
 kul_mrtrix_FT
 
 # Now prepare the data for iPlan
