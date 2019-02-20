@@ -113,7 +113,7 @@ function kul_mrtrix_tracto {
             local e=$(printf " -exclude roi/%s.nii.gz"  "${exclude[@]}")
 
             # make the mask string 
-            local m="-mask dwi_mask.nii.gz"
+            local m="-mask dwi_preproced_reg2T1w_mask.nii.gz"
 
             if [ "${a}" == "iFOD2" ]; then
 
