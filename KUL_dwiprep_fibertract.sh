@@ -86,57 +86,54 @@ USAGE
 
 function kul_mrtrix_tracto {
 
-    for a in iFOD2 Tensor_Prob; do
-    #for a in iFOD2; do
+    local a=$algorithm
+
+    mkdir -p tracts_${a}
     
-        # do the tracking
-        # echo tracts_${a}/${tract}.tck
+    kul_e2cl " running tckgen of ${tract} tract with algorithm $a all seeds with -select $nods" ${log}
+
+    # make the seed string
+    local s=$(printf " -seed_image roi/%s.nii.gz"  "${seeds[@]}")
+    
+    # make the include string (which is same rois as seed)
+    local i=$(printf " -include roi/%s.nii.gz"  "${seeds[@]}")
+
+    # make the exclude string (which is same rois as seed)
+    local e=$(printf " -exclude roi/%s.nii.gz"  "${exclude[@]}")
+
+    # make the mask string 
+    local m="-mask dwi_preproced_reg2T1w_mask.nii.gz"
+
+  
+    # do the tracking
+    # echo tracts_${a}/${tract}.tck
         
-        if [ ! -f tracts_${a}/${tract}.tck ]; then 
+    if [ ! -f tracts_${a}/${tract}.tck ]; then 
 
-            mkdir -p tracts_${a}
-
-            # make the intersect string (this is the first of the seeds)
-            intersect=${seeds%% *}
             
-            echo $log
 
-            kul_e2cl " running tckgen of ${tract} tract with algorithm $a all seeds with -select $nods, intersect with $intersect " ${log}
+        if [ "${a}" == "iFOD2" ]; then
 
-            # make the seed string
-            local s=$(printf " -seed_image roi/%s.nii.gz"  "${seeds[@]}")
-    
-            # make the include string (which is same rois as seed)
-            local i=$(printf " -include roi/%s.nii.gz"  "${seeds[@]}")
+            # perform IFOD2 tckgen
+            tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu -force
 
-            # make the exclude string (which is same rois as seed)
-            local e=$(printf " -exclude roi/%s.nii.gz"  "${exclude[@]}")
+        elif [ "${a}" == "iFOD2" ]; then
 
-            # make the mask string 
-            local m="-mask dwi_preproced_reg2T1w_mask.nii.gz"
+            # perform Tensor_Prob tckgen
+            tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a -cutoff 0.01 -select $nods $s $i $e $m -nthreads $ncpu -force
 
-            if [ "${a}" == "iFOD2" ]; then
-
-                # perform IFOD2 tckgen
-                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu -force
-
-            else
-
-                # perform Tensor_Prob tckgen
-                tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a -cutoff 0.01 -select $nods $s $i $e $m -nthreads $ncpu -force
-
-            fi
+    fi
         
-        else
+    else
 
-            echo "  tckgen of ${tract} tract already done, skipping"
+        echo "  tckgen of ${tract} tract already done, skipping"
 
-        fi
+    fi
 
-        # Check if any fibers have been found & log to the information file
-        echo "   checking tracts_${a}/${tract}"
-        local count=$(tckinfo tracts_${a}/${tract}.tck | grep count | head -n 1 | awk '{print $(NF)}')
-        echo "$subj, $a, $tract, $count" >> tracts_info.csv
+    # Check if any fibers have been found & log to the information file
+    echo "   checking tracts_${a}/${tract}"
+    local count=$(tckinfo tracts_${a}/${tract}.tck | grep count | head -n 1 | awk '{print $(NF)}')
+    echo "$subj, $a, $tract, $count" >> tracts_info.csv
 
         # do further processing of tracts are found
         if [ ! -f tracts_${a}/MNI_Space_${tract}_${a}.nii.gz ]; then
@@ -163,7 +160,7 @@ function kul_mrtrix_tracto {
                 KUL_antsApply_Transform
 
                 # intersect the nii tract image with the thalamic roi
-                fslmaths tracts_${a}/${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/${tract}_masked
+                #fslmaths tracts_${a}/${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/${tract}_masked
 
                 # make a probabilistic image
                 local m=$(mrstats -quiet tracts_${a}/${tract}_masked.nii.gz -output max)
@@ -177,33 +174,6 @@ function kul_mrtrix_tracto {
                 KUL_antsApply_Transform
                 
                 
-                if [ $count -lt $do_sift_th ]; then
-                
-                    kul_e2cl "  NOT running tckshift since less than $do_sift_th streamlines" ${log}
-
-                else
-                    kul_e2cl "  running tckshift & generation subject/MNI space images" ${log}
-
-                    # perform filtering on tracts with tcksift (version 1)
-                    tcksift -term_ratio $term_ratio -act ${cwd}/dwiprep/sub-${subj}/5tt/5ttseg.mif tracts_${a}/${tract}.tck \
-                        $wmfod tracts_${a}/sift1_${tract}.tck -nthreads $ncpu -force
-
-                    # convert the tck in nii
-                    tckmap tracts_${a}/sift1_${tract}.tck tracts_${a}/sift1_${tract}.nii.gz -template $ants_anat -force 
-
-                    # intersect the nii tract image with the thalamic roi
-                    fslmaths tracts_${a}/sift1_${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/sift1_${tract}_masked
-
-                    # make a probabilistic image
-                    local m=$(mrstats -quiet tracts_${a}/sift1_${tract}_masked.nii.gz -output max)
-                    fslmaths tracts_${a}/sift1_${tract}_masked -div $m tracts_${a}/Subj_Space_sift1_${tract}_${a}
-
-                    # Warp the probabilistic image to MNI space
-                    input=tracts_${a}/Subj_Space_sift1_${tract}_${a}.nii.gz
-                    output=tracts_${a}/MNI_Space_sift1_${tract}_${a}.nii.gz
-                    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-                    reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
-                    KUL_antsApply_Transform
 
                 fi
 
@@ -215,7 +185,6 @@ function kul_mrtrix_tracto {
         
         fi
     
-    done
 
 }
 
