@@ -343,6 +343,30 @@ fi
 }
 
 
+# A Function to start KUL_dwiprep_MNI processing
+function task_KUL_dwiprep_MNI {
+
+# check if already performed KUL_dwiprep_MNI
+dwiprep_MNI_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_MNI_is_done.log
+
+if [ ! -f  $dwiprep_MNI_file_to_check ]; then
+
+    dwiprep_MNI_log=${preproc}/log/dwiprep/dwiprep_MNI_${BIDS_participant}.txt
+
+    kul_e2cl " performing KUL_dwiprep_MNI on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_MNI_log)" ${log}
+
+    KUL_dwiprep_MNI.sh -p ${BIDS_participant} -n $ncpu -v \
+        > $dwiprep_MNI_log 2>&1 
+
+    kul_e2cl "   done KUL_dwiprep_MNI on participant $BIDS_participant" $log
+
+else
+
+    echo " KUL_dwiprep_MNI of subjet $BIDS_participant already done, skipping..."
+        
+fi
+
+}
 
 
 # A Function to start KUL_dwiprep_drtdbs processing
@@ -614,8 +638,11 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
         if [ $do_dwiprep_anat -eq 1 ]; then
 
             task_KUL_dwiprep_anat
+            task_KUL_dwiprep_MNI
 
         fi 
+
+        
 
         # Here we could also have some whole brain tractography processing e.g.
         # task_KUL_mrtix_wb_tckgen # needs to be made
