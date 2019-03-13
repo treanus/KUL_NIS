@@ -1,9 +1,11 @@
-#!/bin/bash -e
+#!/bin/bash
 # @ Stefan Sunaert & Ahmed Radwan- UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 06/11/2018 - alpha version
 # v0.2a - dd 12/12/2018 - preparing for beta release 0.2
 v="v0.2 - dd 19/12/2018"
+
+freesurfer_license=/KUL_apps/freesurfer/license.txt
 
 # This is the main script of the KUL_NeuroImaging_Toools
 #
@@ -161,7 +163,8 @@ if [ ! -d $mriqc_dir_to_check ]; then
     #kul_e2cl "   done mriqc on participant $BIDS_participant" $log
 
 else
-        
+
+    mriqc_pid=-1    
     echo " mriqc of participant $BIDS_participant already done, skipping..."
 
 fi
@@ -185,7 +188,7 @@ if [ ! -f $fmriprep_file_to_check ]; then
  -v ${cwd}/${bids_dir}:/data \
  -v ${cwd}:/out \
  -v ${cwd}/fmriprep_work:/scratch \
- -v /KUL_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
+ -v ${freesurfer_license}:/opt/freesurfer/license.txt \
  poldracklab/fmriprep:latest \
  --participant_label ${BIDS_participant} \
  -w /scratch \
@@ -210,7 +213,8 @@ if [ ! -f $fmriprep_file_to_check ]; then
     #kul_e2cl "   done fmriprep on participant $BIDS_participant" $log
 
 else
-        
+
+    fmriprep_pid=-1    
     echo " fmriprep of participant $BIDS_participant already done, skipping..."
 
 fi
@@ -270,6 +274,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
 else
 
+    freesurfer_pid=-1
     echo " freesurfer of subjet $BIDS_participant already done, skipping..."
         
 fi
@@ -308,6 +313,7 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
 else
 
+    dwiprep_pid=-1
     echo " KUL_dwiprep of participant $BIDS_participant already done, skipping..."
         
 fi
@@ -395,6 +401,115 @@ else
 fi
 
 }
+
+
+function WaitForTaskCompletion {
+    local pidsArray=${waitforpids[@]} # pids to wait for, separated by semi-colon
+    local procsArray=${waitforprocs[@]} # name of procs to wait for, separated by semi-colon
+    #local soft_max_time="${3}" # If execution takes longer than $soft_max_time seconds, will log a warning, unless $soft_max_time equals 0.
+    #local hard_max_time="${4}" # If execution takes longer than $hard_max_time seconds, will stop execution, unless $hard_max_time equals 0.
+    #local caller_name="${5}" # Who called this function
+    #local exit_on_error="${6:-false}" # Should the function exit program on subprocess errors       
+    local exit_on_error="false"
+
+    local soft_alert=0 # Does a soft alert need to be triggered, if yes, send an alert once 
+    local log_ttime=0 # local time instance for comparaison
+
+    local seconds_begin=$SECONDS # Seconds since the beginning of the script
+    local exec_time=0 # Seconds since the beginning of this function
+
+    local retval=0 # return value of monitored pid process
+    local errorcount=0 # Number of pids that finished with errors
+
+    local pidCount # number of given pids
+    local c # counter for pids/procsArray
+
+    pidCount=${#pidsArray[@]}
+    echo "pidCount: $pidCount"
+    echo "pidsArray: ${pidsArray[@]}"
+
+    while [ ${#pidsArray[@]} -gt 0 ]; do
+
+        newPidsArray=()
+        newProcsArray=()
+        c=0
+
+        for pid in "${pidsArray[@]}"; do
+
+            #echo "pid: $pid"
+            #echo "proc: ${procsArray[c]}"
+
+            if kill -0 $pid > /dev/null 2>&1; then
+                newPidsArray+=($pid)
+                #echo "newPidsArray: ${newPidsArray[@]}"
+                newProcsArray+=(${procsArray[c]})
+                #echo "newProcsArray: ${newProcsArray[@]}"
+
+            else
+
+                wait $pid
+                result=$?
+                #echo "result: $result"
+                if [ $result -ne 0 ]; then
+                    errorcount=$((errorcount+1))
+                    echo "  *** WARNING! **** Process ${procsArray[c]} with pid $pid FAILED (with exitcode [$result]). Check the log-file"
+                else
+                    echo "  Process ${procsArray[c]} with pid $pid finished successfully (with exitcode [$result])."
+                fi
+
+            fi
+
+            c=$((c+1))
+
+        done
+
+        ## Log a standby message every hour
+        every_time=1200
+        exec_time=$(($SECONDS - $seconds_begin))
+        if [ $((($exec_time + 1) % $every_time)) -eq 0 ]; then
+            if [ $log_ttime -ne $exec_time ]; then
+                log_ttime=$exec_time
+                log_min=$((log_ttime / 60))
+                echo "  Current tasks [${procsArray[@]}] still running after $log_min minutes with pids [${pidsArray[@]}]."
+            fi
+        fi
+
+        #if [ $exec_time -gt $soft_max_time ]; then
+        #    if [ $soft_alert -eq 0 ] && [ $soft_max_time -ne 0 ]; then
+        #        echo "Max soft execution time exceeded for task [$caller_name] with pids [${pidsArray[@]}]."
+        #        soft_alert=1
+        #        #SendAlert
+        #
+        #    fi
+        #    if [ $exec_time -gt $hard_max_time ] && [ $hard_max_time -ne 0 ]; then
+        #        echo "Max hard execution time exceeded for task [$caller_name] with pids [${pidsArray[@]}]. Stopping task execution."
+        #        #kill -SIGTERM $pid
+        #        if [ $? == 0 ]; then
+        #            echo "Task stopped successfully"
+        #        else
+        #            errrorcount=$((errorcount+1))
+        #        fi
+        #    fi
+        #fi
+
+        pidsArray=("${newPidsArray[@]}")
+        procsArray=("${newProcsArray[@]}")
+        sleep 1
+
+
+
+    done
+
+    echo "${FUNCNAME[0]} ended for [$caller_name] using [$pidCount] subprocesses with [$errorcount] errors."
+    if [ $exit_on_error == true ] && [ $errorcount -gt 0 ]; then
+        echo "Stopping execution."
+        exit 1337
+    else
+        return $errorcount
+    fi
+}
+
+
 
 # end of local function --------------
 
@@ -523,7 +638,7 @@ ncpu_fmriprep=$(((($ncpu/$load_fmriprep))+1))
 ncpu_fmriprep_ants=$(((($ncpu/$load_fmriprep))+1))
 
 # set number of cores for task freesurfer
-load_freesurfer=1
+load_freesurfer=2
 ncpu_freesurfer=$(((($ncpu/$load_freesurfer))+1))
 
 # set number of cores for task KUL_dwiprep
@@ -619,10 +734,36 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
         fi
 
         # wait for mriqc, fmriprep, freesurfer and KUL_dwiprep to finish
-        kul_e2cl " waiting for processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
-        wait $mriqc_pid $fmriprep_pid $dwiprep_pid $freesurfer_pid
+        waitforprocs=()
+        waitforpids=()
+        if [ $mriqc_pid -gt 0 ]; then
+            waitforprocs+=("mriqc")
+            waitforpids+=($mriqc_pid)
+        fi
+        if [ $fmriprep_pid -gt 0 ]; then
+            waitforprocs+=("fmriprep")
+            waitforpids+=($fmriprep_pid)
+        fi
+        if [ $freesurfer_pid -gt 0 ]; then
+            waitforprocs+=("freesurfer")
+            waitforpids+=($freesurfer_pid)
+        fi
+        if [ $dwiprep_pid -gt 0 ]; then
+            waitforprocs+=("dwiprep")
+            waitforpids+=($dwiprep_pid)
+        fi
+        
+        #echo ${waitforprocs[@]}
+        #echo ${waitforpids[@]}
+        
 
-        kul_e2cl " processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant have finished" $log
+        kul_e2cl " waiting for processes [${waitforprocs[@]}] for subject $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
+        WaitForTaskCompletion 
+        #$waitforpids $waitforprocs 0 0 test false
+        
+        #wait $mriqc_pid $fmriprep_pid $dwiprep_pid $freesurfer_pid
+
+        kul_e2cl " processes [${waitforprocs[@]}] for subject $BIDS_participant have finished" $log
 
         # clean up after jobs finished
         rm -fr ${cwd}/fmriprep_work
