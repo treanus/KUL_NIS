@@ -250,6 +250,67 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
     #echo $freesurfer_invol
     
+    # test for options
+    # -useflair
+    fs_use_flair=""
+    if [[ $freesurfer_options =~ "-useflair" ]]; then
+
+        echo "  Option -useflair given"
+
+        # search if any sessions exist
+        search_sessions_flair=($(find BIDS/sub-${BIDS_participant} -type f | grep FLAIR.nii.gz))
+        num_sessions_flair=${#search_sessions_flair[@]}
+
+        if [ $num_sessions_flair -gt 0 ]; then 
+        
+            echo "  Freesurfer processing: number of FLAIR data in the BIDS folder: $num_sessions_flair"
+            echo "    notably: ${search_sessions_flair[@]}"
+
+            # make the freesurfer input string
+            freesurfer_invol_flair=""
+            for i in `seq 0 $(($num_sessions-1))`; do
+    
+                freesurfer_invol_flair=" $freesurfer_invol_flair -FLAIR ${search_sessions_flair[$i]} "
+
+            done
+            fs_use_flair=" $freesurfer_invol_flair -FLAIRpial "
+        
+        fi
+
+        #echo $fs_use_flair
+
+    fi
+
+    # -useflair
+    fs_hippoT1T2=""
+    if [[ $freesurfer_options =~ "-hippocampal-subfields-T1T2" ]]; then
+
+        echo "  Option -hippocampal-subfields-T1T2 given"
+
+        # search if any FLAIR sessions exist
+        search_sessions_flair2=($(find BIDS/sub-${BIDS_participant} -type f | grep FLAIR.nii.gz))
+        num_sessions_flair2=${#search_sessions_flair[@]}
+
+        if [ $num_sessions_flair2 -gt 0 ]; then 
+        
+            echo "  Freesurfer processing: number of FLAIR data in the BIDS folder: $num_sessions_flair"
+            echo "    notably: ${search_sessions_flair[@]}"
+
+            # make the freesurfer input string
+            freesurfer_invol_flair2=""
+            for i in `seq 0 $(($num_sessions-1))`; do
+    
+                freesurfer_invol_flair2=" $freesurfer_invol_flair2 -hippocampal-subfields-T1T2 ${search_sessions_flair2[$i]} FLAIR-${i}"
+
+            done
+            fs_hippoT1T2=" $freesurfer_invol_flair2 -itkthreads $ncpu_freesurfer "
+        
+        fi
+
+        #echo $fs_hippoT1T2
+
+    fi
+
     mkdir -p freesurfer
 
     SUBJECTS_DIR=${cwd}/freesurfer/sub-${BIDS_participant}
@@ -259,7 +320,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     mkdir -p $SUBJECTS_DIR
     export SUBJECTS_DIR
 
-    local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol -all -openmp $ncpu_freesurfer \
+    local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol $fs_use_flair $fs_hippoT1T2 -all -openmp $ncpu_freesurfer \
  -parallel > $freesurfer_log 2>&1 ")
 
     echo "   using cmd: $task_freesurfer_cmd"
@@ -709,6 +770,11 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
         
         fi
 
+        # reset pids
+        mriqc_pid=-1
+        fmriprep_pid=-1
+        freesurfer_pid=-1
+        dwiprep_pid=-1
 
         if [ $do_mriqc -eq 1 ]; then
             
