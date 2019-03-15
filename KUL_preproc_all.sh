@@ -5,8 +5,6 @@
 # v0.2a - dd 12/12/2018 - preparing for beta release 0.2
 v="v0.2 - dd 19/12/2018"
 
-freesurfer_license=/KUL_apps/freesurfer/license.txt
-
 # This is the main script of the KUL_NeuroImaging_Toools
 #
 # Description:
@@ -686,6 +684,16 @@ fi
 # set mem_mb for mriqc
 gb=1024
 mem_mb=$(echo $mem_gb $gb | awk '{print $1 * $2 }')
+
+# freesurfer license (check if set as environent variable, if not set hard coded)
+if [ -z $freesurfer_license ]; then
+
+    echo "  freesurfer_license was not found; setting it hard to /KUL_apps/freesurfer/license.txt"
+    freesurfer_license=/KUL_apps/freesurfer/license.txt
+
+else
+    echo "  freesurfer_license was set before (notably: $freesurfer_license)"
+fi
 
 # ---------- PROCESS CONTROL & LOAD BALANCING --------
 # We will be running 4 preprocessings in parallel: mriqc, fmriprep, freesurfer & KUL_dwiprep
