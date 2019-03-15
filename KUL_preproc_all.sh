@@ -201,11 +201,11 @@ if [ ! -f $fmriprep_file_to_check ]; then
     if [ $fmriprep_singularity -eq 1 ]; then 
 
  local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
- -B ${cwd}/fmriprep_work:/work \
+ -B ./fmriprep_work:/work \
  -B ${freesurfer_license}:/opt/freesurfer/license.txt \
  $KUL_fmriprep_singularity \
- ${cwd}/${bids_dir} \
- ${cwd} \
+ ./${bids_dir} \
+ . \
  participant \
  --participant_label ${BIDS_participant} \
  -w /work \
