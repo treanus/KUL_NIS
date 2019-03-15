@@ -46,12 +46,12 @@ function kul_e2cl {
 
 }
 
-machine_type=$(uname -n)
-#echo $machine_type
+machine_type=$(uname)
+echo $machine_type
 
-if [ $machine_type = "login2" ]; then
+if [ $machine_type = "Linux" ]; then
 
-    echo "You are using the VSC and we assume that you loaded all modules correctly"
+    echo "You are using Linux (probably the VSC) and we assume that you kno what you are doing (loaded all modules correctly)"
 
 else
 
