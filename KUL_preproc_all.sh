@@ -176,11 +176,47 @@ function task_fmriprep {
 # check if already performed fmriprep
 fmriprep_file_to_check=fmriprep/sub-${BIDS_participant}.html
 
+# check whether to use singularity-fmriprep
+fmriprep_singularity=0
+echo $KUL_use_fmriprep_singularity
+if [ -z $KUL_use_fmriprep_singularity ]; then
+
+    echo "  KUL_use_fmriprep_singularity not set, using docker"
+    
+elif [ $KUL_use_fmriprep_singularity -eq 1 ]; then
+    
+    echo "  KUL_use_fmriprep_singularity is set to 1, using it"
+    fmriprep_singularity=1
+
+fi
+
+echo $fmriprep_singularity
+
 if [ ! -f $fmriprep_file_to_check ]; then
 
     fmriprep_log=${preproc}/log/fmriprep/${BIDS_participant}.txt
 
     kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
+
+    if [ $fmriprep_singularity -eq 1 ]; then 
+
+ local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
+ -B ${cwd}/fmriprep_work:/work \
+ -B ${freesurfer_license}:/opt/freesurfer/license.txt \
+ $KUL_fmriprep_singularity \
+ ${cwd}/${bids_dir} \
+ ${cwd} \
+ participant \
+ --participant_label ${BIDS_participant} \
+ -w /work \
+ --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
+ --mem_mb $mem_mb \
+ --fs-no-reconall \
+ $fmriprep_options \
+ --notrack \
+ > $fmriprep_log  2>&1") 
+
+    else
 
     local task_fmriprep_cmd=$(echo "docker run --rm \
  -v ${cwd}/${bids_dir}:/data \
@@ -198,6 +234,8 @@ if [ ! -f $fmriprep_file_to_check ]; then
  /data /out \
  participant \
  > $fmriprep_log  2>&1") 
+
+    fi
 
     echo "   using cmd: $task_fmriprep_cmd"
 
@@ -584,7 +622,7 @@ function WaitForTaskCompletion {
 # Set some defaults
 silent=1
 ncpu=6
-mem_gb=16
+mem_gb=24
 bids_dir=BIDS
 tmp=/tmp
 
@@ -681,7 +719,7 @@ if [ $silent -eq 0 ]; then
 fi
 
 # ---------- SET MAIN DEFAULTS ---
-# set mem_mb for mriqc
+# set mem_mb for mriqc/fmriprep
 gb=1024
 mem_mb=$(echo $mem_gb $gb | awk '{print $1 * $2 }')
 
