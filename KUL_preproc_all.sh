@@ -686,13 +686,16 @@ gb=1024
 mem_mb=$(echo $mem_gb $gb | awk '{print $1 * $2 }')
 
 # freesurfer license (check if set as environent variable, if not set hard coded)
-if [ -z $freesurfer_license ]; then
+if [ -z $FS_LICENSE ]; then
 
     echo "  freesurfer_license was not found; setting it hard to /KUL_apps/freesurfer/license.txt"
     freesurfer_license=/KUL_apps/freesurfer/license.txt
 
 else
+    
+    freesurfer_license=$FS_LICENSE
     echo "  freesurfer_license was set before (notably: $freesurfer_license)"
+    
 fi
 
 # ---------- PROCESS CONTROL & LOAD BALANCING --------
