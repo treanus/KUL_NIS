@@ -416,12 +416,15 @@ if [ ! -f dwi/geomcorr.mif ]; then
 
     temp_dir=$(ls -d dwipreproc*)
 
-    machine_type=$(uname)
-    echo $machine_type
+    # check id eddy_quad is available
+    #machine_type=$(uname)
+    #echo $machine_type
+    test_eddy_quad=$(command -v eddy_quad)
+    echo $test_eddy_quad
 
-    if [ $machine_type = "Linux" ]; then
+    if [ $test_eddy_quad = "" ]; then
 
-        echo "You are using Linux (probably the VSC) and we skip eddy_quad (VSC does not have it yet)"
+        echo "You are probably on the VSC and we skip eddy_quad (which was not found in the path)"
 
     else
 
