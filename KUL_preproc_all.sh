@@ -319,7 +319,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
     fi
 
-    # -useflair
+    # -fs_hippoT1T2
     fs_hippoT1T2=""
     if [[ $freesurfer_options =~ "-hippocampal-subfields-T1T2" ]]; then
 
