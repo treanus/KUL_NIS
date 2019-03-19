@@ -503,6 +503,33 @@ fi
 
 }
 
+# A Function to start KUL_dwiprep_fibertract processing
+function task_KUL_dwiprep_fibertract {
+
+# check if already performed KUL_dwiprep_drtdbs
+dwiprep_fibertract_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_fibertract_is_done.log
+
+if [ ! -f  $dwiprep_fibertract_file_to_check ]; then
+
+    dwiprep_fibertract_log=${preproc}/log/dwiprep/dwiprep_fibertract_${BIDS_participant}.txt
+
+    kul_e2cl " performing KUL_dwiprep_fibertract on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_fibertract_log)" ${log}
+
+    local task_dwiprep_fibertract_cmd=$(echo "KUL_dwiprep_fibertract.sh -p ${BIDS_participant} -n $ncpu -v \
+        -c $study_config/tracto_tracts.csv  -r $study_config/tracto_rois.csv \
+    > $dwiprep_fibertract_log 2>&1 ")
+
+    echo "   using cmd: $task_dwiprep_fibertract_cmd"
+    
+    eval $task_dwiprep_fibertract_cmd
+
+else
+
+    echo " KUL_dwiprep_fibertract of subjet $BIDS_participant already done, skipping..."
+        
+fi
+
+}
 
 function WaitForTaskCompletion {
     local pidsArray=${waitforpids[@]} # pids to wait for, separated by semi-colon
@@ -788,7 +815,7 @@ rm -fr ${cwd}/fmriprep_work
 
 
 # we read the config file (and it may be csv, tsv or ;-seperated)
-while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_drtdbs drtdbs_options; do
+while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_fibertract; do
     
     
     if [ "$BIDS_participant" = "BIDS_participant" ]; then
@@ -819,7 +846,7 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
             echo "    do_dwiprep_anat: $do_dwiprep_anat"
             echo "    anat_options: $anat_options"
             echo "    do_dwiprep_drtdbs: $do_dwiprep_drtdbs"
-            echo "    drtdbs_options: $drtdbs_options"
+            #echo "    drtdbs_options: $drtdbs_options"
         
         fi
 
@@ -909,10 +936,10 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
         # task_KUL_mrtix_wb_tckgen # needs to be made
         # task_KUL_mrtrix_tractsegment # needs to be made
         
-        # continue with KUL_dwiprep_drtdbs
-        if [ $do_dwiprep_drtdbs -eq 1 ]; then
+        # continue with KUL_dwiprep_fibertract
+        if [ $do_dwiprep_fibertract -eq 1 ]; then
             
-            task_KUL_dwiprep_drtdbs
+            task_KUL_dwiprep_fibertract
 
         fi
 
