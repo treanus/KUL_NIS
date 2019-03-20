@@ -11,6 +11,7 @@ v="v0.2 - dd 21/12/2018"
 # TODO
 #  - make it work for multiple vendors
 #  - wrap around for multiple subjects
+# - add if loop dealing with multiecho data
 
 
 
