@@ -473,7 +473,7 @@ kul_e2cl "  uncompressing the zip file $dcm to $tmp/$subj" $log
 mkdir -p ${tmp}/$subj
 
 # Check the extention of the archive
-arch_ext="${dcm#*.}"
+arch_ext="${dcm##*.}"
 #echo $arch_ext
 
 if [ $arch_ext = "zip" ]; then 
@@ -485,6 +485,7 @@ else
     tar --strip-components=5 -C ${tmp}/$subj -xzf ${dcm}
 
 fi
+
 
 # dump the dicom tags of all dicoms in a file
 kul_e2cl "  brute force extraction of some relevant dicom tags of all dicom files of subject $subj into file $dump_file" $log
