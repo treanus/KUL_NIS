@@ -2,7 +2,10 @@
 
 # set -x
 
-# @ Ahmed Radwan & Stefan Sunaert ahmed.radwan@kuleuven.be # # v 1.0 - dd 20/03/2019 - dev Alpha
+# Ahmed Radwan ahmed.radwan@kuleuven.be
+# Stefan Sunaert  stefan.sunaert@kuleuven.be
+
+# # v 1.0 - dd 20/03/2019 - dev Alpha
 
 
 
@@ -1301,5 +1304,4 @@ fi
 	   echo " execution took " ${run_time_m} " minutes, or approximately " ${run_time_h} " hours. "
 
 done
-
 
