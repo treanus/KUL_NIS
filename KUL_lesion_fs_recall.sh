@@ -2,8 +2,10 @@
 
 # set -x
 
-# @ Ahmed Radwan ahmed.radwan@kuleuven.be # # v 1.0 - dd 20/03/2019 - dev (Alpha)
-# @ Stefan Sunaert stefan.sunaert@kuleuven.be
+# Ahmed Radwan ahmed.radwan@kuleuven.be
+# Stefan Sunaert  stefan.sunaert@kuleuven.be
+
+# # v 1.0 - dd 20/03/2019 - dev Alpha
 
 
 
@@ -15,13 +17,10 @@ v="1.0 - dd 20/03/2019"
 # should be followed by a loop calculating overlap between fake labels resulting from sham brain with actual lesion 
 #  To do: # 
 # - A similar approach for bilateral lesions could still work, using a population template perhaps ?
-# - make sure there is only one of each modality in the BIDS folder, since we're not using a BIDS validator
-# - add longitudinal option
-# - add MNI images as input to recon-all also
-# - test -a -t -f options without -b
-# - test -s option in presence of multiple sessions
-# - add N4 bias correction
-# - improve lesion fill patch match to native brain (elastic reg ?)
+# - improve lesion fill patch ( elastic registration ?)
+# - Use also MNI space images in recon-all
+# - add N4 bias correction to MNI space images
+# - test -a -t -f and -s flags
 
 
 
@@ -406,7 +405,7 @@ function_path=($(which KUL_lesion_fs_recall.sh | rev | cut -d"/" -f2- | rev))
 # REST OF SETTINGS ---
 
 # timestamp
-start=$(date +%s)
+start_t=$(date +%s)
 
 # Some parallelisation
 
@@ -439,21 +438,21 @@ log=log/log_${d}.txt;
 # need to use multiple templates here...
 # will need to include a folder with priors
 
-MNI_T1=${function_path}/Templates/MNI_T1.nii.gz
+MNI_T1=${function_path}/atlasses/Templates/MNI_T1.nii.gz
 
-MNI_T1_brain=${function_path}/Templates/MNI_T1_brain.nii.gz
+MNI_T1_brain=${function_path}/atlasses/Templates/MNI_T1_brain.nii.gz
 
-MNI_T2=${function_path}/Templates/MNI_T2.nii.gz
+# MNI_T2=${function_path}/atlasses/Templates/MNI_T2.nii.gz
 
-MNI_T2_brain=${function_path}/Templates/MNI_T2_brain.nii.gz
+MNI_T2_brain=${function_path}/atlasses/Templates/MNI_T2_brain.nii.gz
 
-MNI_FLAIR=${function_path}/Templates/MNI_FLAIR.nii.gz
+# MNI_FLAIR=${function_path}/atlasses/Templates/MNI_FLAIR.nii.gz
 
-MNI_FLAIR_brain=${function_path}/Templates/MNI_FLAIR_brain.nii.gz
+MNI_FLAIR_brain=${function_path}/atlasses/Templates/MNI_FLAIR_brain.nii.gz
 
-MNI_brain_mask=${function_path}/Templates/MNI_brain_mask.nii.gz
+MNI_brain_mask=${function_path}/atlasses/Templates/MNI_brain_mask.nii.gz
 
-MNI_rl=${function_path}/Templates/MNI_RL1c_labels.nii.gz
+MNI_rl=${function_path}/atlasses/Templates/MNI_RL1c_labels.nii.gz
 
 # Either a session is given on the command line
 # If not the session(s) need to be determined.
@@ -1292,11 +1291,17 @@ fi
 
 	   done
 	   
-	   end=$(date +%s)
-	   
-	   echo $start
-	   echo $end
+
+	   	sleep 1
+	   	finish_t=$(date +%s)
+		echo ${start}
+	   	echo ${finish}
+
+	   	run_time_s=($(echo "scale=4; (${finish_t}-${start_t})" | bc ))
+	   	run_time_m=($(echo "scale=4; (${run_time_s}/60)" | bc ))
+	   	run_time_h=($(echo "scale=4; (${run_time_m}/60)" | bc ))
+
+	   echo " execution took " ${run_time_m} " minutes, or approximately " ${run_time_h} " hours. "
 
 done
-
 
