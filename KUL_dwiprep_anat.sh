@@ -202,7 +202,7 @@ fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-preproc_T1w.nii.gz"
 fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-brain_mask.nii.gz"
 ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
 
-# bet the T1w using ants
+# bet the T1w using fmriprep data
 if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
     kul_e2cl " skull stripping the T1w from fmriprep..." $log
 
@@ -253,6 +253,10 @@ if [ ! -f response/wmfod_reg2T1w.mif ]; then
 
 fi
 
+# create mask of the dwi data (that is regeistered to the T1w)
+kul_e2cl "    creating mask of the dwi_preproces_reg2T1w data..." ${log}
+dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
+
 # DO QA ---------------------------------------------
 # Make an FA/dec image
 
@@ -270,6 +274,36 @@ if [ ! -f qa/dec_reg2T1w.mif ]; then
     fod2dec response/wmfod_reg2T1w.mif qa/dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
 
 fi
+
+# 5TT segmentation using freesurfer data ---------------------------------
+
+# Where is the freesurfer parcellation? 
+fs_aparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/aparc+aseg.mgz
+
+# Convert FS aparc back to original space
+mkdir -p roi
+fs_labels=roi/labels_from_FS.nii.gz
+mri_convert -rl $ants_anat -rt nearest $fs_aparc $fs_labels
+
+# 5tt segmentation & tracking
+mkdir -p 5tt
+
+if [ ! -f 5tt/5tt2gmwmi.nii.gz ]; then
+
+    kul_e2cl " Performig 5tt..." ${log}
+    #5ttgen fsl $ants_anat 5tt/5ttseg.mif -premasked -nocrop -force -nthreads $ncpu 
+    #5ttgen freesurfer $fs_aparc 5tt/5ttseg.mif -nocrop -force -nthreads $ncpu
+    5ttgen freesurfer $fs_labels 5tt/5ttseg.mif -nocrop -force -nthreads $ncpu
+    
+    5ttcheck -masks 5tt/failed_5tt 5tt/5ttseg.mif -force -nthreads $ncpu 
+    5tt2gmwmi 5tt/5ttseg.mif 5tt/5tt2gmwmi.nii.gz -force 
+
+else
+
+    echo " 5tt already done, skipping..."
+
+fi
+
 
 echo " Finished processing $bids_subj" 
 # ---- END of the BIG loop over sessions
