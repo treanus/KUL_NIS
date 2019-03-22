@@ -402,7 +402,7 @@ function_path=($(which KUL_lesion_fs_recall.sh | rev | cut -d"/" -f2- | rev))
 # REST OF SETTINGS ---
 
 # timestamp
-start=$(date +%s)
+start_t=$(date +%s)
 
 # Some parallelisation
 
@@ -1288,11 +1288,15 @@ fi
 
 	   done
 	   
+
+	   	sleep 1
+	   	finish_t=$(date +%s)
 		echo ${start}
-	   	echo ${end}
-	   	run_time_s=$((end-start))
-	   	run_time_m=$((run_time_s/60))
-	   	run_tume_h=$((run_time_m/60))
+	   	echo ${finish}
+
+	   	run_time_s=($(echo "scale=4; (${finish_t}-${start_t})" | bc ))
+	   	run_time_m=($(echo "scale=4; (${run_time_s}/60)" | bc ))
+	   	run_time_h=($(echo "scale=4; (${run_time_m}/60)" | bc ))
 
 	   echo " execution took " ${run_time_m} " minutes, or approximately " ${run_time_h} " hours. "
 
