@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # @ Stefan Sunaert & Ahmed Radwan- UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 06/11/2018 - alpha version
@@ -163,8 +163,7 @@ if [ ! -d $mriqc_dir_to_check ]; then
     #kul_e2cl "   done mriqc on participant $BIDS_participant" $log
 
 else
-
-    mriqc_pid=-1    
+        
     echo " mriqc of participant $BIDS_participant already done, skipping..."
 
 fi
@@ -188,7 +187,7 @@ if [ ! -f $fmriprep_file_to_check ]; then
  -v ${cwd}/${bids_dir}:/data \
  -v ${cwd}:/out \
  -v ${cwd}/fmriprep_work:/scratch \
- -v ${freesurfer_license}:/opt/freesurfer/license.txt \
+ -v /KUL_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
  poldracklab/fmriprep:latest \
  --participant_label ${BIDS_participant} \
  -w /scratch \
@@ -213,8 +212,7 @@ if [ ! -f $fmriprep_file_to_check ]; then
     #kul_e2cl "   done fmriprep on participant $BIDS_participant" $log
 
 else
-
-    fmriprep_pid=-1    
+        
     echo " fmriprep of participant $BIDS_participant already done, skipping..."
 
 fi
@@ -250,67 +248,6 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
     #echo $freesurfer_invol
     
-    # test for options
-    # -useflair
-    fs_use_flair=""
-    if [[ $freesurfer_options =~ "-useflair" ]]; then
-
-        echo "  Option -useflair given"
-
-        # search if any sessions exist
-        search_sessions_flair=($(find BIDS/sub-${BIDS_participant} -type f | grep FLAIR.nii.gz))
-        num_sessions_flair=${#search_sessions_flair[@]}
-
-        if [ $num_sessions_flair -gt 0 ]; then 
-        
-            echo "  Freesurfer processing: number of FLAIR data in the BIDS folder: $num_sessions_flair"
-            echo "    notably: ${search_sessions_flair[@]}"
-
-            # make the freesurfer input string
-            freesurfer_invol_flair=""
-            for i in `seq 0 $(($num_sessions-1))`; do
-    
-                freesurfer_invol_flair=" $freesurfer_invol_flair -FLAIR ${search_sessions_flair[$i]} "
-
-            done
-            fs_use_flair=" $freesurfer_invol_flair -FLAIRpial "
-        
-        fi
-
-        #echo $fs_use_flair
-
-    fi
-
-    # -useflair
-    fs_hippoT1T2=""
-    if [[ $freesurfer_options =~ "-hippocampal-subfields-T1T2" ]]; then
-
-        echo "  Option -hippocampal-subfields-T1T2 given"
-
-        # search if any FLAIR sessions exist
-        search_sessions_flair2=($(find BIDS/sub-${BIDS_participant} -type f | grep FLAIR.nii.gz))
-        num_sessions_flair2=${#search_sessions_flair[@]}
-
-        if [ $num_sessions_flair2 -gt 0 ]; then 
-        
-            echo "  Freesurfer processing: number of FLAIR data in the BIDS folder: $num_sessions_flair"
-            echo "    notably: ${search_sessions_flair[@]}"
-
-            # make the freesurfer input string
-            freesurfer_invol_flair2=""
-            for i in `seq 0 $(($num_sessions-1))`; do
-    
-                freesurfer_invol_flair2=" $freesurfer_invol_flair2 -hippocampal-subfields-T1T2 ${search_sessions_flair2[$i]} FLAIR-${i}"
-
-            done
-            fs_hippoT1T2=" $freesurfer_invol_flair2 -itkthreads $ncpu_freesurfer "
-        
-        fi
-
-        #echo $fs_hippoT1T2
-
-    fi
-
     mkdir -p freesurfer
 
     SUBJECTS_DIR=${cwd}/freesurfer/sub-${BIDS_participant}
@@ -320,7 +257,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     mkdir -p $SUBJECTS_DIR
     export SUBJECTS_DIR
 
-    local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol $fs_use_flair $fs_hippoT1T2 -all -openmp $ncpu_freesurfer \
+    local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol -all -openmp $ncpu_freesurfer \
  -parallel > $freesurfer_log 2>&1 ")
 
     echo "   using cmd: $task_freesurfer_cmd"
@@ -335,7 +272,6 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
 else
 
-    freesurfer_pid=-1
     echo " freesurfer of subjet $BIDS_participant already done, skipping..."
         
 fi
@@ -374,7 +310,6 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
 else
 
-    dwiprep_pid=-1
     echo " KUL_dwiprep of participant $BIDS_participant already done, skipping..."
         
 fi
@@ -410,30 +345,6 @@ fi
 }
 
 
-# A Function to start KUL_dwiprep_MNI processing
-function task_KUL_dwiprep_MNI {
-
-# check if already performed KUL_dwiprep_MNI
-dwiprep_MNI_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_MNI_is_done.log
-
-if [ ! -f  $dwiprep_MNI_file_to_check ]; then
-
-    dwiprep_MNI_log=${preproc}/log/dwiprep/dwiprep_MNI_${BIDS_participant}.txt
-
-    kul_e2cl " performing KUL_dwiprep_MNI on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_MNI_log)" ${log}
-
-    KUL_dwiprep_MNI.sh -p ${BIDS_participant} -n $ncpu -v \
-        > $dwiprep_MNI_log 2>&1 
-
-    kul_e2cl "   done KUL_dwiprep_MNI on participant $BIDS_participant" $log
-
-else
-
-    echo " KUL_dwiprep_MNI of subjet $BIDS_participant already done, skipping..."
-        
-fi
-
-}
 
 
 # A Function to start KUL_dwiprep_drtdbs processing
@@ -462,116 +373,6 @@ else
 fi
 
 }
-
-
-function WaitForTaskCompletion {
-    local pidsArray=${waitforpids[@]} # pids to wait for, separated by semi-colon
-    local procsArray=${waitforprocs[@]} # name of procs to wait for, separated by semi-colon
-    #local soft_max_time="${3}" # If execution takes longer than $soft_max_time seconds, will log a warning, unless $soft_max_time equals 0.
-    #local hard_max_time="${4}" # If execution takes longer than $hard_max_time seconds, will stop execution, unless $hard_max_time equals 0.
-    #local caller_name="${5}" # Who called this function
-    #local exit_on_error="${6:-false}" # Should the function exit program on subprocess errors       
-    local exit_on_error="false"
-
-    local soft_alert=0 # Does a soft alert need to be triggered, if yes, send an alert once 
-    local log_ttime=0 # local time instance for comparaison
-
-    local seconds_begin=$SECONDS # Seconds since the beginning of the script
-    local exec_time=0 # Seconds since the beginning of this function
-
-    local retval=0 # return value of monitored pid process
-    local errorcount=0 # Number of pids that finished with errors
-
-    local pidCount # number of given pids
-    local c # counter for pids/procsArray
-
-    pidCount=${#pidsArray[@]}
-    echo "  pidCount: $pidCount"
-    echo "  pidsArray: ${pidsArray[@]}"
-
-    while [ ${#pidsArray[@]} -gt 0 ]; do
-
-        newPidsArray=()
-        newProcsArray=()
-        c=0
-
-        for pid in "${pidsArray[@]}"; do
-
-            #echo "pid: $pid"
-            #echo "proc: ${procsArray[c]}"
-
-            if kill -0 $pid > /dev/null 2>&1; then
-                newPidsArray+=($pid)
-                #echo "newPidsArray: ${newPidsArray[@]}"
-                newProcsArray+=(${procsArray[c]})
-                #echo "newProcsArray: ${newProcsArray[@]}"
-
-            else
-
-                wait $pid
-                result=$?
-                #echo "result: $result"
-                if [ $result -ne 0 ]; then
-                    errorcount=$((errorcount+1))
-                    echo "  *** WARNING! **** Process ${procsArray[c]} with pid $pid FAILED (with exitcode [$result]). Check the log-file"
-                else
-                    echo "  Process ${procsArray[c]} with pid $pid finished successfully (with exitcode [$result])."
-                fi
-
-            fi
-
-            c=$((c+1))
-
-        done
-
-        ## Log a standby message every hour
-        every_time=1200
-        exec_time=$(($SECONDS - $seconds_begin))
-        if [ $((($exec_time + 1) % $every_time)) -eq 0 ]; then
-            if [ $log_ttime -ne $exec_time ]; then
-                log_ttime=$exec_time
-                log_min=$((log_ttime / 60))
-                echo "  Current tasks [${procsArray[@]}] still running after $log_min minutes with pids [${pidsArray[@]}]."
-            fi
-        fi
-
-        #if [ $exec_time -gt $soft_max_time ]; then
-        #    if [ $soft_alert -eq 0 ] && [ $soft_max_time -ne 0 ]; then
-        #        echo "Max soft execution time exceeded for task [$caller_name] with pids [${pidsArray[@]}]."
-        #        soft_alert=1
-        #        #SendAlert
-        #
-        #    fi
-        #    if [ $exec_time -gt $hard_max_time ] && [ $hard_max_time -ne 0 ]; then
-        #        echo "Max hard execution time exceeded for task [$caller_name] with pids [${pidsArray[@]}]. Stopping task execution."
-        #        #kill -SIGTERM $pid
-        #        if [ $? == 0 ]; then
-        #            echo "Task stopped successfully"
-        #        else
-        #            errrorcount=$((errorcount+1))
-        #        fi
-        #    fi
-        #fi
-
-        pidsArray=("${newPidsArray[@]}")
-        procsArray=("${newProcsArray[@]}")
-        sleep 1
-
-
-
-    done
-
-    #echo "${FUNCNAME[0]} ended for [$caller_name] using [$pidCount] subprocesses with [$errorcount] errors."
-    #if [ $exit_on_error == true ] && [ $errorcount -gt 0 ]; then
-    #    echo "Stopping execution."
-    #    exit 1337
-    #else
-    #    return $errorcount
-    #fi
-
-}
-
-
 
 # end of local function --------------
 
@@ -700,7 +501,7 @@ ncpu_fmriprep=$(((($ncpu/$load_fmriprep))+1))
 ncpu_fmriprep_ants=$(((($ncpu/$load_fmriprep))+1))
 
 # set number of cores for task freesurfer
-load_freesurfer=2
+load_freesurfer=1
 ncpu_freesurfer=$(((($ncpu/$load_freesurfer))+1))
 
 # set number of cores for task KUL_dwiprep
@@ -735,16 +536,30 @@ rm -fr ${cwd}/fmriprep_work
 
 
 # we read the config file (and it may be csv, tsv or ;-seperated)
-while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_drtdbs drtdbs_options; do
+while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_drtdbs drtdbs_options; do
     
     
-    if [ "$BIDS_participant" = "BIDS_participant" ]; then
+    if [ "$dicom_zip" = "dicom_zip" ]; then
         
         echo "first line" > /dev/null 2>&1
 
     else
 
         kul_e2cl "Performing preprocessing of subject $BIDS_participant... " $log
+
+        # check if already performed dcm2bids
+        dcm2bids_dir_to_check=BIDS/sub-${BIDS_participant}
+        
+        if [ ! -d  $dcm2bids_dir_to_check ]; then
+
+            kul_e2cl " Converting dicom to BIDS for subject $BIDS_participant... " $log
+            KUL_dcm2bids.sh -p ${BIDS_participant} -d ${dicom_zip} -c ${config_file} -o BIDS -v
+        
+        else
+
+            echo " BIDS conversion for subject $BIDS_participant already done, skipping... "
+
+        fi
         
         kul_e2cl " Now starting (depending on your config-file) mriqc, fmriprep, freesurfer and KUL_dwiprep... " $log
         echo "   note: further processing with KUL_dwiprep_anat, KUL_dwiprep_drtdbs depend on fmriprep, freesurfer and KUL_dwiprep (which need to run fully)"
@@ -753,6 +568,9 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
             
             echo "  if this script fails, please check your configuration file (given to -c); for now this was what was defined:"
             echo "    BIDS_participant: $BIDS_participant"
+            echo "    EAD: $EAD"
+            echo "    dicom_zip: $dicom_zip"
+            echo "    config_file: $config_file"
             echo "    do_mriqc: $do_mriqc"
             echo "    mriqc_options: $mriqc_options"
             echo "    do_fmriprep: $do_fmriprep"
@@ -770,11 +588,6 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
         
         fi
 
-        # reset pids
-        mriqc_pid=-1
-        fmriprep_pid=-1
-        freesurfer_pid=-1
-        dwiprep_pid=-1
 
         if [ $do_mriqc -eq 1 ]; then
             
@@ -801,36 +614,10 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
         fi
 
         # wait for mriqc, fmriprep, freesurfer and KUL_dwiprep to finish
-        waitforprocs=()
-        waitforpids=()
-        if [ $mriqc_pid -gt 0 ]; then
-            waitforprocs+=("mriqc")
-            waitforpids+=($mriqc_pid)
-        fi
-        if [ $fmriprep_pid -gt 0 ]; then
-            waitforprocs+=("fmriprep")
-            waitforpids+=($fmriprep_pid)
-        fi
-        if [ $freesurfer_pid -gt 0 ]; then
-            waitforprocs+=("freesurfer")
-            waitforpids+=($freesurfer_pid)
-        fi
-        if [ $dwiprep_pid -gt 0 ]; then
-            waitforprocs+=("dwiprep")
-            waitforpids+=($dwiprep_pid)
-        fi
-        
-        #echo ${waitforprocs[@]}
-        #echo ${waitforpids[@]}
-        
+        kul_e2cl " waiting for processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
+        wait $mriqc_pid $fmriprep_pid $dwiprep_pid $freesurfer_pid
 
-        kul_e2cl " waiting for processes [${waitforprocs[@]}] for subject $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
-        WaitForTaskCompletion 
-        #$waitforpids $waitforprocs 0 0 test false
-        
-        #wait $mriqc_pid $fmriprep_pid $dwiprep_pid $freesurfer_pid
-
-        kul_e2cl " processes [${waitforprocs[@]}] for subject $BIDS_participant have finished" $log
+        kul_e2cl " processes mriqc, fmriprep, freesurfer and KUL_dwiprep for subject $BIDS_participant have finished" $log
 
         # clean up after jobs finished
         rm -fr ${cwd}/fmriprep_work
@@ -846,11 +633,8 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
         if [ $do_dwiprep_anat -eq 1 ]; then
 
             task_KUL_dwiprep_anat
-            task_KUL_dwiprep_MNI
 
         fi 
-
-        
 
         # Here we could also have some whole brain tractography processing e.g.
         # task_KUL_mrtix_wb_tckgen # needs to be made
