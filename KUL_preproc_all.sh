@@ -5,6 +5,8 @@
 # v0.2a - dd 12/12/2018 - preparing for beta release 0.2
 v="v0.2 - dd 19/12/2018"
 
+freesurfer_license=/KUL_apps/freesurfer/license.txt
+
 # This is the main script of the KUL_NeuroImaging_Toools
 #
 # Description:
