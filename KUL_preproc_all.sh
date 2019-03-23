@@ -5,6 +5,8 @@
 # v0.2a - dd 12/12/2018 - preparing for beta release 0.2
 v="v0.2 - dd 19/12/2018"
 
+freesurfer_license=/KUL_apps/freesurfer/license.txt
+
 # This is the main script of the KUL_NeuroImaging_Toools
 #
 # Description:
@@ -176,49 +178,11 @@ function task_fmriprep {
 # check if already performed fmriprep
 fmriprep_file_to_check=fmriprep/sub-${BIDS_participant}.html
 
-# check whether to use singularity-fmriprep
-fmriprep_singularity=0
-echo $KUL_use_fmriprep_singularity
-if [ -z $KUL_use_fmriprep_singularity ]; then
-
-    echo "  KUL_use_fmriprep_singularity not set, using docker"
-    
-elif [ $KUL_use_fmriprep_singularity -eq 1 ]; then
-    
-    echo "  KUL_use_fmriprep_singularity is set to 1, using it"
-    fmriprep_singularity=1
-
-fi
-
-echo $fmriprep_singularity
-
 if [ ! -f $fmriprep_file_to_check ]; then
 
     fmriprep_log=${preproc}/log/fmriprep/${BIDS_participant}.txt
 
     kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
-
-    if [ $fmriprep_singularity -eq 1 ]; then 
-
-        mkdir -p ./fmriprep_work
-        
- local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
- -B ./fmriprep_work:/work \
- -B ${freesurfer_license}:/opt/freesurfer/license.txt \
- $KUL_fmriprep_singularity \
- ./${bids_dir} \
- . \
- participant \
- --participant_label ${BIDS_participant} \
- -w /work \
- --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
- --mem_mb $mem_mb \
- --fs-no-reconall \
- $fmriprep_options \
- --notrack \
- > $fmriprep_log  2>&1") 
-
-    else
 
     local task_fmriprep_cmd=$(echo "docker run --rm \
  -v ${cwd}/${bids_dir}:/data \
@@ -236,8 +200,6 @@ if [ ! -f $fmriprep_file_to_check ]; then
  /data /out \
  participant \
  > $fmriprep_log  2>&1") 
-
-    fi
 
     echo "   using cmd: $task_fmriprep_cmd"
 
@@ -319,7 +281,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
     fi
 
-    # -fs_hippoT1T2
+    # -useflair
     fs_hippoT1T2=""
     if [[ $freesurfer_options =~ "-hippocampal-subfields-T1T2" ]]; then
 
@@ -357,11 +319,9 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     rm -rf $SUBJECTS_DIR
     mkdir -p $SUBJECTS_DIR
     export SUBJECTS_DIR
-    notify_file=${SUBJECT_DIR}.done
 
-    local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol \
-        $fs_use_flair $fs_hippoT1T2 -all -openmp $ncpu_freesurfer \
-        -parallel -notify $notify_file > $freesurfer_log 2>&1 ")
+    local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol $fs_use_flair $fs_hippoT1T2 -all -openmp $ncpu_freesurfer \
+ -parallel > $freesurfer_log 2>&1 ")
 
     echo "   using cmd: $task_freesurfer_cmd"
 
@@ -503,33 +463,6 @@ fi
 
 }
 
-# A Function to start KUL_dwiprep_fibertract processing
-function task_KUL_dwiprep_fibertract {
-
-# check if already performed KUL_dwiprep_drtdbs
-dwiprep_fibertract_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_fibertract_is_done.log
-
-if [ ! -f  $dwiprep_fibertract_file_to_check ]; then
-
-    dwiprep_fibertract_log=${preproc}/log/dwiprep/dwiprep_fibertract_${BIDS_participant}.txt
-
-    kul_e2cl " performing KUL_dwiprep_fibertract on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_fibertract_log)" ${log}
-
-    local task_dwiprep_fibertract_cmd=$(echo "KUL_dwiprep_fibertract.sh -p ${BIDS_participant} -n $ncpu -v \
-        -c study_config/tracto_tracts.csv  -r study_config/tracto_rois.csv \
-    > $dwiprep_fibertract_log 2>&1 ")
-
-    echo "   using cmd: $task_dwiprep_fibertract_cmd"
-    
-    eval $task_dwiprep_fibertract_cmd
-
-else
-
-    echo " KUL_dwiprep_fibertract of subjet $BIDS_participant already done, skipping..."
-        
-fi
-
-}
 
 function WaitForTaskCompletion {
     local pidsArray=${waitforpids[@]} # pids to wait for, separated by semi-colon
@@ -651,7 +584,7 @@ function WaitForTaskCompletion {
 # Set some defaults
 silent=1
 ncpu=6
-mem_gb=24
+mem_gb=16
 bids_dir=BIDS
 tmp=/tmp
 
@@ -748,22 +681,9 @@ if [ $silent -eq 0 ]; then
 fi
 
 # ---------- SET MAIN DEFAULTS ---
-# set mem_mb for mriqc/fmriprep
+# set mem_mb for mriqc
 gb=1024
 mem_mb=$(echo $mem_gb $gb | awk '{print $1 * $2 }')
-
-# freesurfer license (check if set as environent variable, if not set hard coded)
-if [ -z $FS_LICENSE ]; then
-
-    echo "  freesurfer_license was not found; setting it hard to /KUL_apps/freesurfer/license.txt"
-    freesurfer_license=/KUL_apps/freesurfer/license.txt
-
-else
-    
-    freesurfer_license=$FS_LICENSE
-    echo "  freesurfer_license was set before (notably: $freesurfer_license)"
-    
-fi
 
 # ---------- PROCESS CONTROL & LOAD BALANCING --------
 # We will be running 4 preprocessings in parallel: mriqc, fmriprep, freesurfer & KUL_dwiprep
@@ -815,7 +735,7 @@ rm -fr ${cwd}/fmriprep_work
 
 
 # we read the config file (and it may be csv, tsv or ;-seperated)
-while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_fibertract; do
+while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_drtdbs drtdbs_options; do
     
     
     if [ "$BIDS_participant" = "BIDS_participant" ]; then
@@ -846,7 +766,7 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
             echo "    do_dwiprep_anat: $do_dwiprep_anat"
             echo "    anat_options: $anat_options"
             echo "    do_dwiprep_drtdbs: $do_dwiprep_drtdbs"
-            #echo "    drtdbs_options: $drtdbs_options"
+            echo "    drtdbs_options: $drtdbs_options"
         
         fi
 
@@ -936,10 +856,10 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
         # task_KUL_mrtix_wb_tckgen # needs to be made
         # task_KUL_mrtrix_tractsegment # needs to be made
         
-        # continue with KUL_dwiprep_fibertract
-        if [ $do_dwiprep_fibertract -eq 1 ]; then
+        # continue with KUL_dwiprep_drtdbs
+        if [ $do_dwiprep_drtdbs -eq 1 ]; then
             
-            task_KUL_dwiprep_fibertract
+            task_KUL_dwiprep_drtdbs
 
         fi
 
