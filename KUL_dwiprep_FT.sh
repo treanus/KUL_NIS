@@ -898,7 +898,7 @@ echo "subject, algorithm, tract, count" > tracts_FT_info.csv
 nods=5000
 tract="AF_R_nods${nods}"
 seeds=("IFG_POp_wm_fs_R" "IFG_PTr_wm_fs_R" "STG_wm_fs_R" "MTG_wm_fs_R" "SMG_wm_fs_R")
-exclude=("WM_fs_L" "BStem" "CC_fs_all" "Ins_fs_R" "putamen_dil_fs_R" "")
+exclude=("WM_fs_L" "BStem" "CC_fs_all" "Ins_fs_R" "putamen_dil_fs_R" "CSF_ants")
 theta=60
 stop=()
 act=()
@@ -1019,27 +1019,27 @@ act=$(printf " -act %s" "${fs_5tt[@]}")
 # act=$(printf " -act %s" "${fs_5tt[@]}")
 kul_mrtrix_FT
 #
-# # ATR
-# # exclude the hippocampi, insulae, par and temp wm as well as vDC
-# # try using -stop and -act
-# nods=3000
-# tract="ATR_R_nods${nods}"
-# seeds=("THALAMUS_fs_R" "L_OF_wm_fs_R")
-# exclude=("BStem" "WM_fs_L" "CC_fs_all" "Temp_wm_fs_R" "putamen_dil_fs_R" "Ins_wm_fs_R")
-# theta=50
-# stop=$(printf " -backtrack -crop_at_gmwmi")
-# act=$(printf " -act %s" "${fs_5tt[@]}")
-# kul_mrtrix_FT
-#
-# nods=3000
-# tract="ATR_L_nods${nods}"
-# seeds=("THALAMUS_fs_L" "L_OF_wm_fs_L")
-# exclude=("BStem" "WM_fs_R" "CC_fs_all" "Temp_wm_fs_L" "putamen_dil_fs_L" "Ins_wm_fs_L")
-# theta=50
-# stop=$(printf " -backtrack -crop_at_gmwmi")
-# act=$(printf " -act %s" "${fs_5tt[@]}")
-# kul_mrtrix_FT
-#
+# ATR
+# exclude the hippocampi, insulae, par and temp wm as well as vDC
+# try using -stop and -act
+nods=3000
+tract="ATR_R_nods${nods}"
+seeds=("THALAMUS_fs_R" "L_OF_wm_fs_R")
+exclude=("BStem" "WM_fs_L" "CC_fs_all" "Temp_wm_fs_R" "putamen_dil_fs_R" "Ins_wm_fs_R")
+theta=50
+stop=$(printf " -backtrack -crop_at_gmwmi")
+act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+nods=3000
+tract="ATR_L_nods${nods}"
+seeds=("THALAMUS_fs_L" "L_OF_wm_fs_L")
+exclude=("BStem" "WM_fs_R" "CC_fs_all" "Temp_wm_fs_L" "putamen_dil_fs_L" "Ins_wm_fs_L")
+theta=50
+stop=$(printf " -backtrack -crop_at_gmwmi")
+act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
 # STR
 # needs occ wm and vDC as excludes still
 nods=3000
@@ -1120,47 +1120,47 @@ theta=60
 stop=()
 act=()
 kul_mrtrix_FT
-#
-# # ILF
-# # needs ITG as the include ROI in the temporal lobe
-# nods=6000
-# tract="ILF_R_nods${nods}"
-# seeds=("Occ_wm_fs_R" "ITG_wm_fs_R" "ITG_fs_R")
-# exclude=("WM_fs_L" "CC_fs_all" "Front_wm_fs_R" "THALAMUS_fs_R" "Caudate_fs_R" "unseg_wm_fs_R" "Phip_wm_fs_R")
-# theta=45
-# stop=()
-# act=()
-# kul_mrtrix_FT
-#
-# nods=6000
-# tract="ILF_L_nods${nods}"
-# seeds=("Occ_wm_fs_L" "ITG_wm_fs_L" "ITG_fs_L")
-# exclude=("WM_fs_R" "CC_fs_all" "Front_wm_fs_L" "THALAMUS_fs_L" "Caudate_fs_L" "unseg_wm_fs_L" "Phip_wm_fs_L")
-# theta=45
-# stop=()
-# act=()
-# kul_mrtrix_FT
-#
-# # MLF
-# # need to also add MLF with MTG as the include of temporal lobe.
-# nods=6000
-# tract="MLF_R_nods${nods}"
-# seeds=("Occ_wm_fs_R" "MTG_wm_fs_R" "MTG_fs_R")
-# exclude=("WM_fs_L" "CC_fs_all" "Front_wm_fs_R" "THALAMUS_fs_R" "Caudate_fs_R" "unseg_wm_fs_R" "Phip_wm_fs_R")
-# theta=45
-# stop=()
-# act=()
-# kul_mrtrix_FT
-#
-# nods=6000
-# tract="MLF_L_nods${nods}"
-# seeds=("Occ_wm_fs_L" "MTG_wm_fs_L" "MTG_fs_L")
-# exclude=("WM_fs_R" "CC_fs_all" "Front_wm_fs_L" "THALAMUS_fs_L" "Caudate_fs_L" "unseg_wm_fs_L" "Phip_wm_fs_L")
-# theta=45
-# stop=()
-# act=()
-# kul_mrtrix_FT
-#
+
+# ILF
+# needs ITG as the include ROI in the temporal lobe
+nods=6000
+tract="ILF_R_nods${nods}"
+seeds=("Occ_wm_fs_R" "ITG_wm_fs_R" "ITG_fs_R")
+exclude=("WM_fs_L" "CC_fs_all" "Front_wm_fs_R" "THALAMUS_fs_R" "Caudate_fs_R" "unseg_wm_fs_R" "Phip_wm_fs_R")
+theta=45
+stop=()
+act=()
+kul_mrtrix_FT
+
+nods=6000
+tract="ILF_L_nods${nods}"
+seeds=("Occ_wm_fs_L" "ITG_wm_fs_L" "ITG_fs_L")
+exclude=("WM_fs_R" "CC_fs_all" "Front_wm_fs_L" "THALAMUS_fs_L" "Caudate_fs_L" "unseg_wm_fs_L" "Phip_wm_fs_L")
+theta=45
+stop=()
+act=()
+kul_mrtrix_FT
+
+# MLF
+# need to also add MLF with MTG as the include of temporal lobe.
+nods=6000
+tract="MLF_R_nods${nods}"
+seeds=("Occ_wm_fs_R" "MTG_wm_fs_R" "MTG_fs_R")
+exclude=("WM_fs_L" "CC_fs_all" "Front_wm_fs_R" "THALAMUS_fs_R" "Caudate_fs_R" "unseg_wm_fs_R" "Phip_wm_fs_R")
+theta=45
+stop=()
+act=()
+kul_mrtrix_FT
+
+nods=6000
+tract="MLF_L_nods${nods}"
+seeds=("Occ_wm_fs_L" "MTG_wm_fs_L" "MTG_fs_L")
+exclude=("WM_fs_R" "CC_fs_all" "Front_wm_fs_L" "THALAMUS_fs_L" "Caudate_fs_L" "unseg_wm_fs_L" "Phip_wm_fs_L")
+theta=45
+stop=()
+act=()
+kul_mrtrix_FT
+
 # SLF
 nods=6000
 tract="SLF_R_nods${nods}"
@@ -1180,110 +1180,110 @@ stop=-stop
 act=()
 kul_mrtrix_FT
 
-# # UF
-# nods=5000
-# tract="UF_L_nods${nods}"
-# seeds=("L_OF_fs_L" "L_OF_wm_fs_L" "TP_wm_fs_L")
-# exclude=("WM_fs_R" "CC_fs_all" "BStem" "THALAMUS_fs_L" "Caudate_fs_L" "CSF_ants" "unseg_wm_fs_L" "accumbens_dil_fs_L")
-# theta=60
-# stop=()
-# act=()
-# # act=$(printf " -act %s" "${fs_5tt[@]}")
-# kul_mrtrix_FT
-#
-# nods=5000
-# tract="UF_R_nods${nods}"
-# seeds=("L_OF_fs_R" "L_OF_wm_fs_R" "TP_wm_fs_R")
-# exclude=("WM_fs_L" "CC_fs_all" "BStem" "THALAMUS_fs_R" "Caudate_fs_R" "CSF_ants" "unseg_wm_fs_R" "accumbens_dil_fs_R")
-# theta=60
-# stop=()
-# act=()
-# # act=$(printf " -act %s" "${fs_5tt[@]}")
-# kul_mrtrix_FT
-#
-# # TIF
-# nods=3000
-# tract="TIF_L_nods${nods}"
-# seeds=("Ins_fs_L" "Ins_wm_fs_L" "TP_wm_fs_L")
-# exclude=("WM_fs_R" "CC_fs_all" "BStem" "THALAMUS_fs_R" "Front_wm_fs_L" "CSF_ants" "unseg_wm_fs_L" "Amyg_fs_L")
-# theta=60
-# stop=()
-# act=()
-# # act=$(printf " -act %s" "${fs_5tt[@]}")
-# kul_mrtrix_FT
-#
-# nods=3000
-# tract="TIF_R_nods${nods}"
-# seeds=("Ins_fs_R" "Ins_wm_fs_R" "TP_wm_fs_R")
-# exclude=("WM_fs_L" "CC_fs_all" "BStem" "THALAMUS_fs_R" "Front_wm_fs_R" "CSF_ants" "unseg_wm_fs_R" "Amyg_fs_R")
-# theta=60
-# stop=()
-# act=()
-# # act=$(printf " -act %s" "${fs_5tt[@]}")
-# kul_mrtrix_FT
-#
-# # AIF
-# nods=2000
-# tract="AIF_L_nods${nods}"
-# seeds=("Ins_fs_L" "Amyg_fs_L" "TP_wm_fs_L")
-# exclude=("WM_fs_R" "CC_fs_all" "BStem" "THALAMUS_fs_R" "CSF_ants" "unseg_wm_fs_L")
-# theta=60
-# stop=()
-# act=()
-# # act=$(printf " -act %s" "${fs_5tt[@]}")
-# kul_mrtrix_FT
-#
-# nods=2000
-# tract="AIF_R_nods${nods}"
-# seeds=("Ins_fs_R" "Amyg_fs_R" "TP_wm_fs_R")
-# exclude=("WM_fs_L" "CC_fs_all" "BStem" "THALAMUS_fs_R" "CSF_ants" "unseg_wm_fs_R")
-# theta=60
-# stop=()
-# act=()
-# # act=$(printf " -act %s" "${fs_5tt[@]}")
-# kul_mrtrix_FT
-#
-# # Cingulum
-# nods=6000
-# tract="cCing_R_nods${nods}"
-# seeds=("cACC_fs_R" "rACC_fs_R" "PCC_fs_R" "iPCC_fs_R")
-# exclude=("WM_fs_L" "CC_fs_all" "unseg_wm_fs_R" "STG_wm_fs_R")
-# theta=50
-# stop=-stop
-# act=()
-# # act=$(printf " -act %s" "${fs_5tt[@]}")
-# kul_mrtrix_FT
-#
-# nods=6000
-# tract="cCing_L_nods${nods}"
-# seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
-# exclude=("WM_fs_R" "CC_fs_all" "unseg_wm_fs_L" "STG_wm_fs_L")
-# theta=50
-# stop=-stop
-# act=()
-# # act=$(printf " -act %s" "${fs_5tt[@]}")
-# kul_mrtrix_FT
-#
-# nods=4000
-# # wm post. cing needs to be added here
-# tract="pCing_R_nods${nods}"
-# seeds=("Hippo_fs_R" "iPCC_fs_R" "Phip_wm_fs_R")
-# exclude=("WM_fs_L" "CC_fs_all" "unseg_wm_fs_R" "PCC_wm_fs_R" "fusiform_wm_fs_R")
-# theta=50
-# stop=-stop
-# act=()
-# # act=$(printf " -act %s" "${fs_5tt[@]}")
-# kul_mrtrix_FT
-#
-# nods=4000
-# tract="pCing_L_nods${nods}"
-# seeds=("Hippo_fs_L" "iPCC_fs_L" "Phip_wm_fs_L")
-# exclude=("WM_fs_R" "CC_fs_all" "unseg_wm_fs_L" "PCC_wm_fs_L" "fusiform_wm_fs_L")
-# theta=50
-# stop=-stop
-# act=()
-# # act=$(printf " -act %s" "${fs_5tt[@]}")
-# kul_mrtrix_FT
+# UF
+nods=5000
+tract="UF_L_nods${nods}"
+seeds=("L_OF_fs_L" "L_OF_wm_fs_L" "TP_wm_fs_L")
+exclude=("WM_fs_R" "CC_fs_all" "BStem" "THALAMUS_fs_L" "Caudate_fs_L" "CSF_ants" "unseg_wm_fs_L" "accumbens_dil_fs_L")
+theta=60
+stop=()
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+nods=5000
+tract="UF_R_nods${nods}"
+seeds=("L_OF_fs_R" "L_OF_wm_fs_R" "TP_wm_fs_R")
+exclude=("WM_fs_L" "CC_fs_all" "BStem" "THALAMUS_fs_R" "Caudate_fs_R" "CSF_ants" "unseg_wm_fs_R" "accumbens_dil_fs_R")
+theta=60
+stop=()
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+# TIF
+nods=3000
+tract="TIF_L_nods${nods}"
+seeds=("Ins_fs_L" "Ins_wm_fs_L" "TP_wm_fs_L")
+exclude=("WM_fs_R" "CC_fs_all" "BStem" "THALAMUS_fs_R" "Front_wm_fs_L" "CSF_ants" "unseg_wm_fs_L" "Amyg_fs_L")
+theta=60
+stop=()
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+nods=3000
+tract="TIF_R_nods${nods}"
+seeds=("Ins_fs_R" "Ins_wm_fs_R" "TP_wm_fs_R")
+exclude=("WM_fs_L" "CC_fs_all" "BStem" "THALAMUS_fs_R" "Front_wm_fs_R" "CSF_ants" "unseg_wm_fs_R" "Amyg_fs_R")
+theta=60
+stop=()
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+# AIF
+nods=2000
+tract="AIF_L_nods${nods}"
+seeds=("Ins_fs_L" "Amyg_fs_L" "TP_wm_fs_L")
+exclude=("WM_fs_R" "CC_fs_all" "BStem" "THALAMUS_fs_R" "CSF_ants" "unseg_wm_fs_L")
+theta=60
+stop=()
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+nods=2000
+tract="AIF_R_nods${nods}"
+seeds=("Ins_fs_R" "Amyg_fs_R" "TP_wm_fs_R")
+exclude=("WM_fs_L" "CC_fs_all" "BStem" "THALAMUS_fs_R" "CSF_ants" "unseg_wm_fs_R")
+theta=60
+stop=()
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+# Cingulum
+nods=6000
+tract="cCing_R_nods${nods}"
+seeds=("cACC_fs_R" "rACC_fs_R" "PCC_fs_R" "iPCC_fs_R")
+exclude=("WM_fs_L" "CC_fs_all" "unseg_wm_fs_R" "STG_wm_fs_R")
+theta=50
+stop=-stop
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+nods=6000
+tract="cCing_L_nods${nods}"
+seeds=("cACC_fs_L" "rACC_fs_L" "PCC_fs_L" "iPCC_fs_L")
+exclude=("WM_fs_R" "CC_fs_all" "unseg_wm_fs_L" "STG_wm_fs_L")
+theta=50
+stop=-stop
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+nods=4000
+# wm post. cing needs to be added here
+tract="pCing_R_nods${nods}"
+seeds=("Hippo_fs_R" "iPCC_fs_R" "Phip_wm_fs_R")
+exclude=("WM_fs_L" "CC_fs_all" "unseg_wm_fs_R" "PCC_wm_fs_R" "fusiform_wm_fs_R")
+theta=50
+stop=-stop
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
+
+nods=4000
+tract="pCing_L_nods${nods}"
+seeds=("Hippo_fs_L" "iPCC_fs_L" "Phip_wm_fs_L")
+exclude=("WM_fs_R" "CC_fs_all" "unseg_wm_fs_L" "PCC_wm_fs_L" "fusiform_wm_fs_L")
+theta=50
+stop=-stop
+act=()
+# act=$(printf " -act %s" "${fs_5tt[@]}")
+kul_mrtrix_FT
 
 # Now prepare the data for iPlan
 # if [ ! -f for_iplan/TH_SMAPMC_R.hdr ]; then
