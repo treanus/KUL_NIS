@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# set -x
+set -x
 
 # Ahmed Radwan ahmed.radwan@kuleuven.be
 # Stefan Sunaert  stefan.sunaert@kuleuven.be
@@ -21,6 +21,10 @@ v="1.0 - dd 20/03/2019"
 # - Use also MNI space images in recon-all
 # - add N4 bias correction to MNI space images
 # - test -a -t -f and -s flags
+# - Add QC step similarity measure as follows: 
+# MeasureImageSimilarity -d 3 --metric MI[../../../BIDS/sub-PT01/anat/sub-PT01_T1w.nii.gz,../../../lesion_wf/lesion_wf_output/sub-PT01/sub-PT01_T1nat_T1_sim_lesionless_Warped.nii.gz,1,64] \
+# --masks [../../../lesion_wf/lesion_wf_preproc/sub-PT01/sub-PT01_MNI_brain_mask_in_T1nat_minlesion.nii.gz,../../../lesion_wf/lesion_wf_preproc/sub-PT01/sub-PT01_MNI_mask_min_lesion.nii.gz] \ 
+# -o ./test_im_sim_MI.nii.gz -v
 
 
 
@@ -542,6 +546,12 @@ FLAIR_to_T1_affine=${preproc}/sub-${subj}${ses_long}_FLAIR_in_T1_0GenericAffine.
 
 T1_in_MNI=${preproc}/sub-${subj}${ses_long}_T1_in_MNI_Warped.nii.gz
 
+T1_N4BFC=${preproc}/sub-${subj}${ses_long}_T1_N4BFC.nii.gz
+
+T2_N4BFC=${preproc}/sub-${subj}${ses_long}_T2_N4BFC.nii.gz
+
+FLAIR_N4BFC=${preproc}/sub-${subj}${ses_long}_FLAIR_N4BFC.nii.gz
+
 MNI_brain_mask_in_nat=${preproc}/sub-${subj}${ses_long}_MNI_brain_mask_in_T1nat.nii.gz
 
 MNI_brain_mask_in_nat_min_lesion=${preproc}/sub-${subj}${ses_long}_MNI_brain_mask_in_T1nat_minlesion.nii.gz
@@ -612,7 +622,9 @@ search_wf_mark3=($(find ${preproc} -type f | grep third_part_done.done));
 
 if [[ ! $search_wf_mark1 ]] ; then
 
-antsRegistrationSyNQuick.sh -d 3 -f $MNI_T1 -m $T1_orig -t a -o ${preproc}/sub-${subj}${ses_long}_T1_in_MNI_ -n ${ncpu}
+N4BiasFieldCorrection -d 3 -i $T1_orig -o $T1_N4BFC
+
+antsRegistrationSyNQuick.sh -d 3 -f $MNI_T1 -m $T1_N4BFC -t a -o ${preproc}/sub-${subj}${ses_long}_T1_in_MNI_ -n ${ncpu}
 
 # This screws me over big time! let's do a respectable BET
 
@@ -643,7 +655,9 @@ if  [[ ! $search_wf_mark2 ]] ; then
 		
 	if [[ $wf -eq 1 ]]; then
 
-		antsRegistrationSyNQuick.sh -d 3 -f $T1_orig -m $T2_orig -t a -o $preproc/sub-${subj}${ses_long}_T2_in_T1_ -n ${ncpu}
+		N4BiasFieldCorrection -d 3 -i $T2_orig -o $T2_N4BFC
+
+		antsRegistrationSyNQuick.sh -d 3 -f $T1_orig -m $T2_N4BFC -t a -o $preproc/sub-${subj}${ses_long}_T2_in_T1_ -n ${ncpu}
 
 		WarpImageMultiTransform 3 $T2_in_T1 $T2_in_MNI -R $MNI_T1 $T1_to_MNI_affine
 
@@ -689,7 +703,9 @@ if  [[ ! $search_wf_mark2 ]] ; then
 
 	elif [[ $wf -eq 2 ]] ; then
 
-		antsRegistrationSyNQuick.sh -d 3 -f $T1_orig -m $FLAIR_orig -t a -o $preproc/sub-${subj}${ses_long}_FLAIR_in_T1_ -n ${ncpu}
+		N4BiasFieldCorrection -d 3 -i $FLAIR_orig -o $FLAIR_N4BFC
+
+		antsRegistrationSyNQuick.sh -d 3 -f $T1_orig -m $FLAIR_N4BFC -t a -o $preproc/sub-${subj}${ses_long}_FLAIR_in_T1_ -n ${ncpu}
 
 		WarpImageMultiTransform 3 $FLAIR_in_T1 $FLAIR_in_MNI -R $MNI_T1 $T1_to_MNI_affine
 
@@ -736,9 +752,13 @@ if  [[ ! $search_wf_mark2 ]] ; then
 
 	elif [[ $wf -eq 3 ]] ; then
 
-		antsRegistrationSyNQuick.sh -d 3 -f $T1_orig -m $FLAIR_orig -t a -o $preproc/sub-${subj}${ses_long}_FLAIR_in_T1_ -n ${ncpu}
+		N4BiasFieldCorrection -d 3 -i $T2_orig -o $T2_N4BFC
 
-		antsRegistrationSyNQuick.sh -d 3 -f $T1_orig -m $T2_orig -t a -o $preproc/sub-${subj}${ses_long}_T2_in_T1_ -n ${ncpu}
+		N4BiasFieldCorrection -d 3 -i $FLAIR_orig -o $FLAIR_N4BFC
+
+		antsRegistrationSyNQuick.sh -d 3 -f $T1_orig -m $FLAIR_N4BFC -t a -o $preproc/sub-${subj}${ses_long}_FLAIR_in_T1_ -n ${ncpu}
+
+		antsRegistrationSyNQuick.sh -d 3 -f $T1_orig -m $T2_N4BFC -t a -o $preproc/sub-${subj}${ses_long}_T2_in_T1_ -n ${ncpu}
 
 		WarpImageMultiTransform 3 $T2_in_T1 $T2_in_MNI -R $MNI_T1 $T1_to_MNI_affine
 
@@ -869,8 +889,6 @@ fi
 
 
 	# determine lesion side
-	# we have a problem here!!!!
-
 
 if [[ ! $search_wf_mark3 ]]; then 
 		
@@ -906,7 +924,7 @@ if [[ ! $search_wf_mark3 ]]; then
 
 		fslmaths $T1_in_MNI -mas $L_mask_in_MNI_dil_binv -add $T1_lesion_fill $T1_with_lesion_fill_MNI
 
-		antsRegistrationSyN.sh -d 3 -f $T1_orig -m $T1_with_lesion_fill_MNI -t s \
+		antsRegistrationSyN.sh -d 3 -f $T1_orig -m $T1_with_lesion_fill_MNI -t a \
 			-x $MNI_brain_mask_in_nat_min_lesion,$MNI_mask_min_lesion -o ${output}/sub-${subj}${ses_long}_T1nat_T1_sim_lesionless_ -n ${ncpu}
 
 		if [[ $wf -eq 1 ]] ; then
@@ -926,7 +944,7 @@ if [[ ! $search_wf_mark3 ]]; then
 
 			fslmaths $T2_in_MNI -mas $L_mask_in_MNI_dil_binv -add $T2_lesion_fill $T2_with_lesion_fill_MNI
 
-			antsRegistrationSyN.sh -d 3 -f $T2_in_T1 -m $T2_with_lesion_fill_MNI -t s \
+			antsRegistrationSyN.sh -d 3 -f $T2_in_T1 -m $T2_with_lesion_fill_MNI -t a \
 				-x $MNI_brain_mask_in_nat_min_lesion,$MNI_mask_min_lesion -o ${output}/sub-${subj}${ses_long}_T1nat_T2_sim_lesionless_ -n ${ncpu}
 
 		elif [[ $wf -eq 2 ]] ; then
@@ -946,7 +964,7 @@ if [[ ! $search_wf_mark3 ]]; then
 
 			fslmaths $FLAIR_in_MNI -mas $L_mask_in_MNI_dil_binv -add $FLAIR_lesion_fill $FLAIR_with_lesion_fill_MNI
 
-			antsRegistrationSyN.sh -d 3 -f $FLAIR_in_T1 -m $FLAIR_with_lesion_fill_MNI -t s \
+			antsRegistrationSyN.sh -d 3 -f $FLAIR_in_T1 -m $FLAIR_with_lesion_fill_MNI -t a \
 				-x $MNI_brain_mask_in_nat_min_lesion,$MNI_mask_min_lesion -o ${output}/sub-${subj}${ses_long}_T1nat_FLAIR_sim_lesionless_ -n ${ncpu}
 
 		elif [[ $wf -eq 3 ]] ; then
@@ -966,7 +984,7 @@ if [[ ! $search_wf_mark3 ]]; then
 
 			fslmaths $T2_in_MNI -mas $L_mask_in_MNI_dil_binv -add $T2_lesion_fill $T2_with_lesion_fill_MNI
 
-			antsRegistrationSyN.sh -d 3 -f $T2_in_T1 -m $T2_with_lesion_fill_MNI -t s \
+			antsRegistrationSyN.sh -d 3 -f $T2_in_T1 -m $T2_with_lesion_fill_MNI -t a \
 				-x $MNI_brain_mask_in_nat_min_lesion,$MNI_mask_min_lesion -o ${output}/sub-${subj}${ses_long}_T1nat_T2_sim_lesionless_ -n ${ncpu}
 
 			fslmaths $FLAIR_in_MNI_SyN_brain_flip -mas $MNI_left $FLAIR_fake_left_hemi
@@ -984,7 +1002,7 @@ if [[ ! $search_wf_mark3 ]]; then
 
 			fslmaths $FLAIR_in_MNI -mas $L_mask_in_MNI_dil_binv -add $FLAIR_lesion_fill $FLAIR_with_lesion_fill_MNI
 
-			antsRegistrationSyN.sh -d 3 -f $FLAIR_in_T1 -m $FLAIR_with_lesion_fill_MNI -t s \
+			antsRegistrationSyN.sh -d 3 -f $FLAIR_in_T1 -m $FLAIR_with_lesion_fill_MNI -t a \
 				-x $MNI_brain_mask_in_nat_min_lesion,$MNI_mask_min_lesion -o ${output}/sub-${subj}${ses_long}_T1nat_FLAIR_sim_lesionless_ -n ${ncpu}
 
 		fi
@@ -1008,7 +1026,7 @@ if [[ ! $search_wf_mark3 ]]; then
 
 		fslmaths $T1_in_MNI -mas $L_mask_in_MNI_dil_binv -add $T1_lesion_fill $T1_with_lesion_fill_MNI
 
-		antsRegistrationSyN.sh -d 3 -f $T1_orig -m $T1_with_lesion_fill_MNI -t s \
+		antsRegistrationSyN.sh -d 3 -f $T1_orig -m $T1_with_lesion_fill_MNI -t a \
 			-x $MNI_brain_mask_in_nat_min_lesion,$MNI_mask_min_lesion -o ${output}/sub-${subj}${ses_long}_T1nat_T1_sim_lesionless_ -n ${ncpu}
 
 		if [[ $wf -eq 1 ]] ; then
@@ -1028,7 +1046,7 @@ if [[ ! $search_wf_mark3 ]]; then
 
 			fslmaths $T2_in_MNI -mas $L_mask_in_MNI_dil_binv -add $T2_lesion_fill $T2_with_lesion_fill_MNI
 
-			antsRegistrationSyN.sh -d 3 -f $T2_in_T1 -m $T2_with_lesion_fill_MNI -t s \
+			antsRegistrationSyN.sh -d 3 -f $T2_in_T1 -m $T2_with_lesion_fill_MNI -t a \
 				-x $MNI_brain_mask_in_nat_min_lesion,$MNI_mask_min_lesion -o ${output}/sub-${subj}${ses_long}_T1nat_T2_sim_lesionless_ -n ${ncpu}
 
 		elif [[ $wf -eq 2 ]] ; then
@@ -1048,7 +1066,7 @@ if [[ ! $search_wf_mark3 ]]; then
 
 			fslmaths $FLAIR_in_MNI -mas $L_mask_in_MNI_dil_binv -add $FLAIR_lesion_fill $FLAIR_with_lesion_fill_MNI
 
-			antsRegistrationSyN.sh -d 3 -f $FLAIR_in_T1 -m $FLAIR_with_lesion_fill_MNI -t s \
+			antsRegistrationSyN.sh -d 3 -f $FLAIR_in_T1 -m $FLAIR_with_lesion_fill_MNI -t a \
 				-x $MNI_brain_mask_in_nat_min_lesion,$MNI_mask_min_lesion -o ${output}/sub-${subj}${ses_long}_T1nat_FLAIR_sim_lesionless_ -n ${ncpu}
 
 		elif [[ $wf -eq 3 ]] ; then
@@ -1068,7 +1086,7 @@ if [[ ! $search_wf_mark3 ]]; then
 
 			fslmaths $T2_in_MNI -mas $L_mask_in_MNI_dil_binv -add $T2_lesion_fill $T2_with_lesion_fill_MNI
 
-			antsRegistrationSyN.sh -d 3 -f $T2_in_T1 -m $T2_with_lesion_fill_MNI -t s \
+			antsRegistrationSyN.sh -d 3 -f $T2_in_T1 -m $T2_with_lesion_fill_MNI -t a \
 				-x $MNI_brain_mask_in_nat_min_lesion,$MNI_mask_min_lesion -o ${output}/sub-${subj}${ses_long}_T1nat_T2_sim_lesionless_ -n ${ncpu}
 
 			fslmaths $FLAIR_in_MNI_SyN_brain_flip -mas $MNI_right $FLAIR_fake_right_hemi
@@ -1086,7 +1104,7 @@ if [[ ! $search_wf_mark3 ]]; then
 
 			fslmaths $FLAIR_in_MNI -mas $L_mask_in_MNI_dil_binv -add $FLAIR_lesion_fill $FLAIR_with_lesion_fill_MNI
 
-			antsRegistrationSyN.sh -d 3 -f $FLAIR_in_T1 -m $FLAIR_with_lesion_fill_MNI -t s \
+			antsRegistrationSyN.sh -d 3 -f $FLAIR_in_T1 -m $FLAIR_with_lesion_fill_MNI -t a \
 				-x $MNI_brain_mask_in_nat_min_lesion,$MNI_mask_min_lesion -o ${output}/sub-${subj}${ses_long}_T1nat_FLAIR_sim_lesionless_ -n ${ncpu}
 
 		fi
@@ -1109,7 +1127,7 @@ fi
 	recall_scripts=${output}/sub-${subj}/scripts;
 	search_wf_mark4=($(find ${recall_scripts} -type f | grep recon-all.done));
 	
-if [[ ! ${search_wf_mark1} ]] ; then
+if [[ ! ${search_wf_mark4} ]] ; then
 	
 
 	if [[ $wf -eq 1 ]]; then
@@ -1126,9 +1144,9 @@ if [[ ! ${search_wf_mark1} ]] ; then
 
 	fi
 	
-	recon_all_pid=$!
+	# recon_all_pid=$!
 	
-	echo ${recon_all_pid}
+	echo $!
 
 	sleep 2
 	
