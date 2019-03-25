@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Bash shell script to convert dicoms to bids format
 #
 # Requires dcm2bids (jooh fork), dcm2niix, Mrtrix3
@@ -631,8 +631,40 @@ while IFS=, read identifier search_string task mb pe_dir; do
         
         kul_find_relevant_dicom_file
         
-        intended_for_string="func/sub-${subj}_task-${task}_bold.nii.gz"
+        # Here we define the Intended For according to the BIDS specs
+        #  It tells fmriprep how to use the fmap, notably for which fund(s)
+        #  task variable (1 strings or space-separated string) is used 
+        intended_tasks_array=($task)
+        #echo ${#intended_tasks_array[@]}
+        intended_for_string=""
+        full_intended_for_string=""
+
+        for intended_task in "${intended_tasks_array[@]}"; do
+
+            intended_for_string="func/sub-${subj}_task-${intended_task}##RUNS##_bold.nii.gz"
+            #echo $intended_for_string
+
+            if [ ${#intended_tasks_array[@]} -gt 1 ]; then 
+
+                full_intended_for_string="$full_intended_for_string, \"${intended_for_string}\""
+
+            else
+
+                full_intended_for_string=$intended_for_string
+                
+            fi 
+            
         
+        done
+
+        if [ ${#intended_tasks_array[@]} -gt 1 ]; then 
+
+            full_intended_for_string="[ ${full_intended_for_string:1} ]"
+
+        fi 
+        
+        echo $full_intended_for_string
+
         if [ $seq_found -eq 1 ]; then
 
             # read the relevant dicom tags
@@ -887,6 +919,7 @@ fi
 dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file \
     -o $bids_output --clobber > $dcm2niix_log_file
 
+# Update the Intended For of the fmaps
 
 
 # copying task based events.tsv to BIDS directory
