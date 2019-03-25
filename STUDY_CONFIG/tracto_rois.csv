@@ -1,0 +1,19 @@
+# KUL_NeuroImagingTools
+# Roi definition file
+# roi_name, from_atlas, space, label_id
+#
+M1_L, aparc+aseg.mgz, subject, 1024
+M1_R, aparc+aseg.mgz, subject, 2024
+S1_L, aparc+aseg.mgz, subject, 1022
+S1_R, aparc+aseg.mgz, subject, 2022
+Thalamus_L, aparc+aseg.mgz, subject, 10
+Thalamus_R, aparc+aseg.mgz, subject, 49
+MFG_L, aparc+aseg.mgz, subject, 1003
+MFG_R, aparc+aseg.mgz, subject, 2003
+#
+SFG_L, aparc+aseg.mgz, subject, 1028
+SFG_R, aparc+aseg.mgz, subject, 2028
+IFGparsopercularis_L, aparc+aseg.mgz, subject, 1018
+IFGparsopercularis_R, aparc+aseg.mgz, subject, 2018
+WM_R, aparc+aseg.mgz, subject, 41
+WM_L, aparc+aseg.mgz, subject, 2

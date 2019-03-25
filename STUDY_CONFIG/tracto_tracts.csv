@@ -1,0 +1,3 @@
+#tract_name, seed, include, exclude, algorithm, paramaters
+Aslant_L,IFGparsopercularis_L SFG_L,IFGparsopercularis_L SFG_L,WM_R,Tensor_prob,
+Aslant_R,IFGparsopercularis_R SFG_R,IFGparsopercularis_R SFG_R,WM_L,Tensor_prob,
