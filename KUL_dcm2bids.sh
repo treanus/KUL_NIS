@@ -522,6 +522,8 @@ bids=""
 # we read the config file
 while IFS=, read identifier search_string task mb pe_dir; do
     
+ if [[ ! $identifier == \#* ]]; then
+
     if [ $identifier = "T1w" ]; then 
         
         kul_find_relevant_dicom_file
@@ -866,6 +868,7 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
     fi
 
+ fi 
 
 done < $conf
 
@@ -880,6 +883,7 @@ EOF)
 
 echo $bids_conf  > $bids_config_json_file 
 
+# MAIN HERE - WE RUN dcm2bids - HERE
 # invoke dcm2bids
 kul_e2cl "  Calling dcm2bids... (for the output see $dcm2niix_log_file)" $log
 if [ $sess_flag -eq 1 ]; then
