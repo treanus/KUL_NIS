@@ -25,7 +25,8 @@ v="v0.2 - dd 21/12/2018"
 kul_main_dir=`dirname "$0"`
 script=`basename "$0"`
 source $kul_main_dir/KUL_main_functions.sh
-
+cwd=$(pwd)
+set -x
 
 # BEGIN LOCAL FUNCTIONS --------------
 
@@ -107,6 +108,8 @@ function kul_dcmtags {
     local FovAP=$(dcminfo "$dcm_file" -tag 2005 1074 | cut -c 13-)
     local FovFH=$(dcminfo "$dcm_file" -tag 2005 1075 | cut -c 13-)
     local FovRL=$(dcminfo "$dcm_file" -tag 2005 1076 | cut -c 13-)
+    local echonumber=$(dcminfo "$dcm_file" -tag 0018 0086 2>/dev/null | cut -c 13- | head -n 1)
+    # need to add local echonumber or something similar for mTE (0018,0086)     
 
     # Now we need to determine what vendor it is.
     #   Philips needs all the following calculations
@@ -632,40 +635,6 @@ while IFS=, read identifier search_string task mb pe_dir; do
         
         kul_find_relevant_dicom_file
         
-        # Here we define the Intended For according to the BIDS specs
-        #  It tells fmriprep how to use the fmap, notably for which fund(s)
-        #  task variable (1 strings or space-separated string) is used 
-        intended_tasks_array=($task)
-        #echo ${#intended_tasks_array[@]}
-        intended_for_string=""
-        full_intended_for_string=""
-
-        for intended_task in "${intended_tasks_array[@]}"; do
-
-            intended_for_string="func/sub-${subj}_task-${intended_task}##RUNS##_bold.nii.gz"
-            #echo $intended_for_string
-
-            if [ ${#intended_tasks_array[@]} -gt 1 ]; then 
-
-                full_intended_for_string="$full_intended_for_string, \"${intended_for_string}\""
-
-            else
-
-                full_intended_for_string=$intended_for_string
-                
-            fi 
-            
-        
-        done
-
-        if [ ${#intended_tasks_array[@]} -gt 1 ]; then 
-
-            full_intended_for_string="[ ${full_intended_for_string:1} ]"
-
-        fi 
-        
-        echo $full_intended_for_string
-
         if [ $seq_found -eq 1 ]; then
 
             # read the relevant dicom tags
@@ -706,12 +675,14 @@ while IFS=, read identifier search_string task mb pe_dir; do
             "customHeader": 
                 {
                 "Units": "Hz",
-                "IntendedFor": "${intended_for_string}"
+                "IntendedFor": "##REPLACE_ME_INTENDED_FOR##"
                 }
             })
 
         bids="$bids,$sub_bids"
-
+        
+        fmap_task=$task
+        
         fi     
 
     fi
@@ -920,7 +891,63 @@ fi
 dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file \
     -o $bids_output --clobber > $dcm2niix_log_file
 
+
 # Update the Intended For of the fmaps
+# Here we define the Intended For according to the BIDS specs
+#  It tells fmriprep how to use the fmap, notably for which func(s)
+#  fmap_task variable (1 strings or space-separated string) is used 
+
+intended_tasks_array=($fmap_task)
+echo ${intended_tasks_array[@]}
+intended_for_string=""
+full_intended_for_string=""
+
+for intended_task in "${intended_tasks_array[@]}"; do
+    echo $intended_task
+    echo $cwd
+    search_runs_of_task=($(find ${cwd}/BIDS/sub-${subj}/func -type f | grep task-${intended_task} | grep nii.gz))
+    echo ${search_runs_of_task[@]}
+
+    n_runs=${#search_runs_of_task[@]}
+    echo "  we found $n_runs of task $intended_task"
+
+    for run_func in ${search_runs_of_task[@]}; do
+                
+        if [[ $sess = "" ]]; then
+
+            intended_for_string="func\/$(basename $run_func)"
+                
+        else
+
+            intended_for_string="ses-${sess}\/func\/$(basename $run_func)"
+                
+        fi
+                
+        full_intended_for_string="$full_intended_for_string, \"${intended_for_string}\""
+            
+    done
+        
+done
+
+full_intended_for_string="[ ${full_intended_for_string:1} ]"      
+
+# Now we replace it in the json file
+echo "  NOTE: we set the following string as Intended_For in the fieldmap: ${full_intended_for_string}"
+
+if [[ $sess = "" ]]; then
+
+    perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json
+                
+else
+
+    perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" BIDS/sub-${subj}/ses-${sess}/fmap/sub-${subj}_fieldmap.json
+                
+fi
+
+#rm -f BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json
+#mv BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json.new BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json
+
+
 
 
 # copying task based events.tsv to BIDS directory

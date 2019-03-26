@@ -814,7 +814,9 @@ function kul_mrtrix_FT {
 							echo "  CST_R already done , skipping..."
 							
 						fi
-							
+						
+
+						# ML is only to the primary somatosensory cortex, so no need to use M1.
 						if [ ! -f tracts_${a}/ML_R_nods${nods2}.tck ]; then
 							
 							# separate the R_ML
@@ -1025,7 +1027,7 @@ kul_mrtrix_FT
 nods=3000
 tract="ATR_R_nods${nods}"
 seeds=("THALAMUS_fs_R" "L_OF_wm_fs_R")
-exclude=("BStem" "WM_fs_L" "CC_fs_all" "Temp_wm_fs_R" "putamen_dil_fs_R" "Ins_wm_fs_R")
+exclude=("BStem" "WM_fs_L" "CC_fs_all" "Temp_wm_fs_R" "putamen_dil_fs_R" "Ins_wm_fs_R" "vDC_fs_R")
 theta=50
 stop=$(printf " -backtrack -crop_at_gmwmi")
 act=$(printf " -act %s" "${fs_5tt[@]}")
@@ -1034,7 +1036,7 @@ kul_mrtrix_FT
 nods=3000
 tract="ATR_L_nods${nods}"
 seeds=("THALAMUS_fs_L" "L_OF_wm_fs_L")
-exclude=("BStem" "WM_fs_R" "CC_fs_all" "Temp_wm_fs_L" "putamen_dil_fs_L" "Ins_wm_fs_L")
+exclude=("BStem" "WM_fs_R" "CC_fs_all" "Temp_wm_fs_L" "putamen_dil_fs_L" "Ins_wm_fs_L" "vDC_fs_L")
 theta=50
 stop=$(printf " -backtrack -crop_at_gmwmi")
 act=$(printf " -act %s" "${fs_5tt[@]}")
