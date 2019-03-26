@@ -26,7 +26,7 @@ kul_main_dir=`dirname "$0"`
 script=`basename "$0"`
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
-set -x
+#set -x
 
 # BEGIN LOCAL FUNCTIONS --------------
 
@@ -108,7 +108,7 @@ function kul_dcmtags {
     local FovAP=$(dcminfo "$dcm_file" -tag 2005 1074 | cut -c 13-)
     local FovFH=$(dcminfo "$dcm_file" -tag 2005 1075 | cut -c 13-)
     local FovRL=$(dcminfo "$dcm_file" -tag 2005 1076 | cut -c 13-)
-    local echonumber=$(dcminfo "$dcm_file" -tag 0018 0086 2>/dev/null | cut -c 13- | head -n 1)
+    # local echonumber=$(dcminfo "$dcm_file" -tag 0018 0086 2>/dev/null | cut -c 13- | head -n 1)
     # need to add local echonumber or something similar for mTE (0018,0086)     
 
     # Now we need to determine what vendor it is.
@@ -893,7 +893,7 @@ else
 fi
 
 dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file \
-    -o $bids_output --clobber > $dcm2niix_log_file
+    -o $bids_output -l DEBUG --clobber > $dcm2niix_log_file
 
 
 # Update the Intended For of the fmaps
@@ -909,7 +909,7 @@ full_intended_for_string=""
 for intended_task in "${intended_tasks_array[@]}"; do
     echo $intended_task
     echo $cwd
-    search_runs_of_task=($(find ${cwd}/BIDS/sub-${subj}/func -type f | grep task-${intended_task} | grep nii.gz))
+    search_runs_of_task=($(find ${cwd}/${bids_output}/sub-${subj}/func -type f | grep task-${intended_task} | grep nii.gz))
     echo ${search_runs_of_task[@]}
 
     n_runs=${#search_runs_of_task[@]}
@@ -940,19 +940,43 @@ echo "  NOTE: we set the following string as Intended_For in the fieldmap: ${ful
 
 if [[ $sess = "" ]]; then
 
-    perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json
+    perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" ${bids_output}/sub-${subj}/fmap/sub-${subj}_fieldmap.json
                 
 else
 
-    perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" BIDS/sub-${subj}/ses-${sess}/fmap/sub-${subj}_fieldmap.json
+    perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" ${bids_output}/sub-${subj}/ses-${sess}/fmap/sub-${subj}_fieldmap.json
                 
 fi
 
-#rm -f BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json
-#mv BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json.new BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json
+# Solve the MULTI-ECHO problem
+#  dcm2bids does not yet convert ME data
+#  we grep the "EchoNumer" of runs
+n_multi_echo=0
+if [[ $sess = "" ]]; then
+    
+    me_file=($(grep EchoNumber ${bids_output}/sub-${subj}/func/*.json | awk -F ':' '{print $1}'))
+    
+    me_echo=($(grep EchoNumber ${bids_output}/sub-${subj}/func/*.json | awk -F ':' '{print $3}' | cut -c 2 ))
+    n_multi_echo=${#me_echo[@]}
 
+    for echo_number in $(seq 0 $(($n_multi_echo-1)) ); do
+        echo "  multi-echo file ${me_file[$echo_number]} corresponds to echo number ${me_echo[$echo_number]}"
 
+        me_file_before_run=$(echo ${me_file[$echo_number]} | awk -F '_run-' '{print $1}')
+        me_file_after_run=$(echo ${me_file[$echo_number]} | awk -F '_run-' '{print $2}')
+        me_file_after_run=${me_file_after_run:2}
+        #echo $me_file_before_run
+        #echo $me_file_after_run
+        cmd_json="cp ${me_file[$echo_number]} ${me_file_before_run}_echo-${me_echo[$echo_number]}${me_file_after_run}"
+        cmd_nii=$(echo $cmd_json | perl -p -e 's/json/nii.gz/g')
+        #echo $cmd_json
+        #echo $cmd_nii
 
+        eval $cmd_json
+        eval $cmd_nii
+        
+    done
+fi
 
 # copying task based events.tsv to BIDS directory
 if [ $events_flag -eq 1 ]; then
@@ -966,5 +990,8 @@ fi
 
 # clean up
 rm -rf "${tmp}/$subj"
+
+# Fix README BIDS validation
+cat "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
 
 kul_e2cl "Finished $script" $log
