@@ -25,6 +25,8 @@ v="1.0 - dd 20/03/2019"
 # MeasureImageSimilarity -d 3 --metric MI[../../../BIDS/sub-PT01/anat/sub-PT01_T1w.nii.gz,../../../lesion_wf/lesion_wf_output/sub-PT01/sub-PT01_T1nat_T1_sim_lesionless_Warped.nii.gz,1,64] \
 # --masks [../../../lesion_wf/lesion_wf_preproc/sub-PT01/sub-PT01_MNI_brain_mask_in_T1nat_minlesion.nii.gz,../../../lesion_wf/lesion_wf_preproc/sub-PT01/sub-PT01_MNI_mask_min_lesion.nii.gz] \ 
 # -o ./test_im_sim_MI.nii.gz -v
+# - add a sharpening step to the hemispheres before generating the lesion_fill
+# also do a sharpening step to the image before making the hole and replacing the lesion with the fill patch.
 
 
 
