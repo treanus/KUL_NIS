@@ -26,7 +26,7 @@ kul_main_dir=`dirname "$0"`
 script=`basename "$0"`
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
-#set -x
+# set -x
 
 # BEGIN LOCAL FUNCTIONS --------------
 
@@ -108,7 +108,7 @@ function kul_dcmtags {
     local FovAP=$(dcminfo "$dcm_file" -tag 2005 1074 | cut -c 13-)
     local FovFH=$(dcminfo "$dcm_file" -tag 2005 1075 | cut -c 13-)
     local FovRL=$(dcminfo "$dcm_file" -tag 2005 1076 | cut -c 13-)
-    local echonumber=$(dcminfo "$dcm_file" -tag 0018 0086 2>/dev/null | cut -c 13- | head -n 1)
+    # local echonumber=$(dcminfo "$dcm_file" -tag 0018 0086 2>/dev/null | cut -c 13- | head -n 1)
     # need to add local echonumber or something similar for mTE (0018,0086)     
 
     # Now we need to determine what vendor it is.
@@ -355,7 +355,7 @@ if [ "$#" -lt 4 ]; then
 
 else
 
-    while getopts "c:d:p:o:s:veth" OPT; do
+    while getopts "c:d:p:o:s:t:veh" OPT; do
 
         case $OPT in
         d) #dicom_zip_file
@@ -386,7 +386,7 @@ else
         ;;
         t) #temporary directory
             tmp_flag=1
-            tmp=$OPTARG
+            tempo=$OPTARG
         ;;
         h) #help
             Usage >&2
@@ -457,11 +457,26 @@ bids_config_json_file=$log_dir/${subj}_${sess}_bids_config.json
 # location of dcm2niix_log_file
 dcm2niix_log_file=$log_dir/${subj}_${sess}_dcm2niix_log_file.txt
 
+
+ if [[ $tmp_flag -eq 1 ]] ; then
+
+    tmp=${cwd}/${tempo}
+
+ else
+
+    tmp="/tmp/${subj}"
+
+ fi
+
+rm -fr ${tmp}
+
+# exit
+
 # remove previous existances to start fresh
 rm -f $dump_file
 rm -f $final_dcm_tags_file
 rm -f $bids_config_json_file
-rm -fr ${tmp}/$subj
+# rm -fr ${cwd}/${tmp}/$subj
 
 # ----------- SAY HELLO ----------------------------------------------------------------------------------
 
@@ -474,7 +489,8 @@ fi
 # uncompress the zip file with dicoms
 kul_e2cl "  uncompressing the zip file $dcm to $tmp/$subj" $log
 # clear the /tmp directory
-mkdir -p ${tmp}/$subj
+
+mkdir -p ${tmp}
 
 # Check the extention of the archive
 arch_ext="${dcm##*.}"
@@ -482,11 +498,11 @@ arch_ext="${dcm##*.}"
 
 if [ $arch_ext = "zip" ]; then 
 
-    unzip -q -o ${dcm} -d ${tmp}/$subj
+    unzip -q -o ${dcm} -d ${tmp}
 
 else
 
-    tar --strip-components=5 -C ${tmp}/$subj -xzf ${dcm}
+    tar --strip-components=5 -C ${tmp} -xzf ${dcm}
 
 fi
 
@@ -503,7 +519,7 @@ task(){
 
 N=4
 (
-find ${tmp}/$subj -type f | 
+find ${tmp} -type f | 
 while IFS= read -r dcm_file; do
     
     ((i=i%N)); ((i++==0)) && wait
@@ -892,10 +908,45 @@ else
     dcm2bids_session=""
 fi
 
-dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file \
-    -o $bids_output --clobber > $dcm2niix_log_file
+dcm2bids  -d "${tmp}" -p $subj $dcm2bids_session -c $bids_config_json_file \
+    -o $bids_output -l DEBUG --clobber > $dcm2niix_log_file
 
-# Update the Intended For of the fmaps
+if [[ ${sess} = "" ]] ; then 
+    ses_long=""
+else
+    ses_long="/ses-${sess}"  
+fi
+
+me_file=($(grep EchoNumber ${bids_output}/sub-${subj}${ses_long}/func/*.json 2> /dev/null | awk -F ':' '{print $1}'))
+me_echo=($(grep EchoNumber ${bids_output}/sub-${subj}${ses_long}/func/*.json 2> /dev/null | awk -F ':' '{print $3}' | cut -c 2 )) 
+
+    if [[ ${me_file} = "" ]] ; then 
+
+        echo " No Multiecho fMRI data found "
+
+    else
+
+        echo " Multiecho fMRI data found "
+        n_multi_echo=${#me_echo[@]}
+
+        for echo_number in $(seq 0 $(($n_multi_echo-1)) ) ; do 
+
+            me_file_before_run=$(echo ${me_file[$echo_number]} | awk -F '_run-' '{print $1}')
+            me_file_after_run=$(echo ${me_file[$echo_number]} | awk -F '_run-' '{print $2}')
+            me_file_after_run=${me_file_after_run:2}
+            cmd_json="mv ${me_file[$echo_number]} ${me_file_before_run}_echo-${me_echo[$echo_number]}${me_file_after_run}"
+            cmd_nii=$(echo $cmd_json | perl -p -e 's/json/nii.gz/g')
+
+            eval $cmd_json
+            eval $cmd_nii
+
+        done
+
+
+    fi
+
+
+
 
 # Update the Intended For of the fmaps
 # Here we define the Intended For according to the BIDS specs
@@ -904,36 +955,33 @@ dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file
 
 if [ ! -z "$fmap_task" ]; then 
 
-    intended_tasks_array=($fmap_task)
-    echo ${intended_tasks_array[@]}
-    intended_for_string=""
-    full_intended_for_string=""
+if [[ ${fmap_task} ]] ; then 
 
     for intended_task in "${intended_tasks_array[@]}"; do
         echo $intended_task
         echo $cwd
-        search_runs_of_task=($(find ${cwd}/BIDS/sub-${subj}/func -type f | grep task-${intended_task} | grep nii.gz))
+        search_runs_of_task=($(find ${cwd}/${bids_output}/sub-${subj}/func -type f | grep task-${intended_task} | grep nii.gz))
         echo ${search_runs_of_task[@]}
 
         n_runs=${#search_runs_of_task[@]}
         echo "  we found $n_runs of task $intended_task"
 
         for run_func in ${search_runs_of_task[@]}; do
-                
+                    
             if [[ $sess = "" ]]; then
 
                 intended_for_string="func\/$(basename $run_func)"
-                
+                    
             else
 
                 intended_for_string="ses-${sess}\/func\/$(basename $run_func)"
-                
+                    
             fi
-                
+                    
             full_intended_for_string="$full_intended_for_string, \"${intended_for_string}\""
-            
+                
         done
-        
+            
     done
 
     full_intended_for_string="[ ${full_intended_for_string:1} ]"      
@@ -943,13 +991,17 @@ if [ ! -z "$fmap_task" ]; then
 
     if [[ $sess = "" ]]; then
 
-        perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json
-                
+        perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" ${bids_output}/sub-${subj}/fmap/sub-${subj}_fieldmap.json
+                    
     else
 
-        perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" BIDS/sub-${subj}/ses-${sess}/fmap/sub-${subj}_fieldmap.json
-                
+        perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" ${bids_output}/sub-${subj}/ses-${sess}/fmap/sub-${subj}_fieldmap.json
+                    
     fi
+
+else 
+
+    echo " No fmap tasks given "
 
 fi
 
@@ -965,6 +1017,11 @@ if [ $events_flag -eq 1 ]; then
 fi
 
 # clean up
-rm -rf "${tmp}/$subj"
+cleanup="rm -fr ${tmp}"
+echo ${cleanup}
+eval ${cleanup}
+
+# Fix README BIDS validation
+echo "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
 
 kul_e2cl "Finished $script" $log
