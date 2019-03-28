@@ -902,57 +902,56 @@ dcm2bids  -d "${tmp}/$subj" -p $subj $dcm2bids_session -c $bids_config_json_file
 #  It tells fmriprep how to use the fmap, notably for which func(s)
 #  fmap_task variable (1 strings or space-separated string) is used 
 
-intended_tasks_array=($fmap_task)
-echo ${intended_tasks_array[@]}
-intended_for_string=""
-full_intended_for_string=""
+if [ ! -z "$fmap_task" ]; then 
 
-for intended_task in "${intended_tasks_array[@]}"; do
-    echo $intended_task
-    echo $cwd
-    search_runs_of_task=($(find ${cwd}/BIDS/sub-${subj}/func -type f | grep task-${intended_task} | grep nii.gz))
-    echo ${search_runs_of_task[@]}
+    intended_tasks_array=($fmap_task)
+    echo ${intended_tasks_array[@]}
+    intended_for_string=""
+    full_intended_for_string=""
 
-    n_runs=${#search_runs_of_task[@]}
-    echo "  we found $n_runs of task $intended_task"
+    for intended_task in "${intended_tasks_array[@]}"; do
+        echo $intended_task
+        echo $cwd
+        search_runs_of_task=($(find ${cwd}/BIDS/sub-${subj}/func -type f | grep task-${intended_task} | grep nii.gz))
+        echo ${search_runs_of_task[@]}
 
-    for run_func in ${search_runs_of_task[@]}; do
+        n_runs=${#search_runs_of_task[@]}
+        echo "  we found $n_runs of task $intended_task"
+
+        for run_func in ${search_runs_of_task[@]}; do
                 
-        if [[ $sess = "" ]]; then
+            if [[ $sess = "" ]]; then
 
-            intended_for_string="func\/$(basename $run_func)"
+                intended_for_string="func\/$(basename $run_func)"
                 
-        else
+            else
 
-            intended_for_string="ses-${sess}\/func\/$(basename $run_func)"
+                intended_for_string="ses-${sess}\/func\/$(basename $run_func)"
                 
-        fi
+            fi
                 
-        full_intended_for_string="$full_intended_for_string, \"${intended_for_string}\""
+            full_intended_for_string="$full_intended_for_string, \"${intended_for_string}\""
             
-    done
+        done
         
-done
+    done
 
-full_intended_for_string="[ ${full_intended_for_string:1} ]"      
+    full_intended_for_string="[ ${full_intended_for_string:1} ]"      
 
-# Now we replace it in the json file
-echo "  NOTE: we set the following string as Intended_For in the fieldmap: ${full_intended_for_string}"
+    # Now we replace it in the json file
+    echo "  NOTE: we set the following string as Intended_For in the fieldmap: ${full_intended_for_string}"
 
-if [[ $sess = "" ]]; then
+    if [[ $sess = "" ]]; then
 
-    perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json
+        perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json
                 
-else
+    else
 
-    perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" BIDS/sub-${subj}/ses-${sess}/fmap/sub-${subj}_fieldmap.json
+        perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" BIDS/sub-${subj}/ses-${sess}/fmap/sub-${subj}_fieldmap.json
                 
+    fi
+
 fi
-
-#rm -f BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json
-#mv BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json.new BIDS/sub-${subj}/fmap/sub-${subj}_fieldmap.json
-
-
 
 
 # copying task based events.tsv to BIDS directory
