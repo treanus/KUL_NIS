@@ -139,12 +139,13 @@ if [ ! -d $mriqc_dir_to_check ]; then
 
     mriqc_log=${preproc}/log/mriqc/${BIDS_participant}.txt
 
-    kul_e2cl " started (in parallel) mriqc on participant $BIDS_participant (using $ncpu_mriqc cores, logging to $mriqc_log)" $log
+    kul_e2cl " started (in parallel) mriqc on participant $BIDS_participant (with options $mriqc_options, using $ncpu_mriqc cores, logging to $mriqc_log)" $log
 
     local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
  -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
  poldracklab/mriqc:latest \
  --participant_label $BIDS_participant \
+ $mriqc_options \
  --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
  /data /out participant \
  > $mriqc_log 2>&1 ") 
