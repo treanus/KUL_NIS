@@ -72,9 +72,11 @@ v="v0.2 - dd 19/12/2018"
 #  - check wether all necessary software is installed (and exit if needed)
 #  - provide some general functions like logging
 kul_main_dir=$(dirname "$0")
-source $kul_main_dir/KUL_main_functions.sh
 script=$(basename "$0")
 cwd=$(pwd)
+source $kul_main_dir/KUL_main_functions.sh
+
+
 
 
 
@@ -133,13 +135,43 @@ USAGE
 # A Function to start mriqc processing (in parallel)
 function task_mriqc_participant {
 
+# check whether to use singularity-mriqc
+mriqc_singularity=0
+#echo $KUL_use_mriqc_singularity
+if [ -z $KUL_use_mriqc_singularity ]; then
+
+    echo "  KUL_use_mriqc_singularity not set, using docker"
+    
+elif [ $KUL_use_fmriprep_singularity -eq 1 ]; then
+    
+    echo "  KUL_use_mriqc_singularity is set to 1, using it"
+    mriqc_singularity=1
+
+fi
+
+#echo $mriqc_singularity
+
 mriqc_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
 mriqc_log="${preproc}/log/mriqc/mriqc_${mriqc_log_p}.txt"
 mkdir -p ${preproc}/log/mriqc
 
 kul_e2cl " started (in parallel) mriqc on participant(s) $BIDS_participant (with options $mriqc_options, using $ncpu_mriqc cores, logging to $mriqc_log)" $log
 
-local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
+if [ $mriqc_singularity -eq 1 ]; then 
+
+        mkdir -p ./mriqc
+
+ local task_mriqc_cmd=$(echo "singularity run  \
+ KUL_mriqc_singularity \
+ ./${bids_dir} ./mriqc participant \
+ --participant_label $BIDS_participant \
+ $mriqc_options \
+ --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
+ > $mriqc_log 2>&1 ") 
+
+else
+
+ local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
  -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
  poldracklab/mriqc:latest \
  --participant_label $BIDS_participant \
@@ -148,7 +180,9 @@ local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --
  /data /out participant \
  > $mriqc_log 2>&1 ") 
 
-echo "   using cmd: $task_mriqc_cmd"
+ echo "   using cmd: $task_mriqc_cmd"
+
+fi
 
 # now we start the parallel job
 eval $task_mriqc_cmd &
@@ -804,25 +838,26 @@ if [ $expert -eq 1 ]; then
     echo "  Using Expert mode"
 
     #check mriqc and options
-    do_mriqc=$(grep do_mriqc $conf | cut -d':' -f 2)
+    do_mriqc=0
+    do_mriqc=$(grep do_mriqc $conf | sed 's/[^0-9]//g')
     echo "  do_mriqc: $do_mriqc"
     
     if [ $do_mriqc -eq 1 ]; then
 
-        mriqc_options=$(grep mriqc_options $conf | cut -d':' -f 2)
+        mriqc_options=$(grep mriqc_options $conf | cut -d':' -f 2 | tr -d '\r')
 
-        mriqc_ncpu=$(grep mriqc_ncpu $conf | cut -d':' -f 2)
+        mriqc_ncpu=$(grep mriqc_ncpu $conf | sed 's/[^0-9]//g')
         ncpu_mriqc=$mriqc_ncpu
         ncpu_mriqc_ants=$mriqc_ncpu
         
-        mriqc_mem=$(grep mriqc_mem $conf | cut -d':' -f 2)
+        mriqc_mem=$(grep mriqc_mem $conf | sed 's/[^0-9]//g')
         mem_gb=$mriqc_mem
     
         #get bids_participants
-        BIDS_subjects=($(grep BIDS_participants $conf | cut -d':' -f 2))
+        BIDS_subjects=($(grep BIDS_participants $conf | cut -d':' -f 2 | tr -d '\r'))
         n_subj=${#BIDS_subjects[@]}
             
-        mriqc_simultaneous=$(grep mriqc_simultaneous $conf | cut -d':' -f 2)
+        mriqc_simultaneous=$(grep mriqc_simultaneous $conf | sed 's/[^0-9]//g')
 
         if [ $silent -eq 0 ]; then
 
@@ -888,25 +923,25 @@ if [ $expert -eq 1 ]; then
 
 
     #check fmriprep and options
-    do_fmriprep=$(grep do_fmriprep $conf | cut -d':' -f 2)
+    do_fmriprep=$(grep do_fmriprep $conf | sed 's/[^0-9]//g')
     echo "  do_fmriprep: $do_fmriprep"
     
     if [ $do_fmriprep -eq 1 ]; then
 
         fmriprep_options=$(grep fmriprep_options $conf | cut -d':' -f 2)
 
-        fmriprep_ncpu=$(grep fmriprep_ncpu $conf | cut -d':' -f 2)
+        fmriprep_ncpu=$(grep fmriprep_ncpu $conf | 's/[^0-9]//g')
         ncpu_fmriprep=$fmriprep_ncpu
         ncpu_fmriprep_ants=$fmriprep_ncpu
         
-        fmriprep_mem=$(grep fmriprep_mem $conf | cut -d':' -f 2)
+        fmriprep_mem=$(grep fmriprep_mem $conf | 's/[^0-9]//g')
         mem_gb=$fmriprep_mem
     
         #get bids_participants
         BIDS_subjects=($(grep BIDS_participants $conf | cut -d':' -f 2))
         n_subj=${#BIDS_subjects[@]}
             
-        fmriprep_simultaneous=$(grep fmriprep_simultaneous $conf | cut -d':' -f 2)
+        fmriprep_simultaneous=$(grep fmriprep_simultaneous $conf | 's/[^0-9]//g')
 
         if [ $silent -eq 0 ]; then
 
