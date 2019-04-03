@@ -106,6 +106,7 @@ Optional arguments:
      -t:  temporary directory (default = /tmp)
      -r:  reset docker (clean the images and download new ones)
      -v:  verbose
+     -e:  expert mode (uses a different config_file format)
 
 Example:
 
@@ -132,16 +133,13 @@ USAGE
 # A Function to start mriqc processing (in parallel)
 function task_mriqc_participant {
 
-# check if already performed mriqc
-mriqc_dir_to_check=mriqc/sub-${BIDS_participant}
+mriqc_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
+mriqc_log="${preproc}/log/mriqc/mriqc_${mriqc_log_p}.txt"
+mkdir -p ${preproc}/log/mriqc
 
-if [ ! -d $mriqc_dir_to_check ]; then
+kul_e2cl " started (in parallel) mriqc on participant(s) $BIDS_participant (with options $mriqc_options, using $ncpu_mriqc cores, logging to $mriqc_log)" $log
 
-    mriqc_log=${preproc}/log/mriqc/${BIDS_participant}.txt
-
-    kul_e2cl " started (in parallel) mriqc on participant $BIDS_participant (with options $mriqc_options, using $ncpu_mriqc cores, logging to $mriqc_log)" $log
-
-    local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
+local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
  -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
  poldracklab/mriqc:latest \
  --participant_label $BIDS_participant \
@@ -150,23 +148,14 @@ if [ ! -d $mriqc_dir_to_check ]; then
  /data /out participant \
  > $mriqc_log 2>&1 ") 
 
-    echo "   using cmd: $task_mriqc_cmd"
+echo "   using cmd: $task_mriqc_cmd"
 
-    # now we start the parallel job
-    eval $task_mriqc_cmd &
-    mriqc_pid="$!"
-    echo " mriqc pid is $mriqc_pid"
+# now we start the parallel job
+eval $task_mriqc_cmd &
+mriqc_pid="$!"
+echo " mriqc pid is $mriqc_pid"
 
-    sleep 2
-
-    #kul_e2cl "   done mriqc on participant $BIDS_participant" $log
-
-else
-
-    mriqc_pid=-1    
-    echo " mriqc of participant $BIDS_participant already done, skipping..."
-
-fi
+sleep 2
 
 }
 
@@ -174,8 +163,9 @@ fi
 # A function to start fmriprep processing (in parallel)
 function task_fmriprep {
 
-# check if already performed fmriprep
-fmriprep_file_to_check=fmriprep/sub-${BIDS_participant}.html
+# make log dir and clean_up before starting
+mkdir -p ${preproc}/log/fmriprep
+rm -fr ${cwd}/fmriprep_work
 
 # check whether to use singularity-fmriprep
 fmriprep_singularity=0
@@ -193,17 +183,17 @@ fi
 
 echo $fmriprep_singularity
 
-if [ ! -f $fmriprep_file_to_check ]; then
 
-    fmriprep_log=${preproc}/log/fmriprep/${BIDS_participant}.txt
 
-    kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
+fmriprep_log=${preproc}/log/fmriprep/${BIDS_participant}.txt
 
-    if [ $fmriprep_singularity -eq 1 ]; then 
+kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
+
+if [ $fmriprep_singularity -eq 1 ]; then 
 
         mkdir -p ./fmriprep_work
         
- local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
+    local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
  -B ./fmriprep_work:/work \
  -B ${freesurfer_license}:/opt/freesurfer/license.txt \
  $KUL_fmriprep_singularity \
@@ -219,7 +209,7 @@ if [ ! -f $fmriprep_file_to_check ]; then
  --notrack \
  > $fmriprep_log  2>&1") 
 
-    else
+else
 
     local task_fmriprep_cmd=$(echo "docker run --rm \
  -v ${cwd}/${bids_dir}:/data \
@@ -238,25 +228,18 @@ if [ ! -f $fmriprep_file_to_check ]; then
  participant \
  > $fmriprep_log  2>&1") 
 
-    fi
-
-    echo "   using cmd: $task_fmriprep_cmd"
-
-    # Now start the parallel job
-    eval $task_fmriprep_cmd &
-    fmriprep_pid="$!"
-    echo " fmriprep pid is $fmriprep_pid"
-
-    sleep 2
-    
-    #kul_e2cl "   done fmriprep on participant $BIDS_participant" $log
-
-else
-
-    fmriprep_pid=-1    
-    echo " fmriprep of participant $BIDS_participant already done, skipping..."
-
 fi
+
+echo "   using cmd: $task_fmriprep_cmd"
+
+# Now start the parallel job
+eval $task_fmriprep_cmd &
+fmriprep_pid="$!"
+echo " fmriprep pid is $fmriprep_pid"
+
+sleep 2
+   
+#kul_e2cl "   done fmriprep on participant $BIDS_participant" $log
 
 }
 
@@ -269,6 +252,7 @@ freesurfer_file_to_check=freesurfer/sub-${BIDS_participant}/${BIDS_participant}/
 if [ ! -f  $freesurfer_file_to_check ]; then
     
     freesurfer_log=${preproc}/log/freesurfer/${BIDS_participant}.txt
+    mkdir -p ${preproc}/log/freesurfer
 
     kul_e2cl " started (in parallel) freesurfer recon-all on participant ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
     
@@ -398,6 +382,7 @@ dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_is_done.log
 if [ ! -f  $dwiprep_file_to_check ]; then
 
     dwiprep_log=${preproc}/log/dwiprep/dwiprep_${BIDS_participant}.txt
+    mkdir -p ${preproc}/log/dwiprep
 
     kul_e2cl " started (in parallel) KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
@@ -654,6 +639,7 @@ silent=1
 ncpu=6
 mem_gb=24
 bids_dir=BIDS
+expert=0
 tmp=/tmp
 
 # Set flags
@@ -671,7 +657,7 @@ if [ "$#" -lt 2 ]; then
 
 else
 
-    while getopts "c:b:n:m:t:rvh" OPT; do
+    while getopts "c:b:n:m:t:ervh" OPT; do
 
         case $OPT in
         c) #config_file
@@ -699,6 +685,9 @@ else
         ;;
         v) #verbose
             silent=0
+        ;;
+        e) #expert
+            expert=1
         ;;
         h) #help
             Usage >&2
@@ -807,16 +796,161 @@ fi
 # set up logging directories and clean left over fmriprep_work directory
 # TODO:
 #  - this should best go into the task_*
-mkdir -p ${preproc}/log/mriqc
-mkdir -p ${preproc}/log/freesurfer
-mkdir -p ${preproc}/log/dwiprep
-mkdir -p ${preproc}/log/fmriprep
-rm -fr ${cwd}/fmriprep_work
 
 
+if [ $expert -eq 1 ]; then
 
-# we read the config file (and it may be csv, tsv or ;-seperated)
-while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options eddy_options do_dwiprep_anat anat_options do_dwiprep_fibertract; do
+    # Expert mode
+    echo "  Using Expert mode"
+
+    #check mriqc and options
+    do_mriqc=$(grep do_mriqc $conf | cut -d':' -f 2)
+    echo "  do_mriqc: $do_mriqc"
+    
+    if [ $do_mriqc -eq 1 ]; then
+
+        mriqc_options=$(grep mriqc_options $conf | cut -d':' -f 2)
+
+        mriqc_ncpu=$(grep mriqc_ncpu $conf | cut -d':' -f 2)
+        ncpu_mriqc=$mriqc_ncpu
+        ncpu_mriqc_ants=$mriqc_ncpu
+        
+        mriqc_mem=$(grep mriqc_mem $conf | cut -d':' -f 2)
+        mem_gb=$mriqc_mem
+    
+        #get bids_participants
+        BIDS_subjects=($(grep BIDS_participants $conf | cut -d':' -f 2))
+        n_subj=${#BIDS_subjects[@]}
+            
+        mriqc_simultaneous=$(grep mriqc_simultaneous $conf | cut -d':' -f 2)
+
+        if [ $silent -eq 0 ]; then
+
+            echo "  mriqc_options: $mriqc_options"
+            echo "  mriqc_ncpu: $mriqc_ncpu"
+            echo "  mriqc_mem: $mriqc_mem"
+            echo "  BIDS_participants: ${BIDS_subjects[@]}"
+            echo "  number of BIDS_participants: $n_subj"
+            echo "  mriqc_simultaneous: $mriqc_simultaneous"
+
+        fi
+
+        # check if already performed mriqc
+        todo_bids_participants=()
+        already_done=()
+
+        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
+
+            mriqc_dir_to_check=mriqc/sub-${BIDS_subjects[$i_bids_participant]}
+
+            #echo $mriqc_dir_to_check
+            if [ ! -d $mriqc_dir_to_check ]; then
+
+                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
+            
+            else
+
+                already_done+=(${BIDS_subjects[$i_bids_participant]})
+            
+            fi
+
+        done
+
+        echo "  mriqc was already done for participant(s) ${already_done[@]}"
+        
+        # submit the jobs (and split them in chucks)
+        n_subj_todo=${#todo_bids_participants[@]}
+
+        for i_bids_participant in $(seq 0 $mriqc_simultaneous $(($n_subj_todo-1))); do
+
+            BIDS_participant=${todo_bids_participants[@]:$i_bids_participant:$mriqc_simultaneous}
+            #echo " going to start mriqc with $mriqc_simultaneous participants simultaneously, notably $BIDS_participant"
+        
+            mriqc_pid=-1
+            waitforprocs=()
+            waitforpids=()
+
+            task_mriqc_participant
+
+            if [ $mriqc_pid -gt 0 ]; then
+                waitforprocs+=("mriqc")
+                waitforpids+=($mriqc_pid)
+            fi
+        
+            kul_e2cl " waiting for processes [${waitforprocs[@]}] for subject(s) $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
+            WaitForTaskCompletion 
+
+            kul_e2cl " processes [${waitforprocs[@]}] for subject(s) $BIDS_participant have finished" $log
+
+        done
+
+    fi
+
+
+    #check fmriprep and options
+    do_fmriprep=$(grep do_fmriprep $conf | cut -d':' -f 2)
+    echo "  do_fmriprep: $do_fmriprep"
+    
+    if [ $do_fmriprep -eq 1 ]; then
+
+        fmriprep_options=$(grep fmriprep_options $conf | cut -d':' -f 2)
+
+        fmriprep_ncpu=$(grep fmriprep_ncpu $conf | cut -d':' -f 2)
+        ncpu_fmriprep=$fmriprep_ncpu
+        ncpu_fmriprep_ants=$fmriprep_ncpu
+        
+        fmriprep_mem=$(grep fmriprep_mem $conf | cut -d':' -f 2)
+        mem_gb=$fmriprep_mem
+    
+        #get bids_participants
+        BIDS_subjects=($(grep BIDS_participants $conf | cut -d':' -f 2))
+        n_subj=${#BIDS_subjects[@]}
+            
+        fmriprep_simultaneous=$(grep fmriprep_simultaneous $conf | cut -d':' -f 2)
+
+        if [ $silent -eq 0 ]; then
+
+            echo "  fmriprep_options: $fmriprep_options"
+            echo "  fmriprep_ncpu: $fmriprep_ncpu"
+            echo "  fmriprep_mem: $fmriprep_mem"
+            echo "  BIDS_participants: ${BIDS_subjects[@]}"
+            echo "  number of BIDS_participants: $n_subj"
+
+        fi
+
+        for i_bids_participant in $(seq 0 $fmriprep_simultaneous $n_subj); do
+
+            BIDS_participant=${BIDS_subjects[@]:$i_bids_participant:$fmriprep_simultaneous}
+            #echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $BIDS_participant"
+        
+            fmriprep_pid=-1
+            waitforprocs=()
+            waitforpids=()
+
+            task_fmriprep_participant
+
+            if [ $fmriprep_pid -gt 0 ]; then
+                waitforprocs+=("fmriprep")
+                waitforpids+=($fmriprep_pid)
+            fi
+        
+            kul_e2cl " waiting for processes [${waitforprocs[@]}] for subject(s) $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
+            WaitForTaskCompletion 
+
+            kul_e2cl " processes [${waitforprocs[@]}] for subject(s) $BIDS_participant have finished" $log
+
+        done
+
+    fi
+
+
+else
+
+    # regular mode 
+
+
+ # we read the config file (and it may be csv, tsv or ;-seperated)
+ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options  eddy_options do_dwiprep_anat anat_options do_dwiprep_fibertract; do
     
     
     if [ "$BIDS_participant" = "BIDS_participant" ]; then
@@ -858,14 +992,36 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
         dwiprep_pid=-1
 
         if [ $do_mriqc -eq 1 ]; then
+
+            # check if already performed mriqc
+            mriqc_dir_to_check=mriqc/sub-${BIDS_participant}
+
+            if [ ! -d $mriqc_dir_to_check ]; then
             
-            task_mriqc_participant 
+                task_mriqc_participant 
+
+            else
+
+                echo " mriqc of participant $BIDS_participant already done, skipping..."
+
+            fi
 
         fi
 
         if [ $do_fmriprep -eq 1 ]; then
             
-            task_fmriprep 
+            # check if already performed fmriprep
+            fmriprep_file_to_check=fmriprep/sub-${BIDS_participant}.html
+
+            if [ ! -f $fmriprep_file_to_check ]; then
+
+                task_fmriprep 
+
+            else
+
+                echo " fmriprep of participant $BIDS_participant already done, skipping..."
+
+            fi
 
         fi
 
@@ -946,12 +1102,15 @@ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fm
 
     fi
 
-# leave a few spaces before logging to console
-echo ""
-echo ""
+ # leave a few spaces before logging to console
+ echo ""
+ echo ""
 
 
-done < $conf
+ done < $conf
+
+
+fi
 
 
 # ----------- STEP 3 - Compute mriqc group summary ---
