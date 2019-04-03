@@ -260,6 +260,10 @@ dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $
 # DO QA ---------------------------------------------
 # Make an FA/dec image
 
+# create mask of the dwi data (that is regeistered to the T1w)
+kul_e2cl "    creating mask of the dwi_preproces_reg2T1w data..." ${log}
+dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
+
 
 if [ ! -f qa/dec_reg2T1w.mif ]; then
 

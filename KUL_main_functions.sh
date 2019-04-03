@@ -46,46 +46,57 @@ function kul_e2cl {
 
 }
 
-# check version of mrtrix3
-mrtrix_version=$(mrconvert -version | head -n 1 | cut -d'-' -f 2)
-if [ $mrtrix_version -lt $mrtrix_version_needed ]; then
+machine_type=$(uname)
+echo $machine_type
 
-    echo "Your mrtrix3 RC3 subversion is $mrtrix_version"
-    echo "You need mrtrix3 RC3 subversion => $mrtrix_version_needed"
-    exit 2
+if [ $machine_type = "Linux" ]; then
 
-fi
+    echo "You are using Linux (probably the VSC) and we assume that you kno what you are doing (loaded all modules correctly)"
 
-# check version of dcm2niix
-dcm2niix_version=$(dcm2niix | grep version | cut -d'.' -f 3 | cut -c -8)
-if [ $dcm2niix_version -lt $dcm2niix_version_needed ]; then
+else
 
-    echo "Your version of dcm2nixx is $dcm2niix_version"
-    echo "You need dcm2nixx version more recent than $dcm2niix_version_needed"
-    exit 2
+    # check version of mrtrix3
+    mrtrix_version=$(mrconvert -version | head -n 1 | cut -d'-' -f 2)
+    if [ $mrtrix_version -lt $mrtrix_version_needed ]; then
 
-fi
+        echo "Your mrtrix3 RC3 subversion is $mrtrix_version"
+        echo "You need mrtrix3 RC3 subversion => $mrtrix_version_needed"
+        exit 2
+
+    fi
+
+    # check version of dcm2niix
+    dcm2niix_version=$(dcm2niix | grep version | cut -d'.' -f 3 | cut -c -8)
+    if [ $dcm2niix_version -lt $dcm2niix_version_needed ]; then
+
+        echo "Your version of dcm2nixx is $dcm2niix_version"
+        echo "You need dcm2nixx version more recent than $dcm2niix_version_needed"
+        exit 2
+
+    fi
 
 
-# check version of dcm2bids
-dcm2bids_version=$(dcm2bids -h | grep version | head -n 1 | cut -d'.' -f 2)
-if [ $dcm2bids_version -lt $dcm2bids_version_needed ]; then
+    # check version of dcm2bids
+    dcm2bids_version=$(dcm2bids -h | grep version | head -n 1 | cut -d'.' -f 2)
+    if [ $dcm2bids_version -lt $dcm2bids_version_needed ]; then
 
-    echo "Your version of dcm2bids is $dcm2bids_version"
-    echo "You need dcm2bids version equal or more than $dcm2bids_version_needed"
-    exit 2
+        echo "Your version of dcm2bids is $dcm2bids_version"
+        echo "You need dcm2bids version equal or more than $dcm2bids_version_needed"
+        exit 2
 
-fi
+    fi
 
-# check version of fsl
-fsl_version=$(flirt -version | cut -d' ' -f 3 | cut -d'.' -f 1)
-if [ $fsl_version -lt $fsl_version_needed ]; then
+    # check version of fsl
+    fsl_version=$(flirt -version | cut -d' ' -f 3 | cut -d'.' -f 1)
+    if [ $fsl_version -lt $fsl_version_needed ]; then
 
-    echo "Your version of FSL is $fsl_version"
-    echo "You need FSL version equal or more than $fsl_version_needed"
-    exit 2
+        echo "Your version of FSL is $fsl_version"
+        echo "You need FSL version equal or more than $fsl_version_needed"
+        exit 2
 
-fi
+    fi
+
+fi 
 
 # -- Set global defaults --
 

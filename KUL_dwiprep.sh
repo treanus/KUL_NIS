@@ -414,19 +414,35 @@ if [ ! -f dwi/geomcorr.mif ]; then
     
     fi
 
-    # Let's run eddy_quad
     temp_dir=$(ls -d dwipreproc*)
-    rm -rf eddy_qc/quad
-	kul_e2cl "   running eddy_quad..." ${log}
-	eddy_quad $temp_dir/dwi_post_eddy --eddyIdx $temp_dir/eddy_indices.txt \
-        --eddyParams $temp_dir/dwi_post_eddy.eddy_parameters --mask $temp_dir/eddy_mask.nii \
-        --bvals $temp_dir/bvals --bvecs $temp_dir/bvecs --output-dir eddy_qc/quad --verbose 
-    
-    # make an mriqc/fmriprep style report (i.e. just link qc.pdf into main dwiprep directory)
-    echo $cwd
-    echo $preproc
-    ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}/../${subj}.pdf &
 
+    # check id eddy_quad is available
+    #machine_type=$(uname)
+    #echo $machine_type
+    test_eddy_quad=$(command -v eddy_quad)
+    echo $test_eddy_quad
+
+    if [ $test_eddy_quad = "" ]; then
+
+        echo "You are probably on the VSC and we skip eddy_quad (which was not found in the path)"
+
+    else
+
+        # Let's run eddy_quad
+        rm -rf eddy_qc/quad
+	    kul_e2cl "   running eddy_quad..." ${log}
+	    eddy_quad $temp_dir/dwi_post_eddy --eddyIdx $temp_dir/eddy_indices.txt \
+            --eddyParams $temp_dir/dwi_post_eddy.eddy_parameters --mask $temp_dir/eddy_mask.nii \
+            --bvals $temp_dir/bvals --bvecs $temp_dir/bvecs --output-dir eddy_qc/quad --verbose 
+    
+        # make an mriqc/fmriprep style report (i.e. just link qc.pdf into main dwiprep directory)
+        echo $cwd
+        echo $preproc
+        ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}/../${subj}.pdf &
+
+
+    fi
+        
     # clean-up the above dwipreproc temporary directory
     rm -rf $temp_dir
 

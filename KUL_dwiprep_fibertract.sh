@@ -29,12 +29,6 @@ v="v0.1 - dd 14/02/2019"
     # tmp directory for temporary processing
     tmp=/tmp
 
-    # development for Donatienne
-    Donatienne=0
-
-    # development for Rose Bruffaerts
-    Rose=0
-
 # 
 
 
@@ -74,7 +68,6 @@ Required arguments:
 Optional arguments:
 
      -s:  session (of the participant)
-     -o:  number of desired streamlines to select in tckgen (default nods=2000)
      -n:  number of cpu for parallelisation
      -v:  show output from mrtrix commands
 
@@ -90,37 +83,42 @@ function kul_mrtrix_tracto {
 
     mkdir -p tracts_${a}
     
-    kul_e2cl " running tckgen of ${tract} tract with algorithm $a all seeds with -select $nods" ${log}
+    kul_e2cl " running tckgen of ${tract} tract with algorithm $a all seeds with parameters $parameters" ${log}
 
     # make the seed string
-    local s=$(printf " -seed_image roi/%s.nii.gz"  "${seeds[@]}")
+    local s=$(printf " -seed_image roi/%s.nii.gz"  ${seeds[@]})
     
     # make the include string (which is same rois as seed)
-    local i=$(printf " -include roi/%s.nii.gz"  "${seeds[@]}")
+    local i=$(printf " -include roi/%s.nii.gz"  ${seeds[@]})
 
     # make the exclude string (which is same rois as seed)
-    local e=$(printf " -exclude roi/%s.nii.gz"  "${exclude[@]}")
+    local e=$(printf " -exclude roi/%s.nii.gz"  ${exclude[@]})
 
     # make the mask string 
     local m="-mask dwi_preproced_reg2T1w_mask.nii.gz"
 
   
     # do the tracking
-    # echo tracts_${a}/${tract}.tck
-        
+            
     if [ ! -f tracts_${a}/${tract}.tck ]; then 
 
-            
+        #echo ${a}            
+        #pwd
+        #echo $s
+        #echo $i
+        #echo $e
+        #echo $m
+        echo $paramaters
 
         if [ "${a}" == "iFOD2" ]; then
 
             # perform IFOD2 tckgen
-            tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a -select $nods $s $i $e $m -angle $theta -nthreads $ncpu -force
+            tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -angle $theta -nthreads $ncpu -force
 
-        elif [ "${a}" == "iFOD2" ]; then
+        elif [ "${a}" == "Tensor_prob" ]; then
 
             # perform Tensor_Prob tckgen
-            tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a -cutoff 0.01 -select $nods $s $i $e $m -nthreads $ncpu -force
+            tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -nthreads $ncpu -force
 
     fi
         
@@ -129,6 +127,7 @@ function kul_mrtrix_tracto {
         echo "  tckgen of ${tract} tract already done, skipping"
 
     fi
+
 
     # Check if any fibers have been found & log to the information file
     echo "   checking tracts_${a}/${tract}"
@@ -154,28 +153,24 @@ function kul_mrtrix_tracto {
 
                 # Warp the full tract image to MNI space
                 input=tracts_${a}/${tract}.nii.gz
-                output=tracts_${a}/MNI_Space_FULL_${tract}_${a}.nii.gz
-                transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-                reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
-                KUL_antsApply_Transform
-
-                # intersect the nii tract image with the thalamic roi
-                #fslmaths tracts_${a}/${tract}.nii -mas roi/${intersect}.nii.gz tracts_${a}/${tract}_masked
-
-                # make a probabilistic image
-                local m=$(mrstats -quiet tracts_${a}/${tract}_masked.nii.gz -output max)
-                fslmaths tracts_${a}/${tract}_masked -div $m tracts_${a}/Subj_Space_${tract}_${a}
-
-                # Warp the probabilistic image to MNI space
-                input=tracts_${a}/Subj_Space_${tract}_${a}.nii.gz
                 output=tracts_${a}/MNI_Space_${tract}_${a}.nii.gz
                 transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
                 reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
                 KUL_antsApply_Transform
-                
-                
 
-                fi
+                # make a probabilistic image in subject and MNI space
+                local m=$(mrstats -quiet tracts_${a}/${tract}.nii.gz -output max)
+                #echo $m
+                fslmaths tracts_${a}/${tract} -div $m tracts_${a}/Subj_Space_prob_${tract}_${a}
+                fslmaths tracts_${a}/MNI_Space_${tract}_${a}.nii.gz -div $m tracts_${a}/MNI_Space_prob_${tract}_${a}
+
+                # Warp the probabilistic image to MNI space
+                #input=tracts_${a}/Subj_Space_${tract}_${a}.nii.gz
+                #output=tracts_${a}/MNI_Space_${tract}_${a}.nii.gz
+                #transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+                #reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+                #KUL_antsApply_Transform
+                
 
             fi
 
@@ -189,10 +184,20 @@ function kul_mrtrix_tracto {
 }
 
 
+function KUL_antsApply_Transform {
+
+    antsApplyTransforms -d 3 --float 1 \
+    --verbose 1 \
+    -i $input \
+    -o $output \
+    -r $reference \
+    -t $transform \
+    -n Linear
+}
+
 # CHECK COMMAND LINE OPTIONS -------------
 # 
 # Set defaults
-nods=2000
 ncpu=6
 silent=1
 
@@ -213,7 +218,7 @@ if [ "$#" -lt 3 ]; then
 
 else
 
-    while getopts "p:c:r:s:o:n:vh" OPT; do
+    while getopts "p:c:r:s:n:vh" OPT; do
 
         case $OPT in
         p) #subject
@@ -231,11 +236,6 @@ else
         s) #session
             s_flag=1
             ses=$OPTARG
-        ;;
-        o) #nods
-            nods=$OPTARG
-            #remove leading/trailing spaces
-            #awk '{$nods=$nods;print}'
         ;;
         n) #parallel
             ncpu=$OPTARG
@@ -359,17 +359,17 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
     # we read the config file (and it may be csv, tsv or ;-seperated)
     while IFS=$'\t,;' read -r roi_name from_atlas space label_id; do
  
-        if [ "$roi_name" = "roi_name" ]; then
+        if [[ ! $roi_name == \#* ]]; then
         
-        echo "first line" > /dev/null 2>&1
 
-        else
+            if [ ! -f roi/${roi_name}.nii.gz ]; then   
 
-            if [ $space = "subject" ]; then
+                if [ $space = "subject" ]; then
 
-                echo " creating the $space space $roi_name ROI from $from_atlas using label_id $label_id..." 
+                    echo " creating the $space space $roi_name ROI from $from_atlas using label_id $label_id..." 
 
-                fslmaths $fs_labels -thr $label_id -uthr $label_id -bin roi/${roi_name}
+                    fslmaths $fs_labels -thr $label_id -uthr $label_id -bin roi/${roi_name}
+                fi
 
             fi
         
@@ -386,19 +386,15 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
     echo "subject, algorithm, tract, count" > tracts_info.csv
 
     # we read the config file (and it may be csv, tsv or ;-seperated)
-    while IFS=$'\t,;' read -r tract_name seed_rois include_rois exclude_rois algorithm paramaters; do
+    while IFS=$'\t,;' read -r tract_name seed_rois include_rois exclude_rois algorithm parameters; do
 
-        echo "tract_name    = $tract_name"
+        #echo "tract_name    = $tract_name"
 
-        if [ "$tract_name" = "tract_name" ]; then
+        if [[ ! $tract_name == \#* ]]; then
         
-        echo "first line" > /dev/null 2>&1
-
-        else
-
             tract=$tract_name
             seeds=($seed_rois)  
-            exclude=$exclude_rois
+            exclude=($exclude_rois)
             kul_mrtrix_tracto
         
         fi 
@@ -457,16 +453,6 @@ else
 
 fi
 
-function KUL_antsApply_Transform {
-
-    antsApplyTransforms -d 3 --float 1 \
-    --verbose 1 \
-    -i $input \
-    -o $output \
-    -r $reference \
-    -t $transform \
-    -n Linear
-}
 
 if [ ! -f roi/DENTATE_L.nii.gz ]; then
 

@@ -207,14 +207,14 @@ for i in `seq 0 $(($num_sessions-1))`; do
     input=T1w/T1w_BrainExtractionBrain.nii.gz
     output=MNI/sub-${subj}_T1w_space-MNI152NLin2009cAsym.nii.gz
     transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-    reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+    reference=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz
     KUL_antsApply_Transform
 
     # transform the FA into MNI space using fmriprep data
     input=qa/fa_reg2T1w.nii.gz
     output=MNI/sub-${subj}_FA_space-MNI152NLin2009cAsym.nii.gz
     transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-    reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+    reference=${FSLDIR}/fsl/data/standard/MNI152_T1_1mm.nii.gz
     KUL_antsApply_Transform
 
     echo " Finished processing $bids_subj" 
