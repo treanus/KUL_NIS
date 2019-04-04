@@ -165,6 +165,7 @@ if [ $mriqc_singularity -eq 1 ]; then
  KUL_mriqc_singularity \
  --participant_label $BIDS_participant \
  $mriqc_options \
+ -w ./mriqc_work_${mriqc_log_p} \
  --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
  ./${bids_dir} ./mriqc participant \
  > $mriqc_log 2>&1 ") 
