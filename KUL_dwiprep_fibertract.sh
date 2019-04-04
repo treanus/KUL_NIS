@@ -663,7 +663,7 @@ function kul_mrtrix_tracto_drt {
 
 }
 
-wmfod=response/wmfod_reg2T1w.mif
+wmfod=response/dhollander_wmfod_reg2T1w.mif
 dwi_preproced=dwi_preproced_reg2T1w.mif
 
 # Make an empty log file with information about the tracts
