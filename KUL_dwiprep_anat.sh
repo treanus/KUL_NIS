@@ -239,7 +239,7 @@ fi
 
 # Apply the rigid transformation of the dMRI to T1 
 #  to the wmfod and the preprocessed dMRI data
-if [ ! -f response/wmfod_reg2T1w.mif ]; then
+if [ ! -f response/tournier_wmfod_reg2T1w.mif ]; then
 
     ConvertTransformFile 3 dwi_reg/rigid_out0GenericAffine.mat dwi_reg/rigid_out0GenericAffine.txt
 
@@ -248,30 +248,34 @@ if [ ! -f response/wmfod_reg2T1w.mif ]; then
 
     mrtransform dwi_preproced.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
         dwi_preproced_reg2T1w.mif -nthreads $ncpu -force 
-    mrtransform response/wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-        response/wmfod_reg2T1w.mif -nthreads $ncpu -force 
+    mrtransform response/dhollander_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+        response/dhollander_wmfod_reg2T1w.mif -nthreads $ncpu -force 
+    mrtransform response/tax_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+        response/tax_wmfod_reg2T1w.mif -nthreads $ncpu -force 
+    mrtransform response/tournier_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+        response/tournier_wmfod_reg2T1w.mif -nthreads $ncpu -force         
 
 fi
 
-# create mask of the dwi data (that is regeistered to the T1w)
+# create mask of the dwi data (that is registered to the T1w)
 kul_e2cl "    creating mask of the dwi_preproces_reg2T1w data..." ${log}
 dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
 
 # DO QA ---------------------------------------------
 # Make an FA/dec image
 
-# create mask of the dwi data (that is regeistered to the T1w)
-kul_e2cl "    creating mask of the dwi_preproces_reg2T1w data..." ${log}
-dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
 
-
-if [ ! -f qa/dec_reg2T1w.mif ]; then
+if [ ! -f qa/dhollander_dec_reg2T1w.mif ]; then
 
     kul_e2cl "   Calculating FA/dec..." ${log}
     dwi2tensor dwi_preproced_reg2T1w.mif dwi_dt_reg2T1w.mif -force
     tensor2metric dwi_dt_reg2T1w.mif -fa qa/fa_reg2T1w.nii.gz -mask dwi_preproced_reg2T1w_mask.nii.gz -force
-    fod2dec response/wmfod_reg2T1w.mif qa/dec_reg2T1w.mif -force
-    fod2dec response/wmfod_reg2T1w.mif qa/dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+    fod2dec response/tax_wmfod_reg2T1w.mif qa/tax_dec_reg2T1w.mif -force
+    fod2dec response/tax_wmfod_reg2T1w.mif qa/tax_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+    fod2dec response/tournier_wmfod_reg2T1w.mif qa/tournier_dec_reg2T1w.mif -force
+    fod2dec response/tournier_wmfod_reg2T1w.mif qa/tournier_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+    fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w.mif -force
+    fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
 
 fi
 
