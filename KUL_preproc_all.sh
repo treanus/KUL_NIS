@@ -163,10 +163,10 @@ if [ $mriqc_singularity -eq 1 ]; then
 
  local task_mriqc_cmd=$(echo "singularity run  \
  KUL_mriqc_singularity \
- ./${bids_dir} ./mriqc participant \
  --participant_label $BIDS_participant \
  $mriqc_options \
  --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
+ ./${bids_dir} ./mriqc participant \
  > $mriqc_log 2>&1 ") 
 
 else
