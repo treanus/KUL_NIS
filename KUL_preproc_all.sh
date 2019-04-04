@@ -1035,30 +1035,37 @@ if [ $expert -eq 1 ]; then
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
 
-        for i_bids_participant in $(seq 0 $freesurfer_simultaneous $(($n_subj_todo-1))); do
-
-            BIDS_participant=${todo_bids_participants[@]:$i_bids_participant:$freesurfer_simultaneous}
-            #echo " going to start freesurfer with $freesurfer_simultaneous participants simultaneously, notably $BIDS_participant"
         
-            freesurfer_pid=-1
-            waitforprocs=()
-            waitforpids=()
+        waitforprocs=()
+        waitforpids=()
 
-            task_freesurfer_participant
+        for i_bids_participant in $(seq 0  $(($n_subj_todo-1))); do
+
+            BIDS_participant=${todo_bids_participants[$i_bids_participant]}
+            echo " going to start freesurfer for participant $BIDS_participant"
+
+            freesurfer_pid=-1
+
+            #task_freesurfer_participant
 
             if [ $freesurfer_pid -gt 0 ]; then
                 waitforprocs+=("freesurfer")
                 waitforpids+=($freesurfer_pid)
             fi
         
-            kul_e2cl " waiting for processes [${waitforprocs[@]}] for subject(s) $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
-            WaitForTaskCompletion 
-
-            kul_e2cl " processes [${waitforprocs[@]}] for subject(s) $BIDS_participant have finished" $log
-
         done
-        
+            
+        kul_e2cl " waiting for processes [${waitforprocs[@]}] for subject(s) $todo_bids_participants to finish before continuing with further processing... (this can take hours!)... " $log
+        WaitForTaskCompletion 
+
+        kul_e2cl " processes [${waitforprocs[@]}] for subject(s) $todo_bids_participants have finished" $log
+
+       
     fi
+
+
+
+
 
 else
 
