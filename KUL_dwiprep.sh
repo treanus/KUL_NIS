@@ -495,8 +495,9 @@ fi
 mkdir -p response
 # response function estimation (we compute following algorithms: tournier, tax and dhollander)
 
+echo " Using dwipreproc_options: $dwipreproc_options"
 
-
+if [[ $dwipreproc_options == *"dhollander"* ]]; then
 
     if [ ! -f response/wm_response.txt ]; then
         kul_e2cl "   Calculating dhollander dwi2response..." ${log}
@@ -520,6 +521,9 @@ mkdir -p response
 
     fi
 
+fi
+
+if [[ $dwipreproc_options == *"tax"* ]]; then
 
     if [ ! -f response/tax_response.txt ]; then
         kul_e2cl "   Calculating tax dwi2response..." ${log}
@@ -542,7 +546,9 @@ mkdir -p response
 
     fi
 
+fi
 
+if [[ $dwipreproc_options == *"tournier"* ]]; then
 
     if [ ! -f response/tournier_response.txt ]; then
         kul_e2cl "   Calculating tournier dwi2response..." ${log}
@@ -565,7 +571,7 @@ mkdir -p response
 
     fi
 
-
+fi
 
 # STEP 4 - DO QA ---------------------------------------------
 # Make an FA/dec image
@@ -573,13 +579,21 @@ mkdir -p response
 mkdir -p qa
 
 if [ ! -f qa/dec.mif ]; then 
+
     kul_e2cl "   Calculating FA/dec..." ${log}
     dwi2tensor dwi_preproced.mif dwi_dt.mif -force
     tensor2metric dwi_dt.mif -fa qa/fa.nii.gz -mask dwi_mask.nii.gz -force
 
-    fod2dec response/tournier_wmfod.mif qa/tournier_dec.mif -force
-    fod2dec response/tax_wmfod.mif qa/tax_dec.mif -force
-    fod2dec response/dhollander_wmfod.mif qa/dhollander_dec.mif -force
+    if [[ $dwipreproc_options == *"tournier"* ]]; then
+
+        fod2dec response/tournier_wmfod.mif qa/tournier_dec.mif -force
+    fi 
+    if [[ $dwipreproc_options == *"tax"* ]]; then
+        fod2dec response/tax_wmfod.mif qa/tax_dec.mif -force
+    fi
+    if [[ $dwipreproc_options == *"dhollander"* ]]; then
+        fod2dec response/dhollander_wmfod.mif qa/dhollander_dec.mif -force
+    fi
 
     #mrconvert dwi/noiselevel.mif qa/noiselevel.nii.gz
 

@@ -165,6 +165,7 @@ if [ $mriqc_singularity -eq 1 ]; then
  KUL_mriqc_singularity \
  --participant_label $BIDS_participant \
  $mriqc_options \
+ -w ./mriqc_work_${mriqc_log_p} \
  --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
  ./${bids_dir} ./mriqc participant \
  > $mriqc_log 2>&1 ") 
@@ -420,7 +421,7 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     kul_e2cl " started (in parallel) KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
-    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} -n $ncpu_dwiprep -d $dwipreproc_options -e \"${eddy_options} \" -v \
+    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} -n $ncpu_dwiprep -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v \
  > $dwiprep_log 2>&1 ")
 
     echo "   using cmd: $task_dwiprep_cmd"
@@ -978,6 +979,86 @@ if [ $expert -eq 1 ]; then
 
     fi
 
+
+    #check freesurfer and options
+    do_freesurfer=0
+    do_freesurfer=$(grep do_freesurfer $conf | sed 's/[^0-9]//g')
+    echo "  do_freesurfer: $do_freesurfer"
+    
+    if [ $do_freesurfer -eq 1 ]; then
+
+        freesurfer_options=$(grep freesurfer_options $conf | cut -d':' -f 2 | tr -d '\r')
+
+        freesurfer_ncpu=$(grep freesurfer_ncpu $conf | sed 's/[^0-9]//g')
+        ncpu_freesurfer=$freesurfer_ncpu
+       
+ 
+        #get bids_participants
+        BIDS_subjects=($(grep BIDS_participants $conf | cut -d':' -f 2 | tr -d '\r'))
+        n_subj=${#BIDS_subjects[@]}
+            
+        freesurfer_simultaneous=$(grep freesurfer_simultaneous $conf | sed 's/[^0-9]//g')
+
+        if [ $silent -eq 0 ]; then
+
+            echo "  freesurfer_options: $freesurfer_options"
+            echo "  freesurfer_ncpu: $freesurfer_ncpu"
+            echo "  BIDS_participants: ${BIDS_subjects[@]}"
+            echo "  number of BIDS_participants: $n_subj"
+            echo "  freesurfer_simultaneous: $freesurfer_simultaneous"
+
+        fi
+
+        # check if already performed freesurfer
+        todo_bids_participants=()
+        already_done=()
+
+        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
+
+            freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_participant}.done
+
+            #echo $freesurfer_file_to_check
+            if [ ! -f $freesurfer_file_to_check ]; then
+
+                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
+            
+            else
+
+                already_done+=(${BIDS_subjects[$i_bids_participant]})
+            
+            fi
+
+        done
+
+        echo "  freesurfer was already done for participant(s) ${already_done[@]}"
+        
+        # submit the jobs (and split them in chucks)
+        n_subj_todo=${#todo_bids_participants[@]}
+
+        for i_bids_participant in $(seq 0 $freesurfer_simultaneous $(($n_subj_todo-1))); do
+
+            BIDS_participant=${todo_bids_participants[@]:$i_bids_participant:$freesurfer_simultaneous}
+            #echo " going to start freesurfer with $freesurfer_simultaneous participants simultaneously, notably $BIDS_participant"
+        
+            freesurfer_pid=-1
+            waitforprocs=()
+            waitforpids=()
+
+            task_freesurfer_participant
+
+            if [ $freesurfer_pid -gt 0 ]; then
+                waitforprocs+=("freesurfer")
+                waitforpids+=($freesurfer_pid)
+            fi
+        
+            kul_e2cl " waiting for processes [${waitforprocs[@]}] for subject(s) $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
+            WaitForTaskCompletion 
+
+            kul_e2cl " processes [${waitforprocs[@]}] for subject(s) $BIDS_participant have finished" $log
+
+        done
+        
+    fi
 
 else
 
