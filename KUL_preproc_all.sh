@@ -838,8 +838,11 @@ if [ $expert -eq 1 ]; then
     # Expert mode
     echo "  Using Expert mode"
 
+    # check exit_after
+    exit_after=$(grep exit_after $conf | sed 's/[^0-9]//g')
+    echo "  exit_after: $exit_after"
+
     #check mriqc and options
-    do_mriqc=0
     do_mriqc=$(grep do_mriqc $conf | sed 's/[^0-9]//g')
     echo "  do_mriqc: $do_mriqc"
     
@@ -847,18 +850,18 @@ if [ $expert -eq 1 ]; then
 
         mriqc_options=$(grep mriqc_options $conf | cut -d':' -f 2 | tr -d '\r')
 
-        mriqc_ncpu=$(grep mriqc_ncpu $conf | sed 's/[^0-9]//g')
+        mriqc_ncpu=$(grep mriqc_ncpu $conf | sed 's/[^0-9]//g' | tr -d '\r')
         ncpu_mriqc=$mriqc_ncpu
         ncpu_mriqc_ants=$mriqc_ncpu
         
-        mriqc_mem=$(grep mriqc_mem $conf | sed 's/[^0-9]//g')
+        mriqc_mem=$(grep mriqc_mem $conf | sed 's/[^0-9]//g' | tr -d '\r')
         mem_gb=$mriqc_mem
     
         #get bids_participants
         BIDS_subjects=($(grep BIDS_participants $conf | cut -d':' -f 2 | tr -d '\r'))
         n_subj=${#BIDS_subjects[@]}
             
-        mriqc_simultaneous=$(grep mriqc_simultaneous $conf | sed 's/[^0-9]//g')
+        mriqc_simultaneous=$(grep mriqc_simultaneous $conf | sed 's/[^0-9]//g' | tr -d '\r')
 
         if [ $silent -eq 0 ]; then
 
@@ -899,24 +902,28 @@ if [ $expert -eq 1 ]; then
 
         for i_bids_participant in $(seq 0 $mriqc_simultaneous $(($n_subj_todo-1))); do
 
-            BIDS_participant=${todo_bids_participants[@]:$i_bids_participant:$mriqc_simultaneous}
-            #echo " going to start mriqc with $mriqc_simultaneous participants simultaneously, notably $BIDS_participant"
-        
-            mriqc_pid=-1
-            waitforprocs=()
-            waitforpids=()
+            mriqc_participants=${todo_bids_participants[@]:$i_bids_participant:$mriqc_simultaneous}
+            #echo " going to start mriqc with $mriqc_simultaneous participants simultaneously, notably $mriqc_participants"
 
-            task_mriqc_participant
+            for BIDS_participant in $mriqc_participants; do
+                
+                mriqc_pid=-1
+                waitforprocs=()
+                waitforpids=()
 
-            if [ $mriqc_pid -gt 0 ]; then
-                waitforprocs+=("mriqc")
-                waitforpids+=($mriqc_pid)
-            fi
-        
-            kul_e2cl " waiting for processes [${waitforprocs[@]}] for subject(s) $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
+                task_mriqc_participant
+
+                if [ $mriqc_pid -gt 0 ]; then
+                    waitforprocs+=("mriqc")
+                    waitforpids+=($mriqc_pid)
+                fi
+            
+            done
+            
+            kul_e2cl " waiting for processes [${waitforpids[@]}] for subject(s) $mriqc_participants to finish before continuing with further processing... (this can take hours!)... " $log
             WaitForTaskCompletion 
 
-            kul_e2cl " processes [${waitforprocs[@]}] for subject(s) $BIDS_participant have finished" $log
+            kul_e2cl " processes [${waitforpids[@]}] for subject(s) $mriqc_participants have finished" $log
 
         done
 
@@ -956,24 +963,28 @@ if [ $expert -eq 1 ]; then
 
         for i_bids_participant in $(seq 0 $fmriprep_simultaneous $n_subj); do
 
-            BIDS_participant=${BIDS_subjects[@]:$i_bids_participant:$fmriprep_simultaneous}
-            #echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $BIDS_participant"
-        
-            fmriprep_pid=-1
-            waitforprocs=()
-            waitforpids=()
+            fmriprep_participants=${BIDS_subjects[@]:$i_bids_participant:$fmriprep_simultaneous}
+            #echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $fmriprep_participants"
 
-            task_fmriprep_participant
+            for BIDS_participant in $fmriprep_participants; do
+                
+                fmriprep_pid=-1
+                waitforprocs=()
+                waitforpids=()
 
-            if [ $fmriprep_pid -gt 0 ]; then
-                waitforprocs+=("fmriprep")
-                waitforpids+=($fmriprep_pid)
-            fi
-        
-            kul_e2cl " waiting for processes [${waitforprocs[@]}] for subject(s) $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
+                task_fmriprep
+
+                if [ $fmriprep_pid -gt 0 ]; then
+                    waitforprocs+=("fmriprep")
+                    waitforpids+=($fmriprep_pid)
+                fi
+
+            done
+
+            kul_e2cl " waiting for processes [${waitforpids[@]}] for subject(s) $mriqc_participants to finish before continuing with further processing... (this can take hours!)... " $log
             WaitForTaskCompletion 
 
-            kul_e2cl " processes [${waitforprocs[@]}] for subject(s) $BIDS_participant have finished" $log
+            kul_e2cl " processes [${waitforpids[@]}] for subject(s) $mriqc_participants have finished" $log
 
         done
 
@@ -1036,35 +1047,44 @@ if [ $expert -eq 1 ]; then
         n_subj_todo=${#todo_bids_participants[@]}
 
         
-        waitforprocs=()
-        waitforpids=()
+        for i_bids_participant in $(seq 0 $freesurfer_simultaneous $n_subj); do
 
-        for i_bids_participant in $(seq 0  $(($n_subj_todo-1))); do
-
-            BIDS_participant=${todo_bids_participants[$i_bids_participant]}
-            echo " going to start freesurfer for participant $BIDS_participant"
-
-            freesurfer_pid=-1
-
-            #task_freesurfer_participant
-
-            if [ $freesurfer_pid -gt 0 ]; then
-                waitforprocs+=("freesurfer")
-                waitforpids+=($freesurfer_pid)
-            fi
+            fs_participants=${BIDS_subjects[@]:$i_bids_participant:$freesurfer_simultaneous}
+            echo "  going to start freesurfer with $freesurfer_simultaneous participants simultaneously, notably $fs_participants"
         
-        done
+            for BIDS_participant in $fs_participants; do
+                
+                freesurfer_pid=-1
+                waitforprocs=()
+                waitforpids=()
+                
+                #echo $BIDS_participant
+                task_freesurfer
+
+                if [ $freesurfer_pid -gt 0 ]; then
+                    waitforprocs+=("freesurfer")
+                    waitforpids+=($freesurfer_pid)
+                fi
             
-        kul_e2cl " waiting for processes [${waitforprocs[@]}] for subject(s) $todo_bids_participants to finish before continuing with further processing... (this can take hours!)... " $log
-        WaitForTaskCompletion 
+            done 
 
-        kul_e2cl " processes [${waitforprocs[@]}] for subject(s) $todo_bids_participants have finished" $log
+            kul_e2cl "  waiting for freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
+                WaitForTaskCompletion 
 
+            kul_e2cl " freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
+
+            
+        done
        
     fi
 
 
+    if [ $exit_after -eq 1 ]; then
 
+        kul_e2cl "  we exit here, you will need to do further processing with another config_file... " $log
+        exit 0
+    
+    fi
 
 
 else
