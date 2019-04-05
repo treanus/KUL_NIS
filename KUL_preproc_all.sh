@@ -162,13 +162,14 @@ if [ $mriqc_singularity -eq 1 ]; then
  mkdir -p ./mriqc
  mkdir -p ./mriqc_work_${mriqc_log_p}
 
- local task_mriqc_cmd=$(echo "singularity run  \
+ local task_mriqc_cmd=$(echo "singularity run --cleanenv \
+ -B ${cwd}:/work
  $KUL_mriqc_singularity \
  --participant_label $BIDS_participant \
  $mriqc_options \
- -w ./mriqc_work_${mriqc_log_p} \
+ -w /work/mriqc_work_${mriqc_log_p} \
  --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
- ./${bids_dir} ./mriqc participant \
+ /work/${bids_dir} /work/mriqc participant \
  > $mriqc_log 2>&1 ") 
 
 else
@@ -227,9 +228,9 @@ kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... 
 
 if [ $fmriprep_singularity -eq 1 ]; then 
 
-        mkdir -p ./fmriprep_work_${BIDS_participant}
+ mkdir -p ./fmriprep_work_${BIDS_participant}
         
-    local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
+ local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
  -B ./fmriprep_work_${fmriprep_log_p}:/work \
  -B ${freesurfer_license}:/opt/freesurfer/license.txt \
  $KUL_fmriprep_singularity \
