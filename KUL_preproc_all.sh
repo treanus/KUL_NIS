@@ -202,7 +202,7 @@ function task_fmriprep {
 
 # make log dir and clean_up before starting
 mkdir -p ${preproc}/log/fmriprep
-rm -fr ${cwd}/fmriprep_work_${fmriprep_log_p}
+#rm -fr ${cwd}/fmriprep_work_${fmriprep_log_p}
 
 # check whether to use singularity-fmriprep
 fmriprep_singularity=0
@@ -228,7 +228,7 @@ kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... 
 
 if [ $fmriprep_singularity -eq 1 ]; then 
 
- mkdir -p ./fmriprep_work_${BIDS_participant}
+ mkdir -p ./fmriprep_work_${fmriprep_log_p}
         
  local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
  -B ./fmriprep_work_${fmriprep_log_p}:/work \
