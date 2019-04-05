@@ -142,7 +142,7 @@ if [ -z $KUL_use_mriqc_singularity ]; then
 
     echo "  KUL_use_mriqc_singularity not set, using docker"
     
-elif [ $KUL_use_fmriprep_singularity -eq 1 ]; then
+elif [ $KUL_use_mriqc_singularity -eq 1 ]; then
     
     echo "  KUL_use_mriqc_singularity is set to 1, using it"
     mriqc_singularity=1
@@ -159,10 +159,11 @@ kul_e2cl " started (in parallel) mriqc on participant(s) $BIDS_participant (with
 
 if [ $mriqc_singularity -eq 1 ]; then 
 
-        mkdir -p ./mriqc
+ mkdir -p ./mriqc
+ mkdir -p ./mriqc_work_${mriqc_log_p}
 
  local task_mriqc_cmd=$(echo "singularity run  \
- KUL_mriqc_singularity \
+ $KUL_mriqc_singularity \
  --participant_label $BIDS_participant \
  $mriqc_options \
  -w ./mriqc_work_${mriqc_log_p} \
@@ -839,29 +840,29 @@ if [ $expert -eq 1 ]; then
     echo "  Using Expert mode"
 
     # check exit_after
-    exit_after=$(grep exit_after $conf | sed 's/[^0-9]//g')
+    exit_after=$(grep exit_after $conf | grep -v \# |  sed 's/[^0-9]//g')
     echo "  exit_after: $exit_after"
 
     #check mriqc and options
-    do_mriqc=$(grep do_mriqc $conf | sed 's/[^0-9]//g')
+    do_mriqc=$(grep do_mriqc $conf | grep -v \# | sed 's/[^0-9]//g')
     echo "  do_mriqc: $do_mriqc"
     
     if [ $do_mriqc -eq 1 ]; then
 
-        mriqc_options=$(grep mriqc_options $conf | cut -d':' -f 2 | tr -d '\r')
+        mriqc_options=$(grep mriqc_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
 
-        mriqc_ncpu=$(grep mriqc_ncpu $conf | sed 's/[^0-9]//g' | tr -d '\r')
+        mriqc_ncpu=$(grep mriqc_ncpu $conf | grep -v \# | sed 's/[^0-9]//g' | tr -d '\r')
         ncpu_mriqc=$mriqc_ncpu
         ncpu_mriqc_ants=$mriqc_ncpu
         
-        mriqc_mem=$(grep mriqc_mem $conf | sed 's/[^0-9]//g' | tr -d '\r')
+        mriqc_mem=$(grep mriqc_mem $conf | grep -v \# | sed 's/[^0-9]//g' | tr -d '\r')
         mem_gb=$mriqc_mem
     
         #get bids_participants
-        BIDS_subjects=($(grep BIDS_participants $conf | cut -d':' -f 2 | tr -d '\r'))
+        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
         n_subj=${#BIDS_subjects[@]}
             
-        mriqc_simultaneous=$(grep mriqc_simultaneous $conf | sed 's/[^0-9]//g' | tr -d '\r')
+        mriqc_simultaneous=$(grep mriqc_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g' | tr -d '\r')
 
         if [ $silent -eq 0 ]; then
 
@@ -931,25 +932,25 @@ if [ $expert -eq 1 ]; then
 
 
     #check fmriprep and options
-    do_fmriprep=$(grep do_fmriprep $conf | sed 's/[^0-9]//g')
+    do_fmriprep=$(grep do_fmriprep $conf | grep -v \# | sed 's/[^0-9]//g')
     echo "  do_fmriprep: $do_fmriprep"
     
     if [ $do_fmriprep -eq 1 ]; then
 
-        fmriprep_options=$(grep fmriprep_options $conf | cut -d':' -f 2)
+        fmriprep_options=$(grep fmriprep_options $conf | grep -v \# | cut -d':' -f 2)
 
-        fmriprep_ncpu=$(grep fmriprep_ncpu $conf | 's/[^0-9]//g')
+        fmriprep_ncpu=$(grep fmriprep_ncpu $conf | grep -v \# | 's/[^0-9]//g')
         ncpu_fmriprep=$fmriprep_ncpu
         ncpu_fmriprep_ants=$fmriprep_ncpu
         
-        fmriprep_mem=$(grep fmriprep_mem $conf | 's/[^0-9]//g')
+        fmriprep_mem=$(grep fmriprep_mem $conf | grep -v \# | 's/[^0-9]//g')
         mem_gb=$fmriprep_mem
     
         #get bids_participants
-        BIDS_subjects=($(grep BIDS_participants $conf | cut -d':' -f 2))
+        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2))
         n_subj=${#BIDS_subjects[@]}
             
-        fmriprep_simultaneous=$(grep fmriprep_simultaneous $conf | 's/[^0-9]//g')
+        fmriprep_simultaneous=$(grep fmriprep_simultaneous $conf | grep -v \# | 's/[^0-9]//g')
 
         if [ $silent -eq 0 ]; then
 
@@ -993,22 +994,22 @@ if [ $expert -eq 1 ]; then
 
     #check freesurfer and options
     do_freesurfer=0
-    do_freesurfer=$(grep do_freesurfer $conf | sed 's/[^0-9]//g')
+    do_freesurfer=$(grep do_freesurfer $conf | grep -v \# | sed 's/[^0-9]//g')
     echo "  do_freesurfer: $do_freesurfer"
     
     if [ $do_freesurfer -eq 1 ]; then
 
-        freesurfer_options=$(grep freesurfer_options $conf | cut -d':' -f 2 | tr -d '\r')
+        freesurfer_options=$(grep freesurfer_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
 
-        freesurfer_ncpu=$(grep freesurfer_ncpu $conf | sed 's/[^0-9]//g')
+        freesurfer_ncpu=$(grep freesurfer_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
         ncpu_freesurfer=$freesurfer_ncpu
        
  
         #get bids_participants
-        BIDS_subjects=($(grep BIDS_participants $conf | cut -d':' -f 2 | tr -d '\r'))
+        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
         n_subj=${#BIDS_subjects[@]}
             
-        freesurfer_simultaneous=$(grep freesurfer_simultaneous $conf | sed 's/[^0-9]//g')
+        freesurfer_simultaneous=$(grep freesurfer_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
 
         if [ $silent -eq 0 ]; then
 
