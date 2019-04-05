@@ -202,7 +202,7 @@ function task_fmriprep {
 
 # make log dir and clean_up before starting
 mkdir -p ${preproc}/log/fmriprep
-rm -fr ${cwd}/fmriprep_work_${fmriprep_log_p}
+#rm -fr ${cwd}/fmriprep_work_${fmriprep_log_p}
 
 # check whether to use singularity-fmriprep
 fmriprep_singularity=0
@@ -228,7 +228,7 @@ kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... 
 
 if [ $fmriprep_singularity -eq 1 ]; then 
 
- mkdir -p ./fmriprep_work_${BIDS_participant}
+ mkdir -p ./fmriprep_work_${fmriprep_log_p}
         
  local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
  -B ./fmriprep_work_${fmriprep_log_p}:/work \
@@ -946,8 +946,9 @@ if [ $expert -eq 1 ]; then
         ncpu_fmriprep_ants=$fmriprep_ncpu
         
         fmriprep_mem=$(grep fmriprep_mem $conf | grep -v \# | sed 's/[^0-9]//g')
-        mem_gb=$fmriprep_mem
-    
+        gb=1024
+        mem_mb=$(echo $fmriprep_mem $gb | awk '{print $1 * $2 }')
+
         #get bids_participants
         BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2))
         n_subj=${#BIDS_subjects[@]}
