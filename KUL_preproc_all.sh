@@ -182,9 +182,9 @@ else
  /data /out participant \
  > $mriqc_log 2>&1 ") 
 
- echo "   using cmd: $task_mriqc_cmd"
-
 fi
+
+echo "   using cmd: $task_mriqc_cmd"
 
 # now we start the parallel job
 eval $task_mriqc_cmd &
