@@ -182,9 +182,9 @@ else
  /data /out participant \
  > $mriqc_log 2>&1 ") 
 
- echo "   using cmd: $task_mriqc_cmd"
-
 fi
+
+echo "   using cmd: $task_mriqc_cmd"
 
 # now we start the parallel job
 eval $task_mriqc_cmd &
@@ -201,11 +201,11 @@ function task_fmriprep {
 
 # make log dir and clean_up before starting
 mkdir -p ${preproc}/log/fmriprep
-rm -fr ${cwd}/fmriprep_work
+rm -fr ${cwd}/fmriprep_work_${fmriprep_log_p}
 
 # check whether to use singularity-fmriprep
 fmriprep_singularity=0
-echo $KUL_use_fmriprep_singularity
+#echo $KUL_use_fmriprep_singularity
 if [ -z $KUL_use_fmriprep_singularity ]; then
 
     echo "  KUL_use_fmriprep_singularity not set, using docker"
@@ -217,20 +217,20 @@ elif [ $KUL_use_fmriprep_singularity -eq 1 ]; then
 
 fi
 
-echo $fmriprep_singularity
+#echo $fmriprep_singularity
 
 
-
-fmriprep_log=${preproc}/log/fmriprep/${BIDS_participant}.txt
+fmriprep_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
+fmriprep_log=${preproc}/log/fmriprep/${fmriprep_log_p}.txt
 
 kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
 
 if [ $fmriprep_singularity -eq 1 ]; then 
 
-        mkdir -p ./fmriprep_work
+        mkdir -p ./fmriprep_work_${BIDS_participant}
         
     local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
- -B ./fmriprep_work:/work \
+ -B ./fmriprep_work_${fmriprep_log_p}:/work \
  -B ${freesurfer_license}:/opt/freesurfer/license.txt \
  $KUL_fmriprep_singularity \
  ./${bids_dir} \
@@ -250,7 +250,7 @@ else
     local task_fmriprep_cmd=$(echo "docker run --rm \
  -v ${cwd}/${bids_dir}:/data \
  -v ${cwd}:/out \
- -v ${cwd}/fmriprep_work:/scratch \
+ -v ${cwd}/fmriprep_work_${fmriprep_log_p}:/scratch \
  -v ${freesurfer_license}:/opt/freesurfer/license.txt \
  poldracklab/fmriprep:latest \
  --participant_label ${BIDS_participant} \
@@ -906,8 +906,9 @@ if [ $expert -eq 1 ]; then
             mriqc_participants=${todo_bids_participants[@]:$i_bids_participant:$mriqc_simultaneous}
             #echo " going to start mriqc with $mriqc_simultaneous participants simultaneously, notably $mriqc_participants"
 
-            for BIDS_participant in $mriqc_participants; do
+            #for BIDS_participant in $mriqc_participants; do
                 
+                BIDS_participant=$mriqc_participants
                 mriqc_pid=-1
                 waitforprocs=()
                 waitforpids=()
@@ -919,7 +920,7 @@ if [ $expert -eq 1 ]; then
                     waitforpids+=($mriqc_pid)
                 fi
             
-            done
+            #done
             
             kul_e2cl " waiting for processes [${waitforpids[@]}] for subject(s) $mriqc_participants to finish before continuing with further processing... (this can take hours!)... " $log
             WaitForTaskCompletion 
@@ -939,18 +940,18 @@ if [ $expert -eq 1 ]; then
 
         fmriprep_options=$(grep fmriprep_options $conf | grep -v \# | cut -d':' -f 2)
 
-        fmriprep_ncpu=$(grep fmriprep_ncpu $conf | grep -v \# | 's/[^0-9]//g')
+        fmriprep_ncpu=$(grep fmriprep_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
         ncpu_fmriprep=$fmriprep_ncpu
         ncpu_fmriprep_ants=$fmriprep_ncpu
         
-        fmriprep_mem=$(grep fmriprep_mem $conf | grep -v \# | 's/[^0-9]//g')
+        fmriprep_mem=$(grep fmriprep_mem $conf | grep -v \# | sed 's/[^0-9]//g')
         mem_gb=$fmriprep_mem
     
         #get bids_participants
         BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2))
         n_subj=${#BIDS_subjects[@]}
             
-        fmriprep_simultaneous=$(grep fmriprep_simultaneous $conf | grep -v \# | 's/[^0-9]//g')
+        fmriprep_simultaneous=$(grep fmriprep_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
 
         if [ $silent -eq 0 ]; then
 
@@ -967,8 +968,9 @@ if [ $expert -eq 1 ]; then
             fmriprep_participants=${BIDS_subjects[@]:$i_bids_participant:$fmriprep_simultaneous}
             #echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $fmriprep_participants"
 
-            for BIDS_participant in $fmriprep_participants; do
+            #for BIDS_participant in $fmriprep_participants; do
                 
+                BIDS_participant=$fmriprep_participants
                 fmriprep_pid=-1
                 waitforprocs=()
                 waitforpids=()
@@ -980,7 +982,7 @@ if [ $expert -eq 1 ]; then
                     waitforpids+=($fmriprep_pid)
                 fi
 
-            done
+            #done
 
             kul_e2cl " waiting for processes [${waitforpids[@]}] for subject(s) $mriqc_participants to finish before continuing with further processing... (this can take hours!)... " $log
             WaitForTaskCompletion 
