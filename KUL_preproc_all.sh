@@ -962,10 +962,38 @@ if [ $expert -eq 1 ]; then
             echo "  fmriprep_mem: $fmriprep_mem"
             echo "  BIDS_participants: ${BIDS_subjects[@]}"
             echo "  number of BIDS_participants: $n_subj"
+            echo "  fmriprep_simultaneous: $fmriprep_simultaneous"
 
         fi
 
-        for i_bids_participant in $(seq 0 $fmriprep_simultaneous $n_subj); do
+        # check if already performed fmriprep
+        todo_bids_participants=()
+        already_done=()
+
+        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
+
+            fmriprep_dir_to_check=fmriprep/sub-${BIDS_subjects[$i_bids_participant]}
+
+            #echo $fmriprep_dir_to_check
+            if [ ! -d $fmriprep_dir_to_check ]; then
+
+                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
+            
+            else
+
+                already_done+=(${BIDS_subjects[$i_bids_participant]})
+            
+            fi
+
+        done
+
+        echo "  fmriprep was already done for participant(s) ${already_done[@]}"
+        
+        
+        # submit the jobs (and split them in chucks)
+        n_subj_todo=${#todo_bids_participants[@]}
+
+        for i_bids_participant in $(seq 0 $fmriprep_simultaneous $(($n_subj_todo-1))); do
 
             fmriprep_participants=${BIDS_subjects[@]:$i_bids_participant:$fmriprep_simultaneous}
             #echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $fmriprep_participants"
@@ -986,10 +1014,10 @@ if [ $expert -eq 1 ]; then
 
             #done
 
-            kul_e2cl " waiting for processes [${waitforpids[@]}] for subject(s) $mriqc_participants to finish before continuing with further processing... (this can take hours!)... " $log
+            kul_e2cl " waiting for processes [${waitforpids[@]}] for subject(s) $fmriprep_participants to finish before continuing with further processing... (this can take hours!)... " $log
             WaitForTaskCompletion 
 
-            kul_e2cl " processes [${waitforpids[@]}] for subject(s) $mriqc_participants have finished" $log
+            kul_e2cl " processes [${waitforpids[@]}] for subject(s) $fmriprep_participants have finished" $log
 
         done
 
@@ -1083,6 +1111,97 @@ if [ $expert -eq 1 ]; then
        
     fi
 
+
+    #check dwiprep and options
+    do_dwiprep=0
+    do_dwiprep=$(grep do_dwiprep $conf | grep -v \# | sed 's/[^0-9]//g')
+    echo "  do_dwiprep: $do_dwiprep"
+    
+    if [ $do_dwiprep -eq 1 ]; then
+
+        dwiprep_options=$(grep dwiprep_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        dwipreproc_options=$dwiprep_options
+
+        topup_options=$(grep topup_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        eddy_options=$(grep eddy_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+
+        dwiprep_ncpu=$(grep dwiprep_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        ncpu_dwiprep=$dwiprep_ncpu
+        
+        #get bids_participants
+        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+        n_subj=${#BIDS_subjects[@]}
+            
+        dwiprep_simultaneous=$(grep dwiprep_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
+
+        if [ $silent -eq 0 ]; then
+
+            echo "  dwiprep_options: $dwiprep_options"
+            echo "  topup_options: $topup_options"
+            echo "  eddy_options: $eddy_options"
+            echo "  dwiprep_ncpu: $dwiprep_ncpu"
+            echo "  BIDS_participants: ${BIDS_subjects[@]}"
+            echo "  number of BIDS_participants: $n_subj"
+            echo "  dwiprep_simultaneous: $dwiprep_simultaneous"
+
+        fi
+
+        # check if already performed dwiprep
+        todo_bids_participants=()
+        already_done=()
+
+        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
+
+            dwiprep_file_to_check=${cwd}/dwiprep/sub-${BIDS_participant}/dwiprep_is_done.log
+
+            #echo $dwiprep_file_to_check
+            if [ ! -f $dwiprep_file_to_check ]; then
+
+                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
+            
+            else
+
+                already_done+=(${BIDS_subjects[$i_bids_participant]})
+            
+            fi
+
+        done
+
+        echo "  dwiprep was already done for participant(s) ${already_done[@]}"
+        
+        # submit the jobs (and split them in chucks)
+        n_subj_todo=${#todo_bids_participants[@]}
+
+        for i_bids_participant in $(seq 0 $dwiprep_simultaneous $n_subj); do
+
+            fs_participants=${BIDS_subjects[@]:$i_bids_participant:$dwiprep_simultaneous}
+            echo "  going to start dwiprep with $dwiprep_simultaneous participants simultaneously, notably $fs_participants"
+        
+            for BIDS_participant in $fs_participants; do
+                
+                dwiprep_pid=-1
+                waitforprocs=()
+                waitforpids=()
+                
+                #echo $BIDS_participant
+                task_KUL_dwiprep
+
+                if [ $dwiprep_pid -gt 0 ]; then
+                    waitforprocs+=("dwiprep")
+                    waitforpids+=($dwiprep_pid)
+                fi
+            
+            done 
+
+            kul_e2cl "  waiting for dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
+                WaitForTaskCompletion 
+
+            kul_e2cl " dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
+
+            
+        done
+       
+    fi
 
     if [ $exit_after -eq 1 ]; then
 
