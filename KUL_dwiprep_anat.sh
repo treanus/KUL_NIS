@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 # Requires Mrtrix3, FSL, ants
@@ -248,12 +248,19 @@ if [ ! -f response/tournier_wmfod_reg2T1w.mif ]; then
 
     mrtransform dwi_preproced.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
         dwi_preproced_reg2T1w.mif -nthreads $ncpu -force 
-    mrtransform response/dhollander_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-        response/dhollander_wmfod_reg2T1w.mif -nthreads $ncpu -force 
-    mrtransform response/tax_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-        response/tax_wmfod_reg2T1w.mif -nthreads $ncpu -force 
-    mrtransform response/tournier_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-        response/tournier_wmfod_reg2T1w.mif -nthreads $ncpu -force         
+
+    if [ -f response/dhollander_wmfod.mif ]; then    
+        mrtransform response/dhollander_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+            response/dhollander_wmfod_reg2T1w.mif -nthreads $ncpu -force 
+    fi
+    if [ -f response/tax_wmfod.mif ]; then 
+        mrtransform response/tax_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+            response/tax_wmfod_reg2T1w.mif -nthreads $ncpu -force 
+    fi
+    if [ -f response/tournier_wmfod.mif ]; then 
+        mrtransform response/tournier_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+            response/tournier_wmfod_reg2T1w.mif -nthreads $ncpu -force         
+    fi
 
 fi
 
@@ -270,12 +277,20 @@ if [ ! -f qa/dhollander_dec_reg2T1w.mif ]; then
     kul_e2cl "   Calculating FA/dec..." ${log}
     dwi2tensor dwi_preproced_reg2T1w.mif dwi_dt_reg2T1w.mif -force
     tensor2metric dwi_dt_reg2T1w.mif -fa qa/fa_reg2T1w.nii.gz -mask dwi_preproced_reg2T1w_mask.nii.gz -force
-    fod2dec response/tax_wmfod_reg2T1w.mif qa/tax_dec_reg2T1w.mif -force
-    fod2dec response/tax_wmfod_reg2T1w.mif qa/tax_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
-    fod2dec response/tournier_wmfod_reg2T1w.mif qa/tournier_dec_reg2T1w.mif -force
-    fod2dec response/tournier_wmfod_reg2T1w.mif qa/tournier_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
-    fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w.mif -force
-    fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+    tensor2metric dwi_dt_reg2T1w.mif -adc qa/adc_reg2T1w.nii.gz -mask dwi_preproced_reg2T1w_mask.nii.gz -force
+
+    if [ -f response/tournier_wmfod_reg2T1w.mif ]; then  
+        fod2dec response/tax_wmfod_reg2T1w.mif qa/tax_dec_reg2T1w.mif -force
+        fod2dec response/tax_wmfod_reg2T1w.mif qa/tax_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+    fi
+    if [ -f response/tax_wmfod_reg2T1w.mif ]; then  
+        fod2dec response/tournier_wmfod_reg2T1w.mif qa/tournier_dec_reg2T1w.mif -force
+        fod2dec response/tournier_wmfod_reg2T1w.mif qa/tournier_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+    fi
+    if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then  
+        fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w.mif -force
+        fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+    fi
 
 fi
 
