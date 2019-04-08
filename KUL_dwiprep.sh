@@ -580,9 +580,10 @@ mkdir -p qa
 
 if [ ! -f qa/dec.mif ]; then 
 
-    kul_e2cl "   Calculating FA/dec..." ${log}
+    kul_e2cl "   Calculating FA/ADC/dec..." ${log}
     dwi2tensor dwi_preproced.mif dwi_dt.mif -force
     tensor2metric dwi_dt.mif -fa qa/fa.nii.gz -mask dwi_mask.nii.gz -force
+    tensor2metric dwi_dt.mif -adc qa/adc.nii.gz -mask dwi_mask.nii.gz -force
 
     if [[ $dwipreproc_options == *"tournier"* ]]; then
 
