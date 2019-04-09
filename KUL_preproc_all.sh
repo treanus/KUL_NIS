@@ -163,7 +163,7 @@ if [ $mriqc_singularity -eq 1 ]; then
  mkdir -p ./mriqc_work_${mriqc_log_p}
 
  local task_mriqc_cmd=$(echo "singularity run --cleanenv \
- -B ${cwd}:/work
+ -B ${cwd}:/work \
  $KUL_mriqc_singularity \
  --participant_label $BIDS_participant \
  $mriqc_options \
@@ -188,11 +188,37 @@ fi
 echo "   using cmd: $task_mriqc_cmd"
 
 # now we start the parallel job
-eval $task_mriqc_cmd &
-mriqc_pid="$!"
-echo " mriqc pid is $mriqc_pid"
+if [ $make_pbs_files_instead_of_running -eq 0 ]; then
 
-sleep 2
+    eval $task_mriqc_cmd &
+    mriqc_pid="$!"
+    echo " mriqc pid is $mriqc_pid"
+
+    sleep 2
+
+else
+
+    echo " making a PBS file"
+ 
+    #echo $task_mriqc_cmd > pbs_task_mriqc.txt
+    #echo "singularity run --cleanenv \
+ #-B \${cwd}:/work \
+ #\$KUL_mriqc_singularity \
+ #--participant_label \$BIDS_participant \
+ #\$mriqc_options \
+ #-w /work/mriqc_work_\${mriqc_log_p} \
+ #--n_procs \$ncpu_mriqc --ants-nthreads \$ncpu_mriqc_ants --mem_gb \$mem_gb --no-sub \
+ #/work/\${bids_dir} /work/mriqc participant \
+ #> \$mriqc_log 2>&1 " >> pbs_task_mriqc.txt
+
+    
+
+    if [ ! -f pbs_data_mriqc.csv ]; then
+        echo "cwd,BIDS_participant,mriqc_options,mriqc_log_p,ncpu_mriqc,ncpu_mriqc_ants,mem_gb,bids_dir,mriqc_log" > $pbs_data_file
+    fi 
+    echo "$cwd,$BIDS_participant,$mriqc_options,$mriqc_log_p,$ncpu_mriqc,$ncpu_mriqc_ants,$mem_gb,$bids_dir,$mriqc_log" >> $pbs_data_file
+
+fi
 
 }
 
@@ -821,18 +847,10 @@ if [ $docker_reset_flag -eq 1 ];then
 fi
 
 
-# ----------- STEP 1 - CONVERT TO BIDS ---
-#kul_e2cl "Performing KUL_multisubjects_dcm2bids... " $log
-#KUL_multisubjects_dcm2bids.sh -d DICOM -c $conf -o $bids_dir -e
-# TODO:
-#  - this will be changed: KUL_multisubjects_dcm2bids will become obsolete
-#  - instead we will call KUL_dcm2bids for each subject in the loop below.
 
-
-# ----------- STEP 2 - Preprocess each subject with mriqc, fmriprep, freesurfer and KUL_dwiprep ---
-# set up logging directories and clean left over fmriprep_work directory
-# TODO:
-#  - this should best go into the task_*
+# ----------- STEP 1 - Preprocess each subject with mriqc, fmriprep, freesurfer and KUL_dwiprep ---
+# 
+# 
 
 
 if [ $expert -eq 1 ]; then
@@ -844,8 +862,42 @@ if [ $expert -eq 1 ]; then
     exit_after=$(grep exit_after $conf | grep -v \# |  sed 's/[^0-9]//g')
     echo "  exit_after: $exit_after"
 
+    #check make_pbs_files_instead_of_running
+    make_pbs_files_instead_of_running=$(grep make_pbs_files_instead_of_running $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$make_pbs_files_instead_of_running" ]; then
+        make_pbs_files_instead_of_running=0
+    fi 
+    echo "  make_pbs_files_instead_of_running: $make_pbs_files_instead_of_running"
+
+    if [ $make_pbs_files_instead_of_running -eq 1 ]; then
+
+        pbs_lp=$(grep pbs_lp $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        pbs_email=$(grep pbs_email $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        pbs_walltime=$(grep pbs_walltime $conf | grep -v \# | cut -d':' -f 2- | tr -d '\r')
+        pbs_singularity_mriqc=$(grep pbs_singularity_mriqc $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        pbs_singularity_fmriprep=$(grep pbs_singularity_fmriprep $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+
+        if [ $silent -eq 0 ]; then
+
+            echo "  pbs_lp: $pbs_lp"
+            echo "  pbs_email: $pbs_email"
+            echo "  pbs_walltime: $pbs_walltime"
+            echo "  pbs_singularity_mriqc: ${pbs_singularity_mriqc}"
+            echo "  pbs_singularity_fmriprep: $pbs_singularity_fmriprep"
+
+        fi
+
+        mriqc_rand=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1)
+        pbs_data_file="pbs_data_mriqc_${mriqc_rand}.csv"
+
+    fi
+
+
     #check mriqc and options
     do_mriqc=$(grep do_mriqc $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$do_mriqc" ]; then
+        do_mriqc=0
+    fi 
     echo "  do_mriqc: $do_mriqc"
     
     if [ $do_mriqc -eq 1 ]; then
