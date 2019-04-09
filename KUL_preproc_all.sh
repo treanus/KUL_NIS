@@ -1059,7 +1059,7 @@ if [ $expert -eq 1 ]; then
 
         for i_bids_participant in $(seq 0 $(($n_subj-1))); do
 
-            freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_participant}.done
+            freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_participant}/${BIDS_participant}/scripts/recon-all.done
 
             #echo $freesurfer_file_to_check
             if [ ! -f $freesurfer_file_to_check ]; then
@@ -1085,12 +1085,13 @@ if [ $expert -eq 1 ]; then
             fs_participants=${BIDS_subjects[@]:$i_bids_participant:$freesurfer_simultaneous}
             echo "  going to start freesurfer with $freesurfer_simultaneous participants simultaneously, notably $fs_participants"
         
+            freesurfer_pid=-1
+            waitforprocs=()
+            waitforpids=()
+    
             for BIDS_participant in $fs_participants; do
                 
-                freesurfer_pid=-1
-                waitforprocs=()
-                waitforpids=()
-                
+               
                 #echo $BIDS_participant
                 task_freesurfer
 
@@ -1176,13 +1177,14 @@ if [ $expert -eq 1 ]; then
 
             fs_participants=${BIDS_subjects[@]:$i_bids_participant:$dwiprep_simultaneous}
             echo "  going to start dwiprep with $dwiprep_simultaneous participants simultaneously, notably $fs_participants"
-        
+
+            dwiprep_pid=-1
+            waitforprocs=()
+            waitforpids=()
+
             for BIDS_participant in $fs_participants; do
                 
-                dwiprep_pid=-1
-                waitforprocs=()
-                waitforpids=()
-                
+              
                 #echo $BIDS_participant
                 task_KUL_dwiprep
 
