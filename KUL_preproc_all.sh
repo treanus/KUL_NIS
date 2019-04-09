@@ -213,7 +213,7 @@ else
 
     
 
-    if [ ! -f pbs_data_mriqc.csv ]; then
+    if [ ! -f $pbs_data_file ]; then
         echo "cwd,BIDS_participant,mriqc_options,mriqc_log_p,ncpu_mriqc,ncpu_mriqc_ants,mem_gb,bids_dir,mriqc_log" > $pbs_data_file
     fi 
     echo "$cwd,$BIDS_participant,$mriqc_options,$mriqc_log_p,$ncpu_mriqc,$ncpu_mriqc_ants,$mem_gb,$bids_dir,$mriqc_log" >> $pbs_data_file
