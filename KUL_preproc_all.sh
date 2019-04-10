@@ -1111,9 +1111,9 @@ if [ $expert -eq 1 ]; then
 
         for i_bids_participant in $(seq 0 $(($n_subj-1))); do
 
-            freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_participant}/${BIDS_participant}/scripts/recon-all.done
+            freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_subjects[i_bids_participant]}/${BIDS_subjects[i_bids_participant]}/scripts/recon-all.done
 
-            #echo $freesurfer_file_to_check
+            echo $freesurfer_file_to_check
             if [ ! -f $freesurfer_file_to_check ]; then
 
                 todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
@@ -1127,11 +1127,11 @@ if [ $expert -eq 1 ]; then
         done
 
         echo "  freesurfer was already done for participant(s) ${already_done[@]}"
-        
+
+
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
 
-        
         for i_bids_participant in $(seq 0 $freesurfer_simultaneous $n_subj); do
 
             fs_participants=${BIDS_subjects[@]:$i_bids_participant:$freesurfer_simultaneous}
