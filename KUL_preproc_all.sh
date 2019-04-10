@@ -213,6 +213,9 @@ else
  > \$mriqc_log 2>&1 " > VSC/pbs_task_mriqc.sh
     chmod +x VSC/pbs_task_mriqc.sh
 
+    cp $kul_main_dir/VSC/master.pbs VSC/run_mriqc.pbs
+
+
     if [ ! -f $pbs_data_file ]; then
         echo "cwd,BIDS_participant,mriqc_options,mriqc_log_p,ncpu_mriqc,ncpu_mriqc_ants,mem_gb,bids_dir,mriqc_log" > $pbs_data_file
     fi 
