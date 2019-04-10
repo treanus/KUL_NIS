@@ -10,14 +10,13 @@ v="v0.2 - dd 19/12/2018"
 # Description:
 #    This script preprocces an entire study (multiple subjects) with structural, functional and diffusion data at Stefan's lab
 #      It will:
-#       - convert dicom files to BIDS format
 #       - perform mriqc on structural and functional data
 #       - perform fmriprep on structural and functional data
 #       - perform freesurfer on the structural data (only T1w for now) 
 #       - perform mrtix3 and related processing on dMRI data
 #       - optionally:
 #           - perform combined structural and dMRI data analysis (depends on fmriprep, freesurfer and mrtrix3 above)
-#           - perfrom dbsdrt (automated tractography of the dentato-rubro-thalamic tract) on dMRI + structural data (depends on all above)
+#           - perform fibertractography
 #
 #   Requirements:
 #       A correct installation of your mac (for now, maybe later also a hpc) at the lab
@@ -30,24 +29,7 @@ v="v0.2 - dd 19/12/2018"
 #               - last but not least, a correct installation of up-to-date KUL_NeuroImaging_Tools (in KUL_apps)
 #               - correct setup of your .bashrc and .bash_profile
 #
-#  It depends on a major config file, e.g. "study_config/subjects_and_options.csv" in which one informs the script:
-#       What and how (options) to perform:
-#               - mriqc (yes/no) 
-#                   (no options implemented yet)
-#               - fmriprep (yes/no), and specifies options:
-#                   all fmriprep options may be given,
-#                   e.g.:
-#                       --anat-only (to only process structural)
-#               - freesurfer (yes/no) 
-#                   (no options implemented yet)
-#               - KUL_dwiprep processing, i.e. a full mrtrix processing pipeline (yes/no)
-#                   options may be e.g.:
-#                       --slm=linear --repol (to provide to eddy)
-#               - KUL_dwiprep_anat processing (yes/no) 
-#                   (no options implemented yet)
-#               - KUL_dwiprep_dbsdrt processing (yes/no)
-#                       option nods e.g. 4000
-#
+
 
 
 
@@ -55,12 +37,10 @@ v="v0.2 - dd 19/12/2018"
 
 
 # To do:
-# - update the description above (section DESCRIPTION) of what this script does exactly!
 #
 #       - other ideas:
-#               - add KUL_dcm2bids in the loop of processing (was implemented, but temporarily out again)
 #               - add processing for fmri stats
-#               - add processing for automated tracking of major tracts (similar to tractseg e.g.)
+
 
 
 
