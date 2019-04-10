@@ -701,6 +701,7 @@ ncpu=6
 mem_gb=24
 bids_dir=BIDS
 expert=0
+make_pbs_files_instead_of_running=0
 tmp=/tmp
 
 # Set flags
