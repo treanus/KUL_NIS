@@ -10,14 +10,13 @@ v="v0.2 - dd 19/12/2018"
 # Description:
 #    This script preprocces an entire study (multiple subjects) with structural, functional and diffusion data at Stefan's lab
 #      It will:
-#       - convert dicom files to BIDS format
 #       - perform mriqc on structural and functional data
 #       - perform fmriprep on structural and functional data
 #       - perform freesurfer on the structural data (only T1w for now) 
 #       - perform mrtix3 and related processing on dMRI data
 #       - optionally:
 #           - perform combined structural and dMRI data analysis (depends on fmriprep, freesurfer and mrtrix3 above)
-#           - perfrom dbsdrt (automated tractography of the dentato-rubro-thalamic tract) on dMRI + structural data (depends on all above)
+#           - perform fibertractography
 #
 #   Requirements:
 #       A correct installation of your mac (for now, maybe later also a hpc) at the lab
@@ -30,24 +29,7 @@ v="v0.2 - dd 19/12/2018"
 #               - last but not least, a correct installation of up-to-date KUL_NeuroImaging_Tools (in KUL_apps)
 #               - correct setup of your .bashrc and .bash_profile
 #
-#  It depends on a major config file, e.g. "study_config/subjects_and_options.csv" in which one informs the script:
-#       What and how (options) to perform:
-#               - mriqc (yes/no) 
-#                   (no options implemented yet)
-#               - fmriprep (yes/no), and specifies options:
-#                   all fmriprep options may be given,
-#                   e.g.:
-#                       --anat-only (to only process structural)
-#               - freesurfer (yes/no) 
-#                   (no options implemented yet)
-#               - KUL_dwiprep processing, i.e. a full mrtrix processing pipeline (yes/no)
-#                   options may be e.g.:
-#                       --slm=linear --repol (to provide to eddy)
-#               - KUL_dwiprep_anat processing (yes/no) 
-#                   (no options implemented yet)
-#               - KUL_dwiprep_dbsdrt processing (yes/no)
-#                       option nods e.g. 4000
-#
+
 
 
 
@@ -55,12 +37,10 @@ v="v0.2 - dd 19/12/2018"
 
 
 # To do:
-# - update the description above (section DESCRIPTION) of what this script does exactly!
 #
 #       - other ideas:
-#               - add KUL_dcm2bids in the loop of processing (was implemented, but temporarily out again)
 #               - add processing for fmri stats
-#               - add processing for automated tracking of major tracts (similar to tractseg e.g.)
+
 
 
 
@@ -216,8 +196,8 @@ else
     cp $kul_main_dir/VSC/master.pbs VSC/run_mriqc.pbs
 
     perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_mriqc.pbs
-    perl  -pi -e "s/##CPU##/36/g" VSC/run_mriqc.pbs
-    perl  -pi -e "s/##MEM##/64/g" VSC/run_mriqc.pbs
+    perl  -pi -e "s/##CPU##/${pbs_cpu}/g" VSC/run_mriqc.pbs
+    perl  -pi -e "s/##MEM##/${pbs_mem}/g" VSC/run_mriqc.pbs
     esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
     perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_mriqc.pbs
     esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
@@ -889,6 +869,8 @@ if [ $expert -eq 1 ]; then
 
     if [ $make_pbs_files_instead_of_running -eq 1 ]; then
 
+        pbs_cpu=$(grep pbs_cpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        pbs_mem=$(grep pbs_mem $conf | grep -v \# | sed 's/[^0-9]//g')
         pbs_lp=$(grep pbs_lp $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
         pbs_email=$(grep pbs_email $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
         pbs_walltime=$(grep pbs_walltime $conf | grep -v \# | cut -d':' -f 2- | tr -d '\r')
@@ -897,6 +879,8 @@ if [ $expert -eq 1 ]; then
 
         if [ $silent -eq 0 ]; then
 
+            echo "  pbs_cpu: $pbs_cpu"
+            echo "  pbs_mem: $pbs_mem"
             echo "  pbs_lp: $pbs_lp"
             echo "  pbs_email: $pbs_email"
             echo "  pbs_walltime: $pbs_walltime"
