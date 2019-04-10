@@ -987,6 +987,9 @@ if [ $expert -eq 1 ]; then
 
     #check fmriprep and options
     do_fmriprep=$(grep do_fmriprep $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$do_fmriprep" ]; then
+        do_fmriprep=0
+    fi 
     echo "  do_fmriprep: $do_fmriprep"
     
     if [ $do_fmriprep -eq 1 ]; then
@@ -1047,7 +1050,7 @@ if [ $expert -eq 1 ]; then
 
         for i_bids_participant in $(seq 0 $fmriprep_simultaneous $(($n_subj_todo-1))); do
 
-            fmriprep_participants=${BIDS_subjects[@]:$i_bids_participant:$fmriprep_simultaneous}
+            fmriprep_participants=${todo_bids_participants[@]:$i_bids_participant:$fmriprep_simultaneous}
             #echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $fmriprep_participants"
 
             #for BIDS_participant in $fmriprep_participants; do
@@ -1077,8 +1080,10 @@ if [ $expert -eq 1 ]; then
 
 
     #check freesurfer and options
-    do_freesurfer=0
     do_freesurfer=$(grep do_freesurfer $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$do_freesurfer" ]; then
+        do_freesurfer=0
+    fi 
     echo "  do_freesurfer: $do_freesurfer"
     
     if [ $do_freesurfer -eq 1 ]; then
@@ -1113,7 +1118,7 @@ if [ $expert -eq 1 ]; then
 
             freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_subjects[i_bids_participant]}/${BIDS_subjects[i_bids_participant]}/scripts/recon-all.done
 
-            echo $freesurfer_file_to_check
+            #echo $freesurfer_file_to_check
             if [ ! -f $freesurfer_file_to_check ]; then
 
                 todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
@@ -1132,9 +1137,9 @@ if [ $expert -eq 1 ]; then
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
 
-        for i_bids_participant in $(seq 0 $freesurfer_simultaneous $n_subj); do
+        for i_bids_participant in $(seq 0 $freesurfer_simultaneous $(($n_subj_todo-1))); do
 
-            fs_participants=${BIDS_subjects[@]:$i_bids_participant:$freesurfer_simultaneous}
+            fs_participants=${todo_bids_participants[@]:$i_bids_participant:$freesurfer_simultaneous}
             echo "  going to start freesurfer with $freesurfer_simultaneous participants simultaneously, notably $fs_participants"
         
             freesurfer_pid=-1
@@ -1205,7 +1210,7 @@ if [ $expert -eq 1 ]; then
 
         for i_bids_participant in $(seq 0 $(($n_subj-1))); do
 
-            dwiprep_file_to_check=${cwd}/dwiprep/sub-${BIDS_participant}/dwiprep_is_done.log
+            dwiprep_file_to_check=${cwd}/dwiprep/sub-${BIDS_subjects[$i_bids_participant]}/dwiprep_is_done.log
 
             #echo $dwiprep_file_to_check
             if [ ! -f $dwiprep_file_to_check ]; then
@@ -1225,9 +1230,9 @@ if [ $expert -eq 1 ]; then
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
 
-        for i_bids_participant in $(seq 0 $dwiprep_simultaneous $n_subj); do
+        for i_bids_participant in $(seq 0 $dwiprep_simultaneous $(($n_subj_todo-1))); do
 
-            fs_participants=${BIDS_subjects[@]:$i_bids_participant:$dwiprep_simultaneous}
+            fs_participants=${todo_bids_participants[@]:$i_bids_participant:$dwiprep_simultaneous}
             echo "  going to start dwiprep with $dwiprep_simultaneous participants simultaneously, notably $fs_participants"
 
             dwiprep_pid=-1

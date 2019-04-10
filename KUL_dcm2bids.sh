@@ -503,7 +503,7 @@ else
     kul_e2cl "  uncompressing the zip file $dcm to $tmp/$subj" $log
     # Check the extention of the archive
     arch_ext="${dcm##*.}"
-    echo $arch_ext
+    #echo $arch_ext
 
 
     if [ $arch_ext = "zip" ]; then 
@@ -524,7 +524,7 @@ kul_e2cl "  brute force extraction of some relevant dicom tags of all dicom file
 echo hello > $dump_file
 
 task(){
-    dcm1=$(dcminfo "$dcm_file" -tag 0008 103E -tag 0008 0008 -tag 0008 0070 -nthreads 4 | tr -s '\n' ' ')
+    dcm1=$(dcminfo "$dcm_file" -tag 0008 103E -tag 0008 0008 -tag 0008 0070 -nthreads 4 2>/dev/null | tr -s '\n' ' ')
     echo "$dcm_file" $dcm1 >> $dump_file
 }
 
