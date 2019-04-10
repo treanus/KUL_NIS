@@ -202,16 +202,16 @@ else
     mkdir -p VSC
 
 #    echo $task_mriqc_cmd > VSC/pbs_task_mriqc.txt
-#    echo "singularity run --cleanenv \
-# -B \${cwd}:/work \
-# \$KUL_mriqc_singularity \
-# --participant_label \$BIDS_participant \
-# \$mriqc_options \
-# -w /work/mriqc_work_\${mriqc_log_p} \
-# --n_procs \$ncpu_mriqc --ants-nthreads \$ncpu_mriqc_ants --mem_gb \$mem_gb --no-sub \
-# /work/\${bids_dir} /work/mriqc participant \
-# > \$mriqc_log 2>&1 " >> VSC/pbs_task_mriqc.txt
-
+    echo "singularity run --cleanenv \
+ -B \${cwd}:/work \
+ \$KUL_mriqc_singularity \
+ --participant_label \$BIDS_participant \
+ \$mriqc_options \
+ -w /work/mriqc_work_\${mriqc_log_p} \
+ --n_procs \$ncpu_mriqc --ants-nthreads \$ncpu_mriqc_ants --mem_gb \$mem_gb --no-sub \
+ /work/\${bids_dir} /work/mriqc participant \
+ > \$mriqc_log 2>&1 " > VSC/pbs_task_mriqc.sh
+    chmod +x VSC/pbs_task_mriqc.sh
 
     if [ ! -f $pbs_data_file ]; then
         echo "cwd,BIDS_participant,mriqc_options,mriqc_log_p,ncpu_mriqc,ncpu_mriqc_ants,mem_gb,bids_dir,mriqc_log" > $pbs_data_file
