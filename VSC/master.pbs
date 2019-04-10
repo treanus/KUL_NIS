@@ -41,4 +41,4 @@ export KUL_mriqc_singularity=##MRIQC##
 cd $PBS_O_WORKDIR
 echo "We are in pwd: $(pwd)"
 
-KUL_preproc_all.sh -e -v -c ##CONF##
+##COMMAND##
