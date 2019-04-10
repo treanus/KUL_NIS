@@ -199,19 +199,19 @@ if [ $make_pbs_files_instead_of_running -eq 0 ]; then
 else
 
     echo " making a PBS file"
- 
-    #echo $task_mriqc_cmd > pbs_task_mriqc.txt
-    #echo "singularity run --cleanenv \
- #-B \${cwd}:/work \
- #\$KUL_mriqc_singularity \
- #--participant_label \$BIDS_participant \
- #\$mriqc_options \
- #-w /work/mriqc_work_\${mriqc_log_p} \
- #--n_procs \$ncpu_mriqc --ants-nthreads \$ncpu_mriqc_ants --mem_gb \$mem_gb --no-sub \
- #/work/\${bids_dir} /work/mriqc participant \
- #> \$mriqc_log 2>&1 " >> pbs_task_mriqc.txt
+    mkdir -p VSC
 
-    
+#    echo $task_mriqc_cmd > VSC/pbs_task_mriqc.txt
+#    echo "singularity run --cleanenv \
+# -B \${cwd}:/work \
+# \$KUL_mriqc_singularity \
+# --participant_label \$BIDS_participant \
+# \$mriqc_options \
+# -w /work/mriqc_work_\${mriqc_log_p} \
+# --n_procs \$ncpu_mriqc --ants-nthreads \$ncpu_mriqc_ants --mem_gb \$mem_gb --no-sub \
+# /work/\${bids_dir} /work/mriqc participant \
+# > \$mriqc_log 2>&1 " >> VSC/pbs_task_mriqc.txt
+
 
     if [ ! -f $pbs_data_file ]; then
         echo "cwd,BIDS_participant,mriqc_options,mriqc_log_p,ncpu_mriqc,ncpu_mriqc_ants,mem_gb,bids_dir,mriqc_log" > $pbs_data_file
@@ -887,8 +887,8 @@ if [ $expert -eq 1 ]; then
 
         fi
 
-        mriqc_rand=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1)
-        pbs_data_file="pbs_data_mriqc_${mriqc_rand}.csv"
+        #mriqc_rand=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1)
+        #pbs_data_file="pbs_data_mriqc_${mriqc_rand}.csv"
 
     fi
 
@@ -917,6 +917,17 @@ if [ $expert -eq 1 ]; then
             
         mriqc_simultaneous=$(grep mriqc_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g' | tr -d '\r')
 
+        if [ $make_pbs_files_instead_of_running -eq 1 ]; then
+
+            mriqc_simultaneous_pbs=$(($mriqc_simultaneous-1))
+            mriqc_simultaneous=1
+
+        else
+
+            mriqc_simultaneous_pbs=0
+
+        fi
+
         if [ $silent -eq 0 ]; then
 
             echo "  mriqc_options: $mriqc_options"
@@ -925,6 +936,7 @@ if [ $expert -eq 1 ]; then
             echo "  BIDS_participants: ${BIDS_subjects[@]}"
             echo "  number of BIDS_participants: $n_subj"
             echo "  mriqc_simultaneous: $mriqc_simultaneous"
+            echo "  mriqc_simultaneous_pbs: $mriqc_simultaneous_pbs"
 
         fi
 
@@ -953,27 +965,32 @@ if [ $expert -eq 1 ]; then
         
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
-
+        task_number=1
+        task_counter=1
+         
         for i_bids_participant in $(seq 0 $mriqc_simultaneous $(($n_subj_todo-1))); do
 
             mriqc_participants=${todo_bids_participants[@]:$i_bids_participant:$mriqc_simultaneous}
             #echo " going to start mriqc with $mriqc_simultaneous participants simultaneously, notably $mriqc_participants"
 
-            #for BIDS_participant in $mriqc_participants; do
-                
-                BIDS_participant=$mriqc_participants
-                mriqc_pid=-1
-                waitforprocs=()
-                waitforpids=()
+            BIDS_participant=$mriqc_participants
+            mriqc_pid=-1
+            waitforprocs=()
+            waitforpids=()
 
-                task_mriqc_participant
+            task_mriqc_participant
 
-                if [ $mriqc_pid -gt 0 ]; then
-                    waitforprocs+=("mriqc")
-                    waitforpids+=($mriqc_pid)
-                fi
-            
-            #done
+            if [ $mriqc_pid -gt 0 ]; then
+                waitforprocs+=("mriqc")
+                waitforpids+=($mriqc_pid)
+            fi
+
+            pbs_data_file="VSC/pbs_data_mriqc_job${task_number}.csv"
+            if [ $task_counter -gt $mriqc_simultaneous_pbs ]; then
+                task_number=$((task_number+1))
+                task_counter=1
+            fi
+            task_counter=$((task_counter+1))            
             
             kul_e2cl " waiting for processes [${waitforpids[@]}] for subject(s) $mriqc_participants to finish before continuing with further processing... (this can take hours!)... " $log
             WaitForTaskCompletion 
@@ -1171,8 +1188,10 @@ if [ $expert -eq 1 ]; then
 
 
     #check dwiprep and options
-    do_dwiprep=0
     do_dwiprep=$(grep do_dwiprep $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$do_dwiprep" ]; then
+        do_dwiprep=0
+    fi 
     echo "  do_dwiprep: $do_dwiprep"
     
     if [ $do_dwiprep -eq 1 ]; then
