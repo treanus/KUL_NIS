@@ -8,7 +8,6 @@
 #PBS -M ##EMAIL##
 
 #PBS -l walltime=##WALLTIME##
-#PBS -N ##LOG##
 
 export SINGULARITY_CACHEDIR=$VSC_SCRATCH/singularity_cache
 mkdir -p $SINGULARITY_CACHEDIR

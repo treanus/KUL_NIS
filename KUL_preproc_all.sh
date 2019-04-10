@@ -202,7 +202,7 @@ else
     mkdir -p VSC
 
 #    echo $task_mriqc_cmd > VSC/pbs_task_mriqc.txt
-    echo "singularity run --cleanenv \
+    task_command=$(echo "singularity run --cleanenv \
  -B \${cwd}:/work \
  \$KUL_mriqc_singularity \
  --participant_label \$BIDS_participant \
@@ -210,12 +210,22 @@ else
  -w /work/mriqc_work_\${mriqc_log_p} \
  --n_procs \$ncpu_mriqc --ants-nthreads \$ncpu_mriqc_ants --mem_gb \$mem_gb --no-sub \
  /work/\${bids_dir} /work/mriqc participant \
- > \$mriqc_log 2>&1 " > VSC/pbs_task_mriqc.sh
-    chmod +x VSC/pbs_task_mriqc.sh
+ > \$mriqc_log 2>&1 ")
+    #chmod +x VSC/pbs_task_mriqc.sh
 
     cp $kul_main_dir/VSC/master.pbs VSC/run_mriqc.pbs
 
+    perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_mriqc.pbs
+    perl  -pi -e "s/##CPU##/36/g" VSC/run_mriqc.pbs
+    perl  -pi -e "s/##MEM##/64/g" VSC/run_mriqc.pbs
+    perl  -pi -e "s/##EMAIL##/${pbs_email}/g" VSC/run_mriqc.pbs
+    perl  -pi -e "s/##WALLTIME##/${pbs_walltime}/g" VSC/run_mriqc.pbs
+#    perl  -pi -e "s/##FMRIPREP##/${pbs_singularity_mriqc}/g" VSC/run_mriqc.pbs
+#    perl  -pi -e "s/##MRIQC##/${pbs_singularity_mriqc}/g" VSC/run_mriqc.pbs
+#    perl  -pi -e "s/##COMMAND##/${pbs_singularity_mriqc}/g" VSC/run_mriqc.pbs
 
+
+    echo $pbs_data_file
     if [ ! -f $pbs_data_file ]; then
         echo "cwd,BIDS_participant,mriqc_options,mriqc_log_p,ncpu_mriqc,ncpu_mriqc_ants,mem_gb,bids_dir,mriqc_log" > $pbs_data_file
     fi 
@@ -973,8 +983,16 @@ if [ $expert -eq 1 ]; then
          
         for i_bids_participant in $(seq 0 $mriqc_simultaneous $(($n_subj_todo-1))); do
 
+
             mriqc_participants=${todo_bids_participants[@]:$i_bids_participant:$mriqc_simultaneous}
             #echo " going to start mriqc with $mriqc_simultaneous participants simultaneously, notably $mriqc_participants"
+
+            pbs_data_file="VSC/pbs_data_mriqc_job${task_number}.csv"
+            if [ $task_counter -gt $mriqc_simultaneous_pbs ]; then
+                task_number=$((task_number+1))
+                task_counter=1
+            fi
+            task_counter=$((task_counter+1))    
 
             BIDS_participant=$mriqc_participants
             mriqc_pid=-1
@@ -987,13 +1005,7 @@ if [ $expert -eq 1 ]; then
                 waitforprocs+=("mriqc")
                 waitforpids+=($mriqc_pid)
             fi
-
-            pbs_data_file="VSC/pbs_data_mriqc_job${task_number}.csv"
-            if [ $task_counter -gt $mriqc_simultaneous_pbs ]; then
-                task_number=$((task_number+1))
-                task_counter=1
-            fi
-            task_counter=$((task_counter+1))            
+        
             
             kul_e2cl " waiting for processes [${waitforpids[@]}] for subject(s) $mriqc_participants to finish before continuing with further processing... (this can take hours!)... " $log
             WaitForTaskCompletion 
