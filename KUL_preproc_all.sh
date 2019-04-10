@@ -218,11 +218,16 @@ else
     perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_mriqc.pbs
     perl  -pi -e "s/##CPU##/36/g" VSC/run_mriqc.pbs
     perl  -pi -e "s/##MEM##/64/g" VSC/run_mriqc.pbs
-    perl  -pi -e "s/##EMAIL##/${pbs_email}/g" VSC/run_mriqc.pbs
-    perl  -pi -e "s/##WALLTIME##/${pbs_walltime}/g" VSC/run_mriqc.pbs
-#    perl  -pi -e "s/##FMRIPREP##/${pbs_singularity_mriqc}/g" VSC/run_mriqc.pbs
-#    perl  -pi -e "s/##MRIQC##/${pbs_singularity_mriqc}/g" VSC/run_mriqc.pbs
-#    perl  -pi -e "s/##COMMAND##/${pbs_singularity_mriqc}/g" VSC/run_mriqc.pbs
+    esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_mriqc.pbs
+    esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##WALLTIME##/${esc_pbs_walltime}/g" VSC/run_mriqc.pbs
+    esc_pbs_singularity_fmriprep=$(echo $pbs_singularity_fmriprep | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##FMRIPREP##/${esc_pbs_singularity_fmriprep}/g" VSC/run_mriqc.pbs
+    esc_pbs_singularity_mriqc=$(echo $pbs_singularity_mriqc | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##MRIQC##/${esc_pbs_singularity_mriqc}/g" VSC/run_mriqc.pbs
+    esc_task_command=$(echo $task_command | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##COMMAND##/${esc_task_command}/g" VSC/run_mriqc.pbs
 
 
     echo $pbs_data_file
