@@ -70,7 +70,7 @@ Example:
 
 Required arguments:
 
-     -d:  dicom_zip_file (the zip or tar.gz containing all your dicoms)
+     -d:  dicom_zip_file (the zip or tar.gz containing all your dicoms, or directory containing dicoms)
      -p:  participant (anonymised name of the subject in bids convention)
      -c:  definitions of sequences (T1w=MPRAGE,dwi=seq, etc..., see above)
 
