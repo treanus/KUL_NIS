@@ -1,0 +1,43 @@
+#!/bin/bash -l
+
+#PBS -l nodes=1:ppn=##CPU##
+#PBS -l mem=##MEM##gb
+
+#PBS -A ##LP##
+#PBS -m abe
+#PBS -M ##EMAIL##
+
+#PBS -l walltime=##WALLTIME##
+
+export SINGULARITY_CACHEDIR=$VSC_SCRATCH/singularity_cache
+mkdir -p $SINGULARITY_CACHEDIR
+export TMPDIR=$VSC_SCRATCH/tmp
+mkdir -p $TMPDIR
+
+#-------------------------------------------------
+
+
+#load modules
+module purge
+module load FreeSurfer/6.0.0-centos6_x86_64
+source $FREESURFER_HOME/SetUpFreeSurfer.sh
+module load ANTs/2.3.1-foss-2018a-Python-2.7.14  
+module load FSL/5.0.11-foss-2018a
+. ${FSLDIR}/etc/fslconf/fsl.sh
+OMP_NUM_THREADS=8
+module load MRtrix/3.0_RC3-foss-2018a-Python-2.7.14
+
+#add the path to neuroimaging tools
+PATH=${VSC_DATA}/apps/KUL_NeuroImaging_Tools:${PATH}
+
+export FS_LICENSE=${FREESURFER_HOME}/license.txt
+export KUL_use_fmriprep_singularity=1
+export KUL_fmriprep_singularity=##FMRIPREP##
+export KUL_use_mriqc_singularity=1
+export KUL_mriqc_singularity=##MRIQC##
+
+#execute script
+cd $PBS_O_WORKDIR
+echo "We are in pwd: $(pwd)"
+
+##COMMAND##

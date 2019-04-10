@@ -70,7 +70,7 @@ Example:
 
 Required arguments:
 
-     -d:  dicom_zip_file (the zip or tar.gz containing all your dicoms)
+     -d:  dicom_zip_file (the zip or tar.gz containing all your dicoms, or directory containing dicoms)
      -p:  participant (anonymised name of the subject in bids convention)
      -c:  definitions of sequences (T1w=MPRAGE,dwi=seq, etc..., see above)
 
@@ -486,26 +486,37 @@ if [ $silent -eq 0 ]; then
     echo "  The present working directory is `pwd`"
 fi
 
-# uncompress the zip file with dicoms
-kul_e2cl "  uncompressing the zip file $dcm to $tmp/$subj" $log
+# uncompress the zip file with dicoms or link the directory to tmp
+
 # clear the /tmp directory
 
 mkdir -p ${tmp}
 
-# Check the extention of the archive
-arch_ext="${dcm##*.}"
-#echo $arch_ext
+if [ -d "$dcm" ]; then
 
-if [ $arch_ext = "zip" ]; then 
-
-    unzip -q -o ${dcm} -d ${tmp}
+    # it is a directory
+    kul_e2cl "  you gave the directory $dcm as input; linking to to $tmp/$subj" $log
+    ln -s "${cwd}/${dcm}" $tmp/$subj
 
 else
 
-    tar --strip-components=5 -C ${tmp} -xzf ${dcm}
+    kul_e2cl "  uncompressing the zip file $dcm to $tmp/$subj" $log
+    # Check the extention of the archive
+    arch_ext="${dcm##*.}"
+    #echo $arch_ext
+
+
+    if [ $arch_ext = "zip" ]; then 
+
+        unzip -q -o ${dcm} -d ${tmp}
+
+    elif [ $arch_ext = "tar" ]; then
+
+        tar --strip-components=5 -C ${tmp} -xzf ${dcm}
+
+    fi
 
 fi
-
 
 # dump the dicom tags of all dicoms in a file
 kul_e2cl "  brute force extraction of some relevant dicom tags of all dicom files of subject $subj into file $dump_file" $log
@@ -513,13 +524,13 @@ kul_e2cl "  brute force extraction of some relevant dicom tags of all dicom file
 echo hello > $dump_file
 
 task(){
-    dcm1=$(dcminfo "$dcm_file" -tag 0008 103E -tag 0008 0008 -tag 0008 0070 -nthreads 4 | tr -s '\n' ' ')
+    dcm1=$(dcminfo "$dcm_file" -tag 0008 103E -tag 0008 0008 -tag 0008 0070 -nthreads 4 2>/dev/null | tr -s '\n' ' ')
     echo "$dcm_file" $dcm1 >> $dump_file
 }
 
 N=4
 (
-find ${tmp} -type f | 
+find -L ${tmp} -type f | 
 while IFS= read -r dcm_file; do
     
     ((i=i%N)); ((i++==0)) && wait
@@ -531,6 +542,7 @@ done
 
 kul_e2cl "    done reading dicom tags of $dcm" $log
 wait
+
 
 # create empty bids description
 bids=""

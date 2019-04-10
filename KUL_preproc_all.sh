@@ -72,9 +72,11 @@ v="v0.2 - dd 19/12/2018"
 #  - check wether all necessary software is installed (and exit if needed)
 #  - provide some general functions like logging
 kul_main_dir=$(dirname "$0")
-source $kul_main_dir/KUL_main_functions.sh
 script=$(basename "$0")
 cwd=$(pwd)
+source $kul_main_dir/KUL_main_functions.sh
+
+
 
 
 
@@ -133,13 +135,46 @@ USAGE
 # A Function to start mriqc processing (in parallel)
 function task_mriqc_participant {
 
+# check whether to use singularity-mriqc
+mriqc_singularity=0
+#echo $KUL_use_mriqc_singularity
+if [ -z $KUL_use_mriqc_singularity ]; then
+
+    echo "  KUL_use_mriqc_singularity not set, using docker"
+    
+elif [ $KUL_use_mriqc_singularity -eq 1 ]; then
+    
+    echo "  KUL_use_mriqc_singularity is set to 1, using it"
+    mriqc_singularity=1
+
+fi
+
+#echo $mriqc_singularity
+
 mriqc_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
 mriqc_log="${preproc}/log/mriqc/mriqc_${mriqc_log_p}.txt"
 mkdir -p ${preproc}/log/mriqc
 
 kul_e2cl " started (in parallel) mriqc on participant(s) $BIDS_participant (with options $mriqc_options, using $ncpu_mriqc cores, logging to $mriqc_log)" $log
 
-local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
+if [ $mriqc_singularity -eq 1 ]; then 
+
+ mkdir -p ./mriqc
+ mkdir -p ./mriqc_work_${mriqc_log_p}
+
+ local task_mriqc_cmd=$(echo "singularity run --cleanenv \
+ -B ${cwd}:/work \
+ $KUL_mriqc_singularity \
+ --participant_label $BIDS_participant \
+ $mriqc_options \
+ -w /work/mriqc_work_${mriqc_log_p} \
+ --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
+ /work/${bids_dir} /work/mriqc participant \
+ > $mriqc_log 2>&1 ") 
+
+else
+
+ local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
  -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
  poldracklab/mriqc:latest \
  --participant_label $BIDS_participant \
@@ -148,14 +183,60 @@ local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --
  /data /out participant \
  > $mriqc_log 2>&1 ") 
 
+fi
+
 echo "   using cmd: $task_mriqc_cmd"
 
 # now we start the parallel job
-eval $task_mriqc_cmd &
-mriqc_pid="$!"
-echo " mriqc pid is $mriqc_pid"
+if [ $make_pbs_files_instead_of_running -eq 0 ]; then
 
-sleep 2
+    eval $task_mriqc_cmd &
+    mriqc_pid="$!"
+    echo " mriqc pid is $mriqc_pid"
+
+    sleep 2
+
+else
+
+    echo " making a PBS file"
+    mkdir -p VSC
+
+#    echo $task_mriqc_cmd > VSC/pbs_task_mriqc.txt
+    task_command=$(echo "singularity run --cleanenv \
+ -B \${cwd}:/work \
+ \$KUL_mriqc_singularity \
+ --participant_label \$BIDS_participant \
+ \$mriqc_options \
+ -w /work/mriqc_work_\${mriqc_log_p} \
+ --n_procs \$ncpu_mriqc --ants-nthreads \$ncpu_mriqc_ants --mem_gb \$mem_gb --no-sub \
+ /work/\${bids_dir} /work/mriqc participant \
+ > \$mriqc_log 2>&1 ")
+    #chmod +x VSC/pbs_task_mriqc.sh
+
+    cp $kul_main_dir/VSC/master.pbs VSC/run_mriqc.pbs
+
+    perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_mriqc.pbs
+    perl  -pi -e "s/##CPU##/36/g" VSC/run_mriqc.pbs
+    perl  -pi -e "s/##MEM##/64/g" VSC/run_mriqc.pbs
+    esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_mriqc.pbs
+    esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##WALLTIME##/${esc_pbs_walltime}/g" VSC/run_mriqc.pbs
+    esc_pbs_singularity_fmriprep=$(echo $pbs_singularity_fmriprep | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##FMRIPREP##/${esc_pbs_singularity_fmriprep}/g" VSC/run_mriqc.pbs
+    esc_pbs_singularity_mriqc=$(echo $pbs_singularity_mriqc | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##MRIQC##/${esc_pbs_singularity_mriqc}/g" VSC/run_mriqc.pbs
+    esc_task_command=$(echo $task_command | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##COMMAND##/${esc_task_command}/g" VSC/run_mriqc.pbs
+
+
+    echo $pbs_data_file
+    if [ ! -f $pbs_data_file ]; then
+        echo "cwd,BIDS_participant,mriqc_options,mriqc_log_p,ncpu_mriqc,ncpu_mriqc_ants,mem_gb,bids_dir,mriqc_log" > $pbs_data_file
+    fi 
+    echo "$cwd,$BIDS_participant,$mriqc_options,$mriqc_log_p,$ncpu_mriqc,$ncpu_mriqc_ants,$mem_gb,$bids_dir,$mriqc_log" >> $pbs_data_file
+
+fi
 
 }
 
@@ -165,11 +246,11 @@ function task_fmriprep {
 
 # make log dir and clean_up before starting
 mkdir -p ${preproc}/log/fmriprep
-rm -fr ${cwd}/fmriprep_work
+#rm -fr ${cwd}/fmriprep_work_${fmriprep_log_p}
 
 # check whether to use singularity-fmriprep
 fmriprep_singularity=0
-echo $KUL_use_fmriprep_singularity
+#echo $KUL_use_fmriprep_singularity
 if [ -z $KUL_use_fmriprep_singularity ]; then
 
     echo "  KUL_use_fmriprep_singularity not set, using docker"
@@ -181,20 +262,20 @@ elif [ $KUL_use_fmriprep_singularity -eq 1 ]; then
 
 fi
 
-echo $fmriprep_singularity
+#echo $fmriprep_singularity
 
 
-
-fmriprep_log=${preproc}/log/fmriprep/${BIDS_participant}.txt
+fmriprep_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
+fmriprep_log=${preproc}/log/fmriprep/${fmriprep_log_p}.txt
 
 kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
 
 if [ $fmriprep_singularity -eq 1 ]; then 
 
-        mkdir -p ./fmriprep_work
+ mkdir -p ./fmriprep_work_${fmriprep_log_p}
         
-    local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
- -B ./fmriprep_work:/work \
+ local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
+ -B ./fmriprep_work_${fmriprep_log_p}:/work \
  -B ${freesurfer_license}:/opt/freesurfer/license.txt \
  $KUL_fmriprep_singularity \
  ./${bids_dir} \
@@ -214,7 +295,7 @@ else
     local task_fmriprep_cmd=$(echo "docker run --rm \
  -v ${cwd}/${bids_dir}:/data \
  -v ${cwd}:/out \
- -v ${cwd}/fmriprep_work:/scratch \
+ -v ${cwd}/fmriprep_work_${fmriprep_log_p}:/scratch \
  -v ${freesurfer_license}:/opt/freesurfer/license.txt \
  poldracklab/fmriprep:latest \
  --participant_label ${BIDS_participant} \
@@ -386,7 +467,7 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     kul_e2cl " started (in parallel) KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
-    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} -n $ncpu_dwiprep -d $dwipreproc_options -e \"${eddy_options} \" -v \
+    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} -n $ncpu_dwiprep -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v \
  > $dwiprep_log 2>&1 ")
 
     echo "   using cmd: $task_dwiprep_cmd"
@@ -784,18 +865,10 @@ if [ $docker_reset_flag -eq 1 ];then
 fi
 
 
-# ----------- STEP 1 - CONVERT TO BIDS ---
-#kul_e2cl "Performing KUL_multisubjects_dcm2bids... " $log
-#KUL_multisubjects_dcm2bids.sh -d DICOM -c $conf -o $bids_dir -e
-# TODO:
-#  - this will be changed: KUL_multisubjects_dcm2bids will become obsolete
-#  - instead we will call KUL_dcm2bids for each subject in the loop below.
 
-
-# ----------- STEP 2 - Preprocess each subject with mriqc, fmriprep, freesurfer and KUL_dwiprep ---
-# set up logging directories and clean left over fmriprep_work directory
-# TODO:
-#  - this should best go into the task_*
+# ----------- STEP 1 - Preprocess each subject with mriqc, fmriprep, freesurfer and KUL_dwiprep ---
+# 
+# 
 
 
 if [ $expert -eq 1 ]; then
@@ -803,26 +876,75 @@ if [ $expert -eq 1 ]; then
     # Expert mode
     echo "  Using Expert mode"
 
+    # check exit_after
+    exit_after=$(grep exit_after $conf | grep -v \# |  sed 's/[^0-9]//g')
+    echo "  exit_after: $exit_after"
+
+    #check make_pbs_files_instead_of_running
+    make_pbs_files_instead_of_running=$(grep make_pbs_files_instead_of_running $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$make_pbs_files_instead_of_running" ]; then
+        make_pbs_files_instead_of_running=0
+    fi 
+    echo "  make_pbs_files_instead_of_running: $make_pbs_files_instead_of_running"
+
+    if [ $make_pbs_files_instead_of_running -eq 1 ]; then
+
+        pbs_lp=$(grep pbs_lp $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        pbs_email=$(grep pbs_email $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        pbs_walltime=$(grep pbs_walltime $conf | grep -v \# | cut -d':' -f 2- | tr -d '\r')
+        pbs_singularity_mriqc=$(grep pbs_singularity_mriqc $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        pbs_singularity_fmriprep=$(grep pbs_singularity_fmriprep $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+
+        if [ $silent -eq 0 ]; then
+
+            echo "  pbs_lp: $pbs_lp"
+            echo "  pbs_email: $pbs_email"
+            echo "  pbs_walltime: $pbs_walltime"
+            echo "  pbs_singularity_mriqc: ${pbs_singularity_mriqc}"
+            echo "  pbs_singularity_fmriprep: $pbs_singularity_fmriprep"
+
+        fi
+
+        #mriqc_rand=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1)
+        #pbs_data_file="pbs_data_mriqc_${mriqc_rand}.csv"
+
+    fi
+
+
     #check mriqc and options
-    do_mriqc=$(grep do_mriqc $conf | cut -d':' -f 2)
+    do_mriqc=$(grep do_mriqc $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$do_mriqc" ]; then
+        do_mriqc=0
+    fi 
     echo "  do_mriqc: $do_mriqc"
     
     if [ $do_mriqc -eq 1 ]; then
 
-        mriqc_options=$(grep mriqc_options $conf | cut -d':' -f 2)
+        mriqc_options=$(grep mriqc_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
 
-        mriqc_ncpu=$(grep mriqc_ncpu $conf | cut -d':' -f 2)
+        mriqc_ncpu=$(grep mriqc_ncpu $conf | grep -v \# | sed 's/[^0-9]//g' | tr -d '\r')
         ncpu_mriqc=$mriqc_ncpu
         ncpu_mriqc_ants=$mriqc_ncpu
         
-        mriqc_mem=$(grep mriqc_mem $conf | cut -d':' -f 2)
+        mriqc_mem=$(grep mriqc_mem $conf | grep -v \# | sed 's/[^0-9]//g' | tr -d '\r')
         mem_gb=$mriqc_mem
     
         #get bids_participants
-        BIDS_subjects=($(grep BIDS_participants $conf | cut -d':' -f 2))
+        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
         n_subj=${#BIDS_subjects[@]}
             
-        mriqc_simultaneous=$(grep mriqc_simultaneous $conf | cut -d':' -f 2)
+        mriqc_simultaneous=$(grep mriqc_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g' | tr -d '\r')
+
+        if [ $make_pbs_files_instead_of_running -eq 1 ]; then
+
+            mriqc_simultaneous_pbs=$(($mriqc_simultaneous-1))
+            mriqc_simultaneous=1
+
+        else
+
+            mriqc_simultaneous_pbs=0
+
+        fi
 
         if [ $silent -eq 0 ]; then
 
@@ -832,6 +954,7 @@ if [ $expert -eq 1 ]; then
             echo "  BIDS_participants: ${BIDS_subjects[@]}"
             echo "  number of BIDS_participants: $n_subj"
             echo "  mriqc_simultaneous: $mriqc_simultaneous"
+            echo "  mriqc_simultaneous_pbs: $mriqc_simultaneous_pbs"
 
         fi
 
@@ -860,12 +983,23 @@ if [ $expert -eq 1 ]; then
         
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
-
+        task_number=1
+        task_counter=1
+         
         for i_bids_participant in $(seq 0 $mriqc_simultaneous $(($n_subj_todo-1))); do
 
-            BIDS_participant=${todo_bids_participants[@]:$i_bids_participant:$mriqc_simultaneous}
-            #echo " going to start mriqc with $mriqc_simultaneous participants simultaneously, notably $BIDS_participant"
-        
+
+            mriqc_participants=${todo_bids_participants[@]:$i_bids_participant:$mriqc_simultaneous}
+            #echo " going to start mriqc with $mriqc_simultaneous participants simultaneously, notably $mriqc_participants"
+
+            pbs_data_file="VSC/pbs_data_mriqc_job${task_number}.csv"
+            if [ $task_counter -gt $mriqc_simultaneous_pbs ]; then
+                task_number=$((task_number+1))
+                task_counter=1
+            fi
+            task_counter=$((task_counter+1))    
+
+            BIDS_participant=$mriqc_participants
             mriqc_pid=-1
             waitforprocs=()
             waitforpids=()
@@ -877,10 +1011,11 @@ if [ $expert -eq 1 ]; then
                 waitforpids+=($mriqc_pid)
             fi
         
-            kul_e2cl " waiting for processes [${waitforprocs[@]}] for subject(s) $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
+            
+            kul_e2cl " waiting for processes [${waitforpids[@]}] for subject(s) $mriqc_participants to finish before continuing with further processing... (this can take hours!)... " $log
             WaitForTaskCompletion 
 
-            kul_e2cl " processes [${waitforprocs[@]}] for subject(s) $BIDS_participant have finished" $log
+            kul_e2cl " processes [${waitforpids[@]}] for subject(s) $mriqc_participants have finished" $log
 
         done
 
@@ -888,25 +1023,29 @@ if [ $expert -eq 1 ]; then
 
 
     #check fmriprep and options
-    do_fmriprep=$(grep do_fmriprep $conf | cut -d':' -f 2)
+    do_fmriprep=$(grep do_fmriprep $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$do_fmriprep" ]; then
+        do_fmriprep=0
+    fi 
     echo "  do_fmriprep: $do_fmriprep"
     
     if [ $do_fmriprep -eq 1 ]; then
 
-        fmriprep_options=$(grep fmriprep_options $conf | cut -d':' -f 2)
+        fmriprep_options=$(grep fmriprep_options $conf | grep -v \# | cut -d':' -f 2)
 
-        fmriprep_ncpu=$(grep fmriprep_ncpu $conf | cut -d':' -f 2)
+        fmriprep_ncpu=$(grep fmriprep_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
         ncpu_fmriprep=$fmriprep_ncpu
         ncpu_fmriprep_ants=$fmriprep_ncpu
         
-        fmriprep_mem=$(grep fmriprep_mem $conf | cut -d':' -f 2)
-        mem_gb=$fmriprep_mem
-    
+        fmriprep_mem=$(grep fmriprep_mem $conf | grep -v \# | sed 's/[^0-9]//g')
+        gb=1024
+        mem_mb=$(echo $fmriprep_mem $gb | awk '{print $1 * $2 }')
+
         #get bids_participants
-        BIDS_subjects=($(grep BIDS_participants $conf | cut -d':' -f 2))
+        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2))
         n_subj=${#BIDS_subjects[@]}
             
-        fmriprep_simultaneous=$(grep fmriprep_simultaneous $conf | cut -d':' -f 2)
+        fmriprep_simultaneous=$(grep fmriprep_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
 
         if [ $silent -eq 0 ]; then
 
@@ -915,32 +1054,258 @@ if [ $expert -eq 1 ]; then
             echo "  fmriprep_mem: $fmriprep_mem"
             echo "  BIDS_participants: ${BIDS_subjects[@]}"
             echo "  number of BIDS_participants: $n_subj"
+            echo "  fmriprep_simultaneous: $fmriprep_simultaneous"
 
         fi
 
-        for i_bids_participant in $(seq 0 $fmriprep_simultaneous $n_subj); do
+        # check if already performed fmriprep
+        todo_bids_participants=()
+        already_done=()
 
-            BIDS_participant=${BIDS_subjects[@]:$i_bids_participant:$fmriprep_simultaneous}
-            #echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $BIDS_participant"
-        
-            fmriprep_pid=-1
-            waitforprocs=()
-            waitforpids=()
+        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
 
-            task_fmriprep_participant
+            fmriprep_dir_to_check=fmriprep/sub-${BIDS_subjects[$i_bids_participant]}
 
-            if [ $fmriprep_pid -gt 0 ]; then
-                waitforprocs+=("fmriprep")
-                waitforpids+=($fmriprep_pid)
+            #echo $fmriprep_dir_to_check
+            if [ ! -d $fmriprep_dir_to_check ]; then
+
+                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
+            
+            else
+
+                already_done+=(${BIDS_subjects[$i_bids_participant]})
+            
             fi
-        
-            kul_e2cl " waiting for processes [${waitforprocs[@]}] for subject(s) $BIDS_participant to finish before continuing with further processing... (this can take hours!)... " $log
-            WaitForTaskCompletion 
-
-            kul_e2cl " processes [${waitforprocs[@]}] for subject(s) $BIDS_participant have finished" $log
 
         done
 
+        echo "  fmriprep was already done for participant(s) ${already_done[@]}"
+        
+        
+        # submit the jobs (and split them in chucks)
+        n_subj_todo=${#todo_bids_participants[@]}
+
+        for i_bids_participant in $(seq 0 $fmriprep_simultaneous $(($n_subj_todo-1))); do
+
+            fmriprep_participants=${todo_bids_participants[@]:$i_bids_participant:$fmriprep_simultaneous}
+            #echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $fmriprep_participants"
+
+            #for BIDS_participant in $fmriprep_participants; do
+                
+                BIDS_participant=$fmriprep_participants
+                fmriprep_pid=-1
+                waitforprocs=()
+                waitforpids=()
+
+                task_fmriprep
+
+                if [ $fmriprep_pid -gt 0 ]; then
+                    waitforprocs+=("fmriprep")
+                    waitforpids+=($fmriprep_pid)
+                fi
+
+            #done
+
+            kul_e2cl " waiting for processes [${waitforpids[@]}] for subject(s) $fmriprep_participants to finish before continuing with further processing... (this can take hours!)... " $log
+            WaitForTaskCompletion 
+
+            kul_e2cl " processes [${waitforpids[@]}] for subject(s) $fmriprep_participants have finished" $log
+
+        done
+
+    fi
+
+
+    #check freesurfer and options
+    do_freesurfer=$(grep do_freesurfer $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$do_freesurfer" ]; then
+        do_freesurfer=0
+    fi 
+    echo "  do_freesurfer: $do_freesurfer"
+    
+    if [ $do_freesurfer -eq 1 ]; then
+
+        freesurfer_options=$(grep freesurfer_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+
+        freesurfer_ncpu=$(grep freesurfer_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        ncpu_freesurfer=$freesurfer_ncpu
+       
+ 
+        #get bids_participants
+        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+        n_subj=${#BIDS_subjects[@]}
+            
+        freesurfer_simultaneous=$(grep freesurfer_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
+
+        if [ $silent -eq 0 ]; then
+
+            echo "  freesurfer_options: $freesurfer_options"
+            echo "  freesurfer_ncpu: $freesurfer_ncpu"
+            echo "  BIDS_participants: ${BIDS_subjects[@]}"
+            echo "  number of BIDS_participants: $n_subj"
+            echo "  freesurfer_simultaneous: $freesurfer_simultaneous"
+
+        fi
+
+        # check if already performed freesurfer
+        todo_bids_participants=()
+        already_done=()
+
+        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
+
+            freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_subjects[i_bids_participant]}/${BIDS_subjects[i_bids_participant]}/scripts/recon-all.done
+
+            #echo $freesurfer_file_to_check
+            if [ ! -f $freesurfer_file_to_check ]; then
+
+                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
+            
+            else
+
+                already_done+=(${BIDS_subjects[$i_bids_participant]})
+            
+            fi
+
+        done
+
+        echo "  freesurfer was already done for participant(s) ${already_done[@]}"
+
+
+        # submit the jobs (and split them in chucks)
+        n_subj_todo=${#todo_bids_participants[@]}
+
+        for i_bids_participant in $(seq 0 $freesurfer_simultaneous $(($n_subj_todo-1))); do
+
+            fs_participants=${todo_bids_participants[@]:$i_bids_participant:$freesurfer_simultaneous}
+            echo "  going to start freesurfer with $freesurfer_simultaneous participants simultaneously, notably $fs_participants"
+        
+            freesurfer_pid=-1
+            waitforprocs=()
+            waitforpids=()
+    
+            for BIDS_participant in $fs_participants; do
+                
+               
+                #echo $BIDS_participant
+                task_freesurfer
+
+                if [ $freesurfer_pid -gt 0 ]; then
+                    waitforprocs+=("freesurfer")
+                    waitforpids+=($freesurfer_pid)
+                fi
+            
+            done 
+
+            kul_e2cl "  waiting for freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
+                WaitForTaskCompletion 
+
+            kul_e2cl " freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
+
+            
+        done
+       
+    fi
+
+
+    #check dwiprep and options
+    do_dwiprep=$(grep do_dwiprep $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$do_dwiprep" ]; then
+        do_dwiprep=0
+    fi 
+    echo "  do_dwiprep: $do_dwiprep"
+    
+    if [ $do_dwiprep -eq 1 ]; then
+
+        dwiprep_options=$(grep dwiprep_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        dwipreproc_options=$dwiprep_options
+
+        topup_options=$(grep topup_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        eddy_options=$(grep eddy_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+
+        dwiprep_ncpu=$(grep dwiprep_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        ncpu_dwiprep=$dwiprep_ncpu
+        
+        #get bids_participants
+        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+        n_subj=${#BIDS_subjects[@]}
+            
+        dwiprep_simultaneous=$(grep dwiprep_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
+
+        if [ $silent -eq 0 ]; then
+
+            echo "  dwiprep_options: $dwiprep_options"
+            echo "  topup_options: $topup_options"
+            echo "  eddy_options: $eddy_options"
+            echo "  dwiprep_ncpu: $dwiprep_ncpu"
+            echo "  BIDS_participants: ${BIDS_subjects[@]}"
+            echo "  number of BIDS_participants: $n_subj"
+            echo "  dwiprep_simultaneous: $dwiprep_simultaneous"
+
+        fi
+
+        # check if already performed dwiprep
+        todo_bids_participants=()
+        already_done=()
+
+        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
+
+            dwiprep_file_to_check=${cwd}/dwiprep/sub-${BIDS_subjects[$i_bids_participant]}/dwiprep_is_done.log
+
+            #echo $dwiprep_file_to_check
+            if [ ! -f $dwiprep_file_to_check ]; then
+
+                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
+            
+            else
+
+                already_done+=(${BIDS_subjects[$i_bids_participant]})
+            
+            fi
+
+        done
+
+        echo "  dwiprep was already done for participant(s) ${already_done[@]}"
+        
+        # submit the jobs (and split them in chucks)
+        n_subj_todo=${#todo_bids_participants[@]}
+
+        for i_bids_participant in $(seq 0 $dwiprep_simultaneous $(($n_subj_todo-1))); do
+
+            fs_participants=${todo_bids_participants[@]:$i_bids_participant:$dwiprep_simultaneous}
+            echo "  going to start dwiprep with $dwiprep_simultaneous participants simultaneously, notably $fs_participants"
+
+            dwiprep_pid=-1
+            waitforprocs=()
+            waitforpids=()
+
+            for BIDS_participant in $fs_participants; do
+                
+              
+                #echo $BIDS_participant
+                task_KUL_dwiprep
+
+                if [ $dwiprep_pid -gt 0 ]; then
+                    waitforprocs+=("dwiprep")
+                    waitforpids+=($dwiprep_pid)
+                fi
+            
+            done 
+
+            kul_e2cl "  waiting for dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
+                WaitForTaskCompletion 
+
+            kul_e2cl " dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
+
+            
+        done
+       
+    fi
+
+    if [ $exit_after -eq 1 ]; then
+
+        kul_e2cl "  we exit here, you will need to do further processing with another config_file... " $log
+        exit 0
+    
     fi
 
 

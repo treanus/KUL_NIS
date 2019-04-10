@@ -69,7 +69,7 @@ silent=1 # default if option -v is not given
 # Specify additional options for FSL eddy
 eddy_options="--slm=linear --repol"
 topup_options=""
-dwipreproc_options="not_yet_implemented"
+dwipreproc_options="dhollander"
 
 # Set required options
 p_flag=0
@@ -286,8 +286,10 @@ fi
 
 # STEP 2 - DWI Preprocessing ---------------------------------------------
 
+#echo ${preproc}
 cd ${preproc}
 mkdir -p dwi
+
 
 # check if first 2 steps of dwi preprocessing are done 
 if [ ! -f dwi/degibbs.mif ]; then
@@ -491,39 +493,108 @@ fi
 
 # STEP 3 - RESPONSE ---------------------------------------------
 mkdir -p response
-# response function estimation
-if [ ! -f response/wm_response.txt ]; then
-    kul_e2cl "   Calculating dwi2response..." ${log}
-    dwi2response dhollander dwi_preproced.mif response/wm_response.txt response/gm_response.txt response/csf_response.txt -nthreads $ncpu -force 
+# response function estimation (we compute following algorithms: tournier, tax and dhollander)
 
-else
+echo " Using dwipreproc_options: $dwipreproc_options"
 
-    echo " dwi2response already done, skipping..."
+if [[ $dwipreproc_options == *"dhollander"* ]]; then
+
+    if [ ! -f response/wm_response.txt ]; then
+        kul_e2cl "   Calculating dhollander dwi2response..." ${log}
+        dwi2response dhollander dwi_preproced.mif response/dhollander_wm_response.txt \
+        response/dhollander_gm_response.txt response/dhollander_csf_response.txt -nthreads $ncpu -force 
+
+    else
+
+        echo " dwi2response dhollander already done, skipping..."
+
+    fi
+
+    if [ ! -f response/dhollander_wmfod.mif ]; then
+        kul_e2cl "   Calculating dhollander dwi2fod..." ${log}
+        dwi2fod msmt_csd dwi_preproced.mif response/dhollander_wm_response.txt response/dhollander_wmfod.mif response/dhollander_gm_response.txt response/dhollander_gm.mif \
+        response/dhollander_csf_response.txt response/dhollander_csf.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu 
+
+    else
+
+        echo " dwi2fod dhollander already done, skipping..."
+
+    fi
 
 fi
 
-if [ ! -f response/wmfod.mif ]; then
-    kul_e2cl "   Calculating dwi2fod..." ${log}
-    dwi2fod msmt_csd dwi_preproced.mif response/wm_response.txt response/wmfod.mif response/gm_response.txt response/gm.mif \
-        response/csf_response.txt response/csf.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu 
+if [[ $dwipreproc_options == *"tax"* ]]; then
 
-else
+    if [ ! -f response/tax_response.txt ]; then
+        kul_e2cl "   Calculating tax dwi2response..." ${log}
+        dwi2response tax dwi_preproced.mif response/tax_response.txt -nthreads $ncpu -force 
 
-    echo " dwi2fod already done, skipping..."
+    else
+
+        echo " dwi2response tax already done, skipping..."
+
+    fi
+
+    if [ ! -f response/tax_wmfod.mif ]; then
+        kul_e2cl "   Calculating tax dwi2fod..." ${log}
+        dwi2fod csd dwi_preproced.mif response/tax_response.txt response/tax_wmfod.mif  \
+        -mask dwi_mask.nii.gz -force -nthreads $ncpu 
+
+    else
+
+        echo " dwi2fod tax already done, skipping..."
+
+    fi
 
 fi
 
+if [[ $dwipreproc_options == *"tournier"* ]]; then
+
+    if [ ! -f response/tournier_response.txt ]; then
+        kul_e2cl "   Calculating tournier dwi2response..." ${log}
+        dwi2response tax dwi_preproced.mif response/tournier_response.txt -nthreads $ncpu -force 
+
+    else
+
+        echo " dwi2response already done, skipping..."
+
+    fi
+
+    if [ ! -f response/tournier_wmfod.mif ]; then
+        kul_e2cl "   Calculating tournier dwi2fod..." ${log}
+        dwi2fod csd dwi_preproced.mif response/tournier_response.txt response/tournier_wmfod.mif  \
+        -mask dwi_mask.nii.gz -force -nthreads $ncpu 
+
+    else
+
+        echo " dwi2fod already done, skipping..."
+
+    fi
+
+fi
 
 # STEP 4 - DO QA ---------------------------------------------
 # Make an FA/dec image
 
 mkdir -p qa
 
-if [ ! -f qa/dec.mif ]; then
-    kul_e2cl "   Calculating FA/dec..." ${log}
+if [ ! -f qa/dec.mif ]; then 
+
+    kul_e2cl "   Calculating FA/ADC/dec..." ${log}
     dwi2tensor dwi_preproced.mif dwi_dt.mif -force
     tensor2metric dwi_dt.mif -fa qa/fa.nii.gz -mask dwi_mask.nii.gz -force
-    fod2dec response/wmfod.mif qa/dec.mif -force
+    tensor2metric dwi_dt.mif -adc qa/adc.nii.gz -mask dwi_mask.nii.gz -force
+
+    if [[ $dwipreproc_options == *"tournier"* ]]; then
+
+        fod2dec response/tournier_wmfod.mif qa/tournier_dec.mif -force
+    fi 
+    if [[ $dwipreproc_options == *"tax"* ]]; then
+        fod2dec response/tax_wmfod.mif qa/tax_dec.mif -force
+    fi
+    if [[ $dwipreproc_options == *"dhollander"* ]]; then
+        fod2dec response/dhollander_wmfod.mif qa/dhollander_dec.mif -force
+    fi
 
     #mrconvert dwi/noiselevel.mif qa/noiselevel.nii.gz
 
