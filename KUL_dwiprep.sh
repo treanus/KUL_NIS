@@ -292,7 +292,7 @@ mkdir -p dwi
 
 
 # check if first 2 steps of dwi preprocessing are done 
-if [ ! -f dwi/degibbs.mif ]; then
+if [ ! -f dwi/degibbs.mif ] && [ ! -f dwi_preproced.mif ]; then
 
     kul_e2cl " Start part 1 of preprocessing: dwidenoise & mrdegibbs" ${log}
 
@@ -313,7 +313,7 @@ fi
 
 
 # check if step 3 of dwi preprocessing is done (dwipreproc, i.e. motion and distortion correction takes very long)
-if [ ! -f dwi/geomcorr.mif ]; then
+if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
     # motion and distortion correction using rpe_header
     kul_e2cl "   Start part 2 of preprocessing: dwipreproc using rpe_header (this takes time!)..." ${log}
