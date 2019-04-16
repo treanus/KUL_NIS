@@ -1,4 +1,5 @@
 cwd=$(pwd)
+ncpu=32
 
 mkdir -p dwiprep/group/fba/dwiintensitynorm/dwi_input
 mkdir -p dwiprep/group/fba/dwiintensitynorm/mask_input
@@ -39,7 +40,7 @@ done
 
 
 # Intensity Normalisation
-dwiintensitynorm dwiintensitynorm/dwi_input/ dwiintensitynorm/mask_input/ dwiintensitynorm/dwi_output/ dwiintensitynorm/fa_template.mif dwiintensitynorm/fa_template_wm_mask.mif -nthreads 32
+dwiintensitynorm dwiintensitynorm/dwi_input/ dwiintensitynorm/mask_input/ dwiintensitynorm/dwi_output/ dwiintensitynorm/fa_template.mif dwiintensitynorm/fa_template_wm_mask.mif -nthreads $ncpu
 
 
 # Adding a subject
@@ -48,17 +49,33 @@ dwiintensitynorm dwiintensitynorm/dwi_input/ dwiintensitynorm/mask_input/ dwiint
 # mrtransform ../dwiintensitynorm/fa_template_wm_mask.mif -template new_subject/dwi_denoised_unringed_preproc_unbiased.mif -warp - - | dwinormalise \ 
 # new_subject/dwi_denoised_unringed_preproc_unbiased.mif - ../dwiintensitynorm/dwi_output/new_subject.mif
 
-exit 0
 
 # Computing an (average) white matter response function
-foreach * : dwi2response tournier IN/dwi_denoised_unringed_preproc_unbiased_normalised.mif IN/response.txt
+mkdir -p ${cwd}/dwiprep/group/fba/response
+foreach -${ncpu} ${cwd}/dwiprep/group/fba/dwiintensitynorm/dwi_output/*.mif : dwi2response tournier IN \
+${cwd}/dwiprep/group/fba/response/PRE_response.txt
 
-average_response */response.txt ../group_average_response.txt
+average_response ${cwd}/dwiprep/group/fba/dwiintensitynorm/dwi_output/*response.txt ${cwd}/dwiprep/group/fba/group_average_response.txt
+
+# Compute new brain mask images
+mkdir -p ${cwd}/dwiprep/group/fba/mask
+foreach -${ncpu} ${cwd}/dwiprep/group/fba/dwiintensitynorm/dwi_output/*.mif : dwi2mask IN \
+${cwd}/dwiprep/group/fba/mask/PRE_mask.mif
 
 # Fibre Orientation Distribution estimation (spherical deconvolution)
-foreach * : dwiextract IN/dwi_denoised_unringed_preproc_unbiased_normalised_upsampled.mif - \| dwi2fod msmt_csd - ../group_average_response.txt IN/wmfod.mif -mask IN/dwi_mask_upsampled.mif
+# see https://mrtrix.readthedocs.io/en/latest/fixel_based_analysis/st_fibre_density_cross-section.html
+#  Note that dwi2fod csd can be used, however here we use dwi2fod msmt_csd (even with single shell data) to benefit from the hard non-negativity constraint, 
+#  which has been observed to lead to more robust outcomes:
+mkdir -p ${cwd}/dwiprep/group/fba/fod
+foreach -${ncpu} ${cwd}/dwiprep/group/fba/dwiintensitynorm/dwi_output/*.mif : dwiextract IN - \
+\| dwi2fod msmt_csd - ${cwd}/dwiprep/group/fba/group_average_response.txt ${cwd}/dwiprep/group/fba/fod/PRE_wmfod.mif \
+-mask ${cwd}/dwiprep/group/fba/mask/PRE_mask.mif
 
 # Generate a study-specific unbiased FOD template
-mkdir -p ../template/fod_input
-mkdir ../template/mask_input
+mkdir -p ${cwd}/dwiprep/group/fba/template
+population_template {cwd}/dwiprep/group/fba/fod -mask_dir ${cwd}/dwiprep/group/fba/mask ${cwd}/dwiprep/group/fba/template/wmfod_template.mif -voxel_size 1.3
+
+
+
+
 
