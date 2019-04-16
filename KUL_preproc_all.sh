@@ -484,7 +484,7 @@ if [ ! -f  $dwiprep_anat_file_to_check ]; then
     kul_e2cl " performing KUL_dwiprep_anat on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_anat_log)" ${log}
 
     KUL_dwiprep_anat.sh -p ${BIDS_participant} -n $ncpu -v \
-        > $dwiprep_anat_log 2>&1 
+        > $dwiprep_anat_log 2>&1 &
 
     kul_e2cl "   done KUL_dwiprep_anat on participant $BIDS_participant" $log
 
@@ -1293,6 +1293,107 @@ if [ $expert -eq 1 ]; then
     
     fi
 
+    # Rest of processing steps
+
+    #check dwiprep_anat and options
+    do_dwiprep_anat=$(grep do_dwiprep_anat $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$do_dwiprep_anat" ]; then
+        do_dwiprep_anat=0
+    fi 
+    echo "  do_dwiprep_anat: $do_dwiprep_anat"
+
+    # continue with KUL_dwiprep_anat, which depends on finished data from freesurfer, fmriprep & KUL_dwiprep
+    if [ $do_dwiprep_anat -eq 1 ]; then
+
+
+
+        if [ $silent -eq 0 ]; then
+
+            echo "  dwiprep_anat_cpu: $dwiprep_anat_cpu"
+            echo "  BIDS_participants: ${BIDS_subjects[@]}"
+            echo "  number of BIDS_participants: $n_subj"
+            echo "  dwiprep_anat_simultaneous: $dwiprep_anat_simultaneous"
+
+        fi
+
+        # check if already performed dwiprep
+        todo_bids_participants=()
+        already_done=()
+
+        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
+
+            dwiprep_anat_file_to_check=${cwd}/dwiprep/sub-${BIDS_subjects[$i_bids_participant]}/dwiprep_anat_is_done.log
+
+            #echo $dwiprep_anat_file_to_check
+            if [ ! -f $dwiprep_anat_file_to_check ]; then
+
+                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
+            
+            else
+
+                already_done+=(${BIDS_subjects[$i_bids_participant]})
+            
+            fi
+
+        done
+
+        echo "  dwiprep_anat was already done for participant(s) ${already_done[@]}"
+        
+        # submit the jobs (and split them in chucks)
+        n_subj_todo=${#todo_bids_participants[@]}
+
+        for i_bids_participant in $(seq 0 $dwiprep_anat_simultaneous $(($n_subj_todo-1))); do
+
+            fs_participants=${todo_bids_participants[@]:$i_bids_participant:$dwiprep_anat_simultaneous}
+            echo "  going to start dwiprep_anat with $dwiprep_anat_simultaneous participants simultaneously, notably $fs_participants"
+
+            dwiprep_anat_pid=-1
+            waitforprocs=()
+            waitforpids=()
+
+            for BIDS_participant in $fs_participants; do
+                
+              
+                #echo $BIDS_participant
+                task_KUL_dwiprep_anat
+
+                if [ $dwiprep_anat_pid -gt 0 ]; then
+                    waitforprocs+=("dwiprep_anat")
+                    waitforpids+=($dwiprep_anat_pid)
+                fi
+            
+            done 
+
+            kul_e2cl "  waiting for dwiprep_anat processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
+                WaitForTaskCompletion 
+
+            kul_e2cl " dwiprep_anat processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
+
+            
+        done
+
+
+    fi 
+
+        
+
+    # Here we could also have some whole brain tractography processing e.g.
+    # task_KUL_mrtix_wb_tckgen # needs to be made
+    # task_KUL_mrtrix_tractsegment # needs to be made
+        
+    # continue with KUL_dwiprep_fibertract
+    #check do_dwiprep_fibertract and options
+    do_dwiprep_fibertract=$(grep do_dwiprep_fibertract $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$do_dwiprep_fibertract" ]; then
+        do_dwiprep_fibertract=0
+    fi 
+    echo "  do_dwiprep_fibertract: $do_dwiprep_fibertract"
+    
+    if [ $do_dwiprep_fibertract -eq 1 ]; then
+            
+        task_KUL_dwiprep_fibertract
+
+    fi
 
 else
 
