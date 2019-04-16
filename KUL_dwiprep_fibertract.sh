@@ -67,6 +67,7 @@ Required arguments:
 
 Optional arguments:
 
+     -w:  which wmfod to use (default = dhollander_wmfod_reg2T1w)
      -s:  session (of the participant)
      -n:  number of cpu for parallelisation
      -v:  show output from mrtrix commands
@@ -200,6 +201,7 @@ function KUL_antsApply_Transform {
 # Set defaults
 ncpu=6
 silent=1
+wmfod_select=dhollander_wmfod_norm_reg2T1w
 
 # Set required options
 p_flag=0
@@ -218,7 +220,7 @@ if [ "$#" -lt 3 ]; then
 
 else
 
-    while getopts "p:c:r:s:n:vh" OPT; do
+    while getopts "p:c:r:s:n:w:vh" OPT; do
 
         case $OPT in
         p) #subject
@@ -239,6 +241,9 @@ else
         ;;
         n) #parallel
             ncpu=$OPTARG
+        ;;
+        w) #wmfod
+            wmfod_select=$OPTARG
         ;;
         v) #verbose
             silent=0
@@ -664,7 +669,7 @@ function kul_mrtrix_tracto_drt {
 
 }
 
-wmfod=response/dhollander_wmfod_reg2T1w.mif
+wmfod=response/${wmfod_select}.mif
 dwi_preproced=dwi_preproced_reg2T1w.mif
 
 # Make an empty log file with information about the tracts
