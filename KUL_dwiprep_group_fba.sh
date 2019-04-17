@@ -189,8 +189,8 @@ if [ ! -f dwiintensitynorm/fa_template_wm_mask.mif ]; then
 
     echo "   Doing Intensity Normalisation"
     dwiintensitynorm dwiintensitynorm/dwi_input/ dwiintensitynorm/mask_input/ \
-    dwiintensitynorm/dwi_output/ dwiintensitynorm/fa_template.mif \
-    dwiintensitynorm/fa_template_wm_mask.mif -nthreads $ncpu
+     dwiintensitynorm/dwi_output/ dwiintensitynorm/fa_template.mif \
+     dwiintensitynorm/fa_template_wm_mask.mif -nthreads $ncpu
 
     mrinfo dwiintensitynorm/dwi_output/* -property dwi_norm_scale_factor > CHECK_dwi_norm_scale_factor.txt
 
@@ -241,7 +241,7 @@ fi
 
 if [ ! -f ../mask.done ]; then
 
-    echo "Compute new brain mask images"
+    echo "   Compute new brain mask images"
 
     foreach -${ncpu_foreach} * : dwi2mask IN/dwi_preproced_reg2T1w_normalised.mif IN/dwi_preproced_reg2T1w_normalised_mask.mif -nthreads $ncpu
     if [ $? -eq 0 ]; then
@@ -316,7 +316,7 @@ if [ ! -f ../template/wmfod_template.mif ]; then
     done
 
     population_template  ../template/fod_input -mask_dir ../template/mask_input ../template/wmfod_template.mif \
-    -voxel_size 1.3 -nthreads $ncpu
+    -voxel_size 1.3 -nthreads $ncpu -tempdir /tmp
 
 else
 
