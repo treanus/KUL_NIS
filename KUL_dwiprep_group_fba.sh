@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 # Requires Mrtrix3 
@@ -15,6 +15,7 @@ v="v0.1 - dd 16/04/2019"
 kul_main_dir=`dirname "$0"`
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
+ncpu_foreach=4
 
 # FUNCTIONS --------------
 
@@ -31,7 +32,7 @@ Usage:
 
 Example:
 
-  `basename $0` -g group_first_32 -n 6 
+  `basename $0` -g group_first_32 -n 6 -t "pat01 pat02 pat03 pat04 pat05 con01 con02 con03 con04 con05" 
 
 Required arguments:
 
@@ -39,7 +40,7 @@ Required arguments:
 
 Optional arguments:
      
-
+     -t:  subjects used for population_template (useful if you have more than 30 to 40 subjects, otherwise the template building takes very long)
      -n:  number of cpu for parallelisation
      -v:  show output from mrtrix commands
 
@@ -58,6 +59,7 @@ silent=1 # default if option -v is not given
 
 # Set required options
 g_flag=0
+t_flag=0
 
 
 if [ "$#" -lt 1 ]; then
@@ -66,7 +68,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "n:g:v" OPT; do
+    while getopts "n:g:t:v" OPT; do
 
         case $OPT in
         n) #ncpu
@@ -75,6 +77,10 @@ else
         g) #group_name
             group_name="$OPTARG"
             g_flag=1
+        ;;
+        t) #templatesubjects
+            templatesubjects="$OPTARG"
+            t_flag=1
         ;;
         v) #verbose
             silent=0
@@ -127,132 +133,431 @@ log=log/log_${d}.txt
 
 
 # --- MAIN ----------------
+mkdir -p dwiprep/${group_name}/fba/subjects
 mkdir -p dwiprep/${group_name}/fba/dwiintensitynorm/dwi_input
 mkdir -p dwiprep/${group_name}/fba/dwiintensitynorm/mask_input
 
 cd dwiprep/${group_name}/fba
 
 # find the preproced mifs
-search_sessions=($(find ${cwd}/dwiprep/sub-* -type f | grep dwi_preproced_reg2T1w.mif))
-num_sessions=${#search_sessions[@]}
+
+if [ ! -f data_prep.done ]; then
     
-echo "  Fixel based input dwi: $num_sessions"
-echo "    notably: ${search_sessions[@]}"
-
-exit 0
-
-for i in ${search_sessions[@]}
-do
-
-    s=$(echo $i | cut -d'/' -f 3)
-    cp $i ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_input/${s}_dwi_preproced_reg2T1w.mif
-
-done
-
-# find the preproced masks
-search_sessions=($(find ${cwd}/dwiprep -type f | grep dwi_preproced_reg2T1w_mask.nii.gz))
-num_sessions=${#search_sessions[@]}
+    echo "   Preparing data in dwiprep/${group_name}/fba/"
     
-echo "  Fixel based input mask: $num_sessions"
-echo "    notably: ${search_sessions[@]}"
+    search_sessions=($(find ${cwd}/dwiprep/sub-* -type f | grep dwi_preproced_reg2T1w.mif | sort ))
+    num_sessions=${#search_sessions[@]}
 
-for i in ${search_sessions[@]}
-do
+    for i in ${search_sessions[@]}
+    do
 
-    s=$(echo $i | cut -d'/' -f 3)
-    mrconvert $i ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/mask_input/${s}_dwi_preproced_reg2T1w_mask.mif
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | sed 's/.$//')
+        #echo $i
+        #echo $s
+        mkdir -p ${cwd}/dwiprep/${group_name}/fba/subjects/${s}
+        ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dwi_preproced_reg2T1w.mif
+        ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_input/${s}_dwi_preproced_reg2T1w.mif
 
-done
+    done
 
 
-# Intensity Normalisation
-dwiintensitynorm dwiintensitynorm/dwi_input/ dwiintensitynorm/mask_input/ dwiintensitynorm/dwi_output/ dwiintensitynorm/fa_template.mif dwiintensitynorm/fa_template_wm_mask.mif -nthreads $ncpu
+    # find the preproced masks
+    search_sessions=($(find ${cwd}/dwiprep -type f | grep dwi_preproced_reg2T1w_mask.nii.gz | sort ))
+    num_sessions=${#search_sessions[@]}
+
+    for i in ${search_sessions[@]}
+    do
+
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | sed 's/.$//')
+        mrconvert $i ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/mask_input/${s}_dwi_preproced_reg2T1w.mif -force
+
+    done
+    
+    echo "done" > data_prep.done
+
+else
+
+    echo "   Preparing data in dwiprep/${group_name}/fba/ already done"
+
+fi
+
+
+# STEP 1 - Intensity Normalisation
+#dwiintensitynorm ../dwiintensitynorm/dwi_input/ ../dwiintensitynorm/mask_input/ ../dwiintensitynorm/dwi_output/ ../dwiintensitynorm/fa_template.mif ../dwiintensitynorm/fa_template_wm_mask.mif
+
+if [ ! -f dwiintensitynorm/fa_template_wm_mask.mif ]; then
+
+    echo "   Doing Intensity Normalisation"
+    dwiintensitynorm dwiintensitynorm/dwi_input/ dwiintensitynorm/mask_input/ \
+    dwiintensitynorm/dwi_output/ dwiintensitynorm/fa_template.mif \
+    dwiintensitynorm/fa_template_wm_mask.mif -nthreads $ncpu
+
+    mrinfo dwiintensitynorm/dwi_output/* -property dwi_norm_scale_factor > CHECK_dwi_norm_scale_factor.txt
+
+else
+
+    echo "   Intensity Normalisation already done"
+
+fi
 
 
 # Adding a subject
-#dwi2tensor new_subject/dwi_denoised_unringed_preproc_unbiased.mif -mask new_subject/dwi_temp_mask.mif - | tensor2metric - -fa - | mrregister -force \
+# dwi2tensor new_subject/dwi_denoised_unringed_preproc_unbiased.mif -mask new_subject/dwi_temp_mask.mif - | tensor2metric - -fa - | mrregister -force \
 # ../dwiintensitynorm/fa_template.mif - -mask2 new_subject/dwi_temp_mask.mif -nl_scale 0.5,0.75,1.0 -nl_niter 5,5,15 -nl_warp - /tmp/dummy_file.mif | \
 # mrtransform ../dwiintensitynorm/fa_template_wm_mask.mif -template new_subject/dwi_denoised_unringed_preproc_unbiased.mif -warp - - | dwinormalise \ 
 # new_subject/dwi_denoised_unringed_preproc_unbiased.mif - ../dwiintensitynorm/dwi_output/new_subject.mif
 
 
-# Computing an (average) white matter response function
-mkdir -p ${cwd}/dwiprep/${group_name}/fba/response
-foreach -${ncpu} ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output/*.mif : dwi2response tournier IN \
-${cwd}/dwiprep/${group_name}/fba/response/PRE_response.txt
+# Link back the normalised data
+cd ${cwd}/dwiprep/${group_name}/fba/subjects
 
-average_response ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output/*response.txt ${cwd}/dwiprep/${group_name}/fba/group_average_response.txt
+#foreach ../dwiintensitynorm/dwi_output/* : ln -sr IN PRE/dwi_denoised_unringed_preproc_unbiased_normalised.mif
+foreach * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output/PRE_dwi_preproced_reg2T1w.mif \
+${cwd}/dwiprep/${group_name}/fba/subjects/IN/dwi_preproced_reg2T1w_normalised.mif
+
+
+
+# STEP 2 - Computing an (average) white matter response function
+# foreach * : dwi2response tournier IN/dwi_denoised_unringed_preproc_unbiased_normalised.mif IN/response.txt
+
+if [ ! -f ../group_average_response.txt ]; then
+    
+    echo "   Computing an (average) white matter response function"
+
+    foreach -${ncpu_foreach} * : dwi2response tournier IN/dwi_preproced_reg2T1w_normalised.mif \
+    IN/response.txt -nthreads $ncpu
+
+    average_response */response.txt ../group_average_response.txt
+
+else
+
+    echo "   Computing of an (average) white matter response function alrady done"
+
+fi
+
 
 # Compute new brain mask images
-mkdir -p ${cwd}/dwiprep/${group_name}/fba/mask
-foreach -${ncpu} ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output/*.mif : dwi2mask IN \
-${cwd}/dwiprep/${group_name}/fba/mask/PRE_mask.mif
+# foreach * : dwi2mask IN/dwi_denoised_unringed_preproc_unbiased_normalised_upsampled.mif IN/dwi_mask_upsampled.mif
 
-# Fibre Orientation Distribution estimation (spherical deconvolution)
+if [ ! -f ../mask.done ]; then
+
+    echo "Compute new brain mask images"
+
+    foreach -${ncpu_foreach} * : dwi2mask IN/dwi_preproced_reg2T1w_normalised.mif IN/dwi_preproced_reg2T1w_normalised_mask.mif -nthreads $ncpu
+    if [ $? -eq 0 ]; then
+        echo "done" > ../mask.done
+    fi
+fi
+
+
+
+
+# STEP 3 - Fibre Orientation Distribution estimation (spherical deconvolution)
 # see https://mrtrix.readthedocs.io/en/latest/fixel_based_analysis/st_fibre_density_cross-section.html
 #  Note that dwi2fod csd can be used, however here we use dwi2fod msmt_csd (even with single shell data) to benefit from the hard non-negativity constraint, 
-#  which has been observed to lead to more robust outcomes:
-mkdir -p ${cwd}/dwiprep/${group_name}/fba/fod
-foreach -${ncpu} ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output/*.mif : dwiextract IN - \
-\| dwi2fod msmt_csd - ${cwd}/dwiprep/${group_name}/fba/group_average_response.txt ${cwd}/dwiprep/${group_name}/fba/fod/PRE_wmfod.mif \
--mask ${cwd}/dwiprep/${group_name}/fba/mask/PRE_mask.mif
+#  which has been observed to lead to more robust outcomes
+# foreach * : dwiextract IN/dwi_denoised_unringed_preproc_unbiased_normalised_upsampled.mif - \| dwi2fod msmt_csd - ../group_average_response.txt IN/wmfod.mif -mask IN/dwi_mask_upsampled.mif
 
-# Generate a study-specific unbiased FOD template
-mkdir -p ${cwd}/dwiprep/${group_name}/fba/template
-population_template ${cwd}/dwiprep/${group_name}/fba/fod -mask_dir ${cwd}/dwiprep/${group_name}/fba/mask ${cwd}/dwiprep/${group_name}/fba/template/wmfod_template.mif \
- -voxel_size 1.3 -nthreads $ncpu
+if [ ! -f ../fod_estimation.done ]; then
+    
+    echo "   Performing FOD estimation"
+
+    foreach -${ncpu_foreach} * : dwiextract IN/dwi_preproced_reg2T1w_normalised.mif - \
+    \| dwi2fod msmt_csd - ../group_average_response.txt IN/wmfod.mif \
+    -mask IN/dwi_preproced_reg2T1w_normalised_mask.mif -nthreads $ncpu
+    
+    if [ $? -eq 0 ]; then
+        echo "done" > ../fod_estimation.done
+    fi
+
+fi
+
+
+
+# STEP 4 - Generate a study-specific unbiased FOD template
+mkdir -p ../template/fod_input
+mkdir -p ../template/mask_input
+
+if [ ! -f ../template/wmfod_template.mif ]; then
+
+    echo "   Generating FOD template"
+        
+    search_sessions=($(find ${cwd}/dwiprep/${group_name}/fba/subjects | grep wmfod.mif | sort ))
+
+    for t in ${search_sessions[@]}
+    do
+
+        link=1
+        #s=$(echo $t | awk -F '_' '{print $2}' | sed 's/.$//')
+        s=$(echo $t | awk -F 'subjects/' '{print $2}' | awk -F '/' '{print $1}')
+        #echo $s
+        #echo $t
+
+        if [ $t_flag -eq 1 ]; then
+            # Don't link subjects not given in -t
+            if [ "${templatesubjects/$s}" = "$templatesubjects" ] ; then
+            
+                link=0
+
+            fi
+        fi
+
+        if [ $link -eq 1 ]; then
+            
+            ln -sfn $t ${cwd}/dwiprep/${group_name}/fba/template/fod_input/${s}_wmfod.mif
+            
+            ln -sfn ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dwi_preproced_reg2T1w_normalised_mask.mif \
+             ${cwd}/dwiprep/${group_name}/fba/template/mask_input/${s}_mask.mif
+            
+        
+        fi
+        
+        
+    done
+
+    population_template  ../template/fod_input -mask_dir ../template/mask_input ../template/wmfod_template.mif \
+    -voxel_size 1.3 -nthreads $ncpu
+
+else
+
+    echo "   FOD template already generated"
+
+fi
+
 
 
 # Register all subject FOD images to the FOD template
-#foreach * : mrregister IN/wmfod.mif -mask1 IN/dwi_mask_upsampled.mif ../template/wmfod_template.mif -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif
-mkdir -p ${cwd}/dwiprep/${group_name}/fba/reg2template
-foreach ${cwd}/dwiprep/${group_name}/fba/fod/*_wmfod.mif : mrregister IN -mask1 ${cwd}/dwiprep/${group_name}/fba/mask/PRE_mask.mif \
- ${cwd}/dwiprep/${group_name}/fba/template/wmfod_template.mif \
- -nl_warp ${cwd}/dwiprep/${group_name}/fba/reg2template/PRE_subject2template_warp.mif {cwd}/dwiprep/${group_name}/fba/reg2template/PRE_template2subject_warp.mif
+#foreach -${ncpu_foreach} * : mrregister IN/wmfod.mif -mask1 IN/dwi_mask_upsampled.mif ../template/wmfod_template.mif -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif
+
+
+if [ ! -f ../fod_reg2template.done ]; then
+
+    echo "   Registering all subject FOD images to the FOD template"
+
+    foreach -${ncpu_foreach} * : mrregister IN/wmfod.mif -mask1 IN/dwi_preproced_reg2T1w_normalised_mask.mif \
+    ../template/wmfod_template.mif \
+    -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif -nthreads $ncpu
+    if [ $? -eq 0 ]; then
+        echo "done" > ../fod_reg2template.done
+    fi
+
+else 
+
+    echo "   Registration of all subject FOD images to the FOD template already done"
+
+fi
+
+
 
 # Compute the template mask (intersection of all subject masks in template space)
 #foreach * : mrtransform IN/dwi_mask_upsampled.mif -warp IN/subject2template_warp.mif -interp nearest -datatype bit IN/dwi_mask_in_template_space.mif
-foreach ${cwd}/dwiprep/${group_name}/fba/mask/*_mask.mif : mrtransform IN -warp ${cwd}/dwiprep/${group_name}/fba/reg2template/PRE_subject2template_warp.mif \
- -interp nearest -datatype bit ${cwd}/dwiprep/${group_name}/fba/mask/PRE_dwi_mask_in_template_space.mif
 
-# mrmath */dwi_mask_in_template_space.mif min ../template/template_mask.mif -datatype bit
-mrmath ${cwd}/dwiprep/${group_name}/fba/mask/*_dwi_mask_in_template_space.mif min ${cwd}/dwiprep/${group_name}/fba/template/template_mask.mif -datatype bit
+if [ ! -f ../template/template_mask.mif ]; then
+
+    echo "   Compute the template mask"
+    foreach -${ncpu_foreach} * : mrtransform IN/dwi_preproced_reg2T1w_normalised_mask.mif -warp IN/subject2template_warp.mif \
+    -interp nearest -datatype bit IN/dwi_mask_in_template_space.mif -nthreads $ncpu -force
+
+    mrmath */dwi_mask_in_template_space.mif min ../template/template_mask.mif -datatype bit -nthreads $ncpu
+
+else
+
+    echo "   Computation of the template mask already done"
+
+fi
+
+
 
 # Compute a white matter template analysis fixel mask
-fod2fixel -mask ${cwd}/dwiprep/${group_name}/fba/template/template_mask.mif -fmls_peak_value 0.10 ${cwd}/dwiprep/${group_name}/fba/template/wmfod_template.mif \
-${cwd}/dwiprep/${group_name}/fba/template/fixel_mask
+# fod2fixel -mask ../template/template_mask.mif -fmls_peak_value 0.10 ../template/wmfod_template.mif ../template/fixel_mask
+
+if [ ! -d ../template/fixel_mask ]; then
+
+    echo "   Compute a white matter template analysis fixel mask"
+    fod2fixel -mask ../template/template_mask.mif -fmls_peak_value 0.10 ../template/wmfod_template.mif ../template/fixel_mask -nthreads $ncpu
+
+else
+
+    echo "   Computation of a white matter template analysis fixel mask already done"
+
+fi
+
+
 
 # Warp FOD images to template space
 #foreach * : mrtransform IN/wmfod.mif -warp IN/subject2template_warp.mif -noreorientation IN/fod_in_template_space_NOT_REORIENTED.mif
-foreach ${cwd}/dwiprep/${group_name}/fba/fod/*_wmfod.mif : mrtransform IN -warp ${cwd}/dwiprep/${group_name}/fba/reg2template/PRE_subject2template_warp.mif \
- -noreorientation ${cwd}/dwiprep/${group_name}/fba/fod/PRE_fod_in_template_space_NOT_REORIENTED.mif
+
+if [ ! -f ../fod_warp.done ]; then
+    
+    echo "   Warping FOD images to template space"
+    foreach -${ncpu_foreach} * : mrtransform IN/wmfod.mif -warp IN/subject2template_warp.mif \
+     -noreorientation IN/fod_in_template_space_NOT_REORIENTED.mif -nthreads $ncpu -force
+
+    if [ $? -eq 0 ]; then
+        echo "done" > ../fod_warp.done
+    fi
+else
+
+    echo "   Warping FOD images to template space already done"
+
+fi  
+
+
 
 # Segment FOD images to estimate fixels and their apparent fibre density (FD)
 #foreach * : fod2fixel -mask ../template/template_mask.mif IN/fod_in_template_space_NOT_REORIENTED.mif IN/fixel_in_template_space_NOT_REORIENTED -afd fd.mif
-foreach ${cwd}/dwiprep/${group_name}/fba/fod/*_fod_in_template_space_NOT_REORIENTED.mif : fod2fixel -mask ${cwd}/dwiprep/${group_name}/fba/template/template_mask.mif \
- IN ${cwd}/dwiprep/${group_name}/fba/fod/PRE_fixel_in_template_space_NOT_REORIENTED -afd ${cwd}/dwiprep/${group_name}/fba/fod/PRE_fd.mif
+
+if [ ! -f ../fod_segment.done ]; then
+
+    echo "   Segment FOD images to estimate fixels and their apparent fibre density (FD)"
+    foreach -${ncpu_foreach}  * : fod2fixel -mask ../template/template_mask.mif IN/fod_in_template_space_NOT_REORIENTED.mif \
+     IN/fixel_in_template_space_NOT_REORIENTED -afd fd.mif -nthreads $ncpu
+
+    if [ $? -eq 0 ]; then
+        echo "done" > ../fod_segment.done
+    fi
+
+else
+
+    echo "   Segmenting of FOD images to estimate fixels and their apparent fibre density (FD) already done"
+
+fi
+
+
 
 # Reorient fixels
 #foreach * : fixelreorient IN/fixel_in_template_space_NOT_REORIENTED IN/subject2template_warp.mif IN/fixel_in_template_space
-foreach ${cwd}/dwiprep/${group_name}/fba/fod/*_fixel_in_template_space_NOT_REORIENTED : fixelreorient IN \
- ${cwd}/dwiprep/${group_name}/fba/reg2template/PRE_subject2template_warp.mif ${cwd}/dwiprep/${group_name}/fba/fod/PRE_fixel_in_template_space
+
+if [ ! -f ../fod_reor_fixels.done ]; then
+
+    echo "   Reorient fixels"
+    foreach -${ncpu_foreach} * : fixelreorient IN/fixel_in_template_space_NOT_REORIENTED IN/subject2template_warp.mif IN/fixel_in_template_space -nthreads $ncpu
+
+    if [ $? -eq 0 ]; then
+        echo "done" > ../fod_reor_fixels.done
+    fi
+
+else
+
+    echo "   Reorient fixels already done"
+
+fi
+
+
 
 # Assign subject fixels to template fixels
-#foreach * : fixelcorrespondence IN/fixel_in_template_space/fd.mif ../template/fixel_mask ../template/fd PRE.mif
-foreach ${cwd}/dwiprep/${group_name}/fba/fod/*_fd.mif : fixelcorrespondence IN ${cwd}/dwiprep/${group_name}/fba/template/fixel_mask {cwd}/dwiprep/${group_name}/fba/template//fd ${cwd}/dwiprep/${group_name}/fba/fod/PRE.mif
+# foreach * : fixelcorrespondence IN/fixel_in_template_space/fd.mif ../template/fixel_mask ../template/fd PRE.mif
+# Note: do NOT run in PARALLEL
+if [ ! -f ../assign_fixels.done ]; then
+
+    echo "   Assign subject fixels to template fixels"
+    foreach * : fixelcorrespondence IN/fixel_in_template_space/fd.mif ../template/fixel_mask ../template/fd PRE.mif -force
+  
+    if [ $? -eq 0 ]; then
+        echo "done" > ../assign_fixels.done
+    fi
+
+else
+
+    echo "   Assign subject fixels to template fixels already done"
+
+fi
+
 
 # Compute the fibre cross-section (FC) metric
-#foreach * : warp2metric IN/subject2template_warp.mif -fc ../template/fixel_mask ../template/fc IN.mif
-foreach ${cwd}/dwiprep/${group_name}/fba/reg2template/*_subject2template_warp.mif : warp2metric IN -fc ${cwd}/dwiprep/${group_name}/fba/template/fixel_mask ${cwd}/dwiprep/${group_name}/fba/template/fc ${cwd}/dwiprep/${group_name}/fba/reg2template/PRE.mif
+#foreach -${ncpu_foreach} * : warp2metric IN/subject2template_warp.mif -fc ../template/fixel_mask ../template/fc IN.mif
+if [ ! -f ../compute_fc.done ]; then
 
-mkdir ../template/log_fc
-cp ../template/fc/index.mif ../template/fc/directions.mif ../template/log_fc
-foreach * : mrcalc ../template/fc/IN.mif -log ../template/log_fc/IN.mif
+    echo "   Compute the fibre cross-section (FC) metric"
+    foreach * : warp2metric IN/subject2template_warp.mif -fc ../template/fixel_mask ../template/fc IN.mif
+  
+    if [ $? -eq 0 ]; then
+        echo "done" > ../compute_fc.done
+    fi
+
+else
+
+    echo "   Compute the fibre cross-section (FC) metric already done"
+
+fi
+
+
+if [ ! -f ../compute_log_fc.done ]; then
+
+    echo "   Compute the fibre cross-section LOG-(FC) metric"
+    mkdir ../template/log_fc
+    cp ../template/fc/index.mif ../template/fc/directions.mif ../template/log_fc
+    foreach -${ncpu_foreach} * : mrcalc ../template/fc/IN.mif -log ../template/log_fc/IN.mif
+
+   if [ $? -eq 0 ]; then
+        echo "done" > ../compute_log_fc.done
+    fi
+
+else
+    
+    echo "   Compute the fibre cross-section LOG-(FC) metric already done"
+
+fi
+
+# Compute a combined measure of fibre density and cross-section (FDC)
+if [ ! -f ../compute_fdc.done ]; then
+
+    echo "   Compute a combined measure of fibre density and cross-section (FDC)"
+    mkdir ../template/fdc
+    cp ../template/fc/index.mif ../template/fdc
+    cp ../template/fc/directions.mif ../template/fdc
+    foreach * : mrcalc ../template/fd/IN.mif ../template/fc/IN.mif -mult ../template/fdc/IN.mif
+
+   if [ $? -eq 0 ]; then
+        echo "done" > ../compute_fdc.done
+    fi
+    
+else
+    
+    echo "   Compute the fibre cross-section LOG-(FC) metric already done"
+
+fi
 
 # Perform whole-brain fibre tractography on the FOD template
 cd ../template
-tckgen -angle 22.5 -maxlen 250 -minlen 10 -power 1.0 wmfod_template.mif -seed_image template_mask.mif -mask template_mask.mif -select 20000000 -cutoff 0.10 tracks_20_million.tck
+if [ ! -f ../tckgen.done ]; then
 
-#Reduce biases in tractogram densities
+    n=20000000
+
+    echo "   Perform whole-brain fibre tractography on the FOD template"
+    tckgen -angle 22.5 -maxlen 250 -minlen 10 -power 1.0 wmfod_template.mif -seed_image template_mask.mif \
+     -mask template_mask.mif -select $n -cutoff 0.10 tracks_20_million.tck
+    
+    if [ $? -eq 0 ]; then
+        echo "done" > ../tckgen.done
+    fi
+    
+else
+    
+    echo "   Compute the fibre cross-section LOG-(FC) metric already done"
+
+fi
+
+
+
+# Reduce biases in tractogram densities
+# tcksift tracks_20_million.tck wmfod_template.mif tracks_2_million_sift.tck -term_number 200000
+if [ ! -f ../tckshift.done ]; then
+
+    echo "   Reduce biases in tractogram densities"
+
+    n=200000
+
+    tcksift tracks_20_million.tck wmfod_template.mif tracks_2_million_sift.tck -term_number $n
+    
+    if [ $? -eq 0 ]; then
+        echo "done" > ../tckshift.done
+    fi
+    
+else
+    
+    echo "   Reduce biases in tractogram densities already done"
+
+fi
 
 
