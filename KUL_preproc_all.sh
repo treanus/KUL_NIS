@@ -859,6 +859,9 @@ if [ $expert -eq 1 ]; then
 
     # check exit_after
     exit_after=$(grep exit_after $conf | grep -v \# |  sed 's/[^0-9]//g')
+    if [ -z "$exit_after" ]; then
+        exit_after=0
+    fi 
     echo "  exit_after: $exit_after"
 
     #check make_pbs_files_instead_of_running
@@ -1193,7 +1196,7 @@ if [ $expert -eq 1 ]; then
 
 
     #check dwiprep and options
-    do_dwiprep=$(grep do_dwiprep $conf | grep -v \# | sed 's/[^0-9]//g')
+    do_dwiprep=$(grep do_dwiprep: $conf | grep -v \# | sed 's/[^0-9]//g')
     if [ -z "$do_dwiprep" ]; then
         do_dwiprep=0
     fi 
@@ -1296,11 +1299,17 @@ if [ $expert -eq 1 ]; then
     # Rest of processing steps
 
     #check dwiprep_anat and options
-    do_dwiprep_anat=$(grep do_dwiprep_anat $conf | grep -v \# | sed 's/[^0-9]//g')
+    do_dwiprep_anat=$(grep do_dwiprep_anat: $conf | grep -v \# | sed 's/[^0-9]//g')
     if [ -z "$do_dwiprep_anat" ]; then
         do_dwiprep_anat=0
     fi 
     echo "  do_dwiprep_anat: $do_dwiprep_anat"
+
+    #get bids_participants
+    BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+    n_subj=${#BIDS_subjects[@]}
+            
+    dwiprep_anat_simultaneous=$(grep dwiprep_anat_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
 
     # continue with KUL_dwiprep_anat, which depends on finished data from freesurfer, fmriprep & KUL_dwiprep
     if [ $do_dwiprep_anat -eq 1 ]; then
@@ -1341,6 +1350,7 @@ if [ $expert -eq 1 ]; then
         
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
+        
 
         for i_bids_participant in $(seq 0 $dwiprep_anat_simultaneous $(($n_subj_todo-1))); do
 
