@@ -189,8 +189,8 @@ if [ ! -f dwiintensitynorm/fa_template_wm_mask.mif ]; then
 
     echo "   Doing Intensity Normalisation"
     dwiintensitynorm dwiintensitynorm/dwi_input/ dwiintensitynorm/mask_input/ \
-    dwiintensitynorm/dwi_output/ dwiintensitynorm/fa_template.mif \
-    dwiintensitynorm/fa_template_wm_mask.mif -nthreads $ncpu
+     dwiintensitynorm/dwi_output/ dwiintensitynorm/fa_template.mif \
+     dwiintensitynorm/fa_template_wm_mask.mif -nthreads $ncpu
 
     mrinfo dwiintensitynorm/dwi_output/* -property dwi_norm_scale_factor > CHECK_dwi_norm_scale_factor.txt
 
