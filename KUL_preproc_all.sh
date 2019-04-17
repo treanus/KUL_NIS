@@ -486,10 +486,12 @@ if [ ! -f  $dwiprep_anat_file_to_check ]; then
     KUL_dwiprep_anat.sh -p ${BIDS_participant} -n $ncpu -v \
         > $dwiprep_anat_log 2>&1 &
 
-    kul_e2cl "   done KUL_dwiprep_anat on participant $BIDS_participant" $log
+    dwiprep_anat_pid="$!"
+    echo " KUL_dwiprep_anat pid is $dwiprep_anat_pid"
 
 else
 
+    dwiprep_anat_pid=-1
     echo " KUL_dwiprep_anat of subjet $BIDS_participant already done, skipping..."
         
 fi
@@ -510,12 +512,15 @@ if [ ! -f  $dwiprep_MNI_file_to_check ]; then
     kul_e2cl " performing KUL_dwiprep_MNI on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_MNI_log)" ${log}
 
     KUL_dwiprep_MNI.sh -p ${BIDS_participant} -n $ncpu -v \
-        > $dwiprep_MNI_log 2>&1 
+        > $dwiprep_MNI_log 2>&1 &
 
-    kul_e2cl "   done KUL_dwiprep_MNI on participant $BIDS_participant" $log
+    dwiprep_MNI_pid="$!"
+    echo " KUL_dwiprep_MNI pid is $dwiprep_MNI_pid"
+
 
 else
 
+    dwiprep_MNI_pid=-1
     echo " KUL_dwiprep_MNI of subjet $BIDS_participant already done, skipping..."
         
 fi
@@ -1385,6 +1390,92 @@ if [ $expert -eq 1 ]; then
 
     fi 
 
+    #check dwiprep_MNI and options
+    do_dwiprep_MNI=$(grep do_dwiprep_MNI: $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$do_dwiprep_MNI" ]; then
+        do_dwiprep_MNI=0
+    fi 
+    echo "  do_dwiprep_MNI: $do_dwiprep_MNI"
+
+    #get bids_participants
+    BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+    n_subj=${#BIDS_subjects[@]}
+            
+    dwiprep_MNI_simultaneous=$(grep dwiprep_MNI_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
+
+    # continue with KUL_dwiprep_MNI, which depends on finished data from freesurfer, fmriprep & KUL_dwiprep
+    if [ $do_dwiprep_MNI -eq 1 ]; then
+
+
+
+        if [ $silent -eq 0 ]; then
+
+            echo "  dwiprep_MNI_cpu: $dwiprep_MNI_cpu"
+            echo "  BIDS_participants: ${BIDS_subjects[@]}"
+            echo "  number of BIDS_participants: $n_subj"
+            echo "  dwiprep_MNI_simultaneous: $dwiprep_MNI_simultaneous"
+
+        fi
+
+        # check if already performed dwiprep
+        todo_bids_participants=()
+        already_done=()
+
+        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
+
+            dwiprep_MNI_file_to_check=${cwd}/dwiprep/sub-${BIDS_subjects[$i_bids_participant]}/dwiprep_MNI_is_done.log
+
+            #echo $dwiprep_MNI_file_to_check
+            if [ ! -f $dwiprep_MNI_file_to_check ]; then
+
+                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
+            
+            else
+
+                already_done+=(${BIDS_subjects[$i_bids_participant]})
+            
+            fi
+
+        done
+
+        echo "  dwiprep_MNI was already done for participant(s) ${already_done[@]}"
+        
+        # submit the jobs (and split them in chucks)
+        n_subj_todo=${#todo_bids_participants[@]}
+        
+
+        for i_bids_participant in $(seq 0 $dwiprep_MNI_simultaneous $(($n_subj_todo-1))); do
+
+            fs_participants=${todo_bids_participants[@]:$i_bids_participant:$dwiprep_MNI_simultaneous}
+            echo "  going to start dwiprep_MNI with $dwiprep_MNI_simultaneous participants simultaneously, notably $fs_participants"
+
+            dwiprep_MNI_pid=-1
+            waitforprocs=()
+            waitforpids=()
+
+            for BIDS_participant in $fs_participants; do
+                
+              
+                #echo $BIDS_participant
+                task_KUL_dwiprep_MNI
+
+                if [ $dwiprep_MNI_pid -gt 0 ]; then
+                    waitforprocs+=("dwiprep_MNI")
+                    waitforpids+=($dwiprep_MNI_pid)
+                fi
+            
+            done 
+
+            kul_e2cl "  waiting for dwiprep_MNI processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
+                WaitForTaskCompletion 
+
+            kul_e2cl " dwiprep_MNI processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
+
+            
+        done
+
+
+    fi 
         
 
     # Here we could also have some whole brain tractography processing e.g.
