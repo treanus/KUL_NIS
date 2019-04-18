@@ -67,7 +67,7 @@ Required arguments:
 
 Optional arguments:
 
-     -w:  which wmfod to use (default = dhollander_wmfod_reg2T1w)
+     -w:  which wmfod to use (default = dhollander_wmfod_norm_reg2T1w)
      -s:  session (of the participant)
      -n:  number of cpu for parallelisation
      -v:  show output from mrtrix commands
