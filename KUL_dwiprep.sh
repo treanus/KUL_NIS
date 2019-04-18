@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 # Requires Mrtrix3, FSL, ants
@@ -292,7 +292,7 @@ mkdir -p dwi
 
 
 # check if first 2 steps of dwi preprocessing are done 
-if [ ! -f dwi/degibbs.mif ]; then
+if [ ! -f dwi/degibbs.mif ] && [ ! -f dwi_preproced.mif ]; then
 
     kul_e2cl " Start part 1 of preprocessing: dwidenoise & mrdegibbs" ${log}
 
@@ -313,7 +313,7 @@ fi
 
 
 # check if step 3 of dwi preprocessing is done (dwipreproc, i.e. motion and distortion correction takes very long)
-if [ ! -f dwi/geomcorr.mif ]; then
+if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
     # motion and distortion correction using rpe_header
     kul_e2cl "   Start part 2 of preprocessing: dwipreproc using rpe_header (this takes time!)..." ${log}
@@ -511,10 +511,16 @@ if [[ $dwipreproc_options == *"dhollander"* ]]; then
     fi
 
     if [ ! -f response/dhollander_wmfod.mif ]; then
-        kul_e2cl "   Calculating dhollander dwi2fod..." ${log}
-        dwi2fod msmt_csd dwi_preproced.mif response/dhollander_wm_response.txt response/dhollander_wmfod.mif response/dhollander_gm_response.txt response/dhollander_gm.mif \
+        kul_e2cl "   Calculating dhollander dwi2fod & normalising it..." ${log}
+        
+        dwi2fod msmt_csd dwi_preproced.mif response/dhollander_wm_response.txt response/dhollander_wmfod.mif \
+        response/dhollander_gm_response.txt response/dhollander_gm.mif \
         response/dhollander_csf_response.txt response/dhollander_csf.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu 
 
+        mtnormalise response/dhollander_wmfod.mif response/dhollander_wmfod_norm.mif \
+        response/dhollander_gm.mif response/dhollander_gm_norm.mif \
+        response/dhollander_csf.mif response/dhollander_csf_norm.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu
+   
     else
 
         echo " dwi2fod dhollander already done, skipping..."
@@ -594,6 +600,7 @@ if [ ! -f qa/dec.mif ]; then
     fi
     if [[ $dwipreproc_options == *"dhollander"* ]]; then
         fod2dec response/dhollander_wmfod.mif qa/dhollander_dec.mif -force
+        fod2dec response/dhollander_wmfod_norm.mif qa/dhollander_dec_norm.mif -force
     fi
 
     #mrconvert dwi/noiselevel.mif qa/noiselevel.nii.gz
