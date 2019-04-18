@@ -39,7 +39,7 @@ Usage:
 
 Example:
 
-  `basename $0` -p pat001 -n 6 
+  `basename $0` -p pat001 -n 6 -d "tax dhollander"
 
 Required arguments:
 
@@ -48,6 +48,7 @@ Required arguments:
 
 Optional arguments:
      
+     -d:  dwiprep options: can be dhollander, tax and/or tournier (default = dhollander) e.g. "tax dhollander"
      -s:  session (BIDS session)
      -n:  number of cpu for parallelisation
      -t:  options to pass to topup
@@ -558,7 +559,7 @@ if [[ $dwipreproc_options == *"tournier"* ]]; then
 
     if [ ! -f response/tournier_response.txt ]; then
         kul_e2cl "   Calculating tournier dwi2response..." ${log}
-        dwi2response tax dwi_preproced.mif response/tournier_response.txt -nthreads $ncpu -force 
+        dwi2response tournier dwi_preproced.mif response/tournier_response.txt -nthreads $ncpu -force 
 
     else
 
