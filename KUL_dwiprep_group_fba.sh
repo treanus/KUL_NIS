@@ -316,7 +316,7 @@ if [ ! -f ../template/wmfod_template.mif ]; then
     done
 
     population_template  ../template/fod_input -mask_dir ../template/mask_input ../template/wmfod_template.mif \
-    -voxel_size 1.3 -nthreads $ncpu -tempdir /tmp
+    -voxel_size 1.3 -nthreads $ncpu
 
 else
 
