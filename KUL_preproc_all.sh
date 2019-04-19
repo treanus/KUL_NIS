@@ -265,7 +265,6 @@ if [ $fmriprep_singularity -eq 1 ]; then
  -w /work \
  --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
  --mem_mb $mem_mb \
- --fs-no-reconall \
  $fmriprep_options \
  --notrack \
  > $fmriprep_log  2>&1") 
@@ -282,7 +281,6 @@ else
  -w /scratch \
  --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
  --mem_mb $mem_mb \
- --fs-no-reconall \
  $fmriprep_options \
  --notrack \
  /data /out \
@@ -403,7 +401,8 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     rm -rf $SUBJECTS_DIR
     mkdir -p $SUBJECTS_DIR
     export SUBJECTS_DIR
-    notify_file=${SUBJECT_DIR}.done
+    notify_file=${SUBJECTS_DIR}_freesurfer_is.done
+    echo $notify_file
 
     local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol \
         $fs_use_flair $fs_hippoT1T2 -all -openmp $ncpu_freesurfer \
@@ -1144,9 +1143,10 @@ if [ $expert -eq 1 ]; then
         todo_bids_participants=()
         already_done=()
 
+
         for i_bids_participant in $(seq 0 $(($n_subj-1))); do
 
-            freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_subjects[i_bids_participant]}/${BIDS_subjects[i_bids_participant]}/scripts/recon-all.done
+            freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_subjects[i_bids_participant]}_freesurfer_is.done
 
             #echo $freesurfer_file_to_check
             if [ ! -f $freesurfer_file_to_check ]; then
