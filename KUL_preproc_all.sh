@@ -292,12 +292,58 @@ fi
 echo "   using cmd: $task_fmriprep_cmd"
 
 # Now start the parallel job
-eval $task_fmriprep_cmd &
-fmriprep_pid="$!"
-echo " fmriprep pid is $fmriprep_pid"
+if [ $make_pbs_files_instead_of_running -eq 0 ]; then
 
-sleep 2
-   
+    eval $task_fmriprep_cmd &
+    fmriprep_pid="$!"
+    echo " fmriprep pid is $fmriprep_pid"
+
+    sleep 2
+else
+
+    echo " making a PBS file"
+    mkdir -p VSC
+
+    task_command=$(echo "singularity run --cleanenv \
+ -B ./fmriprep_work_\${fmriprep_log_p}:/work \
+ -B \${freesurfer_license}:/opt/freesurfer/license.txt \
+ \$KUL_fmriprep_singularity \
+ ./\${bids_dir} \
+ . \
+ participant \
+ --participant_label \${BIDS_participant} \
+ -w /work \
+ --nthreads \$ncpu_fmriprep --omp-nthreads \$ncpu_fmriprep_ants \
+ --mem_mb \$mem_mb \
+ \$fmriprep_options \
+ --notrack \
+ > \$fmriprep_log  2>&1") 
+
+    cp $kul_main_dir/VSC/master.pbs VSC/run_fmriprep.pbs
+
+    perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_fmriprep.pbs
+    perl  -pi -e "s/##CPU##/${pbs_cpu}/g" VSC/run_fmriprep.pbs
+    perl  -pi -e "s/##MEM##/${pbs_mem}/g" VSC/run_fmriprep.pbs
+    esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_fmriprep.pbs
+    esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##WALLTIME##/${esc_pbs_walltime}/g" VSC/run_fmriprep.pbs
+    esc_pbs_singularity_fmriprep=$(echo $pbs_singularity_fmriprep | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##FMRIPREP##/${esc_pbs_singularity_fmriprep}/g" VSC/run_fmriprep.pbs
+    esc_pbs_singularity_mriqc=$(echo $pbs_singularity_mriqc | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##MRIQC##/${esc_pbs_singularity_mriqc}/g" VSC/run_fmriprep.pbs
+    esc_task_command=$(echo $task_command | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##COMMAND##/${esc_task_command}/g" VSC/run_fmriprep.pbs
+
+
+    echo $pbs_data_file
+    if [ ! -f $pbs_data_file ]; then
+        echo "BIDS_participant,fmriprep_log_p,freesurfer_license,KUL_fmriprep_singularity,bids_dir,ncpu_fmriprep,ncpu_fmriprep_ants,mem_mb,fmriprep_options,fmriprep_log" > $pbs_data_file
+    fi 
+    echo "$BIDS_participant,$fmriprep_log_p,$freesurfer_license,$KUL_fmriprep_singularity,$bids_dir,$ncpu_fmriprep,$ncpu_fmriprep_ants,$mem_mb,$fmriprep_options,$fmriprep_log" >> $pbs_data_file
+
+
+fi
 #kul_e2cl "   done fmriprep on participant $BIDS_participant" $log
 
 }
