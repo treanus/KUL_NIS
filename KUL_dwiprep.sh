@@ -291,6 +291,17 @@ fi
 cd ${preproc}
 mkdir -p dwi
 
+# Do some qa: make FA/ADC of unprocessed images
+mkdir -p qa
+
+if [ ! -f qa/adc_orig.nii.gz ]; then 
+
+    kul_e2cl "   Calculating FA/ADC/dec..." ${log}
+    dwi2tensor dwi_orig.mif dwi_orig_dt.mif -force
+    tensor2metric dwi_orig_dt.mif -fa qa/fa_orig.nii.gz -force
+    tensor2metric dwi_orig_dt.mif -adc qa/adc_orig.nii.gz -force
+
+fi    
 
 # check if first 2 steps of dwi preprocessing are done 
 if [ ! -f dwi/degibbs.mif ] && [ ! -f dwi_preproced.mif ]; then
