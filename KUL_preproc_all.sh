@@ -306,7 +306,7 @@ else
 
     task_command=$(echo "singularity run --cleanenv \
  -B ./fmriprep_work_\${fmriprep_log_p}:/work \
- -B \${freesurfer_license}:/opt/freesurfer/license.txt \
+ -B \$FS_LICENSE:/opt/freesurfer/license.txt \
  \$KUL_fmriprep_singularity \
  ./\${bids_dir} \
  . \
@@ -338,9 +338,9 @@ else
 
     echo $pbs_data_file
     if [ ! -f $pbs_data_file ]; then
-        echo "BIDS_participant,fmriprep_log_p,freesurfer_license,KUL_fmriprep_singularity,bids_dir,ncpu_fmriprep,ncpu_fmriprep_ants,mem_mb,fmriprep_options,fmriprep_log" > $pbs_data_file
+        echo "BIDS_participant,fmriprep_log_p,bids_dir,ncpu_fmriprep,ncpu_fmriprep_ants,mem_mb,fmriprep_options,fmriprep_log" > $pbs_data_file
     fi 
-    echo "$BIDS_participant,$fmriprep_log_p,$freesurfer_license,$KUL_fmriprep_singularity,$bids_dir,$ncpu_fmriprep,$ncpu_fmriprep_ants,$mem_mb,$fmriprep_options,$fmriprep_log" >> $pbs_data_file
+    echo "$BIDS_participant,$fmriprep_log_p,$bids_dir,$ncpu_fmriprep,$ncpu_fmriprep_ants,$mem_mb,$fmriprep_options,$fmriprep_log" >> $pbs_data_file
 
 
 fi
@@ -1085,6 +1085,17 @@ if [ $expert -eq 1 ]; then
             
         fmriprep_simultaneous=$(grep fmriprep_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
 
+        if [ $make_pbs_files_instead_of_running -eq 1 ]; then
+
+            fmriprep_simultaneous_pbs=$(($fmriprep_simultaneous-1))
+            fmriprep_simultaneous=1
+
+        else
+
+            fmriprep_simultaneous_pbs=0
+
+        fi
+
         if [ $silent -eq 0 ]; then
 
             echo "  fmriprep_options: $fmriprep_options"
@@ -1122,11 +1133,20 @@ if [ $expert -eq 1 ]; then
         
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
+        task_number=1
+        task_counter=1
 
         for i_bids_participant in $(seq 0 $fmriprep_simultaneous $(($n_subj_todo-1))); do
 
             fmriprep_participants=${todo_bids_participants[@]:$i_bids_participant:$fmriprep_simultaneous}
             #echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $fmriprep_participants"
+
+            pbs_data_file="VSC/pbs_data_fmriprep_job${task_number}.csv"
+            if [ $task_counter -gt $fmriprep_simultaneous_pbs ]; then
+                task_number=$((task_number+1))
+                task_counter=1
+            fi
+            task_counter=$((task_counter+1))   
 
             #for BIDS_participant in $fmriprep_participants; do
                 
