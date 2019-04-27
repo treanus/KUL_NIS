@@ -304,7 +304,7 @@ else
     echo " making a PBS file"
     mkdir -p VSC
 
-    task_command=$(echo "singularity run --cleanenv \
+    task_command=$(echo "mkdir -p ./fmriprep_work_\${fmriprep_log_p}; singularity run --cleanenv \
  -B ./fmriprep_work_\${fmriprep_log_p}:/work \
  -B \$FS_LICENSE:/opt/freesurfer/license.txt \
  \$KUL_fmriprep_singularity \
