@@ -190,7 +190,7 @@ if [ ! -f dwiintensitynorm/fa_template_wm_mask.mif ]; then
     echo "   Doing Intensity Normalisation"
     dwiintensitynorm dwiintensitynorm/dwi_input/ dwiintensitynorm/mask_input/ \
      dwiintensitynorm/dwi_output/ dwiintensitynorm/fa_template.mif \
-     dwiintensitynorm/fa_template_wm_mask.mif -nthreads $ncpu
+     dwiintensitynorm/fa_template_wm_mask.mif -nthreads $ncpu -force
 
     mrinfo dwiintensitynorm/dwi_output/* -property dwi_norm_scale_factor > CHECK_dwi_norm_scale_factor.txt
 
@@ -225,7 +225,7 @@ if [ ! -f ../group_average_response.txt ]; then
     echo "   Computing an (average) white matter response function"
 
     foreach -${ncpu_foreach} * : dwi2response tournier IN/dwi_preproced_reg2T1w_normalised.mif \
-    IN/response.txt -nthreads $ncpu
+    IN/response.txt -nthreads $ncpu -force
 
     average_response */response.txt ../group_average_response.txt
 
@@ -243,7 +243,7 @@ if [ ! -f ../mask.done ]; then
 
     echo "   Compute new brain mask images"
 
-    foreach -${ncpu_foreach} * : dwi2mask IN/dwi_preproced_reg2T1w_normalised.mif IN/dwi_preproced_reg2T1w_normalised_mask.mif -nthreads $ncpu
+    foreach -${ncpu_foreach} * : dwi2mask IN/dwi_preproced_reg2T1w_normalised.mif IN/dwi_preproced_reg2T1w_normalised_mask.mif -nthreads $ncpu -force
     if [ $? -eq 0 ]; then
         echo "done" > ../mask.done
     fi
@@ -264,7 +264,7 @@ if [ ! -f ../fod_estimation.done ]; then
 
     foreach -${ncpu_foreach} * : dwiextract IN/dwi_preproced_reg2T1w_normalised.mif - \
     \| dwi2fod msmt_csd - ../group_average_response.txt IN/wmfod.mif \
-    -mask IN/dwi_preproced_reg2T1w_normalised_mask.mif -nthreads $ncpu
+    -mask IN/dwi_preproced_reg2T1w_normalised_mask.mif -nthreads $ncpu -force
     
     if [ $? -eq 0 ]; then
         echo "done" > ../fod_estimation.done
@@ -336,7 +336,7 @@ if [ ! -f ../fod_reg2template.done ]; then
 
     foreach -${ncpu_foreach} * : mrregister IN/wmfod.mif -mask1 IN/dwi_preproced_reg2T1w_normalised_mask.mif \
     ../template/wmfod_template.mif \
-    -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif -nthreads $ncpu
+    -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif -nthreads $ncpu -force
     if [ $? -eq 0 ]; then
         echo "done" > ../fod_reg2template.done
     fi
@@ -374,7 +374,7 @@ fi
 if [ ! -d ../template/fixel_mask ]; then
 
     echo "   Compute a white matter template analysis fixel mask"
-    fod2fixel -mask ../template/template_mask.mif -fmls_peak_value 0.10 ../template/wmfod_template.mif ../template/fixel_mask -nthreads $ncpu
+    fod2fixel -mask ../template/template_mask.mif -fmls_peak_value 0.10 ../template/wmfod_template.mif ../template/fixel_mask -nthreads $ncpu -force
 
 else
 
@@ -403,6 +403,51 @@ else
 fi  
 
 
+# Make FA/ADC images in template space
+
+if [ ! -f ../fa_adc_warp.done ]; then
+    
+    # find the FA in subject space
+    search_sessions=($(find ${cwd}/dwiprep -type f | grep fa_reg2T1w.nii.gz | sort ))
+    num_sessions=${#search_sessions[@]}
+
+    for i in ${search_sessions[@]}
+    do
+
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | sed 's/.$//')
+        mrconvert $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/FA_subj_space.mif -force
+
+    done
+
+    # find the ADC in subject space
+    search_sessions=($(find ${cwd}/dwiprep -type f | grep adc_reg2T1w.nii.gz | sort ))
+    num_sessions=${#search_sessions[@]}
+
+    for i in ${search_sessions[@]}
+    do
+
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | sed 's/.$//')
+        mrconvert $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/ADC_subj_space.mif -force
+
+    done
+
+
+    echo "   Warping FA/ADC images to template space"
+    foreach -${ncpu_foreach} * : mrtransform IN/FA_subj_space.mif -warp IN/subject2template_warp.mif \
+      IN/FA_in_template_space.nii.gz -nthreads $ncpu -force
+    foreach -${ncpu_foreach} * : mrtransform IN/ADC_subj_space.mif -warp IN/subject2template_warp.mif \
+      IN/ADC_in_template_space.nii.gz -nthreads $ncpu -force
+
+    if [ $? -eq 0 ]; then
+        echo "done" > ../fa_adc_warp.done
+    fi
+
+else
+
+    echo "   Warping FOD images to template space already done"
+
+fi  
+
 
 # Segment FOD images to estimate fixels and their apparent fibre density (FD)
 #foreach * : fod2fixel -mask ../template/template_mask.mif IN/fod_in_template_space_NOT_REORIENTED.mif IN/fixel_in_template_space_NOT_REORIENTED -afd fd.mif
@@ -411,7 +456,7 @@ if [ ! -f ../fod_segment.done ]; then
 
     echo "   Segment FOD images to estimate fixels and their apparent fibre density (FD)"
     foreach -${ncpu_foreach}  * : fod2fixel -mask ../template/template_mask.mif IN/fod_in_template_space_NOT_REORIENTED.mif \
-     IN/fixel_in_template_space_NOT_REORIENTED -afd fd.mif -nthreads $ncpu
+     IN/fixel_in_template_space_NOT_REORIENTED -afd fd.mif -nthreads $ncpu -force
 
     if [ $? -eq 0 ]; then
         echo "done" > ../fod_segment.done
@@ -431,7 +476,7 @@ fi
 if [ ! -f ../fod_reor_fixels.done ]; then
 
     echo "   Reorient fixels"
-    foreach -${ncpu_foreach} * : fixelreorient IN/fixel_in_template_space_NOT_REORIENTED IN/subject2template_warp.mif IN/fixel_in_template_space -nthreads $ncpu
+    foreach -${ncpu_foreach} * : fixelreorient IN/fixel_in_template_space_NOT_REORIENTED IN/subject2template_warp.mif IN/fixel_in_template_space -nthreads $ncpu -force
 
     if [ $? -eq 0 ]; then
         echo "done" > ../fod_reor_fixels.done
@@ -469,7 +514,7 @@ fi
 if [ ! -f ../compute_fc.done ]; then
 
     echo "   Compute the fibre cross-section (FC) metric"
-    foreach * : warp2metric IN/subject2template_warp.mif -fc ../template/fixel_mask ../template/fc IN.mif
+    foreach * : warp2metric IN/subject2template_warp.mif -fc ../template/fixel_mask ../template/fc IN.mif -force
   
     if [ $? -eq 0 ]; then
         echo "done" > ../compute_fc.done
@@ -487,7 +532,7 @@ if [ ! -f ../compute_log_fc.done ]; then
     echo "   Compute the fibre cross-section LOG-(FC) metric"
     mkdir ../template/log_fc
     cp ../template/fc/index.mif ../template/fc/directions.mif ../template/log_fc
-    foreach -${ncpu_foreach} * : mrcalc ../template/fc/IN.mif -log ../template/log_fc/IN.mif
+    foreach -${ncpu_foreach} * : mrcalc ../template/fc/IN.mif -log ../template/log_fc/IN.mif -force
 
    if [ $? -eq 0 ]; then
         echo "done" > ../compute_log_fc.done
@@ -506,7 +551,7 @@ if [ ! -f ../compute_fdc.done ]; then
     mkdir ../template/fdc
     cp ../template/fc/index.mif ../template/fdc
     cp ../template/fc/directions.mif ../template/fdc
-    foreach * : mrcalc ../template/fd/IN.mif ../template/fc/IN.mif -mult ../template/fdc/IN.mif
+    foreach * : mrcalc ../template/fd/IN.mif ../template/fc/IN.mif -mult ../template/fdc/IN.mif -force
 
    if [ $? -eq 0 ]; then
         echo "done" > ../compute_fdc.done
