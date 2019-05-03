@@ -442,6 +442,12 @@ if [ ! -f ../fa_adc_warp.done ]; then
         echo "done" > ../fa_adc_warp.done
     fi
 
+    mkdir -p ../template/fa
+    -sfn ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output
+    foreach * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/subjects/IN/FA_in_template_space.nii.gz ${cwd}/dwiprep/${group_name}/fba/template/fa/sub_IN_FA.nii.gz
+    mkdir -p ../template/adc
+    foreach * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/subjects/IN/ADC_in_template_space.nii.gz ${cwd}/dwiprep/${group_name}/fba/template/adc/sub_IN_ADC.nii.gz
+
 else
 
     echo "   Warping FOD images to template space already done"
