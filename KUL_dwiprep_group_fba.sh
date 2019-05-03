@@ -536,7 +536,7 @@ fi
 if [ ! -f ../compute_log_fc.done ]; then
 
     echo "   Compute the fibre cross-section LOG-(FC) metric"
-    mkdir ../template/log_fc
+    mkdir -p ../template/log_fc
     cp ../template/fc/index.mif ../template/fc/directions.mif ../template/log_fc
     foreach -${ncpu_foreach} * : mrcalc ../template/fc/IN.mif -log ../template/log_fc/IN.mif -force
 
@@ -554,7 +554,7 @@ fi
 if [ ! -f ../compute_fdc.done ]; then
 
     echo "   Compute a combined measure of fibre density and cross-section (FDC)"
-    mkdir ../template/fdc
+    mkdir -p ../template/fdc
     cp ../template/fc/index.mif ../template/fdc
     cp ../template/fc/directions.mif ../template/fdc
     foreach * : mrcalc ../template/fd/IN.mif ../template/fc/IN.mif -mult ../template/fdc/IN.mif -force
