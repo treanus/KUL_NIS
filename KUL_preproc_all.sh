@@ -133,6 +133,7 @@ fi
 
 mriqc_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
 mriqc_log="${preproc}/log/mriqc/mriqc_${mriqc_log_p}.txt"
+mriqc_act="${preproc}/log/mriqc/mriqc_${mriqc_log_p}_act"
 mkdir -p ${preproc}/log/mriqc
 
 kul_e2cl " started (in parallel) mriqc on participant(s) $BIDS_participant (with options $mriqc_options, using $ncpu_mriqc cores, logging to $mriqc_log)" $log
@@ -175,6 +176,7 @@ if [ $make_pbs_files_instead_of_running -eq 0 ]; then
     echo " mriqc pid is $mriqc_pid"
 
     sleep 2
+    #psrecord $mriqc_pid --log $mriqc_act.txt --plot $mriqc_act.png --interval 30 &
 
 else
 
@@ -247,6 +249,7 @@ fi
 
 fmriprep_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
 fmriprep_log=${preproc}/log/fmriprep/${fmriprep_log_p}.txt
+fmriprep_act=${preproc}/log/fmriprep/${fmriprep_log_p}_act
 
 kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
 
@@ -299,6 +302,8 @@ if [ $make_pbs_files_instead_of_running -eq 0 ]; then
     echo " fmriprep pid is $fmriprep_pid"
 
     sleep 2
+    #psrecord $fmriprep_pid --include-children --log $fmriprep_act.txt --plot $fmriprep_act.png --interval 30 &
+
 else
 
     echo " making a PBS file"
@@ -1688,7 +1693,7 @@ else
         kul_e2cl " processes [${waitforprocs[@]}] for subject $BIDS_participant have finished" $log
 
         # clean up after jobs finished
-        rm -fr ${cwd}/fmriprep_work
+        #rm -fr ${cwd}/fmriprep_work
 
 
         # Here we could also have fMRI statistical analysis e.g.
