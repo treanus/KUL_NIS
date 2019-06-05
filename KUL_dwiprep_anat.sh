@@ -254,6 +254,10 @@ if [ ! -f response/tournier_wmfod_reg2T1w.mif ]; then
             response/dhollander_wmfod_reg2T1w.mif -nthreads $ncpu -force 
         mrtransform response/dhollander_wmfod_norm.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
             response/dhollander_wmfod_norm_reg2T1w.mif -nthreads $ncpu -force
+        mrtransform response/dhollander_wmfod_noGM.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+            response/dhollander_wmfod_noGM_reg2T1w.mif -nthreads $ncpu -force 
+        mrtransform response/dhollander_wmfod_norm_noGM.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+            response/dhollander_wmfod_norm_noGM_reg2T1w.mif -nthreads $ncpu -force
     fi
     if [ -f response/tax_wmfod.mif ]; then 
         mrtransform response/tax_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
@@ -272,7 +276,7 @@ dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $
 
 # DO QA ---------------------------------------------
 # Make an FA/dec image
-
+mkdir -p qa
 
 if [ ! -f qa/dhollander_dec_reg2T1w.mif ]; then
 
@@ -292,8 +296,11 @@ if [ ! -f qa/dhollander_dec_reg2T1w.mif ]; then
     if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then  
         fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w.mif -force
         fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+        fod2dec response/dhollander_wmfod_noGM_reg2T1w.mif qa/dhollander_noGM_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
         fod2dec response/dhollander_wmfod_norm_reg2T1w.mif qa/dhollander_norm_dec_reg2T1w.mif -force
         fod2dec response/dhollander_wmfod_norm_reg2T1w.mif qa/dhollander_norm_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+        fod2dec response/dhollander_wmfod_norm_noGM_reg2T1w.mif qa/dhollander_norm_noGM_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+
     fi
 
 fi

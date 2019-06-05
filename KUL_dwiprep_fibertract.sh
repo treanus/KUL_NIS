@@ -114,12 +114,12 @@ function kul_mrtrix_tracto {
         if [ "${a}" == "iFOD2" ]; then
 
             # perform IFOD2 tckgen
-            tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -angle $theta -nthreads $ncpu -force
+            tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -angle $theta -select 20000 -nthreads $ncpu -force
 
         elif [ "${a}" == "Tensor_prob" ]; then
 
             # perform Tensor_Prob tckgen
-            tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -nthreads $ncpu -force
+            tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -select 20000 -nthreads $ncpu -force
 
     fi
         
@@ -201,7 +201,8 @@ function KUL_antsApply_Transform {
 # Set defaults
 ncpu=6
 silent=1
-wmfod_select=dhollander_wmfod_norm_reg2T1w
+#wmfod_select=dhollander_wmfod_norm_reg2T1w
+wmfod_select=dhollander_wmfod_norm_noGM_reg2T1w
 
 # Set required options
 p_flag=0

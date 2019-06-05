@@ -529,9 +529,15 @@ if [[ $dwipreproc_options == *"dhollander"* ]]; then
         response/dhollander_gm_response.txt response/dhollander_gm.mif \
         response/dhollander_csf_response.txt response/dhollander_csf.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu 
 
+        dwi2fod msmt_csd dwi_preproced.mif response/dhollander_wm_response.txt response/dhollander_wmfod_noGM.mif \
+        response/dhollander_csf_response.txt response/dhollander_csf_noGM.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu 
+
         mtnormalise response/dhollander_wmfod.mif response/dhollander_wmfod_norm.mif \
         response/dhollander_gm.mif response/dhollander_gm_norm.mif \
         response/dhollander_csf.mif response/dhollander_csf_norm.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu
+
+        mtnormalise response/dhollander_wmfod_noGM.mif response/dhollander_wmfod_norm_noGM.mif \
+        response/dhollander_csf_noGM.mif response/dhollander_csf_norm_noGM.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu
    
     else
 
