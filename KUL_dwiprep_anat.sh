@@ -282,24 +282,24 @@ if [ ! -f qa/dhollander_dec_reg2T1w.mif ]; then
 
     kul_e2cl "   Calculating FA/dec..." ${log}
     dwi2tensor dwi_preproced_reg2T1w.mif dwi_dt_reg2T1w.mif -force
-    tensor2metric dwi_dt_reg2T1w.mif -fa qa/fa_reg2T1w.nii.gz -mask dwi_preproced_reg2T1w_mask.nii.gz -force
-    tensor2metric dwi_dt_reg2T1w.mif -adc qa/adc_reg2T1w.nii.gz -mask dwi_preproced_reg2T1w_mask.nii.gz -force
+    tensor2metric dwi_dt_reg2T1w.mif -fa qa/fa_reg2T1w.nii.gz -mask dwi_preproced_reg2T1w_mask.nii.gz -force -nthreads $ncpu
+    tensor2metric dwi_dt_reg2T1w.mif -adc qa/adc_reg2T1w.nii.gz -mask dwi_preproced_reg2T1w_mask.nii.gz -force -nthreads $ncpu
 
     if [ -f response/tournier_wmfod_reg2T1w.mif ]; then  
-        fod2dec response/tax_wmfod_reg2T1w.mif qa/tax_dec_reg2T1w.mif -force
-        fod2dec response/tax_wmfod_reg2T1w.mif qa/tax_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+        fod2dec response/tax_wmfod_reg2T1w.mif qa/tax_dec_reg2T1w.mif -force -nthreads $ncpu
+        fod2dec response/tax_wmfod_reg2T1w.mif qa/tax_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
     fi
     if [ -f response/tax_wmfod_reg2T1w.mif ]; then  
-        fod2dec response/tournier_wmfod_reg2T1w.mif qa/tournier_dec_reg2T1w.mif -force
-        fod2dec response/tournier_wmfod_reg2T1w.mif qa/tournier_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+        fod2dec response/tournier_wmfod_reg2T1w.mif qa/tournier_dec_reg2T1w.mif -force -nthreads $ncpu
+        fod2dec response/tournier_wmfod_reg2T1w.mif qa/tournier_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
     fi
     if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then  
-        fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w.mif -force
-        fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
-        fod2dec response/dhollander_wmfod_noGM_reg2T1w.mif qa/dhollander_noGM_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
-        fod2dec response/dhollander_wmfod_norm_reg2T1w.mif qa/dhollander_norm_dec_reg2T1w.mif -force
-        fod2dec response/dhollander_wmfod_norm_reg2T1w.mif qa/dhollander_norm_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
-        fod2dec response/dhollander_wmfod_norm_noGM_reg2T1w.mif qa/dhollander_norm_noGM_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force
+        fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w.mif -force -nthreads $ncpu
+        fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
+        fod2dec response/dhollander_wmfod_noGM_reg2T1w.mif qa/dhollander_noGM_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
+        fod2dec response/dhollander_wmfod_norm_reg2T1w.mif qa/dhollander_norm_dec_reg2T1w.mif -force -nthreads $ncpu
+        fod2dec response/dhollander_wmfod_norm_reg2T1w.mif qa/dhollander_norm_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
+        fod2dec response/dhollander_wmfod_norm_noGM_reg2T1w.mif qa/dhollander_norm_noGM_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
 
     fi
 
