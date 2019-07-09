@@ -114,12 +114,12 @@ function kul_mrtrix_tracto {
         if [ "${a}" == "iFOD2" ]; then
 
             # perform IFOD2 tckgen
-            tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -angle $theta -select 20000 -nthreads $ncpu -force
+            tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -angle $theta -select 2000 -nthreads $ncpu -force
 
         elif [ "${a}" == "Tensor_prob" ]; then
 
             # perform Tensor_Prob tckgen
-            tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -select 20000 -nthreads $ncpu -force
+            tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -select 2000 -nthreads $ncpu -force
 
     fi
         
@@ -380,8 +380,10 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
                     echo " creating the $space space $roi_name ROI from $from_atlas..." 
 
-                    input=${kul_main_dir}/atlasses/Local/$from_atlas
-                    output=roi/$roi_name
+                    input=${kul_main_dir}/atlasses/Local/${from_atlas}
+                    input=${input//[[:blank:]]/}
+                    echo $input
+                    output=roi/${roi_name}.nii.gz
                     transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
                     reference=$ants_anat
                     KUL_antsApply_Transform
