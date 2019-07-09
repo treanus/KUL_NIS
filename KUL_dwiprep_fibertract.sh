@@ -201,8 +201,8 @@ function KUL_antsApply_Transform {
 # Set defaults
 ncpu=6
 silent=1
-#wmfod_select=dhollander_wmfod_norm_reg2T1w
-wmfod_select=dhollander_wmfod_norm_noGM_reg2T1w
+wmfod_select=dhollander_wmfod_norm_reg2T1w
+#wmfod_select=dhollander_wmfod_norm_noGM_reg2T1w
 
 # Set required options
 p_flag=0
@@ -375,6 +375,17 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
                     echo " creating the $space space $roi_name ROI from $from_atlas using label_id $label_id..." 
 
                     fslmaths $fs_labels -thr $label_id -uthr $label_id -bin roi/${roi_name}
+
+                elif [ $space = "mni" ]; then
+
+                    echo " creating the $space space $roi_name ROI from $from_atlas..." 
+
+                    input=${kul_main_dir}/atlasses/Local/$from_atlas
+                    output=roi/$roi_name
+                    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+                    reference=$ants_anat
+                    KUL_antsApply_Transform
+
                 fi
 
             fi
