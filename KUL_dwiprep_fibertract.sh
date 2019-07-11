@@ -67,7 +67,7 @@ Required arguments:
 
 Optional arguments:
 
-     -w:  which wmfod to use (default = dhollander_wmfod_reg2T1w)
+     -w:  which wmfod to use (default = dhollander_wmfod_norm_reg2T1w)
      -s:  session (of the participant)
      -n:  number of cpu for parallelisation
      -v:  show output from mrtrix commands
@@ -114,12 +114,12 @@ function kul_mrtrix_tracto {
         if [ "${a}" == "iFOD2" ]; then
 
             # perform IFOD2 tckgen
-            tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -angle $theta -nthreads $ncpu -force
+            tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -angle $theta -select 2000 -nthreads $ncpu -force
 
         elif [ "${a}" == "Tensor_prob" ]; then
 
             # perform Tensor_Prob tckgen
-            tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -nthreads $ncpu -force
+            tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -select 2000 -nthreads $ncpu -force
 
     fi
         
@@ -202,6 +202,7 @@ function KUL_antsApply_Transform {
 ncpu=6
 silent=1
 wmfod_select=dhollander_wmfod_norm_reg2T1w
+#wmfod_select=dhollander_wmfod_norm_noGM_reg2T1w
 
 # Set required options
 p_flag=0
@@ -374,6 +375,19 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
                     echo " creating the $space space $roi_name ROI from $from_atlas using label_id $label_id..." 
 
                     fslmaths $fs_labels -thr $label_id -uthr $label_id -bin roi/${roi_name}
+
+                elif [ $space = "mni" ]; then
+
+                    echo " creating the $space space $roi_name ROI from $from_atlas..." 
+
+                    input=${kul_main_dir}/atlasses/Local/${from_atlas}
+                    input=${input//[[:blank:]]/}
+                    echo $input
+                    output=roi/${roi_name}.nii.gz
+                    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+                    reference=$ants_anat
+                    KUL_antsApply_Transform
+
                 fi
 
             fi
@@ -385,7 +399,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
     # STEP 2 - perform fibertractography -------------------------------------------------------
     
-    wmfod=response/dhollander_wmfod_reg2T1w.mif
+    wmfod=response/${wmfod_select}.mif
     dwi_preproced=dwi_preproced_reg2T1w.mif
 
     # Make an empty log file with information about the tracts

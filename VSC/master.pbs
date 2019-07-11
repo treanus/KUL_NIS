@@ -22,9 +22,8 @@ module purge
 module load FreeSurfer/6.0.0-centos6_x86_64
 source $FREESURFER_HOME/SetUpFreeSurfer.sh
 module load ANTs/2.3.1-foss-2018a-Python-2.7.14  
-module load FSL/5.0.11-foss-2018a
+module load FSL/6.0.1-foss-2018a
 . ${FSLDIR}/etc/fslconf/fsl.sh
-OMP_NUM_THREADS=8
 module load MRtrix/3.0_RC3-foss-2018a-Python-2.7.14
 
 #add the path to neuroimaging tools

@@ -39,7 +39,7 @@ Usage:
 
 Example:
 
-  `basename $0` -p pat001 -n 6 
+  `basename $0` -p pat001 -n 6 -d "tax dhollander"
 
 Required arguments:
 
@@ -48,6 +48,7 @@ Required arguments:
 
 Optional arguments:
      
+     -d:  dwiprep options: can be dhollander, tax and/or tournier (default = dhollander) e.g. "tax dhollander"
      -s:  session (BIDS session)
      -n:  number of cpu for parallelisation
      -t:  options to pass to topup
@@ -290,6 +291,17 @@ fi
 cd ${preproc}
 mkdir -p dwi
 
+# Do some qa: make FA/ADC of unprocessed images
+mkdir -p qa
+
+if [ ! -f qa/adc_orig.nii.gz ]; then 
+
+    kul_e2cl "   Calculating FA/ADC/dec..." ${log}
+    dwi2tensor dwi_orig.mif dwi_orig_dt.mif -force
+    tensor2metric dwi_orig_dt.mif -fa qa/fa_orig.nii.gz -force
+    tensor2metric dwi_orig_dt.mif -adc qa/adc_orig.nii.gz -force
+
+fi    
 
 # check if first 2 steps of dwi preprocessing are done 
 if [ ! -f dwi/degibbs.mif ] && [ ! -f dwi_preproced.mif ]; then
@@ -517,9 +529,15 @@ if [[ $dwipreproc_options == *"dhollander"* ]]; then
         response/dhollander_gm_response.txt response/dhollander_gm.mif \
         response/dhollander_csf_response.txt response/dhollander_csf.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu 
 
+        dwi2fod msmt_csd dwi_preproced.mif response/dhollander_wm_response.txt response/dhollander_wmfod_noGM.mif \
+        response/dhollander_csf_response.txt response/dhollander_csf_noGM.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu 
+
         mtnormalise response/dhollander_wmfod.mif response/dhollander_wmfod_norm.mif \
         response/dhollander_gm.mif response/dhollander_gm_norm.mif \
         response/dhollander_csf.mif response/dhollander_csf_norm.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu
+
+        mtnormalise response/dhollander_wmfod_noGM.mif response/dhollander_wmfod_norm_noGM.mif \
+        response/dhollander_csf_noGM.mif response/dhollander_csf_norm_noGM.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu
    
     else
 
@@ -558,7 +576,7 @@ if [[ $dwipreproc_options == *"tournier"* ]]; then
 
     if [ ! -f response/tournier_response.txt ]; then
         kul_e2cl "   Calculating tournier dwi2response..." ${log}
-        dwi2response tax dwi_preproced.mif response/tournier_response.txt -nthreads $ncpu -force 
+        dwi2response tournier dwi_preproced.mif response/tournier_response.txt -nthreads $ncpu -force 
 
     else
 

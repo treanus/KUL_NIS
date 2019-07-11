@@ -133,6 +133,7 @@ fi
 
 mriqc_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
 mriqc_log="${preproc}/log/mriqc/mriqc_${mriqc_log_p}.txt"
+mriqc_act="${preproc}/log/mriqc/mriqc_${mriqc_log_p}_act"
 mkdir -p ${preproc}/log/mriqc
 
 kul_e2cl " started (in parallel) mriqc on participant(s) $BIDS_participant (with options $mriqc_options, using $ncpu_mriqc cores, logging to $mriqc_log)" $log
@@ -175,6 +176,7 @@ if [ $make_pbs_files_instead_of_running -eq 0 ]; then
     echo " mriqc pid is $mriqc_pid"
 
     sleep 2
+    #psrecord $mriqc_pid --log $mriqc_act.txt --plot $mriqc_act.png --interval 30 &
 
 else
 
@@ -247,6 +249,7 @@ fi
 
 fmriprep_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
 fmriprep_log=${preproc}/log/fmriprep/${fmriprep_log_p}.txt
+fmriprep_act=${preproc}/log/fmriprep/${fmriprep_log_p}_act
 
 kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
 
@@ -265,7 +268,6 @@ if [ $fmriprep_singularity -eq 1 ]; then
  -w /work \
  --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
  --mem_mb $mem_mb \
- --fs-no-reconall \
  $fmriprep_options \
  --notrack \
  > $fmriprep_log  2>&1") 
@@ -282,7 +284,6 @@ else
  -w /scratch \
  --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
  --mem_mb $mem_mb \
- --fs-no-reconall \
  $fmriprep_options \
  --notrack \
  /data /out \
@@ -294,12 +295,60 @@ fi
 echo "   using cmd: $task_fmriprep_cmd"
 
 # Now start the parallel job
-eval $task_fmriprep_cmd &
-fmriprep_pid="$!"
-echo " fmriprep pid is $fmriprep_pid"
+if [ $make_pbs_files_instead_of_running -eq 0 ]; then
 
-sleep 2
-   
+    eval $task_fmriprep_cmd &
+    fmriprep_pid="$!"
+    echo " fmriprep pid is $fmriprep_pid"
+
+    sleep 2
+    #psrecord $fmriprep_pid --include-children --log $fmriprep_act.txt --plot $fmriprep_act.png --interval 30 &
+
+else
+
+    echo " making a PBS file"
+    mkdir -p VSC
+
+    task_command=$(echo "mkdir -p ./fmriprep_work_\${fmriprep_log_p}; singularity run --cleanenv \
+ -B ./fmriprep_work_\${fmriprep_log_p}:/work \
+ -B \$FS_LICENSE:/opt/freesurfer/license.txt \
+ \$KUL_fmriprep_singularity \
+ ./\${bids_dir} \
+ . \
+ participant \
+ --participant_label \${BIDS_participant} \
+ -w /work \
+ --nthreads \$ncpu_fmriprep --omp-nthreads \$ncpu_fmriprep_ants \
+ --mem_mb \$mem_mb \
+ \$fmriprep_options \
+ --notrack \
+ > \$fmriprep_log  2>&1") 
+
+    cp $kul_main_dir/VSC/master.pbs VSC/run_fmriprep.pbs
+
+    perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_fmriprep.pbs
+    perl  -pi -e "s/##CPU##/${pbs_cpu}/g" VSC/run_fmriprep.pbs
+    perl  -pi -e "s/##MEM##/${pbs_mem}/g" VSC/run_fmriprep.pbs
+    esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_fmriprep.pbs
+    esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##WALLTIME##/${esc_pbs_walltime}/g" VSC/run_fmriprep.pbs
+    esc_pbs_singularity_fmriprep=$(echo $pbs_singularity_fmriprep | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##FMRIPREP##/${esc_pbs_singularity_fmriprep}/g" VSC/run_fmriprep.pbs
+    esc_pbs_singularity_mriqc=$(echo $pbs_singularity_mriqc | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##MRIQC##/${esc_pbs_singularity_mriqc}/g" VSC/run_fmriprep.pbs
+    esc_task_command=$(echo $task_command | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+    perl  -pi -e "s/##COMMAND##/${esc_task_command}/g" VSC/run_fmriprep.pbs
+
+
+    echo $pbs_data_file
+    if [ ! -f $pbs_data_file ]; then
+        echo "BIDS_participant,fmriprep_log_p,bids_dir,ncpu_fmriprep,ncpu_fmriprep_ants,mem_mb,fmriprep_options,fmriprep_log" > $pbs_data_file
+    fi 
+    echo "$BIDS_participant,$fmriprep_log_p,$bids_dir,$ncpu_fmriprep,$ncpu_fmriprep_ants,$mem_mb,$fmriprep_options,$fmriprep_log" >> $pbs_data_file
+
+
+fi
 #kul_e2cl "   done fmriprep on participant $BIDS_participant" $log
 
 }
@@ -319,6 +368,10 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     
     # search if any sessions exist
     search_sessions=($(find BIDS/sub-${BIDS_participant} -type f | grep T1w.nii.gz))
+    
+    # ####### CHANGE BACK!!!!!
+    #search_sessions=($(find BIDS/sub-${BIDS_participant} -type f | grep ses-1 | grep T1w.nii.gz))
+    
     num_sessions=${#search_sessions[@]}
     
     echo "  Freesurfer processing: number T1w data in the BIDS folder: $num_sessions"
@@ -343,6 +396,10 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
         # search if any sessions exist
         search_sessions_flair=($(find BIDS/sub-${BIDS_participant} -type f | grep FLAIR.nii.gz))
+
+        # ####### CHANGE BACK!!!!!
+        #search_sessions_flair=($(find BIDS/sub-${BIDS_participant} -type f | grep ses-1 | grep FLAIR.nii.gz))
+
         num_sessions_flair=${#search_sessions_flair[@]}
 
         if [ $num_sessions_flair -gt 0 ]; then 
@@ -403,7 +460,8 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     rm -rf $SUBJECTS_DIR
     mkdir -p $SUBJECTS_DIR
     export SUBJECTS_DIR
-    notify_file=${SUBJECT_DIR}.done
+    notify_file=${SUBJECTS_DIR}_freesurfer_is.done
+    echo $notify_file
 
     local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol \
         $fs_use_flair $fs_hippoT1T2 -all -openmp $ncpu_freesurfer \
@@ -1040,6 +1098,17 @@ if [ $expert -eq 1 ]; then
             
         fmriprep_simultaneous=$(grep fmriprep_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
 
+        if [ $make_pbs_files_instead_of_running -eq 1 ]; then
+
+            fmriprep_simultaneous_pbs=$(($fmriprep_simultaneous-1))
+            fmriprep_simultaneous=1
+
+        else
+
+            fmriprep_simultaneous_pbs=0
+
+        fi
+
         if [ $silent -eq 0 ]; then
 
             echo "  fmriprep_options: $fmriprep_options"
@@ -1050,38 +1119,52 @@ if [ $expert -eq 1 ]; then
             echo "  fmriprep_simultaneous: $fmriprep_simultaneous"
 
         fi
+        
+        fmriprep_force_redo=$(grep fmriprep_force_redo $conf | grep -v \# | sed 's/[^0-9]//g')
 
         # check if already performed fmriprep
         todo_bids_participants=()
         already_done=()
 
-        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
+        #if [ ! "$fmriprep_force_redo" == "1" ]; then
 
-            fmriprep_dir_to_check=fmriprep/sub-${BIDS_subjects[$i_bids_participant]}
+            for i_bids_participant in $(seq 0 $(($n_subj-1))); do
 
-            #echo $fmriprep_dir_to_check
-            if [ ! -d $fmriprep_dir_to_check ]; then
+                fmriprep_dir_to_check=fmriprep/sub-${BIDS_subjects[$i_bids_participant]}
 
-                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
+                #echo $fmriprep_dir_to_check
+                if [ ! -d $fmriprep_dir_to_check ]; then
+
+                    todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
             
-            else
+                else
 
-                already_done+=(${BIDS_subjects[$i_bids_participant]})
+                    already_done+=(${BIDS_subjects[$i_bids_participant]})
             
-            fi
+                fi
 
-        done
+            done
 
-        echo "  fmriprep was already done for participant(s) ${already_done[@]}"
+            echo "  fmriprep was already done for participant(s) ${already_done[@]}"
         
+        #fi
         
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
+        task_number=1
+        task_counter=1
 
         for i_bids_participant in $(seq 0 $fmriprep_simultaneous $(($n_subj_todo-1))); do
 
             fmriprep_participants=${todo_bids_participants[@]:$i_bids_participant:$fmriprep_simultaneous}
             #echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $fmriprep_participants"
+
+            pbs_data_file="VSC/pbs_data_fmriprep_job${task_number}.csv"
+            if [ $task_counter -gt $fmriprep_simultaneous_pbs ]; then
+                task_number=$((task_number+1))
+                task_counter=1
+            fi
+            task_counter=$((task_counter+1))   
 
             #for BIDS_participant in $fmriprep_participants; do
                 
@@ -1144,9 +1227,10 @@ if [ $expert -eq 1 ]; then
         todo_bids_participants=()
         already_done=()
 
+
         for i_bids_participant in $(seq 0 $(($n_subj-1))); do
 
-            freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_subjects[i_bids_participant]}/${BIDS_subjects[i_bids_participant]}/scripts/recon-all.done
+            freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_subjects[i_bids_participant]}_freesurfer_is.done
 
             #echo $freesurfer_file_to_check
             if [ ! -f $freesurfer_file_to_check ]; then
@@ -1622,7 +1706,7 @@ else
         kul_e2cl " processes [${waitforprocs[@]}] for subject $BIDS_participant have finished" $log
 
         # clean up after jobs finished
-        rm -fr ${cwd}/fmriprep_work
+        #rm -fr ${cwd}/fmriprep_work
 
 
         # Here we could also have fMRI statistical analysis e.g.
