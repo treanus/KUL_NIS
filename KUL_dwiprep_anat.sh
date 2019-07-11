@@ -197,6 +197,10 @@ kul_e2cl "Welcome to KUL_dwiprep_anat $v - $d" ${log}
 mkdir -p T1w
 mkdir -p dwi_reg
 
+# We need to check whether there are several sessions
+# in this case the fmriprep (and FS) output is in average subject space
+
+
 fmriprep_subj=fmriprep/"sub-${subj}"
 fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-preproc_T1w.nii.gz"
 fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-brain_mask.nii.gz"
