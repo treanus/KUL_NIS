@@ -1122,11 +1122,11 @@ if [ $expert -eq 1 ]; then
         
         fmriprep_force_redo=$(grep fmriprep_force_redo $conf | grep -v \# | sed 's/[^0-9]//g')
 
-        if [ ! $fmriprep_force_redo -eq 1 ]; then
+        # check if already performed fmriprep
+        todo_bids_participants=()
+        already_done=()
 
-            # check if already performed fmriprep
-            todo_bids_participants=()
-            already_done=()
+        #if [ ! "$fmriprep_force_redo" == "1" ]; then
 
             for i_bids_participant in $(seq 0 $(($n_subj-1))); do
 
@@ -1147,7 +1147,7 @@ if [ $expert -eq 1 ]; then
 
             echo "  fmriprep was already done for participant(s) ${already_done[@]}"
         
-        fi
+        #fi
         
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
