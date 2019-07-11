@@ -197,9 +197,15 @@ kul_e2cl "Welcome to KUL_dwiprep_anat $v - $d" ${log}
 mkdir -p T1w
 mkdir -p dwi_reg
 
-# We need to check whether there are several sessions
-# in this case the fmriprep (and FS) output is in average subject space
+# Transforming the T1w to fmriprep space
+xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
+num_xfm=${#xfm_search[@]}
+echo "  Xfm files: number : $num_xfm"
+echo "    notably: ${xfm_search[@]}"
 
+antsApplyTransforms -i T1w_BrainExtractionBrain.nii.gz -o test.nii.gz -r T1w_BrainExtractionBrain.nii.gz -n NearestNeighbor -t ../../../../fmriprep/sub-001/ses-1/anat/sub-001_ses-1_from-orig_to-T1w_mode-image_xfm.txt
+
+exit
 
 fmriprep_subj=fmriprep/"sub-${subj}"
 fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-preproc_T1w.nii.gz"
