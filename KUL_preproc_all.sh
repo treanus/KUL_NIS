@@ -1119,30 +1119,35 @@ if [ $expert -eq 1 ]; then
             echo "  fmriprep_simultaneous: $fmriprep_simultaneous"
 
         fi
-
-        # check if already performed fmriprep
-        todo_bids_participants=()
-        already_done=()
-
-        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
-
-            fmriprep_dir_to_check=fmriprep/sub-${BIDS_subjects[$i_bids_participant]}
-
-            #echo $fmriprep_dir_to_check
-            if [ ! -d $fmriprep_dir_to_check ]; then
-
-                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
-            
-            else
-
-                already_done+=(${BIDS_subjects[$i_bids_participant]})
-            
-            fi
-
-        done
-
-        echo "  fmriprep was already done for participant(s) ${already_done[@]}"
         
+        fmriprep_force_redo=$(grep fmriprep_force_redo $conf | grep -v \# | sed 's/[^0-9]//g')
+
+        if [ ! $fmriprep_force_redo -eq 1 ]; then
+
+            # check if already performed fmriprep
+            todo_bids_participants=()
+            already_done=()
+
+            for i_bids_participant in $(seq 0 $(($n_subj-1))); do
+
+                fmriprep_dir_to_check=fmriprep/sub-${BIDS_subjects[$i_bids_participant]}
+
+                #echo $fmriprep_dir_to_check
+                if [ ! -d $fmriprep_dir_to_check ]; then
+
+                    todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
+            
+                else
+
+                    already_done+=(${BIDS_subjects[$i_bids_participant]})
+            
+                fi
+
+            done
+
+            echo "  fmriprep was already done for participant(s) ${already_done[@]}"
+        
+        fi
         
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
