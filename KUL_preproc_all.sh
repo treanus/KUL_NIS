@@ -464,7 +464,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     echo $notify_file
 
     local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol \
-        $fs_use_flair $fs_hippoT1T2 -all -openmp $ncpu_freesurfer \
+        $fs_use_flair $fs_hippoT1T2 $fs_options_direct -all -openmp $ncpu_freesurfer \
         -parallel -notify $notify_file > $freesurfer_log 2>&1 ")
 
     echo "   using cmd: $task_freesurfer_cmd"
@@ -1202,6 +1202,7 @@ if [ $expert -eq 1 ]; then
     if [ $do_freesurfer -eq 1 ]; then
 
         freesurfer_options=$(grep freesurfer_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        fs_options_direct=$(grep freesurfer_direct_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
 
         freesurfer_ncpu=$(grep freesurfer_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
         ncpu_freesurfer=$freesurfer_ncpu
@@ -1216,6 +1217,7 @@ if [ $expert -eq 1 ]; then
         if [ $silent -eq 0 ]; then
 
             echo "  freesurfer_options: $freesurfer_options"
+            echo "  freesurfer_direct_options: $fs_options_direct"
             echo "  freesurfer_ncpu: $freesurfer_ncpu"
             echo "  BIDS_participants: ${BIDS_subjects[@]}"
             echo "  number of BIDS_participants: $n_subj"
