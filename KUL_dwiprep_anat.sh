@@ -197,26 +197,18 @@ kul_e2cl "Welcome to KUL_dwiprep_anat $v - $d" ${log}
 mkdir -p T1w
 mkdir -p dwi_reg
 
-# Transforming the T1w to fmriprep space
-xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
-num_xfm=${#xfm_search[@]}
-echo "  Xfm files: number : $num_xfm"
-echo "    notably: ${xfm_search[@]}"
-
-antsApplyTransforms -i T1w_BrainExtractionBrain.nii.gz -o test.nii.gz -r T1w_BrainExtractionBrain.nii.gz -n NearestNeighbor -t ../../../../fmriprep/sub-001/ses-1/anat/sub-001_ses-1_from-orig_to-T1w_mode-image_xfm.txt
-
-exit
-
 fmriprep_subj=fmriprep/"sub-${subj}"
 fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-preproc_T1w.nii.gz"
 fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-brain_mask.nii.gz"
+ants_anat_tmp=T1w/tmp.nii.gz
 ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
+
 
 # bet the T1w using fmriprep data
 if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
     kul_e2cl " skull stripping the T1w from fmriprep..." $log
 
-    fslmaths $fmriprep_anat -mas $fmriprep_anat_mask $ants_anat
+    fslmaths $fmriprep_anat -mas $fmriprep_anat_mask $ants_anat_tmp
 
 else
 
@@ -224,7 +216,17 @@ else
 
 fi
 
-# register mean b0 to betted T1w (rigid)
+# Transforming the T1w to fmriprep space
+xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
+num_xfm=${#xfm_search[@]}
+echo "  Xfm files: number : $num_xfm"
+echo "    notably: ${xfm_search[@]}"
+
+antsApplyTransforms -i $ants_anat_tmp -o $ants_anat -r $ants_anat_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+
+rm -rf $ants_anat_tmp
+
+# register mean b0 to betted T1w (rigid) 
 ants_b0=dwi_b0.nii.gz
 ants_type=dwi_reg/rigid
 
