@@ -380,13 +380,31 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
                     echo " creating the $space space $roi_name ROI from $from_atlas..." 
 
+                    # Transforming the T1w to fmriprep space
+                    xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
+                    num_xfm=${#xfm_search[@]}
+                    echo "  Xfm files: number : $num_xfm"
+                    echo "    notably: ${xfm_search[@]}"
+
+                    #antsApplyTransforms -i $ants_anat_tmp -o $ants_anat -r $ants_anat_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+
                     input=${kul_main_dir}/atlasses/Local/${from_atlas}
                     input=${input//[[:blank:]]/}
                     echo $input
                     output=roi/${roi_name}.nii.gz
-                    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+                    echo ${xfm_search[0]}
+                    echo $current_session
+                    transform="${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5"
                     reference=$ants_anat
                     KUL_antsApply_Transform
+
+                    input=roi/${roi_name}.nii.gz
+                    output=roi/${roi_name}_2.nii.gz
+                    transform=${xfm_search[0]}
+                    reference=$ants_anat
+                    KUL_antsApply_Transform
+
+
 
                 fi
 
@@ -396,6 +414,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
     done < ${cwd}/$rois_config
 
+exit
 
     # STEP 2 - perform fibertractography -------------------------------------------------------
     
