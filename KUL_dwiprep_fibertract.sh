@@ -12,13 +12,6 @@ v="v0.1 - dd 14/02/2019"
 
 # A few fixed (for now) parameters:
 
-    # Number of desired streamlines
-    # nods=2000
-    # this has become a command line optional parameter
-
-    # Maximum angle between successive steps for iFOD2
-    theta=35
-
     # sift1 filtering
     # termination ratio - defined as the ratio between reduction in cost
     # function, and reduction in density of streamlines.
@@ -109,19 +102,21 @@ function kul_mrtrix_tracto {
         #echo $i
         #echo $e
         #echo $m
-        echo $paramaters
+        echo $parameters
 
         if [ "${a}" == "iFOD2" ]; then
 
             # perform IFOD2 tckgen
-            tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -angle $theta -select 2000 -nthreads $ncpu -force
+            #tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -angle $theta -select 2000 -nthreads $ncpu -force
+            tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -nthreads $ncpu -force
 
         elif [ "${a}" == "Tensor_prob" ]; then
 
             # perform Tensor_Prob tckgen
-            tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -select 2000 -nthreads $ncpu -force
+            #tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -select 2000 -nthreads $ncpu -force
+            tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -nthreads $ncpu -force
 
-    fi
+        fi
         
     else
 
@@ -314,6 +309,7 @@ log=log/log_${d}.txt
 # --- MAIN ----------------
 
 bids_subj=BIDS/sub-${subj}
+fmriprep_subj=fmriprep/"sub-${subj}"
 
 # Either a session is given on the command line
 # If not the session(s) need to be determined.
@@ -321,11 +317,21 @@ if [ $s_flag -eq 1 ]; then
 
     # session is given on the command line
     search_sessions=BIDS/sub-${subj}/ses-${ses}
+    xfm_search=($(find ${cwd}/${fmriprep_subj}/ses-${ses} -type f | grep from-orig_to-T1w_mode-image_xfm))
+        num_xfm=${#xfm_search[@]}
+    echo "  Xfm files: number : $num_xfm"
+    echo "    notably: ${xfm_search[@]}"
 
 else
 
     # search if any sessions exist
     search_sessions=($(find BIDS/sub-${subj} -type d | grep dwi))
+
+    # Transforming the T1w to fmriprep space
+    xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
+    num_xfm=${#xfm_search[@]}
+    echo "  Xfm files: number : $num_xfm"
+    echo "    notably: ${xfm_search[@]}"
 
 fi    
  
@@ -341,12 +347,12 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
     # set up directories 
     cd $cwd
     long_bids_subj=${search_sessions[$current_session]}
-    echo $long_bids_subj
+    #echo $long_bids_subj
     bids_subj=${long_bids_subj%dwi}
 
     # Change the Directory to write preprocessed data in
     preproc=dwiprep/sub-${subj}/$(basename $bids_subj) 
-    echo $preproc
+    #echo $preproc
     cd $preproc
 
     # STEP 1 - create the ROIS for fibertractography -------------------------------------------------------
@@ -361,6 +367,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
     # Where is fs_labels?
     fs_labels=roi/labels_from_FS.nii.gz
 
+    #fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-preproc_T1w.nii.gz"
 
     # we read the config file (and it may be csv, tsv or ;-seperated)
     while IFS=$'\t,;' read -r roi_name from_atlas space label_id; do
@@ -380,31 +387,18 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
                     echo " creating the $space space $roi_name ROI from $from_atlas..." 
 
-                    # Transforming the T1w to fmriprep space
-                    xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
-                    num_xfm=${#xfm_search[@]}
-                    echo "  Xfm files: number : $num_xfm"
-                    echo "    notably: ${xfm_search[@]}"
-
-                    #antsApplyTransforms -i $ants_anat_tmp -o $ants_anat -r $ants_anat_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
-
                     input=${kul_main_dir}/atlasses/Local/${from_atlas}
                     input=${input//[[:blank:]]/}
-                    echo $input
-                    output=roi/${roi_name}.nii.gz
-                    echo ${xfm_search[0]}
-                    echo $current_session
+                    output=roi/${roi_name}_tmp.nii.gz
                     transform="${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5"
                     reference=$ants_anat
                     KUL_antsApply_Transform
 
-                    input=roi/${roi_name}.nii.gz
-                    output=roi/${roi_name}_2.nii.gz
-                    transform=${xfm_search[0]}
+                    input=roi/${roi_name}_tmp.nii.gz
+                    output=roi/${roi_name}.nii.gz
+                    transform=${xfm_search[$current_session]}
                     reference=$ants_anat
                     KUL_antsApply_Transform
-
-
 
                 fi
 
@@ -414,7 +408,6 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
     done < ${cwd}/$rois_config
 
-exit
 
     # STEP 2 - perform fibertractography -------------------------------------------------------
     
