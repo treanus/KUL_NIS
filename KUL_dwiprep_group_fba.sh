@@ -235,7 +235,7 @@ else
 fi
 
 
-# STEP 1 - Intensity Normalisation
+# STEP 1 - Intensity Normalisation (only for ST data)
 #dwiintensitynorm ../dwiintensitynorm/dwi_input/ ../dwiintensitynorm/mask_input/ ../dwiintensitynorm/dwi_output/ ../dwiintensitynorm/fa_template.mif        ../dwiintensitynorm/fa_template_wm_mask.mif
 
 if [ "$algo" = "st" ]; then 
