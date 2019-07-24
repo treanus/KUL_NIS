@@ -216,15 +216,24 @@ else
 
 fi
 
+
 # Transforming the T1w to fmriprep space
 xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
 num_xfm=${#xfm_search[@]}
 echo "  Xfm files: number : $num_xfm"
 echo "    notably: ${xfm_search[@]}"
 
-antsApplyTransforms -i $ants_anat_tmp -o $ants_anat -r $ants_anat_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+if [ $num_xfm -lt 1 ]; then
 
-rm -rf $ants_anat_tmp
+    antsApplyTransforms -i $ants_anat_tmp -o $ants_anat -r $ants_anat_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+    rm -rf $ants_anat_tmp
+
+else
+
+    mv $ants_anat_tmp $ants_anat
+
+fi
+
 
 # register mean b0 to betted T1w (rigid) 
 ants_b0=dwi_b0.nii.gz
@@ -333,7 +342,16 @@ num_xfm=${#xfm_search[@]}
 echo "  Xfm files: number : $num_xfm"
 echo "    notably: ${xfm_search[@]}"
 fs_labels=roi/labels_from_FS.nii.gz
-antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+
+if [ $num_xfm -lt 1 ]; then
+
+    antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+
+else
+
+    mv $fs_labels_tmp $fs_labels
+
+fi
 
 # 5tt segmentation & tracking
 mkdir -p 5tt
