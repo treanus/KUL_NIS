@@ -447,7 +447,7 @@ else
 
 fi
 
-exit
+
 
 # Register all subject FOD images to the FOD template
 #foreach -${ncpu_foreach} * : mrregister IN/wmfod.mif -mask1 IN/dwi_mask_upsampled.mif ../template/wmfod_template.mif -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif
