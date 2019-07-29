@@ -182,13 +182,21 @@ function kul_mrtrix_tracto {
 
 function KUL_antsApply_Transform {
 
+    # Fix bug in antsApplytransforms (add EOF at tranform file)
+
+    cp $transform /tmp/transform_tmp.txt
+    echo "" >> /tmp/transform_tmp.txt
+
     antsApplyTransforms -d 3 --float 1 \
     --verbose 1 \
     -i $input \
     -o $output \
     -r $reference \
-    -t $transform \
+    -t /tmp/transform_tmp.txt \
     -n Linear
+
+    rm -rf /tmp/transform_tmp.txt
+    
 }
 
 # CHECK COMMAND LINE OPTIONS -------------
