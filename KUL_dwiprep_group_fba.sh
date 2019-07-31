@@ -729,7 +729,7 @@ if [ ! -f ../tckgen.done ]; then
     
 else
     
-    echo "   Compute the fibre cross-section LOG-(FC) metric already done"
+    echo "   Whole brain fibre tractography already done"
 
 fi
 
