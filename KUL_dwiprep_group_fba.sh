@@ -457,9 +457,20 @@ if [ ! -f ../fod_reg2template.done ]; then
 
     echo "   Registering all subject FOD images to the FOD template"
 
-    foreach -${ncpu_foreach} * : mrregister IN/wmfod.mif -mask1 IN/dwi_preproced_reg2T1w_normalised_mask.mif \
-    ../template/wmfod_template.mif \
-    -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif -nthreads $ncpu -force
+    if [ "$algo" = "st" ]; then 
+        
+        foreach -${ncpu_foreach} * : mrregister IN/wmfod.mif -mask1 IN/dwi_preproced_reg2T1w_normalised_mask.mif \
+        ../template/wmfod_template.mif \
+        -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif -nthreads $ncpu -force
+
+    else
+
+        foreach -${ncpu_foreach} * : mrregister IN/wmfod.mif -mask1 IN/dwi_preproced_reg2T1w_mask.mif \
+        ../template/wmfod_template.mif \
+        -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif -nthreads $ncpu -force
+
+    fi 
+
     if [ $? -eq 0 ]; then
         echo "done" > ../fod_reg2template.done
     fi
@@ -478,9 +489,19 @@ fi
 if [ ! -f ../template/template_mask.mif ]; then
 
     echo "   Compute the template mask"
-    foreach -${ncpu_foreach} * : mrtransform IN/dwi_preproced_reg2T1w_normalised_mask.mif -warp IN/subject2template_warp.mif \
-    -interp nearest -datatype bit IN/dwi_mask_in_template_space.mif -nthreads $ncpu -force
 
+    if [ "$algo" = "st" ]; then 
+        
+        foreach -${ncpu_foreach} * : mrtransform IN/dwi_preproced_reg2T1w_normalised_mask.mif -warp IN/subject2template_warp.mif \
+        -interp nearest -datatype bit IN/dwi_mask_in_template_space.mif -nthreads $ncpu -force
+
+    else
+
+        foreach -${ncpu_foreach} * : mrtransform IN/dwi_preproced_reg2T1w_mask.mif -warp IN/subject2template_warp.mif \
+        -interp nearest -datatype bit IN/dwi_mask_in_template_space.mif -nthreads $ncpu -force
+
+    fi
+    
     mrmath */dwi_mask_in_template_space.mif min ../template/template_mask.mif -datatype bit -nthreads $ncpu
 
 else
@@ -537,7 +558,7 @@ if [ ! -f ../fa_adc_warp.done ]; then
     for i in ${search_sessions[@]}
     do
 
-        s=$(echo $i | awk -F 'sub-' '{print $2}' | sed 's/.$//')
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
         mrconvert $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/FA_subj_space.mif -force
 
     done
@@ -549,7 +570,7 @@ if [ ! -f ../fa_adc_warp.done ]; then
     for i in ${search_sessions[@]}
     do
 
-        s=$(echo $i | awk -F 'sub-' '{print $2}' | sed 's/.$//')
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
         mrconvert $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/ADC_subj_space.mif -force
 
     done
@@ -573,7 +594,7 @@ if [ ! -f ../fa_adc_warp.done ]; then
 
 else
 
-    echo "   Warping FOD images to template space already done"
+    echo "   Warping FA/ADC images to template space already done"
 
 fi  
 
