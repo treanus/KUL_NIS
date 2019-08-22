@@ -11,7 +11,7 @@ if [ "$what_to_build" = "" ]; then
 fi
 
 cwd=$(pwd)
-docker run --privileged -t --rm \
+sudo docker run --privileged -t --rm \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v ${cwd}:/output \
     singularityware/docker2singularity \
