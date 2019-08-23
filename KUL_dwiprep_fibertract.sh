@@ -60,6 +60,7 @@ Required arguments:
 
 Optional arguments:
 
+     -f:  perform whole/full brain fibertractography first (and tckedit)
      -w:  which wmfod to use (default = dhollander_wmfod_norm_reg2T1w)
      -s:  session (of the participant)
      -n:  number of cpu for parallelisation
@@ -73,7 +74,15 @@ USAGE
 
 function kul_mrtrix_tracto {
 
-    local a=$algorithm
+    if [ $f_flag -eq 1 ]; then
+        
+        local a="iFOD2_WBFT"
+    
+    else
+
+        local a=$algorithm
+    
+    fi
 
     mkdir -p tracts_${a}
     
@@ -104,20 +113,27 @@ function kul_mrtrix_tracto {
         #echo $m
         echo $parameters
 
-        if [ "${a}" == "iFOD2" ]; then
+        if [ $f_flag -eq 1 ]; then
 
-            # perform IFOD2 tckgen
-            #tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -angle $theta -select 2000 -nthreads $ncpu -force
-            tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -nthreads $ncpu -force
+            #WBFT
+            tckedit $i $e $m tracks_20_million.tck tracts_${a}/${tract}.tck -nthreads $ncpu -force
 
-        elif [ "${a}" == "Tensor_prob" ]; then
+        else
 
-            # perform Tensor_Prob tckgen
-            #tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -select 2000 -nthreads $ncpu -force
-            tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -nthreads $ncpu -force
+            if [ "${a}" == "iFOD2" ]; then
 
-        fi
+                # perform IFOD2 tckgen
+                tckgen $wmfod tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -nthreads $ncpu -force
+
+            elif [ "${a}" == "Tensor_prob" ]; then
+
+                # perform Tensor_Prob tckgen
+                tckgen $dwi_preproced tracts_${a}/${tract}.tck -algorithm $a $parameters $s $i $e $m -nthreads $ncpu -force
+
+            fi
         
+        fi
+
     else
 
         echo "  tckgen of ${tract} tract already done, skipping"
@@ -212,6 +228,7 @@ p_flag=0
 c_flag=0
 r_flag=0
 s_flag=0
+f_flag=0
 
 if [ "$#" -lt 3 ]; then
 
@@ -224,7 +241,7 @@ if [ "$#" -lt 3 ]; then
 
 else
 
-    while getopts "p:c:r:s:n:w:vh" OPT; do
+    while getopts "p:c:r:s:n:w:fvh" OPT; do
 
         case $OPT in
         p) #subject
@@ -242,6 +259,9 @@ else
         s) #session
             s_flag=1
             ses=$OPTARG
+        ;;
+        f) #session
+            f_flag=1
         ;;
         n) #parallel
             ncpu=$OPTARG
@@ -421,6 +441,19 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
     
     wmfod=response/${wmfod_select}.mif
     dwi_preproced=dwi_preproced_reg2T1w.mif
+    dwi_mask=dwi_preproced_reg2T1w_mask.nii.gz
+
+    # Check WBFT or direct tracking
+    if [ $f_flag -eq 1 ]; then
+
+        # WBFT
+        #wbft_options="-maxlen 250 -minlen 10 -select 20000000"
+        wbft_options="-maxlen 250 -minlen 10 -select 20000000"
+        echo " Performing Whole Brain Fiber Tractography first"
+
+        tckgen $wmfod -seed_image $dwi_mask -mask $dwi_mask tracks_20_million.tck $wbft_options -nthreads $ncpu
+
+    fi
 
     # Make an empty log file with information about the tracts
     echo "subject, algorithm, tract, count" > tracts_info.csv
@@ -440,8 +473,6 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
         fi 
 
     done < ${cwd}/$tracts_config
-
-
 
 
 done
