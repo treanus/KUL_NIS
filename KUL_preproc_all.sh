@@ -186,6 +186,8 @@ else
 #    echo $task_mriqc_cmd > VSC/pbs_task_mriqc.txt
     task_command=$(echo "singularity run --cleanenv \
  -B \${cwd}:/work \
+ -B \${cwd}:/data \
+ -B \${cwd}:/out \
  \$KUL_mriqc_singularity \
  --participant_label \$BIDS_participant \
  \$mriqc_options \
@@ -259,10 +261,12 @@ if [ $fmriprep_singularity -eq 1 ]; then
         
  local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
  -B ./fmriprep_work_${fmriprep_log_p}:/work \
+ -B .:/data \
+ -B .:/out \
  -B ${freesurfer_license}:/opt/freesurfer/license.txt \
  $KUL_fmriprep_singularity \
- ./${bids_dir} \
- . \
+ /data/${bids_dir} \
+ /out \
  participant \
  --participant_label ${BIDS_participant} \
  -w /work \
