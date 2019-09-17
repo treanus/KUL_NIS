@@ -28,7 +28,7 @@ cat <<USAGE
 
 Usage:
 
-  `basename $0` -p subject <OPT_ARGS>
+  `basename $0` -g group_name <OPT_ARGS>
 
 Example:
 
@@ -69,7 +69,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "n:g:t:v" OPT; do
+    while getopts "n:g:t:a:v" OPT; do
 
         case $OPT in
         n) #ncpu
