@@ -92,7 +92,7 @@ function kul_mrtrix_tracto {
     local s=$(printf " -seed_image roi/%s.nii.gz"  ${seeds[@]})
     
     # make the include string (which is same rois as seed)
-    local i=$(printf " -include roi/%s.nii.gz"  ${seeds[@]})
+    local i=$(printf " -include roi/%s.nii.gz"  ${include[@]})
 
     # make the exclude string (which is same rois as seed)
     local e=$(printf " -exclude roi/%s.nii.gz"  ${exclude[@]})
@@ -451,7 +451,9 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
         wbft_options="-maxlen 250 -minlen 10 -select 20000000"
         echo " Performing Whole Brain Fiber Tractography first"
 
-        tckgen $wmfod -seed_image $dwi_mask -mask $dwi_mask tracks_20_million.tck $wbft_options -nthreads $ncpu
+        if [ ! -f tracks_20_million.tck ]; then
+            tckgen $wmfod -seed_image $dwi_mask -mask $dwi_mask tracks_20_million.tck $wbft_options -nthreads $ncpu
+        fi
 
     fi
 
@@ -467,6 +469,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
         
             tract=$tract_name
             seeds=($seed_rois)  
+            include=($include_rois)
             exclude=($exclude_rois)
             kul_mrtrix_tracto
         
