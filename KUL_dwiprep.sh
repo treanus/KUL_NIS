@@ -274,7 +274,18 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
         #echo "catting dwi_orig"
         mrcat ${raw}/dwi_p*_scaled.mif ${preproc}/dwi_orig.mif
+
+        # Also going to try to run dwicat (development version)
         dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig_dwicat.mif
+
+        # if dwicat ran, overwrite old
+        if [ ${preproc}/dwi_orig_dwicat.mif ]; then
+
+            mv ${preproc}/dwi_orig.mif ${preproc}/dwi_orig_oldscaling.mif
+            mv ${preproc}/dwi_orig_dwicat.mif ${preproc}/dwi_orig.mif
+
+        fi 
+        
 
     fi
 
@@ -418,7 +429,7 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
     if [ $regular_dwipreproc -eq 1 ]; then
 
-        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+        dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 	
     else
 
