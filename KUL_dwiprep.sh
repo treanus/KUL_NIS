@@ -274,6 +274,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
         #echo "catting dwi_orig"
         mrcat ${raw}/dwi_p*_scaled.mif ${preproc}/dwi_orig.mif
+        dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig_dwicat.mif
 
     fi
 
