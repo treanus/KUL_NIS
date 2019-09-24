@@ -116,7 +116,7 @@ function kul_mrtrix_tracto {
         if [ $f_flag -eq 1 ]; then
 
             #WBFT
-            tckedit $i $e $m tracks_20_million.tck tracts_${a}/${tract}.tck -nthreads $ncpu -force
+            tckedit $i $e $m ${output_wbft}.tck tracts_${a}/${tract}.tck -nthreads $ncpu -force
 
         else
 
@@ -442,17 +442,19 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
     wmfod=response/${wmfod_select}.mif
     dwi_preproced=dwi_preproced_reg2T1w.mif
     dwi_mask=dwi_preproced_reg2T1w_mask.nii.gz
+    output_wbft=tracks_50_million
+    input_wbft=50000000
 
     # Check WBFT or direct tracking
     if [ $f_flag -eq 1 ]; then
 
         # WBFT
-        #wbft_options="-maxlen 250 -minlen 10 -select 20000000"
-        wbft_options="-maxlen 250 -minlen 10 -select 20000000"
+        wbft_options="-maxlen 250 -minlen 10 -select $input_wbft"
+
         echo " Performing Whole Brain Fiber Tractography first"
 
-        if [ ! -f tracks_20_million.tck ]; then
-            tckgen $wmfod -seed_image $dwi_mask -mask $dwi_mask tracks_20_million.tck $wbft_options -nthreads $ncpu
+        if [ ! -f ${output_wbft}.tck ]; then
+            tckgen $wmfod -seed_image $dwi_mask -mask $dwi_mask ${output_wbft}.tck $wbft_options -nthreads $ncpu
         fi
 
     fi
