@@ -425,8 +425,6 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
     fi
 
-    
-
     if [ $regular_dwipreproc -eq 1 ]; then
 
         dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
@@ -436,7 +434,7 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
         # concat all b0 with different pe_schemes
         mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force    
         
-        dwipreproc -se_epi raw/se_epi_for_topup.mif dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+        dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
     
     fi
 
@@ -487,7 +485,8 @@ if [ ! -f dwi_preproced.mif ]; then
 
     # bias field correction
     kul_e2cl "    dwibiascorrect" ${log}
-    dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force 
+    #dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force 
+    dwibiascorrect ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force 
 
     # upsample the images
     kul_e2cl "    upsampling resolution..." ${log}
