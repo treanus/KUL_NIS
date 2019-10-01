@@ -326,7 +326,16 @@ if [ ! -f qa/dhollander_dec_reg2T1w.mif ]; then
 
 fi
 
-# 5TT segmentation using freesurfer data ---------------------------------
+# Create and transform extra freesurfer data ---------------------------------
+
+# create the subcortical wm segmentations
+source $FREESURFER_HOME/SetUpFreeSurfer.sh
+mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi lh --lobesStrict lobes
+mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi rh --lobesStrict lobes
+mri_aparc2aseg --s ${subj} --sd ${cwd}/freesurfer/sub-${subj}  --labelwm --hypo-as-wm --rip-unknown \
+ --volmask --o ${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
+ --annot lobes --base-offset 200
+
 
 # Where is the freesurfer parcellation? 
 fs_aparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/aparc+aseg.mgz
