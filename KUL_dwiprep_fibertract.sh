@@ -394,6 +394,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
     # Where is fs_labels?
     fs_labels=roi/labels_from_FS.nii.gz
+    fs_wmlabels=roi/labels_wm_from_FS.nii.gz
 
     #fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-preproc_T1w.nii.gz"
 
