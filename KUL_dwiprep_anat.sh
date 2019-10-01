@@ -326,15 +326,27 @@ if [ ! -f qa/dhollander_dec_reg2T1w.mif ]; then
 
 fi
 
-# 5TT segmentation using freesurfer data ---------------------------------
+# Create and transform extra freesurfer data ---------------------------------
+
+# create the subcortical wm segmentations
+source $FREESURFER_HOME/SetUpFreeSurfer.sh
+mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi lh --lobesStrict lobes
+mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi rh --lobesStrict lobes
+mri_aparc2aseg --s ${subj} --sd ${cwd}/freesurfer/sub-${subj}  --labelwm --hypo-as-wm --rip-unknown \
+ --volmask --o ${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
+ --annot lobes --base-offset 200
+
 
 # Where is the freesurfer parcellation? 
 fs_aparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/aparc+aseg.mgz
+fs_wmparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.mgz
 
 # Convert FS aparc back to original space
 mkdir -p roi
 fs_labels_tmp=roi/labels_from_FS_tmp.nii.gz
+fs_wmlabels_tmp=roi/labels_wm_from_FS_tmp.nii.gz
 mri_convert -rl $ants_anat -rt nearest $fs_aparc $fs_labels_tmp
+mri_convert -rl $ants_anat -rt nearest $fs_wmparc $fs_wmlabels_tmp
 
 # Transforming the FS aparc to fmriprep space
 xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
@@ -342,14 +354,17 @@ num_xfm=${#xfm_search[@]}
 echo "  Xfm files: number : $num_xfm"
 echo "    notably: ${xfm_search[@]}"
 fs_labels=roi/labels_from_FS.nii.gz
+fs_wmlabels=roi/labels_wm_from_FS.nii.gz
 
 if [ $num_xfm -lt 1 ]; then
 
     antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+    antsApplyTransforms -i $fs_wmlabels_tmp -o $fs_wmlabels -r $fs_wmlabels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
 
 else
 
     mv $fs_labels_tmp $fs_labels
+    mv $fs_wmlabels_tmp $fs_wmlabels
 
 fi
 
