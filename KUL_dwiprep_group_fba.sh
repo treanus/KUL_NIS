@@ -158,8 +158,9 @@ if [ ! -f data_prep.done ]; then
     do
 
         s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
-        #echo $i
-        #echo $s
+        echo "HIER BEN IK"
+        echo $i
+        echo $s
         mkdir -p ${cwd}/dwiprep/${group_name}/fba/subjects/${s}
         ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dwi_preproced_reg2T1w.mif
         if [ "$algo" = "st" ]; then 
