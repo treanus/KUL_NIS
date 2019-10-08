@@ -8,7 +8,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 14/02/2019 - alpha version
-v="v0.1 - dd 14/02/2019"
+v="v0.1 - dd 14/02/2019" 
 
 # A few fixed (for now) parameters:
 
