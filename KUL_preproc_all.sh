@@ -284,14 +284,14 @@ else
  -v ${cwd}/fmriprep_work_${fmriprep_log_p}:/scratch \
  -v ${freesurfer_license}:/opt/freesurfer/license.txt \
  poldracklab/fmriprep:latest \
+ /data /out \
+ participant \
  --participant_label ${BIDS_participant} \
  -w /scratch \
  --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
  --mem_mb $mem_mb \
  $fmriprep_options \
  --notrack \
- /data /out \
- participant \
  > $fmriprep_log  2>&1") 
 
 fi
