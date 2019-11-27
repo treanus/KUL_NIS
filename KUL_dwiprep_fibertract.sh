@@ -443,9 +443,13 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
     wmfod=response/${wmfod_select}.mif
     dwi_preproced=dwi_preproced_reg2T1w.mif
     dwi_mask=dwi_preproced_reg2T1w_mask.nii.gz
-    output_wbft=tracks_50_million
-    input_wbft=50000000
-
+    #output_wbft=tracks_50_million
+    #input_wbft=50000000
+    
+    output_wbft=tracks_20_million
+    input_wbft=20000000
+    
+    
     # Check WBFT or direct tracking
     if [ $f_flag -eq 1 ]; then
 
