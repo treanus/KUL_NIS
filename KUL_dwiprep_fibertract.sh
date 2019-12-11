@@ -107,10 +107,10 @@ function kul_mrtrix_tracto {
 
         #echo ${a}            
         #pwd
-        #echo $s
-        #echo $i
-        #echo $e
-        #echo $m
+        echo $s
+        echo $i
+        echo $e
+        echo $m
         echo $parameters
 
         if [ $f_flag -eq 1 ]; then

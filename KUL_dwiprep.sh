@@ -645,7 +645,7 @@ echo "done" > log/${current_session}_done.log
 # STEP 5 - CLEANUP - here we clean up (large) temporary files
 rm -fr dwi/degibbs.mif
 rm -rf dwi/geomcorr.mif
-rm -rf raw
+#rm -rf raw
 
 echo " Finished processing session $bids_subj" 
 
