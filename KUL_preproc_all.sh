@@ -1086,7 +1086,7 @@ if [ $expert -eq 1 ]; then
     
     if [ $do_fmriprep -eq 1 ]; then
 
-        fmriprep_options=$(grep fmriprep_options $conf | grep -v \# | cut -d':' -f 2)
+        fmriprep_options=$(grep fmriprep_options $conf | grep -v \# | cut -d':' -f 2-1000)
 
         fmriprep_ncpu=$(grep fmriprep_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
         ncpu_fmriprep=$fmriprep_ncpu
