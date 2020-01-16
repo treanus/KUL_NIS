@@ -508,7 +508,8 @@ if [ ! -f dwi_preproced.mif ]; then
 
     # bias field correction
     kul_e2cl "    dwibiascorrect" ${log}
-    dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force 
+    #dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force 
+    dwibiascorrect -fsl dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force 
     #dwibiascorrect ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force 
 
     # upsample the images
