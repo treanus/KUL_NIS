@@ -203,14 +203,14 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
         fi
         
         # check if already converted
-        bids_dir_to_check=${bids_output}/sub-${BIDS_participant}
+        bids_dir_to_check=${bids_output}/sub-${BIDS_participant}/ses-${session}
         
         #echo $BIDS_participant
         #echo $bids_dir_to_check
 
         if [ ! -d $bids_dir_to_check ]; then
 
-            kul_e2cl "Performing KUL_dcm2bids.sh -d $dcmdir/$dicom_zip -p $BIDS_participant -c Study_config/$config_file -o $bids_output -s "${session}" " $log
+            kul_e2cl "Performing KUL_dcm2bids.sh -d $dcmdir/$dicom_zip -p $BIDS_participant -c $config_file -o $bids_output -s "${session}" " $log
             KUL_dcm2bids.sh -d $dcmdir/$dicom_zip -p $BIDS_participant -c $config_file -o $bids_output -s "${session}"
         
         else
