@@ -1,7 +1,7 @@
 #!/bin/bash -l
 
 #PBS -l nodes=1:ppn=##CPU##
-#PBS -l mem=##MEM##gb
+#PBS -l pmem=##MEM##gb
 
 #PBS -A ##LP##
 #PBS -m abe

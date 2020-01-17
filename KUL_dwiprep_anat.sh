@@ -197,26 +197,18 @@ kul_e2cl "Welcome to KUL_dwiprep_anat $v - $d" ${log}
 mkdir -p T1w
 mkdir -p dwi_reg
 
-# Transforming the T1w to fmriprep space
-xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
-num_xfm=${#xfm_search[@]}
-echo "  Xfm files: number : $num_xfm"
-echo "    notably: ${xfm_search[@]}"
-
-antsApplyTransforms -i T1w_BrainExtractionBrain.nii.gz -o test.nii.gz -r T1w_BrainExtractionBrain.nii.gz -n NearestNeighbor -t ../../../../fmriprep/sub-001/ses-1/anat/sub-001_ses-1_from-orig_to-T1w_mode-image_xfm.txt
-
-exit
-
 fmriprep_subj=fmriprep/"sub-${subj}"
 fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-preproc_T1w.nii.gz"
 fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-brain_mask.nii.gz"
+ants_anat_tmp=T1w/tmp.nii.gz
 ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
+
 
 # bet the T1w using fmriprep data
 if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
     kul_e2cl " skull stripping the T1w from fmriprep..." $log
 
-    fslmaths $fmriprep_anat -mas $fmriprep_anat_mask $ants_anat
+    fslmaths $fmriprep_anat -mas $fmriprep_anat_mask $ants_anat_tmp
 
 else
 
@@ -224,7 +216,26 @@ else
 
 fi
 
-# register mean b0 to betted T1w (rigid)
+
+# Transforming the T1w to fmriprep space
+xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
+num_xfm=${#xfm_search[@]}
+echo "  Xfm files: number : $num_xfm"
+echo "    notably: ${xfm_search[@]}"
+
+if [ $num_xfm -lt 1 ]; then
+
+    antsApplyTransforms -i $ants_anat_tmp -o $ants_anat -r $ants_anat_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+    rm -rf $ants_anat_tmp
+
+else
+
+    mv $ants_anat_tmp $ants_anat
+
+fi
+
+
+# register mean b0 to betted T1w (rigid) 
 ants_b0=dwi_b0.nii.gz
 ants_type=dwi_reg/rigid
 
@@ -245,7 +256,7 @@ else
     echo " registering the T1w image to  (rigid) already done, skipping..."
 
 fi
-
+ 
 
 # Apply the rigid transformation of the dMRI to T1 
 #  to the wmfod and the preprocessed dMRI data
@@ -315,15 +326,123 @@ if [ ! -f qa/dhollander_dec_reg2T1w.mif ]; then
 
 fi
 
-# 5TT segmentation using freesurfer data ---------------------------------
+# register ADC to betted T1w (non-linear) 
+ants_adc=qa/adc_reg2T1w.nii.gz
+ants_type=dwi_reg/nonlinear
+ADC_nii_brain_mask=dwi_preproced_reg2T1w_mask.nii.gz
+T1_brain_nii=T1w/T1w_BrainExtractionBrain.nii.gz
+T1_brain_mask=$fmriprep_anat_mask
+
+
+if [ ! -f dwi_reg/nonlinear_outWarped.nii.gz ]; then
+
+    kul_e2cl " registering the the dmri ADC to the betted T1w image (non-linear)..." ${log}
+    antsRegistration --dimensionality 3 \
+        --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
+        -x [${T1_brain_mask},${ADC_nii_brain_mask},NULL] \
+        -m MI[${T1_brain_nii},${ants_adc},1,32,Regular,0.5] \
+        -c [1000x500x250x0,1e-7,5] -t Affine[0.1] -f 8x4x2x1 -s 4x2x1x0 -u 1 -v 1\
+        -m mattes[${T1_brain_nii},${ants_adc},1,64,Regular,0.5] -c [200x200x50,1e-7,5] \
+        -t SyN[0.1,3,0] -f 4x2x1 -s 2x1x0mm -u 1 -z 1 --winsorize-image-intensities [0.005, 0.995]
+
+else
+
+    echo " registering the diffusion data to T1w (non-linear) already done, skipping..."
+
+fi
+
+
+# mrtransform the FODs non-linearly
+if [ ! -f dwi_reg/mrtrix_warp_corrected.mif ]; then
+
+    kul_e2cl " converting ants (non-linear) warps to mrtrix format..." ${log}
+    input_fod_image=response/dhollander_wmfod_reg2T1w.mif
+    template=dwi_preproced_reg2T1w_mask.nii.gz
+    ants_warp=dwi_reg/nonlinear_out1Warp.nii.gz
+    ants_affine=dwi_reg/nonlinear_out0GenericAffine.mat
+
+    warpinit $input_fod_image dwi_reg/identity_warp[].nii -force
+
+    for i in {0..2}
+    do
+        echo $i
+        WarpImageMultiTransform 3 dwi_reg/identity_warp${i}.nii dwi_reg/mrtrix_warp${i}.nii -R $template $ants_warp $ants_affine   
+    done
+
+    warpcorrect dwi_reg/mrtrix_warp[].nii dwi_reg/mrtrix_warp_corrected.mif -force
+
+fi
+
+# Apply the non-linear transformation of the dMRI to T1 
+#  to the wmfod 
+#mrtransform $input_fod_image -warp dwi_reg/mrtrix_warp_corrected.mif dwi_reg/warped_fod_image.mif -force
+
+if [ ! -f response/tournier_wmfod_NLreg2T1w.mif ]; then
+
+    if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then    
+        mrtransform response/dhollander_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
+            response/dhollander_wmfod_NLreg2T1w.mif -nthreads $ncpu -force 
+        mrtransform response/dhollander_wmfod_norm_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
+            response/dhollander_wmfod_norm_NLreg2T1w.mif -nthreads $ncpu -force
+        mrtransform response/dhollander_wmfod_noGM_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
+            response/dhollander_wmfod_noGM_NLreg2T1w.mif -nthreads $ncpu -force 
+        mrtransform response/dhollander_wmfod_norm_noGM_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
+            response/dhollander_wmfod_norm_noGM_NLreg2T1w.mif -nthreads $ncpu -force
+    fi
+    if [ -f response/tax_wmfod_NLreg2T1w.mif ]; then 
+        mrtransform response/tax_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
+            response/tax_wmfod_NLreg2T1w.mif -nthreads $ncpu -force 
+    fi
+    if [ -f response/tournier_wmfod_NLreg2T1w.mif ]; then 
+        mrtransform response/tournier_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
+            response/tournier_wmfod_NLreg2T1w.mif -nthreads $ncpu -force         
+    fi
+
+fi
+
+
+
+# Create and transform extra freesurfer data ---------------------------------
+
+# create the subcortical wm segmentations
+source $FREESURFER_HOME/SetUpFreeSurfer.sh
+mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi lh --lobesStrict lobes
+mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi rh --lobesStrict lobes
+mri_aparc2aseg --s ${subj} --sd ${cwd}/freesurfer/sub-${subj}  --labelwm --hypo-as-wm --rip-unknown \
+ --volmask --o ${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
+ --annot lobes --base-offset 200
+
 
 # Where is the freesurfer parcellation? 
 fs_aparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/aparc+aseg.mgz
+fs_wmparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.mgz
 
 # Convert FS aparc back to original space
 mkdir -p roi
+fs_labels_tmp=roi/labels_from_FS_tmp.nii.gz
+fs_wmlabels_tmp=roi/labels_wm_from_FS_tmp.nii.gz
+mri_convert -rl $ants_anat -rt nearest $fs_aparc $fs_labels_tmp
+mri_convert -rl $ants_anat -rt nearest $fs_wmparc $fs_wmlabels_tmp
+
+# Transforming the FS aparc to fmriprep space
+xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
+num_xfm=${#xfm_search[@]}
+echo "  Xfm files: number : $num_xfm"
+echo "    notably: ${xfm_search[@]}"
 fs_labels=roi/labels_from_FS.nii.gz
-mri_convert -rl $ants_anat -rt nearest $fs_aparc $fs_labels
+fs_wmlabels=roi/labels_wm_from_FS.nii.gz
+
+if [ $num_xfm -lt 1 ]; then
+
+    antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+    antsApplyTransforms -i $fs_wmlabels_tmp -o $fs_wmlabels -r $fs_wmlabels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+
+else
+
+    mv $fs_labels_tmp $fs_labels
+    mv $fs_wmlabels_tmp $fs_wmlabels
+
+fi
 
 # 5tt segmentation & tracking
 mkdir -p 5tt

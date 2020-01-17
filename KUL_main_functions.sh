@@ -61,7 +61,7 @@ else
 
         echo "Your mrtrix3 RC3 subversion is $mrtrix_version"
         echo "You need mrtrix3 RC3 subversion => $mrtrix_version_needed"
-        exit 2
+        #exit 2
 
     fi
 

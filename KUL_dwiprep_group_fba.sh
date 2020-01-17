@@ -16,6 +16,11 @@ kul_main_dir=`dirname "$0"`
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
 ncpu_foreach=4
+#suffix="_reg2T1w"
+suffix=""
+
+select_shells="0 700 1000 2000"
+
 
 # FUNCTIONS --------------
 
@@ -28,7 +33,7 @@ cat <<USAGE
 
 Usage:
 
-  `basename $0` -p subject <OPT_ARGS>
+  `basename $0` -g group_name <OPT_ARGS>
 
 Example:
 
@@ -40,6 +45,7 @@ Required arguments:
 
 Optional arguments:
      
+     -a:  algorithm: single tissue (st) or multi tissue (mt) (default=mt)
      -t:  subjects used for population_template (useful if you have more than 30 to 40 subjects, otherwise the template building takes very long)
      -n:  number of cpu for parallelisation
      -v:  show output from mrtrix commands
@@ -56,11 +62,11 @@ USAGE
 # Set defaults
 ncpu=6 # default if option -n is not given
 silent=1 # default if option -v is not given
+algo=mt
 
 # Set required options
 g_flag=0
 t_flag=0
-
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -68,7 +74,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "n:g:t:v" OPT; do
+    while getopts "n:g:t:a:v" OPT; do
 
         case $OPT in
         n) #ncpu
@@ -81,6 +87,9 @@ else
         t) #templatesubjects
             templatesubjects="$OPTARG"
             t_flag=1
+        ;;
+        a) #verbose
+            algo="$OPTARG"
         ;;
         v) #verbose
             silent=0
@@ -134,8 +143,10 @@ log=log/log_${d}.txt
 
 # --- MAIN ----------------
 mkdir -p dwiprep/${group_name}/fba/subjects
-mkdir -p dwiprep/${group_name}/fba/dwiintensitynorm/dwi_input
-mkdir -p dwiprep/${group_name}/fba/dwiintensitynorm/mask_input
+if [ "$algo" = "st" ]; then 
+    mkdir -p dwiprep/${group_name}/fba/dwiintensitynorm/dwi_input
+    mkdir -p dwiprep/${group_name}/fba/dwiintensitynorm/mask_input
+fi
 
 cd dwiprep/${group_name}/fba
 
@@ -145,34 +156,81 @@ if [ ! -f data_prep.done ]; then
     
     echo "   Preparing data in dwiprep/${group_name}/fba/"
     
-    search_sessions=($(find ${cwd}/dwiprep/sub-* -type f | grep dwi_preproced_reg2T1w.mif | sort ))
+    search_sessions=($(find ${cwd}/dwiprep/sub-* -type f | grep dwi_preproced${suffix}.mif | sort ))
     num_sessions=${#search_sessions[@]}
 
     for i in ${search_sessions[@]}
     do
 
-        s=$(echo $i | awk -F 'sub-' '{print $2}' | sed 's/.$//')
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
         #echo $i
         #echo $s
         mkdir -p ${cwd}/dwiprep/${group_name}/fba/subjects/${s}
-        ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dwi_preproced_reg2T1w.mif
-        ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_input/${s}_dwi_preproced_reg2T1w.mif
+        ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dwi_preproced${suffix}.mif
+        if [ "$algo" = "st" ]; then 
+            ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_input/${s}_dwi_preproced${suffix}.mif
+        fi
 
     done
 
 
+
     # find the preproced masks
-    search_sessions=($(find ${cwd}/dwiprep -type f | grep dwi_preproced_reg2T1w_mask.nii.gz | sort ))
+    search_sessions=($(find ${cwd}/dwiprep -type f | grep dwi_preproced${suffix}_mask.nii.gz | sort ))
     num_sessions=${#search_sessions[@]}
 
     for i in ${search_sessions[@]}
     do
 
-        s=$(echo $i | awk -F 'sub-' '{print $2}' | sed 's/.$//')
-        mrconvert $i ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/mask_input/${s}_dwi_preproced_reg2T1w.mif -force
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+        if [ "$algo" = "st" ]; then 
+        
+            mrconvert $i ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/mask_input/${s}_dwi_preproced${suffix}.mif -force
+        
+        #else
+            
+            #    mrconvert $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dwi_preproced${suffix}_mask.mif -force
+        
+        fi
 
     done
     
+    # find the response functions
+    search_sessions=($(find ${cwd}/dwiprep -type f | grep dhollander_csf_response.txt | sort ))
+    num_sessions=${#search_sessions[@]}
+
+    for i in ${search_sessions[@]}
+    do
+
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+        ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dhollander_csf_response.txt
+        
+    done
+
+    # find the response functions
+    search_sessions=($(find ${cwd}/dwiprep -type f | grep dhollander_gm_response.txt | sort ))
+    num_sessions=${#search_sessions[@]}
+
+    for i in ${search_sessions[@]}
+    do
+
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+        ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dhollander_gm_response.txt
+        
+    done
+
+    # find the response functions
+    search_sessions=($(find ${cwd}/dwiprep -type f | grep dhollander_wm_response.txt | sort ))
+    num_sessions=${#search_sessions[@]}
+
+    for i in ${search_sessions[@]}
+    do
+
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+        ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dhollander_wm_response.txt
+        
+    done
+
     echo "done" > data_prep.done
 
 else
@@ -181,53 +239,94 @@ else
 
 fi
 
+# Option to select certain shells from the data
+if [ "$select_shells" = "" ]; then 
 
-# STEP 1 - Intensity Normalisation
-#dwiintensitynorm ../dwiintensitynorm/dwi_input/ ../dwiintensitynorm/mask_input/ ../dwiintensitynorm/dwi_output/ ../dwiintensitynorm/fa_template.mif ../dwiintensitynorm/fa_template_wm_mask.mif
-
-if [ ! -f dwiintensitynorm/fa_template_wm_mask.mif ]; then
-
-    echo "   Doing Intensity Normalisation"
-    dwiintensitynorm dwiintensitynorm/dwi_input/ dwiintensitynorm/mask_input/ \
-     dwiintensitynorm/dwi_output/ dwiintensitynorm/fa_template.mif \
-     dwiintensitynorm/fa_template_wm_mask.mif -nthreads $ncpu -force
-
-    mrinfo dwiintensitynorm/dwi_output/* -property dwi_norm_scale_factor > CHECK_dwi_norm_scale_factor.txt
+    echo "No shell selection, just continue"
 
 else
 
-    echo "   Intensity Normalisation already done"
+    echo "Shells $select_shells will now be used in further analysis"
+    echo "NOT YET IMPLEMENTED!!!!"
 
 fi
 
 
-# Adding a subject
-# dwi2tensor new_subject/dwi_denoised_unringed_preproc_unbiased.mif -mask new_subject/dwi_temp_mask.mif - | tensor2metric - -fa - | mrregister -force \
-# ../dwiintensitynorm/fa_template.mif - -mask2 new_subject/dwi_temp_mask.mif -nl_scale 0.5,0.75,1.0 -nl_niter 5,5,15 -nl_warp - /tmp/dummy_file.mif | \
-# mrtransform ../dwiintensitynorm/fa_template_wm_mask.mif -template new_subject/dwi_denoised_unringed_preproc_unbiased.mif -warp - - | dwinormalise \ 
-# new_subject/dwi_denoised_unringed_preproc_unbiased.mif - ../dwiintensitynorm/dwi_output/new_subject.mif
+
+
+# STEP 1 - Intensity Normalisation (only for ST data)
+#dwiintensitynorm ../dwiintensitynorm/dwi_input/ ../dwiintensitynorm/mask_input/ ../dwiintensitynorm/dwi_output/ ../dwiintensitynorm/fa_template.mif        ../dwiintensitynorm/fa_template_wm_mask.mif
+
+if [ "$algo" = "st" ]; then 
+
+
+
+    if [ ! -f dwiintensitynorm/fa_template_wm_mask.mif ]; then
+
+        echo "   Doing Intensity Normalisation"
+        dwiintensitynorm dwiintensitynorm/dwi_input/ dwiintensitynorm/mask_input/ \
+         dwiintensitynorm/dwi_output/ dwiintensitynorm/fa_template.mif \
+         dwiintensitynorm/fa_template_wm_mask.mif -nthreads $ncpu -force
+
+        mrinfo dwiintensitynorm/dwi_output/* -property dwi_norm_scale_factor > CHECK_dwi_norm_scale_factor.txt
+
+    else
+
+        echo "   Intensity Normalisation already done"
+
+    fi
+
+
+
+    # Adding a subject
+    # dwi2tensor new_subject/dwi_denoised_unringed_preproc_unbiased.mif -mask new_subject/dwi_temp_mask.mif - | tensor2metric - -fa - | mrregister -force \
+    # ../dwiintensitynorm/fa_template.mif - -mask2 new_subject/dwi_temp_mask.mif -nl_scale 0.5,0.75,1.0 -nl_niter 5,5,15 -nl_warp - /tmp/dummy_file.mif | \
+    # mrtransform ../dwiintensitynorm/fa_template_wm_mask.mif -template new_subject/dwi_denoised_unringed_preproc_unbiased.mif -warp - - | dwinormalise \ 
+    # new_subject/dwi_denoised_unringed_preproc_unbiased.mif - ../dwiintensitynorm/dwi_output/new_subject.mif
+
+fi
+
 
 
 # Link back the normalised data
 cd ${cwd}/dwiprep/${group_name}/fba/subjects
 
-#foreach ../dwiintensitynorm/dwi_output/* : ln -sr IN PRE/dwi_denoised_unringed_preproc_unbiased_normalised.mif
-foreach * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output/PRE_dwi_preproced_reg2T1w.mif \
-${cwd}/dwiprep/${group_name}/fba/subjects/IN/dwi_preproced_reg2T1w_normalised.mif
+if [ "$algo" = "st" ]; then 
+
+    #foreach ../dwiintensitynorm/dwi_output/* : ln -sr IN PRE/dwi_denoised_unringed_preproc_unbiased_normalised.mif
+    foreach * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output/PRE_dwi_preproced${suffix}.mif \
+    ${cwd}/dwiprep/${group_name}/fba/subjects/IN/dwi_preproced${suffix}_normalised.mif
+
+fi
 
 
 
 # STEP 2 - Computing an (average) white matter response function
 # foreach * : dwi2response tournier IN/dwi_denoised_unringed_preproc_unbiased_normalised.mif IN/response.txt
 
-if [ ! -f ../group_average_response.txt ]; then
+
+if [ ! -f ../average_response.done ]; then
     
     echo "   Computing an (average) white matter response function"
+    
+    if [ "$algo" = "st" ]; then 
+        
+        foreach -${ncpu_foreach} * : dwi2response tournier IN/dwi_preproced${suffix}_normalised.mif \
+        IN/response.txt -nthreads $ncpu -force
 
-    foreach -${ncpu_foreach} * : dwi2response tournier IN/dwi_preproced_reg2T1w_normalised.mif \
-    IN/response.txt -nthreads $ncpu -force
+        average_response */response.txt ../group_average_response.txt
+    
+    else
 
-    average_response */response.txt ../group_average_response.txt
+        average_response */dhollander_wm_response.txt ../group_average_response_wm.txt
+        average_response */dhollander_gm_response.txt ../group_average_response_gm.txt
+        average_response */dhollander_csf_response.txt ../group_average_response_csf.txt
+
+    fi
+
+    if [ $? -eq 0 ]; then
+        echo "done" > ../average_response.done
+    fi
 
 else
 
@@ -236,19 +335,34 @@ else
 fi
 
 
+
 # Compute new brain mask images
 # foreach * : dwi2mask IN/dwi_denoised_unringed_preproc_unbiased_normalised_upsampled.mif IN/dwi_mask_upsampled.mif
 
 if [ ! -f ../mask.done ]; then
 
     echo "   Compute new brain mask images"
+        
+    if [ "$algo" = "st" ]; then 
+    
+        foreach -${ncpu_foreach} * : dwi2mask IN/dwi_preproced${suffix}_normalised.mif IN/dwi_preproced${suffix}_normalised_mask.mif -nthreads $ncpu -force
+    
+    else
+    
+        foreach -${ncpu_foreach} * : dwi2mask IN/dwi_preproced${suffix}.mif IN/dwi_preproced${suffix}_mask.mif -nthreads $ncpu -force
 
-    foreach -${ncpu_foreach} * : dwi2mask IN/dwi_preproced_reg2T1w_normalised.mif IN/dwi_preproced_reg2T1w_normalised_mask.mif -nthreads $ncpu -force
+    fi
+
+
     if [ $? -eq 0 ]; then
         echo "done" > ../mask.done
     fi
-fi
 
+else
+
+    echo "   Computing of new brain mask images already done"
+
+fi
 
 
 
@@ -262,16 +376,45 @@ if [ ! -f ../fod_estimation.done ]; then
     
     echo "   Performing FOD estimation"
 
-    foreach -${ncpu_foreach} * : dwiextract IN/dwi_preproced_reg2T1w_normalised.mif - \
-    \| dwi2fod msmt_csd - ../group_average_response.txt IN/wmfod.mif \
-    -mask IN/dwi_preproced_reg2T1w_normalised_mask.mif -nthreads $ncpu -force
+    if [ "$algo" = "st" ]; then 
     
+        foreach -${ncpu_foreach} * : dwiextract IN/dwi_preproced${suffix}_normalised.mif - \
+        \| dwi2fod msmt_csd - ../group_average_response.txt IN/wmfod.mif \
+        -mask IN/dwi_preproced${suffix}_normalised_mask.mif -nthreads $ncpu -force
+    
+    else
+
+        foreach -${ncpu_foreach} * : dwi2fod msmt_csd IN/dwi_preproced${suffix}.mif \
+        ../group_average_response_wm.txt IN/wmfod.mif \
+        ../group_average_response_gm.txt IN/gm.mif  \
+        ../group_average_response_csf.txt IN/csf.mif \
+        -mask IN/dwi_preproced${suffix}_mask.mif -force
+
+    fi
+
     if [ $? -eq 0 ]; then
         echo "done" > ../fod_estimation.done
     fi
 
 fi
 
+# STEP 3B - form multi-tissue only - Joint bias field correction and intensity normalisation
+
+if [ "$algo" = "mt" ]; then 
+
+    if [ ! -f ../mtnormalise.done ]; then
+
+        foreach -${ncpu_foreach} * : mtnormalise IN/wmfod.mif IN/wmfod_norm.mif \
+        IN/gm.mif IN/gm_norm.mif IN/csf.mif IN/csf_norm.mif \
+        -mask IN/dwi_preproced${suffix}_mask.mif
+
+        if [ $? -eq 0 ]; then
+            echo "done" > ../mtnormalise.done
+        fi
+
+    fi
+
+fi
 
 
 # STEP 4 - Generate a study-specific unbiased FOD template
@@ -281,14 +424,13 @@ mkdir -p ../template/mask_input
 if [ ! -f ../template/wmfod_template.mif ]; then
 
     echo "   Generating FOD template"
-        
+
     search_sessions=($(find ${cwd}/dwiprep/${group_name}/fba/subjects | grep wmfod.mif | sort ))
 
     for t in ${search_sessions[@]}
     do
 
         link=1
-        #s=$(echo $t | awk -F '_' '{print $2}' | sed 's/.$//')
         s=$(echo $t | awk -F 'subjects/' '{print $2}' | awk -F '/' '{print $1}')
         #echo $s
         #echo $t
@@ -306,7 +448,7 @@ if [ ! -f ../template/wmfod_template.mif ]; then
             
             ln -sfn $t ${cwd}/dwiprep/${group_name}/fba/template/fod_input/${s}_wmfod.mif
             
-            ln -sfn ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dwi_preproced_reg2T1w_normalised_mask.mif \
+            ln -sfn ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dwi_preproced${suffix}_*mask.mif \
              ${cwd}/dwiprep/${group_name}/fba/template/mask_input/${s}_mask.mif
             
         
@@ -334,9 +476,20 @@ if [ ! -f ../fod_reg2template.done ]; then
 
     echo "   Registering all subject FOD images to the FOD template"
 
-    foreach -${ncpu_foreach} * : mrregister IN/wmfod.mif -mask1 IN/dwi_preproced_reg2T1w_normalised_mask.mif \
-    ../template/wmfod_template.mif \
-    -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif -nthreads $ncpu -force
+    if [ "$algo" = "st" ]; then 
+        
+        foreach -${ncpu_foreach} * : mrregister IN/wmfod.mif -mask1 IN/dwi_preproced${suffix}_normalised_mask.mif \
+        ../template/wmfod_template.mif \
+        -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif -nthreads $ncpu -force
+
+    else
+
+        foreach -${ncpu_foreach} * : mrregister IN/wmfod.mif -mask1 IN/dwi_preproced${suffix}_mask.mif \
+        ../template/wmfod_template.mif \
+        -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif -nthreads $ncpu -force
+
+    fi 
+
     if [ $? -eq 0 ]; then
         echo "done" > ../fod_reg2template.done
     fi
@@ -355,9 +508,19 @@ fi
 if [ ! -f ../template/template_mask.mif ]; then
 
     echo "   Compute the template mask"
-    foreach -${ncpu_foreach} * : mrtransform IN/dwi_preproced_reg2T1w_normalised_mask.mif -warp IN/subject2template_warp.mif \
-    -interp nearest -datatype bit IN/dwi_mask_in_template_space.mif -nthreads $ncpu -force
 
+    if [ "$algo" = "st" ]; then 
+        
+        foreach -${ncpu_foreach} * : mrtransform IN/dwi_preproced${suffix}_normalised_mask.mif -warp IN/subject2template_warp.mif \
+        -interp nearest -datatype bit IN/dwi_mask_in_template_space.mif -nthreads $ncpu -force
+
+    else
+
+        foreach -${ncpu_foreach} * : mrtransform IN/dwi_preproced${suffix}_mask.mif -warp IN/subject2template_warp.mif \
+        -interp nearest -datatype bit IN/dwi_mask_in_template_space.mif -nthreads $ncpu -force
+
+    fi
+    
     mrmath */dwi_mask_in_template_space.mif min ../template/template_mask.mif -datatype bit -nthreads $ncpu
 
 else
@@ -408,25 +571,27 @@ fi
 if [ ! -f ../fa_adc_warp.done ]; then
     
     # find the FA in subject space
-    search_sessions=($(find ${cwd}/dwiprep -type f | grep fa_reg2T1w.nii.gz | sort ))
+    search_sessions=($(find ${cwd}/dwiprep/sub-* -type f | grep fa${suffix}.nii.gz | sort ))
     num_sessions=${#search_sessions[@]}
 
     for i in ${search_sessions[@]}
     do
-
-        s=$(echo $i | awk -F 'sub-' '{print $2}' | sed 's/.$//')
+        
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+        echo $i
+        echo $s
         mrconvert $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/FA_subj_space.mif -force
 
     done
 
     # find the ADC in subject space
-    search_sessions=($(find ${cwd}/dwiprep -type f | grep adc_reg2T1w.nii.gz | sort ))
+    search_sessions=($(find ${cwd}/dwiprep/sub-* -type f | grep adc${suffix}.nii.gz | sort ))
     num_sessions=${#search_sessions[@]}
 
     for i in ${search_sessions[@]}
     do
 
-        s=$(echo $i | awk -F 'sub-' '{print $2}' | sed 's/.$//')
+        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
         mrconvert $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/ADC_subj_space.mif -force
 
     done
@@ -443,14 +608,14 @@ if [ ! -f ../fa_adc_warp.done ]; then
     fi
 
     mkdir -p ../template/fa
-    ln -sfn ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output
+    #ln -sfn ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output
     foreach * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/subjects/IN/FA_in_template_space.nii.gz ${cwd}/dwiprep/${group_name}/fba/template/fa/sub_IN_FA.nii.gz
     mkdir -p ../template/adc
     foreach * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/subjects/IN/ADC_in_template_space.nii.gz ${cwd}/dwiprep/${group_name}/fba/template/adc/sub_IN_ADC.nii.gz
 
 else
 
-    echo "   Warping FOD images to template space already done"
+    echo "   Warping FA/ADC images to template space already done"
 
 fi  
 
@@ -585,7 +750,7 @@ if [ ! -f ../tckgen.done ]; then
     
 else
     
-    echo "   Compute the fibre cross-section LOG-(FC) metric already done"
+    echo "   Whole brain fibre tractography already done"
 
 fi
 
@@ -597,7 +762,7 @@ if [ ! -f ../tckshift.done ]; then
 
     echo "   Reduce biases in tractogram densities"
 
-    n=200000
+    n=2000000
 
     tcksift tracks_20_million.tck wmfod_template.mif tracks_2_million_sift.tck -term_number $n
     

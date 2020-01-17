@@ -52,6 +52,7 @@ Optional arguments:
      -s:  session (BIDS session)
      -n:  number of cpu for parallelisation
      -t:  options to pass to topup
+     -r:  use reverse phase data only for topup and not for further processing
      -e:  options to pass to eddy
      -v:  show output from mrtrix commands
 
@@ -75,6 +76,7 @@ dwipreproc_options="dhollander"
 # Set required options
 p_flag=0
 s_flag=0
+rev_only_topup=0
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -82,7 +84,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "p:s:n:d:t:e:v" OPT; do
+    while getopts "p:s:n:d:t:e:rv" OPT; do
 
         case $OPT in
         p) #participant
@@ -104,6 +106,9 @@ else
         ;;
         e) #eddy_options
             eddy_options=$OPTARG
+        ;;
+        r) #verbose
+            rev_only_topup=1
         ;;
         v) #verbose
             silent=0
@@ -275,8 +280,29 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
         #echo "catting dwi_orig"
         mrcat ${raw}/dwi_p*_scaled.mif ${preproc}/dwi_orig.mif
 
+        # Also going to try to run dwicat (development version)
+        dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig_dwicat.mif
+
+        # if dwicat ran, overwrite old
+        if [ -f ${preproc}/dwi_orig_dwicat.mif ]; then
+
+            mv ${preproc}/dwi_orig.mif ${preproc}/dwi_orig_oldscaling.mif
+            mv ${preproc}/dwi_orig_dwicat.mif ${preproc}/dwi_orig.mif
+
+        fi 
+        
+
     fi
 
+    if [ $rev_only_topup -eq 1 ]; then
+
+        dwiextract ${preproc}/dwi_orig.mif -pe 0,-1,0 ${preproc}/dwi_orig_norev.mif
+        dwi_orig=dwi_orig_norev.mif
+
+    else
+
+        dwi_orig=dwi_orig.mif
+    fi
 
 else
 
@@ -297,7 +323,7 @@ mkdir -p qa
 if [ ! -f qa/adc_orig.nii.gz ]; then 
 
     kul_e2cl "   Calculating FA/ADC/dec..." ${log}
-    dwi2tensor dwi_orig.mif dwi_orig_dt.mif -force
+    dwi2tensor $dwi_orig dwi_orig_dt.mif -force
     tensor2metric dwi_orig_dt.mif -fa qa/fa_orig.nii.gz -force
     tensor2metric dwi_orig_dt.mif -adc qa/adc_orig.nii.gz -force
 
@@ -310,7 +336,7 @@ if [ ! -f dwi/degibbs.mif ] && [ ! -f dwi_preproced.mif ]; then
 
     # dwidenoise
     kul_e2cl "   dwidenoise..." ${log}
-    dwidenoise dwi_orig.mif dwi/denoise.mif -noise dwi/noiselevel.mif -nthreads $ncpu -force
+    dwidenoise $dwi_orig dwi/denoise.mif -noise dwi/noiselevel.mif -nthreads $ncpu -force
 
     # mrdegibbs
     kul_e2cl "   mrdegibbs..." ${log}
@@ -373,9 +399,9 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
         
         info_dwipreproc="only 1 b0"
     
-    elif [ $n_pe -lt 5 ]; then
+    #elif [ $n_pe -lt 5 ]; then
 
-        info_dwipreproc="less than 5 b0s"
+    #    info_dwipreproc="less than 5 b0s"
 
     else
 
@@ -413,8 +439,6 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
     fi
 
-    
-
     if [ $regular_dwipreproc -eq 1 ]; then
 
         dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
@@ -424,8 +448,18 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
         # concat all b0 with different pe_schemes
         mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force    
         
-        dwipreproc -se_epi raw/se_epi_for_topup.mif dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-    
+        echo $rev_only_topup
+        
+        if [ $rev_only_topup -eq 0 ]; then
+
+            dwipreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
+            -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+
+        else
+
+            dwipreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_pair \
+            -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+        fi
     fi
 
     temp_dir=$(ls -d dwipreproc*)
@@ -458,14 +492,13 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
     fi
         
     # clean-up the above dwipreproc temporary directory
-    rm -rf $temp_dir
+    #rm -rf $temp_dir
 
 else
 
     echo "   part 2 of preprocessing has been done already... skipping to next step"
 
 fi        
-
 
 
 # check if next 4 steps of dwi preprocessing are done
@@ -475,7 +508,9 @@ if [ ! -f dwi_preproced.mif ]; then
 
     # bias field correction
     kul_e2cl "    dwibiascorrect" ${log}
-    dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force 
+    #dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force 
+    dwibiascorrect -fsl dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force 
+    #dwibiascorrect ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force 
 
     # upsample the images
     kul_e2cl "    upsampling resolution..." ${log}
@@ -634,7 +669,7 @@ echo "done" > log/${current_session}_done.log
 # STEP 5 - CLEANUP - here we clean up (large) temporary files
 rm -fr dwi/degibbs.mif
 rm -rf dwi/geomcorr.mif
-rm -rf raw
+#rm -rf raw
 
 echo " Finished processing session $bids_subj" 
 

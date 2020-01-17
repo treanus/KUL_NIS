@@ -186,6 +186,8 @@ else
 #    echo $task_mriqc_cmd > VSC/pbs_task_mriqc.txt
     task_command=$(echo "singularity run --cleanenv \
  -B \${cwd}:/work \
+ -B \${cwd}:/data \
+ -B \${cwd}:/out \
  \$KUL_mriqc_singularity \
  --participant_label \$BIDS_participant \
  \$mriqc_options \
@@ -259,10 +261,12 @@ if [ $fmriprep_singularity -eq 1 ]; then
         
  local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
  -B ./fmriprep_work_${fmriprep_log_p}:/work \
+ -B .:/data \
+ -B .:/out \
  -B ${freesurfer_license}:/opt/freesurfer/license.txt \
  $KUL_fmriprep_singularity \
- ./${bids_dir} \
- . \
+ /data/${bids_dir} \
+ /out \
  participant \
  --participant_label ${BIDS_participant} \
  -w /work \
@@ -280,14 +284,14 @@ else
  -v ${cwd}/fmriprep_work_${fmriprep_log_p}:/scratch \
  -v ${freesurfer_license}:/opt/freesurfer/license.txt \
  poldracklab/fmriprep:latest \
+ /data /out \
+ participant \
  --participant_label ${BIDS_participant} \
  -w /scratch \
  --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
  --mem_mb $mem_mb \
  $fmriprep_options \
  --notrack \
- /data /out \
- participant \
  > $fmriprep_log  2>&1") 
 
 fi
@@ -464,7 +468,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     echo $notify_file
 
     local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol \
-        $fs_use_flair $fs_hippoT1T2 -all -openmp $ncpu_freesurfer \
+        $fs_use_flair $fs_hippoT1T2 $fs_options_direct -all -openmp $ncpu_freesurfer \
         -parallel -notify $notify_file > $freesurfer_log 2>&1 ")
 
     echo "   using cmd: $task_freesurfer_cmd"
@@ -1082,7 +1086,7 @@ if [ $expert -eq 1 ]; then
     
     if [ $do_fmriprep -eq 1 ]; then
 
-        fmriprep_options=$(grep fmriprep_options $conf | grep -v \# | cut -d':' -f 2)
+        fmriprep_options=$(grep fmriprep_options $conf | grep -v \# | cut -d':' -f 2-1000)
 
         fmriprep_ncpu=$(grep fmriprep_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
         ncpu_fmriprep=$fmriprep_ncpu
@@ -1202,6 +1206,7 @@ if [ $expert -eq 1 ]; then
     if [ $do_freesurfer -eq 1 ]; then
 
         freesurfer_options=$(grep freesurfer_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        fs_options_direct=$(grep freesurfer_direct_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
 
         freesurfer_ncpu=$(grep freesurfer_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
         ncpu_freesurfer=$freesurfer_ncpu
@@ -1216,6 +1221,7 @@ if [ $expert -eq 1 ]; then
         if [ $silent -eq 0 ]; then
 
             echo "  freesurfer_options: $freesurfer_options"
+            echo "  freesurfer_direct_options: $fs_options_direct"
             echo "  freesurfer_ncpu: $freesurfer_ncpu"
             echo "  BIDS_participants: ${BIDS_subjects[@]}"
             echo "  number of BIDS_participants: $n_subj"
