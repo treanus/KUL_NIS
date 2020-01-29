@@ -210,30 +210,28 @@ if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
 
     fslmaths $fmriprep_anat -mas $fmriprep_anat_mask $ants_anat_tmp
 
+    # Transforming the T1w to fmriprep space
+    xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
+    num_xfm=${#xfm_search[@]}
+    echo "  Xfm files: number : $num_xfm"
+    echo "    notably: ${xfm_search[@]}"
+
+    if [ $num_xfm -ge 1 ]; then
+
+        antsApplyTransforms -i $ants_anat_tmp -o $ants_anat -r $ants_anat_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+        rm -rf $ants_anat_tmp
+
+    else
+
+        mv $ants_anat_tmp $ants_anat
+
+    fi
+
 else
 
     echo " skull stripping of the T1w already done, skipping..."
 
 fi
-
-
-# Transforming the T1w to fmriprep space
-xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
-num_xfm=${#xfm_search[@]}
-echo "  Xfm files: number : $num_xfm"
-echo "    notably: ${xfm_search[@]}"
-
-if [ $num_xfm -lt 1 ]; then
-
-    antsApplyTransforms -i $ants_anat_tmp -o $ants_anat -r $ants_anat_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
-    rm -rf $ants_anat_tmp
-
-else
-
-    mv $ants_anat_tmp $ants_anat
-
-fi
-
 
 # register mean b0 to betted T1w (rigid) 
 ants_b0=dwi_b0.nii.gz
@@ -260,7 +258,7 @@ fi
 
 # Apply the rigid transformation of the dMRI to T1 
 #  to the wmfod and the preprocessed dMRI data
-if [ ! -f response/tournier_wmfod_reg2T1w.mif ]; then
+if [ ! -f dwi_preproced_reg2T1w_mask.nii.gz ]; then
 
     ConvertTransformFile 3 dwi_reg/rigid_out0GenericAffine.mat dwi_reg/rigid_out0GenericAffine.txt
 
@@ -289,11 +287,13 @@ if [ ! -f response/tournier_wmfod_reg2T1w.mif ]; then
             response/tournier_wmfod_reg2T1w.mif -nthreads $ncpu -force         
     fi
 
-fi
 
-# create mask of the dwi data (that is registered to the T1w)
-kul_e2cl "    creating mask of the dwi_preproces_reg2T1w data..." ${log}
-dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
+
+    # create mask of the dwi data (that is registered to the T1w)
+    kul_e2cl "    creating mask of the dwi_preproces_reg2T1w data..." ${log}
+    dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
+
+fi
 
 # DO QA ---------------------------------------------
 # Make an FA/dec image
@@ -377,17 +377,19 @@ fi
 #  to the wmfod 
 #mrtransform $input_fod_image -warp dwi_reg/mrtrix_warp_corrected.mif dwi_reg/warped_fod_image.mif -force
 
-if [ ! -f response/tournier_wmfod_NLreg2T1w.mif ]; then
+if [ ! -f log/status.mrtransformNL.done ]; then
+
+    kul_e2cl " Applying the non-linear transformation of the dMRI to T1..." ${log}
 
     if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then    
         mrtransform response/dhollander_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
             response/dhollander_wmfod_NLreg2T1w.mif -nthreads $ncpu -force 
-        mrtransform response/dhollander_wmfod_norm_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
-            response/dhollander_wmfod_norm_NLreg2T1w.mif -nthreads $ncpu -force
-        mrtransform response/dhollander_wmfod_noGM_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
-            response/dhollander_wmfod_noGM_NLreg2T1w.mif -nthreads $ncpu -force 
-        mrtransform response/dhollander_wmfod_norm_noGM_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
-            response/dhollander_wmfod_norm_noGM_NLreg2T1w.mif -nthreads $ncpu -force
+        #mrtransform response/dhollander_wmfod_norm_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
+        #    response/dhollander_wmfod_norm_NLreg2T1w.mif -nthreads $ncpu -force
+        #mrtransform response/dhollander_wmfod_noGM_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
+        #    response/dhollander_wmfod_noGM_NLreg2T1w.mif -nthreads $ncpu -force 
+        #mrtransform response/dhollander_wmfod_norm_noGM_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
+        #    response/dhollander_wmfod_norm_noGM_NLreg2T1w.mif -nthreads $ncpu -force
     fi
     if [ -f response/tax_wmfod_NLreg2T1w.mif ]; then 
         mrtransform response/tax_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
@@ -398,55 +400,65 @@ if [ ! -f response/tournier_wmfod_NLreg2T1w.mif ]; then
             response/tournier_wmfod_NLreg2T1w.mif -nthreads $ncpu -force         
     fi
 
+    echo "done" > log/status.mrtransformNL.done
+
 fi
 
 
 
 # Create and transform extra freesurfer data ---------------------------------
-
-# create the subcortical wm segmentations
-source $FREESURFER_HOME/SetUpFreeSurfer.sh
-mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi lh --lobesStrict lobes
-mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi rh --lobesStrict lobes
-mri_aparc2aseg --s ${subj} --sd ${cwd}/freesurfer/sub-${subj}  --labelwm --hypo-as-wm --rip-unknown \
- --volmask --o ${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
- --annot lobes --base-offset 200
-
-
-# Where is the freesurfer parcellation? 
-fs_aparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/aparc+aseg.mgz
-fs_wmparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.mgz
-
-# Convert FS aparc back to original space
 mkdir -p roi
-fs_labels_tmp=roi/labels_from_FS_tmp.nii.gz
-fs_wmlabels_tmp=roi/labels_wm_from_FS_tmp.nii.gz
-mri_convert -rl $ants_anat -rt nearest $fs_aparc $fs_labels_tmp
-mri_convert -rl $ants_anat -rt nearest $fs_wmparc $fs_wmlabels_tmp
-
-# Transforming the FS aparc to fmriprep space
-xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
-num_xfm=${#xfm_search[@]}
-echo "  Xfm files: number : $num_xfm"
-echo "    notably: ${xfm_search[@]}"
 fs_labels=roi/labels_from_FS.nii.gz
 fs_wmlabels=roi/labels_wm_from_FS.nii.gz
+if [ ! -f log/status.freesurfer.done ]; then
 
-if [ $num_xfm -lt 1 ]; then
+    kul_e2cl " Starting with additional freesurfer processing..." ${log}
 
-    antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
-    antsApplyTransforms -i $fs_wmlabels_tmp -o $fs_wmlabels -r $fs_wmlabels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+    # create the subcortical wm segmentations
+    source $FREESURFER_HOME/SetUpFreeSurfer.sh
+    mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi lh --lobesStrict lobes
+    mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi rh --lobesStrict lobes
+    mri_aparc2aseg --s ${subj} --sd ${cwd}/freesurfer/sub-${subj}  --labelwm --hypo-as-wm --rip-unknown \
+     --volmask --o ${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
+     --annot lobes --base-offset 200
 
-else
 
-    mv $fs_labels_tmp $fs_labels
-    mv $fs_wmlabels_tmp $fs_wmlabels
+    # Where is the freesurfer parcellation? 
+    fs_aparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/aparc+aseg.mgz
+    fs_wmparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.mgz
+
+    # Convert FS aparc back to original space
+    fs_labels_tmp=roi/labels_from_FS_tmp.nii.gz
+    fs_wmlabels_tmp=roi/labels_wm_from_FS_tmp.nii.gz
+    mri_convert -rl $ants_anat -rt nearest $fs_aparc $fs_labels_tmp
+    mri_convert -rl $ants_anat -rt nearest $fs_wmparc $fs_wmlabels_tmp
+
+    # Transforming the FS aparc to fmriprep space
+    xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
+    num_xfm=${#xfm_search[@]}
+    echo "  Xfm files: number : $num_xfm"
+    echo "    notably: ${xfm_search[@]}"    
+
+
+    # NEED TO CHANGE: instead of ommiting first, test if xfm file has no tranform in it
+    if [ $num_xfm -ge 1 ]; then
+
+        antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+        antsApplyTransforms -i $fs_wmlabels_tmp -o $fs_wmlabels -r $fs_wmlabels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
+
+    else
+
+        mv $fs_labels_tmp $fs_labels
+        mv $fs_wmlabels_tmp $fs_wmlabels
+
+    fi
+
+    echo "done" > log/status.freesurfer.done
 
 fi
 
 # 5tt segmentation & tracking
 mkdir -p 5tt
-
 if [ ! -f 5tt/5tt2gmwmi.nii.gz ]; then
 
     kul_e2cl " Performig 5tt..." ${log}
@@ -463,18 +475,48 @@ else
 
 fi
 
-# Run FSL FIRST on the T1w data (usefull for subcortical segmentation)
-mkdir -p first
+# Perform default mrtrix_fs labelconvert
+mkdir -p connectome
+if [ ! -f log/status.labelconvert.done ]; then
 
-if [ ! -f first/5tt2gmwmi.nii.gz ]; then
-
-    kul_e2cl " Performig FSL first..." ${log}
-
-    run_first_all -i T1w/T1w_BrainExtractionBrain -b -o first/first
+    kul_e2cl " Performig labelconvert..." ${log}
+    labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
+        /KUL_apps/mrtrix3/share/mrtrix3/labelconvert/fs_default.txt connectome/labelconvert_fs_default.nii.gz -force
+    labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
+        /KUL_apps/mrtrix3/share/mrtrix3/labelconvert/fs2lobes_cinginc_convert.txt connectome/labelconvert_fs2lobes_cinginc.nii.gz -force
+    labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
+        /KUL_apps/KUL_NeuroImaging_Tools/share/fs2thalamus_seg_convert.txt connectome/labelconvert_fs2thalamus_seg.nii.gz -force
+    cat "done" > log/status.labelconvert.done
 
 else
 
-    echo " FSL first already done, skipping..."
+    echo " labelconvert already done, skipping..."
+
+fi
+
+# Run labelsgmfix (actually FSL FIRST) on the T1w data (usefull for subcortical segmentation)
+if [ ! -f connectome/improved_labels_from_FS.nii.gz ]; then
+
+    kul_e2cl " Performig labelsgmfix (FSL first)..." ${log}
+
+    labelsgmfix -premasked $fs_labels T1w/T1w_BrainExtractionBrain.nii.gz $FREESURFER_HOME/FreeSurferColorLUT.txt connectome/improved_labels_from_FS.nii.gz -nocleanup
+
+    mkdir -p first
+    mv labelsgmfix-tmp-*/first* first
+    rm -r labelsgmfix-tmp-* 
+
+    mesh2voxel first/first-L_Thal_transformed.vtk dwi_preproced_reg2T1w_mask.nii.gz connectome/L_Thal_tmp.nii.gz
+    mrthreshold -abs 0.5 connectome/L_Thal_tmp.nii.gz connectome/L_Thal.nii.gz
+    mesh2voxel first/first-R_Thal_transformed.vtk dwi_preproced_reg2T1w_mask.nii.gz connectome/R_Thal_tmp.nii.gz
+    mrthreshold -abs 0.5 connectome/R_Thal_tmp.nii.gz connectome/R_Thal.nii.gz
+    
+    #fslmaths connectome/labelconvert_fs2lobes_cinginc.nii.gz -thr 8 connectome/part2
+    #fslmaths connectome/labelconvert_fs2lobes_cinginc.nii.gz -uthr 5 connectome/part1
+    #fslmaths connectome/part1.nii.gz -add connectome/part2.nii.gz connectome/connectome_targets
+    
+else
+
+    echo " labelsgmfix already done, skipping..."
 
 fi
 
