@@ -463,6 +463,20 @@ else
 
 fi
 
+# Run FSL FIRST on the T1w data (usefull for subcortical segmentation)
+mkdir -p first
+
+if [ ! -f first/5tt2gmwmi.nii.gz ]; then
+
+    kul_e2cl " Performig FSL first..." ${log}
+
+    run_first_all -i T1w/T1w_BrainExtractionBrain -b -o first/first
+
+else
+
+    echo " FSL first already done, skipping..."
+
+fi
 
 echo " Finished processing $bids_subj" 
 # ---- END of the BIG loop over sessions
