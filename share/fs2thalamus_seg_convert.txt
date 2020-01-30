@@ -7,7 +7,7 @@
 0     Unknown
 
 7     ctx-lh-bankssts
-6     ctx-lh-caudalanteriorcingulate
+#x    ctx-lh-caudalanteriorcingulate
 5     ctx-lh-caudalmiddlefrontal
 3     ctx-lh-cuneus
 7     ctx-lh-entorhinal
@@ -62,7 +62,7 @@
 16     Right-Cerebellum-Cortex
 
 14    ctx-rh-bankssts
-13    ctx-rh-caudalanteriorcingulate
+#x    ctx-rh-caudalanteriorcingulate
 12    ctx-rh-caudalmiddlefrontal
 10    ctx-rh-cuneus
 14    ctx-rh-entorhinal

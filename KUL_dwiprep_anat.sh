@@ -271,11 +271,11 @@ if [ ! -f dwi_preproced_reg2T1w_mask.nii.gz ]; then
     if [ -f response/dhollander_wmfod.mif ]; then    
         mrtransform response/dhollander_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
             response/dhollander_wmfod_reg2T1w.mif -nthreads $ncpu -force 
-        mrtransform response/dhollander_wmfod_norm.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+        #mrtransform response/dhollander_wmfod_norm.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
             response/dhollander_wmfod_norm_reg2T1w.mif -nthreads $ncpu -force
-        mrtransform response/dhollander_wmfod_noGM.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+        #mrtransform response/dhollander_wmfod_noGM.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
             response/dhollander_wmfod_noGM_reg2T1w.mif -nthreads $ncpu -force 
-        mrtransform response/dhollander_wmfod_norm_noGM.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+        #mrtransform response/dhollander_wmfod_norm_noGM.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
             response/dhollander_wmfod_norm_noGM_reg2T1w.mif -nthreads $ncpu -force
     fi
     if [ -f response/tax_wmfod.mif ]; then 
