@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 #  Project PI's: Stefan Sunaert & Bart Nuttin
@@ -368,7 +368,9 @@ else
     echo "    notably: ${xfm_search[@]}"
 
 fi    
- 
+
+
+
 num_sessions=${#search_sessions[@]}
     
 echo "  Number of BIDS sessions: $num_sessions"
@@ -445,7 +447,11 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
                     output=roi/${roi_name}.nii.gz
                     transform=${xfm_search[$current_session]}
                     reference=$ants_anat
-                    KUL_antsApply_Transform
+                    if [ -z "$transform" ];then
+                        cp $input $output
+                    else
+                        KUL_antsApply_Transform
+                    fi
 
                 fi
 
