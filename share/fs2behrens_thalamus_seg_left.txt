@@ -40,4 +40,3 @@
 7     ctx-lh-temporalpole
 7     ctx-lh-transversetemporal
 #x    ctx-lh-insula
-
