@@ -486,6 +486,10 @@ if [ ! -f log/status.labelconvert.done ]; then
         /KUL_apps/mrtrix3/share/mrtrix3/labelconvert/fs2lobes_cinginc_convert.txt connectome/labelconvert_fs2lobes_cinginc.nii.gz -force
     labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
         /KUL_apps/KUL_NeuroImaging_Tools/share/fs2thalamus_seg_convert.txt connectome/labelconvert_fs2thalamus_seg.nii.gz -force
+    labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
+        /KUL_apps/KUL_NeuroImaging_Tools/share/fs2behrens_thalamus_seg_right.txt connectome/labelconvert_fs2behrens_thalamus_seg_right.nii.gz -force
+    labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
+        /KUL_apps/KUL_NeuroImaging_Tools/share/fs2behrens_thalamus_seg_left.txt connectome/labelconvert_fs2behrens_thalamus_seg_left.nii.gz -force   
     cat "done" > log/status.labelconvert.done
 
 else
