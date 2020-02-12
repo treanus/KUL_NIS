@@ -630,7 +630,8 @@ if [ ! -f  $dwiprep_fibertract_file_to_check ]; then
     kul_e2cl " performing KUL_dwiprep_fibertract on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_fibertract_log)" ${log}
 
     fibertract_wb_flag=""
-    if [ $dwiprep_fibertract_whole_brain -eq ! ]; then 
+    #echo $dwiprep_fibertract_whole_brain
+    if [ $dwiprep_fibertract_whole_brain -eq 1 ]; then 
 
         fibertract_wb_flag=" -f "
 
@@ -638,7 +639,7 @@ if [ ! -f  $dwiprep_fibertract_file_to_check ]; then
 
     local task_dwiprep_fibertract_cmd=$(echo "KUL_dwiprep_fibertract.sh -p ${BIDS_participant} \ 
         $fibertract_wb_flag -n $dwiprep_fibertract_ncpu -v \
-        -w $dwiprep_fibertract_response_file
+        -w $dwiprep_fibertract_response_file \
         -c $dwiprep_fibertract_conf_file  -r $dwiprep_fibertract_rois_file \
     > $dwiprep_fibertract_log 2>&1 ")
 
