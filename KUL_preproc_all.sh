@@ -543,9 +543,9 @@ if [ ! -f  $dwiprep_anat_file_to_check ]; then
 
     dwiprep_anat_log=${preproc}/log/dwiprep/dwiprep_anat_${BIDS_participant}.txt
 
-    kul_e2cl " performing KUL_dwiprep_anat on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_anat_log)" ${log}
+    kul_e2cl " performing KUL_dwiprep_anat on subject ${BIDS_participant}... (using $dwiprep_anat_ncpu cores, logging to $dwiprep_anat_log)" ${log}
 
-    KUL_dwiprep_anat.sh -p ${BIDS_participant} -n $ncpu -v \
+    KUL_dwiprep_anat.sh -p ${BIDS_participant} -n $dwiprep_anat_ncpu -v \
         > $dwiprep_anat_log 2>&1 &
 
     dwiprep_anat_pid="$!"
@@ -571,9 +571,9 @@ if [ ! -f  $dwiprep_MNI_file_to_check ]; then
 
     dwiprep_MNI_log=${preproc}/log/dwiprep/dwiprep_MNI_${BIDS_participant}.txt
 
-    kul_e2cl " performing KUL_dwiprep_MNI on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_MNI_log)" ${log}
+    kul_e2cl " performing KUL_dwiprep_MNI on subject ${BIDS_participant}... (using $dwiprep_MNI_ncpu cores, logging to $dwiprep_MNI_log)" ${log}
 
-    KUL_dwiprep_MNI.sh -p ${BIDS_participant} -n $ncpu -v \
+    KUL_dwiprep_MNI.sh -p ${BIDS_participant} -n $dwiprep_MNI_ncpu -v \
         > $dwiprep_MNI_log 2>&1 &
 
     dwiprep_MNI_pid="$!"
@@ -629,8 +629,17 @@ if [ ! -f  $dwiprep_fibertract_file_to_check ]; then
 
     kul_e2cl " performing KUL_dwiprep_fibertract on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_fibertract_log)" ${log}
 
-    local task_dwiprep_fibertract_cmd=$(echo "KUL_dwiprep_fibertract.sh -p ${BIDS_participant} -n $ncpu -v \
-        -c study_config/tracto_tracts.csv  -r study_config/tracto_rois.csv \
+    fibertract_wb_flag=""
+    if [ $dwiprep_fibertract_whole_brain -eq ! ]; then 
+
+        fibertract_wb_flag=" -f "
+
+    fi
+
+    local task_dwiprep_fibertract_cmd=$(echo "KUL_dwiprep_fibertract.sh -p ${BIDS_participant} \ 
+        $fibertract_wb_flag -n $dwiprep_fibertract_ncpu -v \
+        -w $dwiprep_fibertract_response_file
+        -c $dwiprep_fibertract_conf_file  -r $dwiprep_fibertract_rois_file \
     > $dwiprep_fibertract_log 2>&1 ")
 
     echo "   using cmd: $task_dwiprep_fibertract_cmd"
@@ -1409,11 +1418,11 @@ if [ $expert -eq 1 ]; then
     # continue with KUL_dwiprep_anat, which depends on finished data from freesurfer, fmriprep & KUL_dwiprep
     if [ $do_dwiprep_anat -eq 1 ]; then
 
-
-
+        dwiprep_anat_ncpu=$(grep dwiprep_anat_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        
         if [ $silent -eq 0 ]; then
 
-            echo "  dwiprep_anat_cpu: $dwiprep_anat_cpu"
+            echo "  dwiprep_anat_ncpu: $dwiprep_anat_ncpu"
             echo "  BIDS_participants: ${BIDS_subjects[@]}"
             echo "  number of BIDS_participants: $n_subj"
             echo "  dwiprep_anat_simultaneous: $dwiprep_anat_simultaneous"
@@ -1496,11 +1505,11 @@ if [ $expert -eq 1 ]; then
     # continue with KUL_dwiprep_MNI, which depends on finished data from freesurfer, fmriprep & KUL_dwiprep
     if [ $do_dwiprep_MNI -eq 1 ]; then
 
-
+        dwiprep_MNI_ncpu=$(grep dwiprep_MNI_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
 
         if [ $silent -eq 0 ]; then
 
-            echo "  dwiprep_MNI_cpu: $dwiprep_MNI_cpu"
+            echo "  dwiprep_MNI_ncpu: $dwiprep_MNI_ncpu"
             echo "  BIDS_participants: ${BIDS_subjects[@]}"
             echo "  number of BIDS_participants: $n_subj"
             echo "  dwiprep_MNI_simultaneous: $dwiprep_MNI_simultaneous"
@@ -1581,8 +1590,87 @@ if [ $expert -eq 1 ]; then
     echo "  do_dwiprep_fibertract: $do_dwiprep_fibertract"
     
     if [ $do_dwiprep_fibertract -eq 1 ]; then
+
+        # get bids_participants
+        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+        n_subj=${#BIDS_subjects[@]}
+        # get other parameters    
+        dwiprep_fibertract_ncpu=$(grep dwiprep_fibertract_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        dwiprep_fibertract_simultaneous=$(grep dwiprep_fibertract_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
+        dwiprep_fibertract_rois_file=$(grep dwiprep_fibertract_rois_file $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        dwiprep_fibertract_conf_file=$(grep dwiprep_fibertract_conf_file $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        dwiprep_fibertract_response_file=$(grep dwiprep_fibertract_response_file $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        dwiprep_fibertract_whole_brain=$(grep dwiprep_fibertract_whole_brain $conf | grep -v \# | sed 's/[^0-9]//g')
+
+        if [ $silent -eq 0 ]; then
+
+            echo "  BIDS_participants: ${BIDS_subjects[@]}"
+            echo "  number of BIDS_participants: $n_subj"
+            echo "  dwiprep_fibertract_cpu: $dwiprep_fibertract_cpu"
+            echo "  dwiprep_fibertract_rois_file: $dwiprep_fibertract_rois_file"
+            echo "  dwiprep_fibertract_conf_file: $dwiprep_fibertract_conf_file"
+            echo "  dwiprep_fibertract_response_file: $dwiprep_fibertract_response_file"
+            echo "  dwiprep_fibertract_whole_brain: $dwiprep_fibertract_whole_brain"
+            echo "  dwiprep_fibertract_simultaneous: $dwiprep_fibertract_simultaneous"
+
+        fi
+
+        # check if already performed dwiprep_fibertract
+        todo_bids_participants=()
+        already_done=()
+
+        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
+
+            dwiprep_fibertract_file_to_check=${cwd}/dwiprep/sub-${BIDS_subjects[$i_bids_participant]}/dwiprep_fibertract_is_done.log
+
+            #echo $dwiprep_fibertract_file_to_check
+            if [ ! -f $dwiprep_fibertract_file_to_check ]; then
+
+                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})
             
-        task_KUL_dwiprep_fibertract
+            else
+
+                already_done+=(${BIDS_subjects[$i_bids_participant]})
+            
+            fi
+
+        done
+
+        echo "  dwiprep_fibertract was already done for participant(s) ${already_done[@]}"
+        
+        # submit the jobs (and split them in chucks)
+        n_subj_todo=${#todo_bids_participants[@]}
+
+        for i_bids_participant in $(seq 0 $dwiprep_fibertract_simultaneous $(($n_subj_todo-1))); do
+
+            fs_participants=${todo_bids_participants[@]:$i_bids_participant:$dwiprep_fibertract_simultaneous}
+            echo "  going to start dwiprep_fibertract with $dwiprep_fibertract_simultaneous participants simultaneously, notably $fs_participants"
+
+            dwiprep_fibertract_pid=-1
+            waitforprocs=()
+            waitforpids=()
+
+            for BIDS_participant in $fs_participants; do
+                
+              
+                #echo $BIDS_participant
+
+                task_KUL_dwiprep_fibertract
+                
+                if [ $dwiprep_fibertract_pid -gt 0 ]; then
+                    waitforprocs+=("dwiprep_fibertract")
+                    waitforpids+=($dwiprep_fibertract_pid)
+                fi
+            
+            done 
+
+            kul_e2cl "  waiting for dwiprep_fibertract processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
+                WaitForTaskCompletion 
+
+            kul_e2cl " dwiprep_fibertract processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
+
+            
+        done
 
     fi
 
