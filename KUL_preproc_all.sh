@@ -627,7 +627,7 @@ if [ ! -f  $dwiprep_fibertract_file_to_check ]; then
 
     dwiprep_fibertract_log=${preproc}/log/dwiprep/dwiprep_fibertract_${BIDS_participant}.txt
 
-    kul_e2cl " performing KUL_dwiprep_fibertract on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_fibertract_log)" ${log}
+    kul_e2cl " performing KUL_dwiprep_fibertract on subject ${BIDS_participant}... (using $dwiprep_fibertract_ncpu cores, logging to $dwiprep_fibertract_log)" ${log}
 
     fibertract_wb_flag=""
     #echo $dwiprep_fibertract_whole_brain
