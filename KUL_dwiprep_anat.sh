@@ -443,6 +443,7 @@ if [ ! -f log/status.freesurfer.done ]; then
     # NEED TO CHANGE: instead of ommiting first, test if xfm file has no tranform in it
     if [ $num_xfm -ge 1 ]; then
 
+        echo "  Applying antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float"
         antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
         antsApplyTransforms -i $fs_wmlabels_tmp -o $fs_wmlabels -r $fs_wmlabels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
 
