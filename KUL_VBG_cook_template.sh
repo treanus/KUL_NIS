@@ -2,13 +2,28 @@
 
 # set -x
 
-# This script will cook a template for VBG specific to your population
-# This will ensure a better result from VBG
-#
-#
+# Intro:
+# - This script will cook a template for VBG specific to your population
+# - This will ensure a better result from VBG
+# - You only need to run this once for your study if you're using only 1 scanner
+# - We use the whole head T1 WIs (any modality could work actually)
+#   of two patients with opposing sided focal lesions 
+#   (one with a left side lesion and one with right side lesion)
+#   not causing mass effect nor midline shift
+# - this makes it easier for VBG to generate a better fitting lesion fill
+# 
+# Instructions:
+# 1- Edit input lines in this script to specify input images used for cooking your template
+# 2- Place this script in the same directory as your inputs
+# 3- Have KUL Neuroimaging tools in your path (e.g /KUL_NITs)
+# 4- Have hd-bet installed and in your path (or simply edit as indicated below for using antsBrainExtraction instead of hd-bet)
+# 5- After a successful run, place the cooked template images under KUL_NITs/atlasses/Templates/ 
+# as VBG_T1_temp_brain.nii.gz and VBG_T1_temp.nii.gz
+
 # Requirements:
 # 1- T1 images from 2 patients with contralateral lesions without midline shift
 # 2- To do: add option of using 2 brains with ipsilateral lesions
+
 # Cook_template_4VBG.sh
 # v=0.1
 
@@ -27,9 +42,13 @@ wkdir="${cwd}/VBG_cook_temp"
 
 outdir="${cwd}/VBG_cooked_temp"
 
+###### CHANGE ME #### CHANGE ME
+
 T1_R="${cwd}/sub-PT008_T1w.nii.gz"
 
 T1_L="${cwd}/sub-PT024_T1w.nii.gz"
+
+###### CHANGE ME #### CHANGE ME
 
 # make dirs
 
