@@ -2175,6 +2175,7 @@ if [[ -z "${srch_make_images}" ]]; then
     task_exec
 
     if [[ -z "$bilateral" ]]; then
+    	# if bilateral is empty, then we generate final output with stitched noise map
 
         task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -save ${T1_nat_filled_out} \
         -mul ${BET_mask_s2} -add ${T1_skull} -save ${T1_nat_fout_wskull} -add ${stitched_noise_nat} ${T1_nat_fout_wN_skull}"
@@ -2182,9 +2183,11 @@ if [[ -z "${srch_make_images}" ]]; then
         task_exec
 
     else
-
+    
+   	# if bilateral is 1, then we generate final output with original noise map
+    
         task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -save ${T1_nat_filled_out} \
-        -mul ${BET_mask_s2} -add ${T1_skull} -save ${T1_nat_fout_wskull} -add ${stitched_noise_nat} ${T1_nat_fout_wN_skull}"
+        -mul ${BET_mask_s2} -add ${T1_skull} -save ${T1_nat_fout_wskull} -add ${str_pp}_T1_noise.nii.gz ${T1_nat_fout_wN_skull}"
 
         task_exec
 
