@@ -2155,16 +2155,6 @@ if [[ -z "${srch_make_images}" ]]; then
     task_exec
 
     unset image_in image_out
-
-    image_in="${stitched_noise_MNI1}"
-
-    image_out="${stitched_noise_nat}"
-
-    task_in="WarpImageMultiTransform 3 ${image_in} ${image_out} -R ${T1_brain_clean} -i ${T1_brMNI1_str}0GenericAffine.mat ${T1_brMNI1_str}1InverseWarp.nii.gz"
-
-    task_exec
-
-    unset image_in image_out
     
     task_in="ImageMath 3 ${str_pp}_hybridT1_native_S.nii.gz Sharpen ${str_pp}_hybridT1_native.nii.gz"
 
@@ -2173,9 +2163,22 @@ if [[ -z "${srch_make_images}" ]]; then
     task_in="fslmaths ${str_pp}_hybridT1_native_S.nii.gz -mul ${Lmask_bin_s3} ${T1_fin_Lfill}"
 
     task_exec
-
+    
+    # make the final outputs
+    
     if [[ -z "$bilateral" ]]; then
+    
     	# if bilateral is empty, then we generate final output with stitched noise map
+	
+	image_in="${stitched_noise_MNI1}"
+
+	image_out="${stitched_noise_nat}"
+
+	task_in="WarpImageMultiTransform 3 ${image_in} ${image_out} -R ${T1_brain_clean} -i ${T1_brMNI1_str}0GenericAffine.mat ${T1_brMNI1_str}1InverseWarp.nii.gz"
+
+	task_exec
+
+	unset image_in image_out
 
         task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -save ${T1_nat_filled_out} \
         -mul ${BET_mask_s2} -add ${T1_skull} -save ${T1_nat_fout_wskull} -add ${stitched_noise_nat} ${T1_nat_fout_wN_skull}"
