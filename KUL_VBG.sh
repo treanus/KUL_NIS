@@ -362,7 +362,7 @@ elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 1 ]]; then
 fi
 
 # set this manually for debugging
-function_path=($(which KUL_LWF_validation_v3.sh | rev | cut -d"/" -f2- | rev))
+function_path=($(which KUL_VBG.sh | rev | cut -d"/" -f2- | rev))
 
 #  the primary image is the noncontrast T1
 
@@ -2170,15 +2170,15 @@ if [[ -z "${srch_make_images}" ]]; then
     
     	# if bilateral is empty, then we generate final output with stitched noise map
 	
-	image_in="${stitched_noise_MNI1}"
+	    image_in="${stitched_noise_MNI1}"
 
-	image_out="${stitched_noise_nat}"
+	    image_out="${stitched_noise_nat}"
 
-	task_in="WarpImageMultiTransform 3 ${image_in} ${image_out} -R ${T1_brain_clean} -i ${T1_brMNI1_str}0GenericAffine.mat ${T1_brMNI1_str}1InverseWarp.nii.gz"
+	    task_in="WarpImageMultiTransform 3 ${image_in} ${image_out} -R ${T1_brain_clean} -i ${T1_brMNI1_str}0GenericAffine.mat ${T1_brMNI1_str}1InverseWarp.nii.gz"
 
-	task_exec
+	    task_exec
 
-	unset image_in image_out
+	    unset image_in image_out
 
         task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -save ${T1_nat_filled_out} \
         -mul ${BET_mask_s2} -add ${T1_skull} -save ${T1_nat_fout_wskull} -add ${stitched_noise_nat} ${T1_nat_fout_wN_skull}"
@@ -2187,7 +2187,7 @@ if [[ -z "${srch_make_images}" ]]; then
 
     else
     
-   	# if bilateral is 1, then we generate final output with original noise map
+   	    # if bilateral is 1, then we generate final output with original noise map
     
         task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -save ${T1_nat_filled_out} \
         -mul ${BET_mask_s2} -add ${T1_skull} -save ${T1_nat_fout_wskull} -add ${str_pp}_T1_noise.nii.gz ${T1_nat_fout_wN_skull}"
