@@ -119,7 +119,7 @@ Required arguments:
 Optional arguments:
 
     -s:  session (of the participant)
-    -w:  Use the warped template for Atropos1
+    -t:  Use the VBG template to derive the fill patch (if set to 1, template tissue is used alongside native tissue to make the lesion fill)
     -m:  full path to intermediate output dir
     -o:  full path to output dir (if not set reverts to default output ./lesion_wf_output)
     -n:  number of cpu for parallelisation (default is 6)
@@ -158,6 +158,7 @@ s_flag=0
 l_flag=0
 l_spaceflag=0
 t1_flag=0
+t_flag=0
 o_flag=0
 m_flag=0
 n_flag=0
@@ -168,7 +169,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "p:a:l:z:s:o:m:n:bvh" OPT; do
+    while getopts "p:a:l:z:s:o:m:n:bvht" OPT; do
 
         case $OPT in
         p) #subject
@@ -201,6 +202,9 @@ else
 	    o) #output
 			o_flag=1
 			out_dir=$OPTARG		
+        ;;
+        t) #template flag
+			t_flag=1	
         ;;
         n) #parallel
 			n_flag=1
@@ -803,6 +807,24 @@ srch_postAtropos2=($(find ${preproc} -type f | grep "_atropos2_SegmentationPoste
 
 srch_make_images=($(find ${preproc} -type f | grep "${str_pp}_synthT1_MNI1.nii.gz"));
 
+# check and report if temp flag is set
+
+if [[ "${t_flag}" -eq 0 ]]; then
+	
+    echo
+    echo "Template flag not set, using native tissue for filling" >&2
+    echo "Template flag not set, using native tissue for filling" >> ${prep_log}
+    echo
+	
+elif [[ "${t_flag}" -eq 1 ]]; then
+
+    echo
+    echo "Template flag is set, using native and donor tissue for filling" >&2
+    echo "Template flag is set, using native and donor tissue for filling" >> ${prep_log}
+    echo
+
+fi
+
 # Misc subfuctions
 
 # execute function (maybe add if loop for if silent=0)
@@ -899,11 +921,11 @@ function KUL_antsBETp {
 
         echo "hd-bet is present, will use this for brain extraction" >> ${prep_log}
 
-        # echo "sourcing ptc conda virtual env, if yours is named differently please edit lines 822 823 " >> ${prep_log}
+        echo "sourcing ptc conda virtual env, if yours is named differently please edit lines 822 823 " >> ${prep_log}
 
-        # task_in="source /anaconda3/bin/activate ptc && hd-bet -i ${prim_in} -o ${output} -tta 0 -mode fast -s 1 -device cpu"
+        task_in="source /anaconda3/bin/activate ptc && hd-bet -i ${prim_in} -o ${output} -tta 0 -mode fast -s 1 -device cpu"
 
-        # task_exec
+        task_exec
 
         task_in="hd-bet -i ${prim_in} -o ${output}"
 
@@ -1262,7 +1284,7 @@ function KUL_Lmask_part2 {
 
     # here we create the stitched and initial filled images
 
-    if [[ -z "$bilateral" ]]; then
+    if [[ -z "${bilateral}" ]] && [[ ${t_flag} == 0 ]]; then
 
         # if not bilateral, we do this using native tissue and template tissue
         
@@ -1338,7 +1360,7 @@ function KUL_Lmask_part2 {
 
         T1_filled1=${Temp_T1_filled1}
 
-    else
+    elif [[ "${bilateral}" ]] || [[ ${t_flag} == 1 ]]; then
 
         # if bilateral we do a simple(r) filling
 
@@ -1431,11 +1453,11 @@ function KUL_Lmask_part2 {
 
         # Run AtroposN4
 
-        if [[ -z "$bilateral" ]] ; then
+        if [[ -z "${bilateral}" ]] && [[ ${t_flag} == 0 ]]; then
 
             prim_in=${T1_sti2fill_brain} 
 
-        else
+        elif [[ -z "${bilateral}" ]] || [[ ${t_flag} == 1 ]]; then
 
             echo " Bilateral lesion using the initial filled for Atropos " >> ${prep_log}
 
@@ -2099,8 +2121,9 @@ if [[ -z "${srch_make_images}" ]]; then
     task_exec
 
     # if the lesion is not bilateral, then use the filled T1 to derive diff map, if it is bilateral then use stit2fill
+    # added the template flag condition here
 
-    if [[ -z "$bilateral" ]]; then
+    if [[ -z "${bilateral}" ]] && [[ ${t_flag} == 0 ]]; then
 
         task_in="fslmaths ${T1_filled1} -sub ${str_pp}_synthT1_MNI1.nii.gz ${filledT1_synthT1_diff}"
 
@@ -2110,7 +2133,7 @@ if [[ -z "${srch_make_images}" ]]; then
 
         task_exec
 
-    else
+    elif [[ ${bilateral} ]] || [[ ${t_flag} == 1 ]]; then
 
         task_in="fslmaths ${T1_sti2fill_brain} -sub ${str_pp}_synthT1_MNI1.nii.gz ${stiT1_synthT1_diff}"
 
@@ -2166,7 +2189,7 @@ if [[ -z "${srch_make_images}" ]]; then
     
     # make the final outputs
     
-    if [[ -z "$bilateral" ]]; then
+    if [[ -z "${bilateral}" ]] && [[ ${t_flag} == 0 ]]; then
     
     	# if bilateral is empty, then we generate final output with stitched noise map
 	
@@ -2185,7 +2208,7 @@ if [[ -z "${srch_make_images}" ]]; then
 
         task_exec
 
-    else
+    elif [[ "${bilateral}" ]] || [[ ${t_flag} == 1 ]]; then
     
    	    # if bilateral is 1, then we generate final output with original noise map
     
