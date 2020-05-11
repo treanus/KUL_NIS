@@ -443,6 +443,7 @@ if [ ! -f log/status.freesurfer.done ]; then
     # NEED TO CHANGE: instead of ommiting first, test if xfm file has no tranform in it
     if [ $num_xfm -ge 1 ]; then
 
+        echo "  Applying antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float"
         antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
         antsApplyTransforms -i $fs_wmlabels_tmp -o $fs_wmlabels -r $fs_wmlabels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
 
@@ -486,6 +487,10 @@ if [ ! -f log/status.labelconvert.done ]; then
         /KUL_apps/mrtrix3/share/mrtrix3/labelconvert/fs2lobes_cinginc_convert.txt connectome/labelconvert_fs2lobes_cinginc.nii.gz -force
     labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
         /KUL_apps/KUL_NeuroImaging_Tools/share/fs2thalamus_seg_convert.txt connectome/labelconvert_fs2thalamus_seg.nii.gz -force
+    labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
+        /KUL_apps/KUL_NeuroImaging_Tools/share/fs2behrens_thalamus_seg_right.txt connectome/labelconvert_fs2behrens_thalamus_seg_right.nii.gz -force
+    labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
+        /KUL_apps/KUL_NeuroImaging_Tools/share/fs2behrens_thalamus_seg_left.txt connectome/labelconvert_fs2behrens_thalamus_seg_left.nii.gz -force   
     cat "done" > log/status.labelconvert.done
 
 else

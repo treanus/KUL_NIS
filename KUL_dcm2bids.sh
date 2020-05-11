@@ -6,13 +6,11 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 26/10/2018 - alpha version
-v="v0.2 - dd 21/12/2018"
+v="v0.3 - dd 12/02/2020"
 
-# TODO
-#  - make it work for multiple vendors
-#  - wrap around for multiple subjects
-# - add if loop dealing with multiecho data
-
+# Notes
+#  - works for GE/Siemens/Philips
+#  - wrap around for multiple subjects: use KUL_multisubjects_dcm2bids
 
 
 # -----------------------------------  MAIN  ---------------------------------------------

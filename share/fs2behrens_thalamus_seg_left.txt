@@ -1,0 +1,42 @@
+# Lookup table for MRtrix command labelconvert
+# Extracts the relevant grey matter parcellations from the default FreeSurfer segmentation (desikan_killiany), but segmentations are summarised into lobes and subcortical areas
+# Cingulate nodes are included in the (approximately) relevant lobes
+# This file is intended to be used for the label conversion process; the corresponding lookup table for interpreting the resulting labels is: fs2lobes_cinginc_labels.txt
+
+
+0     Unknown
+
+7     ctx-lh-bankssts
+#x    ctx-lh-caudalanteriorcingulate
+5     ctx-lh-caudalmiddlefrontal
+3     ctx-lh-cuneus
+7     ctx-lh-entorhinal
+7     ctx-lh-fusiform
+6     ctx-lh-inferiorparietal
+7     ctx-lh-inferiortemporal
+#x    ctx-lh-isthmuscingulate
+3     ctx-lh-lateraloccipital
+4     ctx-lh-lateralorbitofrontal
+3     ctx-lh-lingual
+4     ctx-lh-medialorbitofrontal
+7     ctx-lh-middletemporal
+7     ctx-lh-parahippocampal
+4     ctx-lh-paracentral
+4     ctx-lh-parsopercularis
+4     ctx-lh-parsorbitalis
+4     ctx-lh-parstriangularis
+3     ctx-lh-pericalcarine
+2     ctx-lh-postcentral
+#x    ctx-lh-posteriorcingulate
+1     ctx-lh-precentral
+6     ctx-lh-precuneus
+4     ctx-lh-rostralanteriorcingulate
+4     ctx-lh-rostralmiddlefrontal
+5     ctx-lh-superiorfrontal
+6     ctx-lh-superiorparietal
+7     ctx-lh-superiortemporal
+6     ctx-lh-supramarginal
+5     ctx-lh-frontalpole
+7     ctx-lh-temporalpole
+7     ctx-lh-transversetemporal
+#x    ctx-lh-insula

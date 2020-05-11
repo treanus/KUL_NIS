@@ -16,11 +16,11 @@ kul_main_dir=`dirname "$0"`
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
 ncpu_foreach=4
-#suffix="_reg2T1w"
-suffix=""
+suffix="_reg2T1w"
+#suffix=""
 
-select_shells="0 700 1000 2000"
-
+#select_shells="0 700 1000 2000"
+select_shells=""
 
 # FUNCTIONS --------------
 
@@ -156,15 +156,18 @@ if [ ! -f data_prep.done ]; then
     
     echo "   Preparing data in dwiprep/${group_name}/fba/"
     
-    search_sessions=($(find ${cwd}/dwiprep/sub-* -type f | grep dwi_preproced${suffix}.mif | sort ))
-    num_sessions=${#search_sessions[@]}
+    search_subjects=($(find ${cwd}/dwiprep/sub-* -type f | grep dwi_preproced${suffix}.mif | sort ))
+    num_sessions=${#search_subjects[@]}
 
-    for i in ${search_sessions[@]}
+    for i in ${search_subjects[@]}
     do
 
-        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+        sub=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+        ses=$(echo $i | awk -F 'ses-' '{print $2}' | awk -F '/' '{print $1}')
         #echo $i
-        #echo $s
+        #echo $sub
+        #echo $ses
+        s=${sub}_${ses}
         mkdir -p ${cwd}/dwiprep/${group_name}/fba/subjects/${s}
         ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dwi_preproced${suffix}.mif
         if [ "$algo" = "st" ]; then 
@@ -172,17 +175,22 @@ if [ ! -f data_prep.done ]; then
         fi
 
     done
-
-
-
+ 
     # find the preproced masks
-    search_sessions=($(find ${cwd}/dwiprep -type f | grep dwi_preproced${suffix}_mask.nii.gz | sort ))
-    num_sessions=${#search_sessions[@]}
+    search_subjects=($(find ${cwd}/dwiprep -type f | grep dwi_preproced${suffix}_mask.nii.gz | sort ))
+    num_subjects=${#search_subjects[@]}
 
-    for i in ${search_sessions[@]}
+    for i in ${search_subjects[@]}
     do
 
-        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+        #s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+        sub=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+        ses=$(echo $i | awk -F 'ses-' '{print $2}' | awk -F '/' '{print $1}')
+        #echo $i
+        #echo $sub
+        #echo $ses
+        s=${sub}_${ses}
+
         if [ "$algo" = "st" ]; then 
         
             mrconvert $i ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/mask_input/${s}_dwi_preproced${suffix}.mif -force
@@ -195,41 +203,55 @@ if [ ! -f data_prep.done ]; then
 
     done
     
-    # find the response functions
-    search_sessions=($(find ${cwd}/dwiprep -type f | grep dhollander_csf_response.txt | sort ))
-    num_sessions=${#search_sessions[@]}
 
-    for i in ${search_sessions[@]}
-    do
+    if [ "$algo" = "mt" ]; then 
 
-        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
-        ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dhollander_csf_response.txt
+        # find the response functions
+        search_subjects=($(find ${cwd}/dwiprep -type f | grep dhollander_csf_response.txt | sort ))
+        num_subjects=${#search_subjects[@]}
+
+        for i in ${search_subjects[@]}
+        do
+
+            #s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+            sub=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+            ses=$(echo $i | awk -F 'ses-' '{print $2}' | awk -F '/' '{print $1}')
+            s=${sub}_${ses}
+            ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dhollander_csf_response.txt
         
-    done
+        done
 
-    # find the response functions
-    search_sessions=($(find ${cwd}/dwiprep -type f | grep dhollander_gm_response.txt | sort ))
-    num_sessions=${#search_sessions[@]}
+        # find the response functions
+        search_subjects=($(find ${cwd}/dwiprep -type f | grep dhollander_gm_response.txt | sort ))
+        num_subjects=${#search_subjects[@]}
 
-    for i in ${search_sessions[@]}
-    do
+        for i in ${search_subjects[@]}
+        do
 
-        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
-        ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dhollander_gm_response.txt
+            #s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+            sub=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+            ses=$(echo $i | awk -F 'ses-' '{print $2}' | awk -F '/' '{print $1}')
+            s=${sub}_${ses}
+            ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dhollander_csf_response.txt
         
-    done
+        done
 
-    # find the response functions
-    search_sessions=($(find ${cwd}/dwiprep -type f | grep dhollander_wm_response.txt | sort ))
-    num_sessions=${#search_sessions[@]}
+        # find the response functions
+        search_subjects=($(find ${cwd}/dwiprep -type f | grep dhollander_wm_response.txt | sort ))
+        num_subjects=${#search_subjects[@]}
 
-    for i in ${search_sessions[@]}
-    do
+        for i in ${search_subjects[@]}
+        do
 
-        s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
-        ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dhollander_wm_response.txt
+            #s=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+            sub=$(echo $i | awk -F 'sub-' '{print $2}' | awk -F '/' '{print $1}')
+            ses=$(echo $i | awk -F 'ses-' '{print $2}' | awk -F '/' '{print $1}')
+            s=${sub}_${ses}
+            ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dhollander_csf_response.txt
         
-    done
+        done
+    
+    fi
 
     echo "done" > data_prep.done
 
@@ -238,6 +260,7 @@ else
     echo "   Preparing data in dwiprep/${group_name}/fba/ already done"
 
 fi
+
 
 # Option to select certain shells from the data
 if [ "$select_shells" = "" ]; then 
@@ -416,7 +439,6 @@ if [ "$algo" = "mt" ]; then
 
 fi
 
-
 # STEP 4 - Generate a study-specific unbiased FOD template
 mkdir -p ../template/fod_input
 mkdir -p ../template/mask_input
@@ -457,6 +479,7 @@ if [ ! -f ../template/wmfod_template.mif ]; then
         
     done
 
+
     population_template  ../template/fod_input -mask_dir ../template/mask_input ../template/wmfod_template.mif \
     -voxel_size 1.3 -nthreads $ncpu
 
@@ -465,7 +488,6 @@ else
     echo "   FOD template already generated"
 
 fi
-
 
 
 # Register all subject FOD images to the FOD template
