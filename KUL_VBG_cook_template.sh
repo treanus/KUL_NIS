@@ -44,9 +44,9 @@ outdir="${cwd}/VBG_cooked_temp"
 
 ###### CHANGE ME #### CHANGE ME
 
-T1_R="${cwd}/sub-PT008_T1w.nii.gz"
+T1_R="${cwd}/sub-001_T1w.nii.gz"
 
-T1_L="${cwd}/sub-PT024_T1w.nii.gz"
+T1_L="${cwd}/sub-001_T1w_F11.nii.gz"
 
 ###### CHANGE ME #### CHANGE ME
 
@@ -72,7 +72,7 @@ fi
 
 # Temp. vars
 
-temps_dir=($(which KUL_LWF_validation_v3.sh | rev | cut -d"/" -f2- | rev))
+temps_dir=($(which KUL_VBG.sh | rev | cut -d"/" -f2- | rev))
 
 MNI_T1="${temps_dir}/atlasses/Templates/HR_T1_MNI.nii.gz"
 

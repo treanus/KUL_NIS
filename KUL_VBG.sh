@@ -119,7 +119,9 @@ Required arguments:
 Optional arguments:
 
     -s:  session (of the participant)
-    -w:  Use the warped template for Atropos1
+    -t:  Use the VBG template to derive the fill patch (if set to 1, template tissue is used alongside native tissue to make the lesion fill)
+    -E:  Treat as an extra-axial lesion (skip VBG bulk, fill lesion patch with 0s, run FS and subsequent steps)
+    -F:  Run Freesurfer recon-all, generate aparc+aseg + lesion and lesion report
     -m:  full path to intermediate output dir
     -o:  full path to output dir (if not set reverts to default output ./lesion_wf_output)
     -n:  number of cpu for parallelisation (default is 6)
@@ -158,9 +160,11 @@ s_flag=0
 l_flag=0
 l_spaceflag=0
 t1_flag=0
+t_flag=0
 o_flag=0
 m_flag=0
 n_flag=0
+F_flag=0
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -168,7 +172,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "p:a:l:z:s:o:m:n:bvh" OPT; do
+    while getopts "p:a:l:z:s:o:m:n:bvhtFE" OPT; do
 
         case $OPT in
         p) #subject
@@ -201,6 +205,15 @@ else
 	    o) #output
 			o_flag=1
 			out_dir=$OPTARG		
+        ;;
+        t) #template flag
+			t_flag=1	
+        ;;
+        F) #FS recon-all flag
+			F_flag=1	
+        ;;
+        E) #Extra-axial flag
+			E_flag=1	
         ;;
         n) #parallel
 			n_flag=1
@@ -322,11 +335,13 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 		if [[ "$search_T1" ]]; then
 			
 			T1_orig=$search_T1;
+
 			echo " We found T1 WIs " $T1_orig
 			
 		else
 			
 			echo " no T1 WIs found in BIDS dir, exiting "
+
 			exit 2
 			
 		fi
@@ -344,11 +359,13 @@ elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 0 ]]; then
 	if [[ "$t1_flag" ]]; then
 			
 		T1_orig=$t1_orig
+
         echo " T1 images provided as ${t1_orig} "
 		
     else
 
         echo " No T1 WIs specified, exiting. "
+
 		exit 2
 			
 	fi
@@ -357,16 +374,32 @@ elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 0 ]]; then
 elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 1 ]]; then
 			
 	echo " Wrong optional arguments, we can't have sessions without BIDS, exiting."
+    
 	exit 2
 		
 fi
 
 # set this manually for debugging
-function_path=($(which KUL_LWF_validation_v3.sh | rev | cut -d"/" -f2- | rev))
+function_path=($(which KUL_VBG.sh | rev | cut -d"/" -f2- | rev))
 
 #  the primary image is the noncontrast T1
 
 prim=${T1_orig}
+
+# this if loop will quit the script if the T1 is not found
+
+if [[ -z "${T1_orig}" ]]; then
+
+    echo
+    echo " Incorrect T1 input, please check the file path and name "
+    echo
+    exit 2
+
+else
+
+    echo "Inputs are -p  ${subj}  -T1 ${T1_orig}  -lesion  ${L_mask}  -lesion_space  ${L_mask_space}"
+    
+fi
 
 
 # REST OF SETTINGS ---
@@ -583,6 +616,8 @@ echo "KUL_lesion_WF @ ${d} with parent pid $$ "
 
     L_mask_reori="${str_pp}_L_mask_reori.nii.gz"
 
+    L_O_binv="${str_pp}_L_mask_reori_binv.nii.gz"
+
     Lmask_MNIBET="${str_pp}_L_mask_MNIBET.nii.gz"
 
     Lmask_MNIBET_s2bin="${str_pp}_L_mask_MNIBET_bin.nii.gz"
@@ -672,6 +707,22 @@ echo "KUL_lesion_WF @ ${d} with parent pid $$ "
     smoothed_binLmask15="${str_pp}_smoothedLmaskbin15.nii.gz"
 
     smoothed_binvLmask15="${str_pp}_smoothedLmaskbinv15.nii.gz"
+
+    # last lesion related vars (hopefully)
+
+    L_mask_reori_scaled="${str_pp}_L_mask_reori_scaled99.nii.gz"
+
+    bmc_minL_conn="${str_pp}_brain_mask_cleaned_minL_conn.nii.gz"
+
+    bmc_minL_true="${str_pp}_brain_mask_cleaned_minL.nii.gz"
+
+    L_mask_reori_ero1="${str_pp}_L_mask_reori_ero1.nii.gz"
+
+    bmc_minL_ero1="${str_pp}_brain_mask_cleaned_minL_ero1.nii.gz"
+
+    L_mask_reori_ero2="${str_pp}_L_mask_reori_ero2.nii.gz"
+
+    bmc_minL_ero2="${str_pp}_brain_mask_cleaned_minL_ero2.nii.gz"
 
     # img vars for part 1 and 2
 
@@ -897,6 +948,8 @@ function KUL_antsBETp {
 
     if [[ $(which hd-bet) ]]; then
 
+        hd_bet_flag=1
+
         echo "hd-bet is present, will use this for brain extraction" >> ${prep_log}
 
         # echo "sourcing ptc conda virtual env, if yours is named differently please edit lines 822 823 " >> ${prep_log}
@@ -910,6 +963,9 @@ function KUL_antsBETp {
         task_exec
 
     else
+
+        echo "hd-bet is not found, resorting to ANTs based BET" >> ${prep_log}
+
 
         task_in="antsBrainExtraction.sh -d 3 -a ${prim_in} -e ${MNI_T1} -m ${MNI_brain_mask} -u 1 -k 1 -o ${output}_"
 
@@ -990,9 +1046,14 @@ function KUL_antsBETp {
 
 function KUL_Lmask_part1 {
 
-    if [[ $L_mask_space == "T1" ]]; then
+    # since we only operate in 1 space (unimodal) this if condition is useless and deprecated
+    # substituting with E_flag coniditional arguments
 
-        echo " Lesion mask is already in T1 space " >> ${prep_log}
+    if [[ "${E_flag}" -eq 0 ]]; then
+
+        # echo " Lesion mask is already in T1 space " >> ${prep_log}
+
+        echo " Intra-axial lesion running VBG Lmask_pt1 workflow and subsequent steps" >> ${prep_log}
 
         # start by smoothing and thring the mask
 
@@ -1000,23 +1061,26 @@ function KUL_Lmask_part1 {
 
         task_exec
 
-        echo " Renaming Lmask_bin file to Lmask_in_T1_bin " >> ${prep_log}
+        echo " Copying Lmask_bin_s2 file to Lmask_in_T1_bin " >> ${prep_log}
 
-        mv ${Lmask_bin} ${Lmask_in_T1_bin}
+        cp ${Lmask_bin} ${Lmask_in_T1_bin}
+
+        # subtract lesion from brain mask
+
+        task_in="fslmaths ${clean_mask_nat} -mas ${Lmask_in_T1_binv} -mas ${clean_mask_nat} ${brain_mask_minL}"
+
+        task_exec
 
     else
 
-        echo " This version is for validation only, use T1 space inputs only! "
-        exit 2
+        echo " Extra-axial lesion running simplified VBG Lmask_pt1 workflow, FS and subsequent steps" >> ${prep_log}
+
+        task_in="fslmaths ${L_mask_reori} -binv ${L_O_binv}"
+
+        task_exec
 
     
     fi
-
-    # subtract lesion from brain mask
-
-    task_in="fslmaths ${clean_mask_nat} -mas ${Lmask_in_T1_binv} -mas ${clean_mask_nat} ${brain_mask_minL}"
-
-    task_exec
 
 }
 
@@ -1262,7 +1326,7 @@ function KUL_Lmask_part2 {
 
     # here we create the stitched and initial filled images
 
-    if [[ -z "$bilateral" ]]; then
+    if [[ -z "${bilateral}" ]] && [[ ${t_flag} == 0 ]]; then
 
         # if not bilateral, we do this using native tissue and template tissue
         
@@ -1338,7 +1402,7 @@ function KUL_Lmask_part2 {
 
         T1_filled1=${Temp_T1_filled1}
 
-    else
+    elif [[ "${bilateral}" ]] || [[ ${t_flag} == 1 ]]; then
 
         # if bilateral we do a simple(r) filling
 
@@ -1431,11 +1495,11 @@ function KUL_Lmask_part2 {
 
         # Run AtroposN4
 
-        if [[ -z "$bilateral" ]] ; then
+        if [[ -z "${bilateral}" ]] && [[ ${t_flag} == 0 ]]; then
 
             prim_in=${T1_sti2fill_brain} 
 
-        else
+        elif [[ -z "${bilateral}" ]] || [[ ${t_flag} == 1 ]]; then
 
             echo " Bilateral lesion using the initial filled for Atropos " >> ${prep_log}
 
@@ -1510,975 +1574,1226 @@ function KUL_antsAtropos {
 }
 
 
+# check what kind of lesion it is
 
-# ------------------------------------------------------------------------------------------ #
+if [[ "${E_flag}" -eq 0 ]]; then
 
-## Start of Script
+    echo
+    echo "No -E flag set, treating the lesion as an intra-axial lesion, we will run VBG" >&2
+    echo "No -E flag set, treating the lesion as an intra-axial lesion, we will run VBG" >> ${prep_log}
+    echo
 
-echo " You are using VBG " >> ${prep_log}
+    # check and report if temp flag is set
 
-echo "" >> ${prep_log}
+    if [[ "${t_flag}" -eq 0 ]]; then
+        
+        echo
+        echo "Template flag not set, using native tissue for filling" >&2
+        echo "Template flag not set, using native tissue for filling" >> ${prep_log}
+        echo
+        
+    elif [[ "${t_flag}" -eq 1 ]]; then
 
-echo " VBG started at ${start_t} " >> ${prep_log}
-
-echo ${priors_array[@]} >> ${prep_log}
-
-if [[ -z "${search_wf_mark1}" ]]; then
-
-    if [[ -z "${srch_preprocp1}" ]]; then
-
-        input="${prim}"
-
-        output1="${str_pp}_T1_reori2std.nii.gz"
-
-        task_in="fslreorient2std ${input} ${output1}"
-
-        task_exec
-
-        # reorient T1s
-
-        input="${output1}"
-
-        dn_model="Gaussian"
-
-        output2="${str_pp}_T1_dn.nii.gz"
-
-        output=${output2}
-
-        noise="${str_pp}_T1_noise.nii.gz"
-
-        mask=""
-
-        # denoise T1s
-        KUL_denoise_im
-
-        # to avoid failures with BFC due to negative pixel values
-
-        task_in="fslmaths ${output2} -thr 0 ${str_pp}_T1_dn_thr.nii.gz"
-
-        task_exec
-
-        input="${str_pp}_T1_dn_thr.nii.gz"
-
-        unset output2
-
-        bias="${str_pp}_T1_bais1.nii.gz"
-
-        output="${T1_N4BFC}"
-
-        # N4BFC T1s
-        KUL_N4BFC
-
-    else
-
-        echo "Reorienting, denoising, and bias correction already done, skipping " >> ${prep_log}
+        echo
+        echo "Template flag is set, using native and donor tissue for filling" >&2
+        echo "Template flag is set, using native and donor tissue for filling" >> ${prep_log}
+        echo
 
     fi
 
-    # Run ANTs BET, make masks
 
-    if [[ -z "${srch_antsBET}" ]]; then
+    # ------------------------------------------------------------------------------------------ #
 
-        echo " running Brain extraction " >> ${prep_log}
+    ## Start of Script
 
-        prim_in="${T1_N4BFC}"
+    echo " You are using VBG " >> ${prep_log}
 
-        output="${hdbet_str}"
+    echo "" >> ${prep_log}
 
-        # run antsBET
+    echo " VBG started at ${start_t} " >> ${prep_log}
 
-        KUL_antsBETp
+    echo ${priors_array[@]} >> ${prep_log}
 
-        task_in="fslmaths ${clean_mask_nat} -s 2 -thr 0.5 -save ${BET_mask_s2} -binv -fillh -s 2 -thr 0.2 \
-        -sub ${BET_mask_s2} -thr 0 ${BET_mask_binvs2}"
+    if [[ -z "${search_wf_mark1}" ]]; then
+
+        if [[ -z "${srch_preprocp1}" ]]; then
+
+            input="${prim}"
+
+            output1="${str_pp}_T1_reori2std.nii.gz"
+
+            task_in="fslreorient2std ${input} ${output1}"
+
+            task_exec
+
+            # reorient T1s
+
+            input="${output1}"
+
+            dn_model="Gaussian"
+
+            output2="${str_pp}_T1_dn.nii.gz"
+
+            output=${output2}
+
+            noise="${str_pp}_T1_noise.nii.gz"
+
+            mask=""
+
+            # denoise T1s
+            KUL_denoise_im
+
+            # to avoid failures with BFC due to negative pixel values
+
+            task_in="fslmaths ${output2} -thr 0 ${str_pp}_T1_dn_thr.nii.gz"
+
+            task_exec
+
+            input="${str_pp}_T1_dn_thr.nii.gz"
+
+            unset output2
+
+            bias="${str_pp}_T1_bais1.nii.gz"
+
+            output="${T1_N4BFC}"
+
+            # N4BFC T1s
+            KUL_N4BFC
+
+        else
+
+            echo "Reorienting, denoising, and bias correction already done, skipping " >> ${prep_log}
+
+        fi
+
+        # Run ANTs BET, make masks
+
+        if [[ -z "${srch_antsBET}" ]]; then
+
+            echo " running Brain extraction " >> ${prep_log}
+
+            prim_in="${T1_N4BFC}"
+
+            output="${hdbet_str}"
+
+            # run antsBET
+
+            KUL_antsBETp
+
+            task_in="fslmaths ${clean_mask_nat} -s 2 -thr 0.5 -save ${BET_mask_s2} -binv -fillh -s 2 -thr 0.2 \
+            -sub ${BET_mask_s2} -thr 0 ${BET_mask_binvs2}"
+
+            task_exec
+
+            task_in="fslmaths ${T1_N4BFC} -mul ${BET_mask_binvs2} ${T1_skull}"
+
+            task_exec
+
+        else
+
+            echo " Brain extraction already done, skipping " >> ${prep_log}
+
+            echo "${T1_brain_clean}" >> ${prep_log}
+
+            echo "${clean_mask_nat}" >> ${prep_log}
+
+            echo " ANTsBET already run, skipping " >> ${prep_log}
+
+        fi
+
+        # run KUL_lesion_magic1
+        # this creates a bin, binv, & bm_minL 
+
+        if [[ -z "${sch_brnmsk_minL}" ]]; then
+
+            KUL_Lmask_part1
+
+        else
+
+            echo "${brain_mask_minL} already created " >> ${prep_log}
+
+        fi
+
+        # carry on
+        # here we do the first T1 warp to template (default antsRegSyN 3 stage)
+
+        if [[ -z "${T1brain2MNI1}" ]] ; then
+        
+            mov_im="${T1_brain_clean}"
+
+            fix_im="${MNI_T1_brain}"
+
+            mask=" -x ${MNI_brain_mask},${brain_mask_minL} "
+
+            transform="s"
+
+            output="${T1_brMNI1_str}"
+
+            KUL_antsRegSyN_Def
+
+        else
+
+            echo "${T1_brain_inMNI1} already created " >> ${prep_log}
+
+        fi
+
+        # Apply warps to brain_mask, noise, L_mask and make BM_minL
+
+        task_in="WarpImageMultiTransform 3 ${clean_mask_nat} ${brain_mask_inMNI1} -R ${MNI_T1_brain} ${T1_brMNI1_str}1Warp.nii.gz ${T1_brMNI1_str}0GenericAffine.mat --use-NN"
 
         task_exec
 
-        task_in="fslmaths ${T1_N4BFC} -mul ${BET_mask_binvs2} ${T1_skull}"
+        task_in="WarpImageMultiTransform 3 ${str_pp}_T1_noise.nii.gz ${T1_noise_inMNI1} -R ${MNI_T1_brain} ${T1_brMNI1_str}1Warp.nii.gz ${T1_brMNI1_str}0GenericAffine.mat --use-NN"
 
         task_exec
 
-    else
+        task_in="WarpImageMultiTransform 3 ${Lmask_in_T1_bin} ${str_pp}_Lmask_rsMNI1.nii.gz -R ${MNI_T1_brain} ${T1_brMNI1_str}1Warp.nii.gz ${T1_brMNI1_str}0GenericAffine.mat"
 
-        echo " Brain extraction already done, skipping " >> ${prep_log}
+        task_exec
+        
+        task_in="fslmaths ${str_pp}_Lmask_rsMNI1.nii.gz -bin -mas ${brain_mask_inMNI1} -save ${Lmask_bin_inMNI1} -binv -mas ${brain_mask_inMNI1} ${brain_mask_minL_inMNI1}"
 
-        echo "${T1_brain_clean}" >> ${prep_log}
+        task_exec
 
-        echo "${clean_mask_nat}" >> ${prep_log}
-
-        echo " ANTsBET already run, skipping " >> ${prep_log}
-
-    fi
-
-    # run KUL_lesion_magic1
-    # this creates a bin, binv, & bm_minL 
-
-    if [[ -z "${sch_brnmsk_minL}" ]]; then
-
-        KUL_Lmask_part1
 
     else
 
-        echo "${brain_mask_minL} already created " >> ${prep_log}
+
+        echo " First part already done, skipping. " >> ${prep_log}
 
     fi
 
-    # carry on
-    # here we do the first T1 warp to template (default antsRegSyN 3 stage)
+    # Flip the images in MNI1
 
-    if [[ -z "${T1brain2MNI1}" ]] ; then
-    
-        mov_im="${T1_brain_clean}"
+    if [[ -z "${search_wf_mark2}" ]]; then
+
+        # do it for the T1s
+
+        input="${T1_brain_inMNI1}"
+
+        flip_out="${fT1brain_inMNI1}"
+
+        KUL_flip_ims
+
+        unset input flip_out
+
+        input="${brain_mask_minL_inMNI1}"
+
+        flip_out="${fbrain_mask_minL_inMNI1}"
+
+        KUL_flip_ims
+
+        unset input flip_out
+
+        input="${T1_noise_inMNI1}"
+
+        flip_out="${fT1_noise_inMNI1}"
+
+        KUL_flip_ims
+
+        unset input flip_out
+
+    else
+
+        echo " flipped images already created, skipping " >> ${prep_log}
+
+    fi
+
+    # Second deformation, warp to template a second time (1 stage SyN)
+
+    if [[ -z "${T1brain2MNI2}" ]]; then
 
         fix_im="${MNI_T1_brain}"
 
-        mask=" -x ${MNI_brain_mask},${brain_mask_minL} "
+        mov_im="${T1_brain_inMNI1}"
 
-        transform="s"
+        transform="so"
 
-        output="${T1_brMNI1_str}"
+        output="${T1_brMNI2_str}"
+
+        mask=" -x ${MNI_brain_mask},${brain_mask_minL_inMNI1} "
 
         KUL_antsRegSyN_Def
 
     else
 
-        echo "${T1_brain_inMNI1} already created " >> ${prep_log}
+        echo " Second T1_brain 2 MNI already done, skipping " >> ${prep_log}
 
     fi
 
-    # Apply warps to brain_mask, noise, L_mask and make BM_minL
+    # Warp flipped brain to template (3 stage)
 
-    task_in="WarpImageMultiTransform 3 ${clean_mask_nat} ${brain_mask_inMNI1} -R ${MNI_T1_brain} ${T1_brMNI1_str}1Warp.nii.gz ${T1_brMNI1_str}0GenericAffine.mat --use-NN"
+    if [[ -z "${fT1_brain_2MNI2}" ]]; then
 
-    task_exec
+        fix_im="${MNI_T1_brain}"
 
-    task_in="WarpImageMultiTransform 3 ${str_pp}_T1_noise.nii.gz ${T1_noise_inMNI1} -R ${MNI_T1_brain} ${T1_brMNI1_str}1Warp.nii.gz ${T1_brMNI1_str}0GenericAffine.mat --use-NN"
+        mov_im="${fT1brain_inMNI1}"
 
-    task_exec
+        transform="s"
 
-    task_in="WarpImageMultiTransform 3 ${Lmask_in_T1_bin} ${str_pp}_Lmask_rsMNI1.nii.gz -R ${MNI_T1_brain} ${T1_brMNI1_str}1Warp.nii.gz ${T1_brMNI1_str}0GenericAffine.mat"
+        output="${fT1_brMNI2_str}"
 
-    task_exec
-    
-    task_in="fslmaths ${str_pp}_Lmask_rsMNI1.nii.gz -bin -mas ${brain_mask_inMNI1} -save ${Lmask_bin_inMNI1} -binv -mas ${brain_mask_inMNI1} ${brain_mask_minL_inMNI1}"
+        mask=" -x ${MNI_brain_mask},${fbrain_mask_minL_inMNI1} "
 
-    task_exec
+        echo " now making fT1brain2MNI2 " >> ${prep_log}
 
-
-else
-
-
-    echo " First part already done, skipping. " >> ${prep_log}
-
-fi
-
-# Flip the images in MNI1
-
-if [[ -z "${search_wf_mark2}" ]]; then
-
-    # do it for the T1s
-
-    input="${T1_brain_inMNI1}"
-
-    flip_out="${fT1brain_inMNI1}"
-
-    KUL_flip_ims
-
-    unset input flip_out
-
-    input="${brain_mask_minL_inMNI1}"
-
-    flip_out="${fbrain_mask_minL_inMNI1}"
-
-    KUL_flip_ims
-
-    unset input flip_out
-
-    input="${T1_noise_inMNI1}"
-
-    flip_out="${fT1_noise_inMNI1}"
-
-    KUL_flip_ims
-
-    unset input flip_out
-
-else
-
-    echo " flipped images already created, skipping " >> ${prep_log}
-
-fi
-
-# Second deformation, warp to template a second time (1 stage SyN)
-
-if [[ -z "${T1brain2MNI2}" ]]; then
-
-    fix_im="${MNI_T1_brain}"
-
-    mov_im="${T1_brain_inMNI1}"
-
-    transform="so"
-
-    output="${T1_brMNI2_str}"
-
-    mask=" -x ${MNI_brain_mask},${brain_mask_minL_inMNI1} "
-
-    KUL_antsRegSyN_Def
-
-else
-
-    echo " Second T1_brain 2 MNI already done, skipping " >> ${prep_log}
-
-fi
-
-# Warp flipped brain to template (3 stage)
-
-if [[ -z "${fT1_brain_2MNI2}" ]]; then
-
-    fix_im="${MNI_T1_brain}"
-
-    mov_im="${fT1brain_inMNI1}"
-
-    transform="s"
-
-    output="${fT1_brMNI2_str}"
-
-    mask=" -x ${MNI_brain_mask},${fbrain_mask_minL_inMNI1} "
-
-    echo " now making fT1brain2MNI2 " >> ${prep_log}
-
-    KUL_antsRegSyN_Def
-
-else
-
-    echo " Second fT1_brain 2 MNI already done, skipping " >> ${prep_log}
-
-fi
-
-# Atropos2 runs on the T1 brain in MNI1 space (after first deformation)
-# after this runs, cleanup and apply inverse warps to native space
-
-if [[ -z "${Atropos2_wf_mark}" ]]; then
-
-    unset atropos_out prim_in atropos_mask atropos_priors wt mrf
-
-    echo " using MNI priors for segmentation "  >> ${prep_log}
-
-    echo ${priors_array[@]} >> ${prep_log}
-
-    prim_in=${T1_brain_inMNI1}
-
-    atropos_mask="${brain_mask_minL_inMNI1}"
-
-    echo " using brain mask minL in MNI1 "  >> ${prep_log}
-    # this is so to avoid failures with atropos
-
-    atropos_priors=${new_priors}
-
-    atropos_out="${str_pp}_atropos2_"
-
-    wt="0.1"
-
-    mrf="[0.2,1,1,1]"
-
-    KUL_antsAtropos
-
-    Atropos2_str="${str_pp}_atropos2_SegmentationPosteriors?.nii.gz"
-
-    Atropos2_posts=($(ls ${Atropos2_str}))
-
-    echo ${Atropos2_posts[@]} >> ${prep_log}
-
-    unset atropos_out prim_in atropos_mask atropos_priors wt mrf
-
-else
-
-    Atropos2_str="${str_pp}_atropos2_SegmentationPosteriors?.nii.gz"
-
-    Atropos2_posts=($(ls ${Atropos2_str}))
-
-    echo ${Atropos2_posts[@]} >> ${prep_log}
-
-    echo " Atropos2 segmentation already finished, skipping. " >> ${prep_log}
-
-fi
-
-# second part handling lesion masks and Atropos run
-# this function has builtin processing control points
-
-if [[ -z "${srch_Lmask_pt2}" ]]; then
-
-    echo " Starting KUL lesion magic part 2 " >> ${prep_log}
-
-    KUL_Lmask_part2
-
-    echo " Finished KUL lesion magic part 2 " >> ${prep_log}
-
-else
-
-    Lmask_tot_v=$(mrstats -force -nthreads ${ncpu} ${Lmask_bin_inMNI1} -output count -quiet -ignorezero)
-
-    overlap_left=$(mrstats -force -nthreads ${ncpu} ${lesion_left_overlap} -output count -quiet -ignorezero)
-
-    overlap_right=$(mrstats -force -nthreads ${ncpu} ${lesion_right_overlap} -output count -quiet -ignorezero)
-
-    L_ovLt_2_total=$(echo ${overlap_left}*100/${Lmask_tot_v} | bc)
-
-    L_ovRt_2_total=$(echo ${overlap_right}*100/${Lmask_tot_v} | bc)
-
-    echo " total lesion vox count ${Lmask_tot_v}" >> ${prep_log}
-
-    echo " ov_left is ${overlap_left}" >> ${prep_log}
-
-    echo " ov right is ${overlap_right}" >> ${prep_log}
-
-    echo " ov_Lt to total is ${L_ovLt_2_total}" >> ${prep_log}
-
-    echo " ov_Rt to total is ${L_ovRt_2_total}" >> ${prep_log}
-
-    # we set a hard-coded threshold of 65, if unilat. then native heatlhy hemi is used
-    # if bilateral by more than 35, template brain is used
-    # # this needs to be modified, also need to include simple lesion per hemisphere overlap with percent to total hemi volume
-    # this will enable us to use template or simple filling and derive mean values per tissue class form another source (as we're currently using the original images).
-    # AR 09/02/2020
-    # here we also need to make unilateral L masks, masked by hemi mask to overcome midline issue
-    
-    if [[ "${L_ovLt_2_total}" -gt 65 ]]; then
-
-        echo ${L_ovLt_2_total} >> ${prep_log}
-
-        echo " This patient has a left sided or predominantly left sided lesion " >> ${prep_log}
-
-        echo "${L_hemi_mask}" >> ${prep_log}
-
-        echo "${H_hemi_mask}" >> ${prep_log}
-
-        T1_filled1=${Temp_T1_filled1}
-
-        stitched_T1=${stitched_T1_temp}
-
-        ## CHANGE-ME -lt is theer only for debugging
-
-    elif [[ "${L_ovRt_2_total}" -gt 65 ]]; then
-
-        echo ${L_ovRt_2_total} >> ${prep_log}
-
-        echo " This patient has a right sided or predominantly right sided lesion " >> ${prep_log}
-
-        echo "${L_hemi_mask}" >> ${prep_log}
-
-        echo "${H_hemi_mask}" >> ${prep_log}
-
-        T1_filled1=${Temp_T1_filled1}
-
-        stitched_T1=${stitched_T1_temp}
-        
-    else 
-
-        bilateral=1
-
-        stitched_T1=${tmp_s2T1_CSFGMCBWMr}
-
-        T1_filled1=${Temp_T1_bilfilled1}
-
-        stitched_T1_nat=${T1_filled1}
-
-        echo " This is a bilateral lesion with ${L_ovLt_2_total} left side and ${L_ovRt_2_total} right side, using Template T1 to derive lesion fill patch. "  >> ${prep_log}
-
-        echo " note Atropos1 will use the filled images instead of the stitched ones "  >> ${prep_log}
-
-    fi
-
-    Atropos1_str="${str_pp}_atropos1_SegmentationPosteriors?.nii.gz"
-
-    Atropos1_posts=($(ls ${Atropos1_str}))
-
-    echo ${Atropos1_posts[@]} >> ${prep_log}
-
-    echo " Lesion magic part 2 already finished, skipping " >> ${prep_log}
-
-
-fi
-
-##### 
-
-# Now we warp back to MNI brain in native space
-# which will be needed after Atropos1
-# this can be replaced by a different kind of reg no ? or we simply apply the inverse warps!
-# just to show the initial filled result (initially for diagnostic purposes)
-
-if [[ -z "${srch_bk2anat1_mark}" ]]; then
-
-    # fix_im="${T1_brMNI1_str}InverseWarped.nii.gz"
-
-    fix_im="${T1_filled1}"
-
-    mov_im="${T1_brain_clean}"
-
-    mask=" -x ${brain_mask_inMNI1},${brain_mask_minL} "
-
-    transform="s"
-
-    output="${T1_bk2nat1_str}"
-
-    KUL_antsRegSyN_Def
-
-    task_in="cp ${T1_bk2nat1_str}InverseWarped.nii.gz ${str_op}_T1_initial_filled_brain.nii.gz"
-
-    task_exec    
-
-    # the bk2anat1 step is for the outputs of Atropos1 mainly.
-
-else
-
-    echo "First step Warping images back to anat already done, skipping " >> ${prep_log}
-
-fi
-
-# we will need fslmaths to make lesion_fill2 from the segmentations
-# fslmaths Atropos2_posteriors -add lesion_fill2
-# fslstats -m
-# fslmaths to binarize each tpm then -mul the mean intensity of that tissue type
-# should mask out the voxels of each tpm from the resulting image before inserting it
-# finally fslmaths -add noise and -mul bias
-
-echo " Starting KUL lesion magic part 3 " >> ${prep_log}
-
-if [[ -z "${srch_make_images}" ]]; then 
-
-    # warping nat filled (in case of unilat. lesion and place holder for initial filled)
-    # will be used to fill holes in synth image
-
-    task_in="WarpImageMultiTransform 3 ${stitched_T1_nat} ${stitched_T1_nat_innat} -R ${T1_brain_clean} \
-    -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz"
-
-    task_exec
-
-    # first we warp the Atropos1_segmentation back to native space
-
-    echo "in make images loop " >> ${prep_log}
-
-    echo " Creating synthetic image... almost there "
-
-    # Create the segmentation image lesion fill
-
-    task_in="fslmaths ${str_pp}_atropos1_Segmentation.nii.gz -mas ${Lmask_bin_inMNI1_dilx2} ${Lfill_segm_im}"
-
-    task_exec
-
-    # Make a hole in the real segmentation image and fill it
-
-    task_in="fslmaths ${str_pp}_atropos2_Segmentation.nii.gz -mas ${Lmask_binv_inMNI1_dilx2} -add ${Lfill_segm_im} ${atropos2_segm_im_filled}"
-
-    task_exec
-
-    # Bring the Atropos2_segm_im to native space
-    # for diagnostic purposes
-
-    task_in="WarpImageMultiTransform 3 ${atropos2_segm_im_filled} ${atropos2_segm_im_filled_nat} -R ${T1_brain_clean} -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz --use-NN"
-
-    task_exec
-
-    # Making the cleaned segmentation images here
-
-    echo ${tissues[@]} >> ${prep_log}
-
-    # one for loop to deal with all tpms and filling for the T1
-
-    for i in ${!tissues[@]}; do
-
-        # Create the atropos1 tpms lesion fill patches and inject in respective punched atropos2 tpm
-
-        atropos2_tpms_punched[$i]="${str_pp}_atropos_${tissues[$i]}_punched.nii.gz"
-
-        atropos1_tpms_Lfill[$i]="${str_pp}_atropos1_Lfill_${tissues[$i]}.nii.gz"
-
-        atropos_tpms_filled[$i]="${str_pp}_atropos_${tissues[$i]}_filled.nii.gz"
-
-        atropos_tpms_filled_GLC[$i]="${str_pp}_atropos_${tissues[$i]}_filled_GLC.nii.gz"
-
-        atropos_tpms_filled_GLCbinv[$i]="${str_pp}_atropos_${tissues[$i]}_filled_GLCbinv.nii.gz"
-
-        # make the punched tpms
-        # Atropos2 was run with only the Lmask_bin excluded
-        # no smoothing or dilation
-        # so dilx2 Lmasks should be fine
-
-        task_in="fslmaths ${Atropos2_posts[$i]} -mas ${Lmask_binv_inMNI1_dilx2} -thr 0.05 ${atropos2_tpms_punched[$i]}"
-
-        task_exec
-
-        # derive the signal intensity filling 
-        
-        # create tissue fill patch here
-
-        task_in="fslmaths ${Atropos1_posts[$i]} -mas ${Lmask_bin_inMNI1_dilx2} -save ${atropos1_tpms_Lfill[$i]} \
-        -add ${atropos2_tpms_punched[$i]} ${atropos_tpms_filled[$i]}"
-
-        task_exec
-
-        task_in="maskfilter -force -nthreads ${ncpu} -connectivity ${atropos_tpms_filled[$i]} connect - | mrcalc - 0 -gt \
-        -force -nthreads ${ncpu} ${atropos_tpms_filled_GLC[$i]}"
-
-        task_exec
-
-        task_in="fslmaths ${atropos_tpms_filled_GLC[$i]} -binv ${atropos_tpms_filled_GLCbinv[$i]}"
-
-        task_exec
-
-        # T1 stuff
-
-        T1_tissue_fill[$i]="${str_pp}_T1_${tissues[$i]}_stitchedT1_fill.nii.gz"
-
-        T1_tissue_fill_dil_s[$i]="${str_pp}_T1_${tissues[$i]}_stitchedT1_fill_dilalls80.nii.gz"
-
-        T1_tissue_fill_ready[$i]="${str_pp}_T1_${tissues[$i]}_stitchedT1_fill_clean.nii.gz"
-
-        atropos_tpms_filled_GLC_nat[$i]="${str_pp}_T1_${tissues[$i]}_stitchedT1_fc_nat.nii.gz"
-        
-        R_Tiss_intmap[$i]="${str_pp}_T1_${tissues[$i]}_real_intmap.nii.gz"
-        
-        T1_tissue_fill_ready_HM[$i]="${str_pp}_T1_${tissues[$i]}_stsyn_T1fill_HM.nii.gz"
-
-        #
-
-        task_in="fslmaths ${T1_sti2fill_brain} -mas ${atropos_tpms_filled_GLC[$i]} -save ${T1_tissue_fill[$i]} -dilall -s 80 ${T1_tissue_fill_dil_s[$i]}" 
-
-        task_exec
-
-        # using same masks for both steps (above and below this line)
-
-        task_in="fslmaths ${T1_tissue_fill_dil_s[$i]} -mas ${atropos_tpms_filled_GLC[$i]} ${T1_tissue_fill_ready[$i]}"
-
-        task_exec
-
-        # need to warp the atropos2 tpms (after punching) to native space
-        # threshold and apply as masks to the original image to get tissue specific intensity maps
-        # then histmatch each synth tissue map to the corresponding native real tissue intensity map.
-
-        task_in="WarpImageMultiTransform 3 ${atropos_tpms_filled_GLC[$i]} ${atropos_tpms_filled_GLC_nat[$i]} -R ${T1_brain_clean} \
-        -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz && fslmaths ${atropos_tpms_filled_GLC_nat[$i]} -thr 0.1 -mul \
-        ${stitched_T1_nat_innat} ${R_Tiss_intmap[$i]}"
-
-        task_exec
-
-        # using nonlinear with bin 2048 for histmatching with new templates
-
-        task_in="mrhistmatch -bin 2048 -force -nthreads ${ncpu} nonlinear -mask_target ${atropos_tpms_filled_GLC_nat[$i]} -mask_input ${atropos_tpms_filled_GLC[$i]} ${T1_tissue_fill_ready[$i]} \
-        ${R_Tiss_intmap[$i]} ${T1_tissue_fill_ready_HM[$i]}"
-
-        task_exec
-
-        # here we need to insert a histogram matching step
-        # for this to work we need to separate intensity maps of the tissue classes in the original image
-
-    done
-
-    echo ${T1_tissue_fill[@]}
-    echo ${T1_tissue_fill_ready[@]}
-    echo ${T1_tissue_fill_ready_HM[@]}
-    echo ${atropos_tpms_filled_binv[@]}
-
-    # Make the new images
-    # this part needs to be redesigned
-    # probably mrhistmatch will work better here
-    # should respect the actual BG shape....
-    # if parts of BG missing, fill with WM
-
-    # possibly a good place also for histogram matching the Synth to the real image
-    # masking out each tissue type before adding it in.
-
-    task_in="fslmaths ${T1_tissue_fill_ready_HM[0]} -mas ${atropos_tpms_filled_GLCbinv[1]} -add ${T1_tissue_fill_ready_HM[1]} \
-    -save ${str_pp}_T1_cw_dil_s_fill.nii.gz -mas ${atropos_tpms_filled_GLCbinv[2]} -add ${T1_tissue_fill_ready_HM[2]} \
-    -save ${str_pp}_T1_cwc_dil_s_fill.nii.gz -mas ${atropos_tpms_filled_GLCbinv[3]} -add ${T1_tissue_fill_ready_HM[3]} \
-    -save ${str_pp}_T1_cwcbg_dil_s_fill.nii.gz -mas ${brain_mask_inMNI1} ${str_pp}_synthT1_MNI1_holes.nii.gz"
-
-    task_exec
-
-    task_in="ImageMath 3 ${str_pp}_synthT1_MNI1.nii.gz addtozero ${str_pp}_synthT1_MNI1_holes.nii.gz"
-
-    task_exec
-
-    # if the lesion is not bilateral, then use the filled T1 to derive diff map, if it is bilateral then use stit2fill
-
-    if [[ -z "$bilateral" ]]; then
-
-        task_in="fslmaths ${T1_filled1} -sub ${str_pp}_synthT1_MNI1.nii.gz ${filledT1_synthT1_diff}"
-
-        task_exec
-
-        task_in="fslmaths ${filledT1_synthT1_diff} -add ${str_pp}_synthT1_MNI1.nii.gz ${str_pp}_hybridT1_MNI1.nii.gz"
-
-        task_exec
+        KUL_antsRegSyN_Def
 
     else
 
-        task_in="fslmaths ${T1_sti2fill_brain} -sub ${str_pp}_synthT1_MNI1.nii.gz ${stiT1_synthT1_diff}"
-
-        task_exec
-
-        task_in="fslmaths ${stiT1_synthT1_diff} -add ${str_pp}_synthT1_MNI1.nii.gz ${str_pp}_hybridT1_MNI1.nii.gz"
-
-        task_exec
+        echo " Second fT1_brain 2 MNI already done, skipping " >> ${prep_log}
 
     fi
 
-    # N4BFC again, sharpen and apply inverse transform to get hybrid ims to native T1 space
+    # Atropos2 runs on the T1 brain in MNI1 space (after first deformation)
+    # after this runs, cleanup and apply inverse warps to native space
 
-    unset output
+    if [[ -z "${Atropos2_wf_mark}" ]]; then
 
-    input="${str_pp}_hybridT1_MNI1.nii.gz"
+        unset atropos_out prim_in atropos_mask atropos_priors wt mrf
 
-    bias="${str_pp}_T1hybrid_MNI1_bias.nii.gz"
+        echo " using MNI priors for segmentation "  >> ${prep_log}
 
-    mask=" -x ${brain_mask_inMNI1}"
+        echo ${priors_array[@]} >> ${prep_log}
 
-    output="${str_pp}_T1hybrid_MNI1_bfc.nii.gz"
+        prim_in=${T1_brain_inMNI1}
 
-    KUL_N4BFC
+        atropos_mask="${brain_mask_minL_inMNI1}"
 
-    image_in="${str_pp}_T1hybrid_MNI1_bfc.nii.gz"
+        echo " using brain mask minL in MNI1 "  >> ${prep_log}
+        # this is so to avoid failures with atropos
 
-    image_out="${str_pp}_hybridT1_sMNI1.nii.gz"
+        atropos_priors=${new_priors}
 
-    task_in="ImageMath 3 ${image_out} Sharpen ${image_in}"
+        atropos_out="${str_pp}_atropos2_"
 
-    task_exec
+        wt="0.1"
 
-    unset image_in image_out
-    
-    image_in="${str_pp}_hybridT1_sMNI1.nii.gz"
+        mrf="[0.2,1,1,1]"
 
-    image_out="${str_pp}_hybridT1_native.nii.gz"
+        KUL_antsAtropos
 
-    task_in="WarpImageMultiTransform 3 ${image_in} ${image_out} -R ${T1_brain_clean} -i ${T1_brMNI1_str}0GenericAffine.mat ${T1_brMNI1_str}1InverseWarp.nii.gz"
+        Atropos2_str="${str_pp}_atropos2_SegmentationPosteriors?.nii.gz"
 
-    task_exec
+        Atropos2_posts=($(ls ${Atropos2_str}))
 
-    unset image_in image_out
+        echo ${Atropos2_posts[@]} >> ${prep_log}
 
-    image_in="${stitched_noise_MNI1}"
-
-    image_out="${stitched_noise_nat}"
-
-    task_in="WarpImageMultiTransform 3 ${image_in} ${image_out} -R ${T1_brain_clean} -i ${T1_brMNI1_str}0GenericAffine.mat ${T1_brMNI1_str}1InverseWarp.nii.gz"
-
-    task_exec
-
-    unset image_in image_out
-    
-    task_in="ImageMath 3 ${str_pp}_hybridT1_native_S.nii.gz Sharpen ${str_pp}_hybridT1_native.nii.gz"
-
-    task_exec
-
-    task_in="fslmaths ${str_pp}_hybridT1_native_S.nii.gz -mul ${Lmask_bin_s3} ${T1_fin_Lfill}"
-
-    task_exec
-
-    if [[ -z "$bilateral" ]]; then
-
-        task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -save ${T1_nat_filled_out} \
-        -mul ${BET_mask_s2} -add ${T1_skull} -save ${T1_nat_fout_wskull} -add ${stitched_noise_nat} ${T1_nat_fout_wN_skull}"
-
-        task_exec
+        unset atropos_out prim_in atropos_mask atropos_priors wt mrf
 
     else
 
-        task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -save ${T1_nat_filled_out} \
-        -mul ${BET_mask_s2} -add ${T1_skull} -save ${T1_nat_fout_wskull} -add ${stitched_noise_nat} ${T1_nat_fout_wN_skull}"
+        Atropos2_str="${str_pp}_atropos2_SegmentationPosteriors?.nii.gz"
+
+        Atropos2_posts=($(ls ${Atropos2_str}))
+
+        echo ${Atropos2_posts[@]} >> ${prep_log}
+
+        echo " Atropos2 segmentation already finished, skipping. " >> ${prep_log}
+
+    fi
+
+    # second part handling lesion masks and Atropos run
+    # this function has builtin processing control points
+
+    if [[ -z "${srch_Lmask_pt2}" ]]; then
+
+        echo " Starting KUL lesion magic part 2 " >> ${prep_log}
+
+        KUL_Lmask_part2
+
+        echo " Finished KUL lesion magic part 2 " >> ${prep_log}
+
+    else
+
+        Lmask_tot_v=$(mrstats -force -nthreads ${ncpu} ${Lmask_bin_inMNI1} -output count -quiet -ignorezero)
+
+        overlap_left=$(mrstats -force -nthreads ${ncpu} ${lesion_left_overlap} -output count -quiet -ignorezero)
+
+        overlap_right=$(mrstats -force -nthreads ${ncpu} ${lesion_right_overlap} -output count -quiet -ignorezero)
+
+        L_ovLt_2_total=$(echo ${overlap_left}*100/${Lmask_tot_v} | bc)
+
+        L_ovRt_2_total=$(echo ${overlap_right}*100/${Lmask_tot_v} | bc)
+
+        echo " total lesion vox count ${Lmask_tot_v}" >> ${prep_log}
+
+        echo " ov_left is ${overlap_left}" >> ${prep_log}
+
+        echo " ov right is ${overlap_right}" >> ${prep_log}
+
+        echo " ov_Lt to total is ${L_ovLt_2_total}" >> ${prep_log}
+
+        echo " ov_Rt to total is ${L_ovRt_2_total}" >> ${prep_log}
+
+        # we set a hard-coded threshold of 65, if unilat. then native heatlhy hemi is used
+        # if bilateral by more than 35, template brain is used
+        # # this needs to be modified, also need to include simple lesion per hemisphere overlap with percent to total hemi volume
+        # this will enable us to use template or simple filling and derive mean values per tissue class form another source (as we're currently using the original images).
+        # AR 09/02/2020
+        # here we also need to make unilateral L masks, masked by hemi mask to overcome midline issue
+        
+        if [[ "${L_ovLt_2_total}" -gt 65 ]]; then
+
+            echo ${L_ovLt_2_total} >> ${prep_log}
+
+            echo " This patient has a left sided or predominantly left sided lesion " >> ${prep_log}
+
+            echo "${L_hemi_mask}" >> ${prep_log}
+
+            echo "${H_hemi_mask}" >> ${prep_log}
+
+            T1_filled1=${Temp_T1_filled1}
+
+            stitched_T1=${stitched_T1_temp}
+
+            ## CHANGE-ME -lt is theer only for debugging
+
+        elif [[ "${L_ovRt_2_total}" -gt 65 ]]; then
+
+            echo ${L_ovRt_2_total} >> ${prep_log}
+
+            echo " This patient has a right sided or predominantly right sided lesion " >> ${prep_log}
+
+            echo "${L_hemi_mask}" >> ${prep_log}
+
+            echo "${H_hemi_mask}" >> ${prep_log}
+
+            T1_filled1=${Temp_T1_filled1}
+
+            stitched_T1=${stitched_T1_temp}
+            
+        else 
+
+            bilateral=1
+
+            stitched_T1=${tmp_s2T1_CSFGMCBWMr}
+
+            T1_filled1=${Temp_T1_bilfilled1}
+
+            stitched_T1_nat=${T1_filled1}
+
+            echo " This is a bilateral lesion with ${L_ovLt_2_total} left side and ${L_ovRt_2_total} right side, using Template T1 to derive lesion fill patch. "  >> ${prep_log}
+
+            echo " note Atropos1 will use the filled images instead of the stitched ones "  >> ${prep_log}
+
+        fi
+
+        Atropos1_str="${str_pp}_atropos1_SegmentationPosteriors?.nii.gz"
+
+        Atropos1_posts=($(ls ${Atropos1_str}))
+
+        echo ${Atropos1_posts[@]} >> ${prep_log}
+
+        echo " Lesion magic part 2 already finished, skipping " >> ${prep_log}
+
+
+    fi
+
+    ##### 
+
+    # Now we warp back to MNI brain in native space
+    # which will be needed after Atropos1
+    # this can be replaced by a different kind of reg no ? or we simply apply the inverse warps!
+    # just to show the initial filled result (initially for diagnostic purposes)
+
+    if [[ -z "${srch_bk2anat1_mark}" ]]; then
+
+        # fix_im="${T1_brMNI1_str}InverseWarped.nii.gz"
+
+        fix_im="${T1_filled1}"
+
+        mov_im="${T1_brain_clean}"
+
+        mask=" -x ${brain_mask_inMNI1},${brain_mask_minL} "
+
+        transform="s"
+
+        output="${T1_bk2nat1_str}"
+
+        KUL_antsRegSyN_Def
+
+        task_in="cp ${T1_bk2nat1_str}InverseWarped.nii.gz ${str_op}_T1_initial_filled_brain.nii.gz"
+
+        task_exec    
+
+        # the bk2anat1 step is for the outputs of Atropos1 mainly.
+
+    else
+
+        echo "First step Warping images back to anat already done, skipping " >> ${prep_log}
+
+    fi
+
+    # we will need fslmaths to make lesion_fill2 from the segmentations
+    # fslmaths Atropos2_posteriors -add lesion_fill2
+    # fslstats -m
+    # fslmaths to binarize each tpm then -mul the mean intensity of that tissue type
+    # should mask out the voxels of each tpm from the resulting image before inserting it
+    # finally fslmaths -add noise and -mul bias
+
+    echo " Starting KUL lesion magic part 3 " >> ${prep_log}
+
+    if [[ -z "${srch_make_images}" ]]; then 
+
+        # warping nat filled (in case of unilat. lesion and place holder for initial filled)
+        # will be used to fill holes in synth image
+
+        task_in="WarpImageMultiTransform 3 ${stitched_T1_nat} ${stitched_T1_nat_innat} -R ${T1_brain_clean} \
+        -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz"
 
         task_exec
+
+        # first we warp the Atropos1_segmentation back to native space
+
+        echo "in make images loop " >> ${prep_log}
+
+        echo " Creating synthetic image... almost there "
+
+        # Create the segmentation image lesion fill
+
+        task_in="fslmaths ${str_pp}_atropos1_Segmentation.nii.gz -mas ${Lmask_bin_inMNI1_dilx2} ${Lfill_segm_im}"
+
+        task_exec
+
+        # Make a hole in the real segmentation image and fill it
+
+        task_in="fslmaths ${str_pp}_atropos2_Segmentation.nii.gz -mas ${Lmask_binv_inMNI1_dilx2} -add ${Lfill_segm_im} ${atropos2_segm_im_filled}"
+
+        task_exec
+
+        # Bring the Atropos2_segm_im to native space
+        # for diagnostic purposes
+
+        task_in="WarpImageMultiTransform 3 ${atropos2_segm_im_filled} ${atropos2_segm_im_filled_nat} -R ${T1_brain_clean} -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz --use-NN"
+
+        task_exec
+
+        # Making the cleaned segmentation images here
+
+        echo ${tissues[@]} >> ${prep_log}
+
+        # one for loop to deal with all tpms and filling for the T1
+
+        for i in ${!tissues[@]}; do
+
+            # Create the atropos1 tpms lesion fill patches and inject in respective punched atropos2 tpm
+
+            atropos2_tpms_punched[$i]="${str_pp}_atropos_${tissues[$i]}_punched.nii.gz"
+
+            atropos1_tpms_Lfill[$i]="${str_pp}_atropos1_Lfill_${tissues[$i]}.nii.gz"
+
+            atropos_tpms_filled[$i]="${str_pp}_atropos_${tissues[$i]}_filled.nii.gz"
+
+            atropos_tpms_filled_GLC[$i]="${str_pp}_atropos_${tissues[$i]}_filled_GLC.nii.gz"
+
+            atropos_tpms_filled_GLCbinv[$i]="${str_pp}_atropos_${tissues[$i]}_filled_GLCbinv.nii.gz"
+
+            # make the punched tpms
+            # Atropos2 was run with only the Lmask_bin excluded
+            # no smoothing or dilation
+            # so dilx2 Lmasks should be fine
+
+            task_in="fslmaths ${Atropos2_posts[$i]} -mas ${Lmask_binv_inMNI1_dilx2} -thr 0.05 ${atropos2_tpms_punched[$i]}"
+
+            task_exec
+
+            # derive the signal intensity filling 
+            
+            # create tissue fill patch here
+
+            task_in="fslmaths ${Atropos1_posts[$i]} -mas ${Lmask_bin_inMNI1_dilx2} -save ${atropos1_tpms_Lfill[$i]} \
+            -add ${atropos2_tpms_punched[$i]} ${atropos_tpms_filled[$i]}"
+
+            task_exec
+
+            task_in="maskfilter -force -nthreads ${ncpu} -connectivity ${atropos_tpms_filled[$i]} connect - | mrcalc - 0 -gt \
+            -force -nthreads ${ncpu} ${atropos_tpms_filled_GLC[$i]}"
+
+            task_exec
+
+            task_in="fslmaths ${atropos_tpms_filled_GLC[$i]} -binv ${atropos_tpms_filled_GLCbinv[$i]}"
+
+            task_exec
+
+            # T1 stuff
+
+            T1_tissue_fill[$i]="${str_pp}_T1_${tissues[$i]}_stitchedT1_fill.nii.gz"
+
+            T1_tissue_fill_dil_s[$i]="${str_pp}_T1_${tissues[$i]}_stitchedT1_fill_dilalls80.nii.gz"
+
+            T1_tissue_fill_ready[$i]="${str_pp}_T1_${tissues[$i]}_stitchedT1_fill_clean.nii.gz"
+
+            atropos_tpms_filled_GLC_nat[$i]="${str_pp}_T1_${tissues[$i]}_stitchedT1_fc_nat.nii.gz"
+            
+            R_Tiss_intmap[$i]="${str_pp}_T1_${tissues[$i]}_real_intmap.nii.gz"
+            
+            T1_tissue_fill_ready_HM[$i]="${str_pp}_T1_${tissues[$i]}_stsyn_T1fill_HM.nii.gz"
+
+            #
+
+            task_in="fslmaths ${T1_sti2fill_brain} -mas ${atropos_tpms_filled_GLC[$i]} -save ${T1_tissue_fill[$i]} -dilall -s 80 ${T1_tissue_fill_dil_s[$i]}" 
+
+            task_exec
+
+            # using same masks for both steps (above and below this line)
+
+            task_in="fslmaths ${T1_tissue_fill_dil_s[$i]} -mas ${atropos_tpms_filled_GLC[$i]} ${T1_tissue_fill_ready[$i]}"
+
+            task_exec
+
+            # need to warp the atropos2 tpms (after punching) to native space
+            # threshold and apply as masks to the original image to get tissue specific intensity maps
+            # then histmatch each synth tissue map to the corresponding native real tissue intensity map.
+
+            task_in="WarpImageMultiTransform 3 ${atropos_tpms_filled_GLC[$i]} ${atropos_tpms_filled_GLC_nat[$i]} -R ${T1_brain_clean} \
+            -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz && fslmaths ${atropos_tpms_filled_GLC_nat[$i]} -thr 0.1 -mul \
+            ${stitched_T1_nat_innat} ${R_Tiss_intmap[$i]}"
+
+            task_exec
+
+            # using nonlinear with bin 2048 for histmatching with new templates
+
+            task_in="mrhistmatch -bin 2048 -force -nthreads ${ncpu} nonlinear -mask_target ${atropos_tpms_filled_GLC_nat[$i]} -mask_input ${atropos_tpms_filled_GLC[$i]} ${T1_tissue_fill_ready[$i]} \
+            ${R_Tiss_intmap[$i]} ${T1_tissue_fill_ready_HM[$i]}"
+
+            task_exec
+
+            # here we need to insert a histogram matching step
+            # for this to work we need to separate intensity maps of the tissue classes in the original image
+
+        done
+
+        echo ${T1_tissue_fill[@]}
+        echo ${T1_tissue_fill_ready[@]}
+        echo ${T1_tissue_fill_ready_HM[@]}
+        echo ${atropos_tpms_filled_binv[@]}
+
+        # Make the new images
+        # this part needs to be redesigned
+        # probably mrhistmatch will work better here
+        # should respect the actual BG shape....
+        # if parts of BG missing, fill with WM
+
+        # possibly a good place also for histogram matching the Synth to the real image
+        # masking out each tissue type before adding it in.
+
+        task_in="fslmaths ${T1_tissue_fill_ready_HM[0]} -mas ${atropos_tpms_filled_GLCbinv[1]} -add ${T1_tissue_fill_ready_HM[1]} \
+        -save ${str_pp}_T1_cw_dil_s_fill.nii.gz -mas ${atropos_tpms_filled_GLCbinv[2]} -add ${T1_tissue_fill_ready_HM[2]} \
+        -save ${str_pp}_T1_cwc_dil_s_fill.nii.gz -mas ${atropos_tpms_filled_GLCbinv[3]} -add ${T1_tissue_fill_ready_HM[3]} \
+        -save ${str_pp}_T1_cwcbg_dil_s_fill.nii.gz -mas ${brain_mask_inMNI1} ${str_pp}_synthT1_MNI1_holes.nii.gz"
+
+        task_exec
+
+        task_in="ImageMath 3 ${str_pp}_synthT1_MNI1.nii.gz addtozero ${str_pp}_synthT1_MNI1_holes.nii.gz"
+
+        task_exec
+
+        # if the lesion is not bilateral, then use the filled T1 to derive diff map, if it is bilateral then use stit2fill
+        # added the template flag condition here
+
+        if [[ -z "${bilateral}" ]] && [[ ${t_flag} == 0 ]]; then
+
+            task_in="fslmaths ${T1_filled1} -sub ${str_pp}_synthT1_MNI1.nii.gz ${filledT1_synthT1_diff}"
+
+            task_exec
+
+            task_in="fslmaths ${filledT1_synthT1_diff} -add ${str_pp}_synthT1_MNI1.nii.gz ${str_pp}_hybridT1_MNI1.nii.gz"
+
+            task_exec
+
+        elif [[ ${bilateral} ]] || [[ ${t_flag} == 1 ]]; then
+
+            task_in="fslmaths ${T1_sti2fill_brain} -sub ${str_pp}_synthT1_MNI1.nii.gz ${stiT1_synthT1_diff}"
+
+            task_exec
+
+            task_in="fslmaths ${stiT1_synthT1_diff} -add ${str_pp}_synthT1_MNI1.nii.gz ${str_pp}_hybridT1_MNI1.nii.gz"
+
+            task_exec
+
+        fi
+
+        # N4BFC again, sharpen and apply inverse transform to get hybrid ims to native T1 space
+
+        unset output
+
+        input="${str_pp}_hybridT1_MNI1.nii.gz"
+
+        bias="${str_pp}_T1hybrid_MNI1_bias.nii.gz"
+
+        mask=" -x ${brain_mask_inMNI1}"
+
+        output="${str_pp}_T1hybrid_MNI1_bfc.nii.gz"
+
+        KUL_N4BFC
+
+        image_in="${str_pp}_T1hybrid_MNI1_bfc.nii.gz"
+
+        image_out="${str_pp}_hybridT1_sMNI1.nii.gz"
+
+        task_in="ImageMath 3 ${image_out} Sharpen ${image_in}"
+
+        task_exec
+
+        unset image_in image_out
+        
+        image_in="${str_pp}_hybridT1_sMNI1.nii.gz"
+
+        image_out="${str_pp}_hybridT1_native.nii.gz"
+
+        task_in="WarpImageMultiTransform 3 ${image_in} ${image_out} -R ${T1_brain_clean} -i ${T1_brMNI1_str}0GenericAffine.mat ${T1_brMNI1_str}1InverseWarp.nii.gz"
+
+        task_exec
+
+        unset image_in image_out
+        
+        task_in="ImageMath 3 ${str_pp}_hybridT1_native_S.nii.gz Sharpen ${str_pp}_hybridT1_native.nii.gz"
+
+        task_exec
+
+        task_in="fslmaths ${str_pp}_hybridT1_native_S.nii.gz -mul ${Lmask_bin_s3} ${T1_fin_Lfill}"
+
+        task_exec
+        
+        # make the final outputs
+        
+        if [[ -z "${bilateral}" ]] && [[ ${t_flag} == 0 ]]; then
+        
+            # if bilateral is empty, then we generate final output with stitched noise map
+        
+            image_in="${stitched_noise_MNI1}"
+
+            image_out="${stitched_noise_nat}"
+
+            task_in="WarpImageMultiTransform 3 ${image_in} ${image_out} -R ${T1_brain_clean} -i ${T1_brMNI1_str}0GenericAffine.mat ${T1_brMNI1_str}1InverseWarp.nii.gz"
+
+            task_exec
+
+            unset image_in image_out
+
+            task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -save ${T1_nat_filled_out} \
+            -mul ${BET_mask_s2} -add ${T1_skull} -save ${T1_nat_fout_wskull} -add ${stitched_noise_nat} ${T1_nat_fout_wN_skull}"
+
+            task_exec
+
+        elif [[ "${bilateral}" ]] || [[ ${t_flag} == 1 ]]; then
+        
+            # if bilateral is 1, then we generate final output with original noise map
+        
+            task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -save ${T1_nat_filled_out} \
+            -mul ${BET_mask_s2} -add ${T1_skull} -save ${T1_nat_fout_wskull} -add ${str_pp}_T1_noise.nii.gz ${T1_nat_fout_wN_skull}"
+
+            task_exec
+
+        fi
+
+
+    else
+
+        echo " Making fake healthy images done, skipping. " >> ${prep_log}
+
+        # need to define the output files here if we dont run the above if loop condition
 
     fi
 
 
+    unset i
+    
 else
 
-    echo " Making fake healthy images done, skipping. " >> ${prep_log}
+    echo
+    echo "You have set the -E flag, indicating an extra-axial lesion" >&2
+    echo "The lesion patch is filled with 0s only, recon-all should be able to run, if it fails try without -E" >&2
+    echo "The lesion patch is filled with 0s only, recon-all should be able to run, if it fails try without -E" >> ${prep_log}
+    echo
 
-    # need to define the output files here if we dont run the above if loop condition
+     if [[ -z "${srch_preprocp1}" ]]; then
 
+            input="${prim}"
+
+            output1="${str_pp}_T1_reori2std.nii.gz"
+
+            task_in="fslreorient2std ${input} ${output1}"
+
+            task_exec
+
+        if [[ -z "${srch_antsBET}" ]]; then
+
+            echo " running Brain extraction " >> ${prep_log}
+
+            prim_in="${str_pp}_T1_reori2std.nii.gz"
+
+            output="${hdbet_str}"
+
+            # run antsBET
+
+            KUL_antsBETp
+
+
+        else
+
+            echo " Brain extraction already done, skipping " >> ${prep_log}
+
+            echo "${T1_brain_clean}" >> ${prep_log}
+
+            echo "${clean_mask_nat}" >> ${prep_log}
+
+            echo " ANTsBET already run, skipping " >> ${prep_log}
+
+        fi
+
+        # run KUL_lesion_magic1
+        # this creates a bin, binv, & bm_minL 
+
+        if [[ -z "${sch_brnmsk_minL}" ]]; then
+
+            KUL_Lmask_part1
+
+        else
+
+            echo "${brain_mask_minL} already created " >> ${prep_log}
+
+        fi
+
+    else
+
+        echo "Reorienting, brain extraction, and VBG pt1 already done, skipping " >> ${prep_log}
+    
+        
+    fi
+
+    # here we fill the lesion mask with 0 and save it where FS recon-all expects it to be
+
+    task_in="fslmaths ${str_pp}_T1_reori2std.nii.gz -mul ${L_O_binv} ${T1_nat_fout_wN_skull}"
+
+    task_exec
+
+        
 fi
 
 
-unset i
 
 # now we need to try all the above steps, and debug, then program a function for the lesion patch filling
 # then add in the recon-all step
 # and add in again the overlap calculator and report parts.
 
-# Run FS recon-all for the original inputs
-
 # classic_FS
 
 # for recon-all
 
-fs_output="${cwd}/freesurfer/sub-${subj}"
+if [[ "${F_flag}" -eq 1 ]] ; then
+	
+    echo
+    echo "Fresurfer flag is set, now starting FS recon-all based part of VBG" >&2
+    echo "Fresurfer flag is set, now starting FS recon-all based part of VBG" >> ${prep_log}
+    echo
+	
+    fs_output="${cwd}/freesurfer/sub-${subj}"
 
-recall_scripts="${fs_output}/${subj}/scripts"
+    recall_scripts="${fs_output}/${subj}/scripts"
 
-search_wf_mark4=($(find ${recall_scripts} -type f 2> /dev/null | grep recon-all.done));
+    search_wf_mark4=($(find ${recall_scripts} -type f 2> /dev/null | grep recon-all.done));
 
-FS_brain="${fs_output}/${subj}/mri/brainmask.mgz"
+    FS_brain="${fs_output}/${subj}/mri/brainmask.mgz"
 
-new_brain="${str_pp}_T1_Brain_4FS.mgz"
+    new_brain="${str_pp}_T1_Brain_4FS.mgz"
 
+    # check for hd-bet again
 
-# need to define fs output dir to fit the KUL_NITs folder structure.
-		
-if [[ -z "${search_wf_mark4}" ]]; then
-
-    task_in="mkdir -p ${cwd}/freesurfer"
-
-    task_exec
-
-    task_in="mkdir -p ${fs_output}"
-
-    task_exec
-
-    # Run recon-all and convert the real T1 to .mgz for display
-    # running with -noskulltrip and using brain only inputs
-    # for recon-all
-    # if we can run up to skull strip, break, fix with hd-bet result then continue it would be much better
-    # if we can switch to fast-surf, would be great also
-    # another possiblity is using recon-all -skullstrip -clean-bm -gcut -subjid <subject name>
-
-    clean_BM_mgz="${fs_output}/${subj}/mri/brain_mask_hd-bet.mgz"
-
-    task_in="recon-all -i ${T1_nat_fout_wN_skull} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1"
+    task_in="fslreorient2std ${Lmask_o} ${L_mask_reori}"
 
     task_exec
 
-    task_in="mri_convert -rl ${fs_output}/${subj}/mri/brainmask.mgz ${clean_mask_nat} ${clean_BM_mgz}"
+    if [[ $(which hd-bet) ]]; then
 
-    task_exec
-
-    task_in="mri_mask ${FS_brain} ${clean_mask_nat} ${new_brain} && mv ${new_brain} ${fs_output}/${subj}/mri/brainmask.mgz && cp \
-    ${fs_output}/${subj}/mri/brainmask.mgz ${fs_output}/${subj}/mri/brainmask.auto.mgz"
-
-    task_exec
-
-    task_in="recon-all -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all -noskullstrip"
-
-    task_exec
-
-    task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${subj}/mri/real_T1.mgz"
-
-    task_exec
-
-    task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz -rt nearest ${Lmask_in_T1_bin} ${fs_output}/${subj}/mri/Lmask_T1_bin.mgz"
-
-    task_exec
-
-else
-
-    echo " recon-all already done, skipping. "
-    
-fi
-
-# ## After recon-all is finished we need to calculate percent lesion/lobe overlap
-# # need to make labels array
-
-lesion_lobes_report="${fs_output}/percent_lobes_lesion_overlap_report.txt"
-
-task_in="touch ${lesion_lobes_report}"
-
-task_exec
-
-echo " Percent overlap between lesion and each lobe " >> $lesion_lobes_report
-
-echo " each lobe mask voxel count and volume in cmm is reported " >> $lesion_lobes_report
-
-echo " overlap in voxels and volume cmm are reported " >> $lesion_lobes_report
-
-# these labels, wm and gm values are used later for the reporting
-
-# double checking: RT_Frontal, LT_Frontal, RT_Temporal, LT_Temporal, 
-
-declare -a labels=("RT_Frontal"  "LT_Frontal"  "RT_Temporal"  "LT_Temporal"  "RT_Parietal"  "LT_Parietal" \
-"RT_Occipital"  "LT_Occipital"  "RT_Cingulate"  "LT_Cingulate"  "RT_Insula"  "LT_Insula"  "RT_Putamen"  "LT_Putamen" \
-"RT_Caudate"  "LT_Caudate"  "RT_Thalamus"  "LT_Thalamus" "RT_Pallidum"  "LT_Pallidum"  "RT_Accumbens"  "LT_Accumbens"  "RT_Amygdala"  "LT_Amygdala" \
-"RT_Hippocampus"  "LT_Hippocampus"  "RT_PWM"  "LT_PWM");
-
-declare -a wm=("4001"  "3001"  "4005"  "3005"  "4006"  "3006" \
-"4004"  "3004"  "4003"  "3003"  "4007"  "3007" "0"  "0" \
-"0"  "0"  "0"  "0"  "0"  "0"  "0"  "0"  "0"  "0" \
-"0"  "0"  "5002"  "5001");
-
-declare -a gm=("2001"  "1001"  "2005"  "1005"  "2006"  "1006" \
-"2004"  "1004"  "2003"  "1003"  "2007"  "1007" "51"  "12" \
-"50"  "11"  "49"  "10"  "52"  "13"  "58"  "26" "54"  "18" \
-"53"  "17"  "0"  "0");
-
-fs_lobes_mgz="${fs_output}/${subj}/mri/lobes_ctx_wm_fs.mgz"
-
-fs_parc_mgz="${fs_output}/${subj}/mri/aparc+aseg.mgz"
-
-fs_parc_nii="${fs_output}/${subj}/mri/sub-${subj}_aparc+aseg.nii"
-
-fs_parc_minL_nii="${fs_output}/${subj}/mri/sub-${subj}_aparc+aseg_minL.nii"
-
-fs_lobes_nii="${fs_output}/${subj}/mri/sub-${subj}_lobes_ctx_wm_fs.nii"
-
-fs_lobes_minL_nii="${fs_output}/${subj}/mri/sub-${subj}_lobes_ctx_wm_fs_minL.nii"
-
-labelslength=${#labels[@]}
-
-wmslength=${#wm[@]}
-
-gmslength=${#gm[@]}
-
-fs_lobes_mark=${fs_lobes_nii}
-
-search_wf_mark5=($(find ${fs_lobes_nii} -type f | grep lobes_ctx_wm_fs.nii));
-
-if [[ -z "$search_wf_mark5" ]]; then
-
-    # quick sanity check
-
-    if [[ "${labelslength}" -eq "${wmslength}" ]] && [[ "${gmslength}" -eq "${wmslength}" ]]; then
-
-        echo "we're doing okay captain! ${labelslength} ${wmslength} ${gmslength}" >> ${prep_log}
+        hd_bet_flag=1
 
     else
 
-        echo "we have a problem captain! ${labelslength} ${wmslength} ${gmslength}" >> ${prep_log}
-        # exit 2
+        hd_bet_flag=""
 
     fi
 
-    # this approach apparently screws up the labels order, so i need to use annotation2label and mergelabels instead.
 
-    task_in="mri_annotation2label --subject ${subj} --sd ${fs_output} --hemi rh --lobesStrict ${fs_output}/${subj}/label/rh.lobesStrict"
+    # need to define fs output dir to fit the KUL_NITs folder structure.
+            
+    if [[ -z "${search_wf_mark4}" ]]; then
 
-    task_exec
-
-    task_in="mri_annotation2label --subject ${subj} --sd ${fs_output} --hemi lh --lobesStrict ${fs_output}/${subj}/label/lh.lobesStrict"
-
-    task_exec
-
-    task_in="mri_aparc2aseg --s ${subj} --sd ${fs_output} --labelwm --hypo-as-wm --rip-unknown --volmask --annot lobesStrict --o ${fs_lobes_mgz}"
-
-    task_exec
-
-    task_in="mri_convert -rl ${T1_nat_filled_out} -rt nearest ${fs_lobes_mgz} ${fs_lobes_nii}"
-    
-    task_exec
-
-    task_in="mri_convert -rl ${T1_nat_filled_out} -rt nearest ${fs_parc_mgz} ${fs_parc_nii}"
-    
-    task_exec
-
-    task_in="fslmaths ${fs_parc_nii} -mas ${Lmask_in_T1_binv} ${fs_parc_minL_nii}"
-
-    task_exec
-
-    task_in="fslmaths ${fs_lobes_nii} -mas ${Lmask_in_T1_binv} ${fs_lobes_minL_nii}"
-
-    task_exec
-    
-    
-else
-    
-    echo " lobes fs image already done, skipping. " >> ${prep_log}
-    
-    
-fi
-
-# use for loop to read all values and indexes
-	 
-
-search_wf_mark6=($(find ${ROIs} -type f | grep LT_PWM_bin.nii.gz));
-	
-if [[ -z "$search_wf_mark6" ]]; then
-
-	for i in {0..11}; do
-
-	    echo "Now working on ${labels[$i]}" >> ${prep_log}
-
-	    task_in="fslmaths ${fs_lobes_nii} -thr ${gm[$i]} -uthr ${gm[$i]} ${ROIs}/${labels[$i]}_gm.nii.gz"
+        task_in="mkdir -p ${cwd}/freesurfer"
 
         task_exec
 
-	    task_in="fslmaths ${fs_lobes_nii} -thr ${wm[$i]} -uthr ${wm[$i]} ${ROIs}/${labels[$i]}_wm.nii.gz"
+        task_in="mkdir -p ${fs_output}"
 
         task_exec
 
-	    task_in="fslmaths ${ROIs}/${labels[$i]}_gm.nii.gz -add ${ROIs}/${labels[$i]}_wm.nii.gz -bin ${ROIs}/${labels[$i]}_bin.nii.gz"
+        # Run recon-all and convert the real T1 to .mgz for display
+        # running with -noskulltrip and using brain only inputs
+        # for recon-all
+        # if we can run up to skull strip, break, fix with hd-bet result then continue it would be much better
+        # if we can switch to fast-surf, would be great also
+        # another possiblity is using recon-all -skullstrip -clean-bm -gcut -subjid <subject name>
+
+        if [[ ${hd_bet_flag} == 1 ]] ; then 
+
+            task_in="recon-all -i ${T1_nat_fout_wN_skull} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1"
+
+            task_exec
+
+            task_in="mri_convert -rl ${fs_output}/${subj}/mri/brainmask.mgz ${clean_mask_nat} ${clean_BM_mgz}"
+
+            task_exec
+
+            task_in="mri_mask ${FS_brain} ${clean_mask_nat} ${new_brain} && mv ${new_brain} ${fs_output}/${subj}/mri/brainmask.mgz && cp \
+            ${fs_output}/${subj}/mri/brainmask.mgz ${fs_output}/${subj}/mri/brainmask.auto.mgz"
+
+            task_exec
+
+            task_in="recon-all -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all -noskullstrip"
+
+            task_exec
+
+        elif [[ ${hd_bet_flag} == 0 ]] ; then 
+
+            task_in="recon-all -i ${T1_nat_fout_wN_skull} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all"
+
+            task_exec
+
+        fi
+
+        task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${subj}/mri/real_T1.mgz"
 
         task_exec
 
-	done
-
-	i=""
-
-	for i in {12..25}; do
-
-	 	echo "Now working on ${labels[$i]}" >> ${prep_log}
-
-		task_in="fslmaths ${fs_lobes_nii} -thr ${gm[$i]} -uthr ${gm[$i]} -bin ${ROIs}/${labels[$i]}_bin.nii.gz"
+        task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz -rt nearest ${Lmask_in_T1_bin} ${fs_output}/${subj}/mri/Lmask_T1_bin.mgz"
 
         task_exec
 
- 	done
+    else
 
-	i=""
-
-	for i in {26..27}; do
-
-		echo "Now working on ${labels[$i]}" >> ${prep_log}
-
-		task_in="fslmaths ${fs_lobes_nii} -thr ${wm[$i]} -uthr ${wm[$i]} -bin ${ROIs}/${labels[$i]}_bin.nii.gz"
-
-        task_exec
-
-	done
-	
-else
-	
-	echo " isolating lobe labels already done, skipping to lesion overlap check" >> ${prep_log}
-	
-fi
-
-i=""
-
-# Now to check overlap and quantify existing overlaps
-# we also need to calculate volume and no. of vox for each lobe out of FS
-# also lesion volume
-
-l_vol=($(fslstats $Lmask_in_T1_bin -V))
-
-echo " * The lesion occupies " ${l_vol[0]} " voxels in total with " ${l_vol[0]} " cmm volume. " >> $lesion_lobes_report
-
-for (( i=0; i<${labelslength}; i++ )); do
-
-    task_in="fslmaths ${ROIs}/${labels[$i]}_bin.nii.gz -mas ${Lmask_in_T1_bin} ${overlap}/${labels[$i]}_intersect_L_mask.nii.gz"
-
-    task_exec
-
-    b=($(fslstats ${overlap}/${labels[$i]}_intersect_L_mask.nii.gz -V))
-    
-    a=($( echo ${b[0]} | cut -c1-1))
-
-    vol_lobe=($(fslstats ${ROIs}/${labels[$i]}_bin.nii.gz -V))
-
-    echo " - The " ${labels[$i]} " label is " ${vol_lobe[0]} " voxels in total, with a volume of " ${vol_lobe[1]} " cmm volume. " >> ${lesion_lobes_report}
-
-    if [[ $a -ne 0 ]]; then
-
-        vol_ov=($(fslstats ${overlap}/${labels[$i]}_intersect_L_mask.nii.gz -V))
+        echo " recon-all already done, skipping. "
         
-        ov_perc=($(echo "scale=4; (${vol_ov[1]}/${vol_lobe[1]})*100" | bc ))
-
-        echo " ** The lesion overlaps with the " ${labels[$i]} " in " ${vol_ov[1]} \
-        " cmm " ${ov_perc} " percent of total lobe volume " >> ${lesion_lobes_report}
-
-    else
-
-    echo " No overlap between the lesion and " ${labels[$i]} " lobe. " >> ${lesion_lobes_report}
-
     fi
 
-done
+    # ## After recon-all is finished we need to calculate percent lesion/lobe overlap
+    # # need to make labels array
+
+    lesion_lobes_report="${fs_output}/percent_lobes_lesion_overlap_report.txt"
+
+    task_in="touch ${lesion_lobes_report}"
+
+    task_exec
+
+    echo " Percent overlap between lesion and each lobe " >> $lesion_lobes_report
+
+    echo " each lobe mask voxel count and volume in cmm is reported " >> $lesion_lobes_report
+
+    echo " overlap in voxels and volume cmm are reported " >> $lesion_lobes_report
+
+    # these labels, wm and gm values are used later for the reporting
+
+    # double checking: RT_Frontal, LT_Frontal, RT_Temporal, LT_Temporal, 
+
+    declare -a labels=("RT_Frontal"  "LT_Frontal"  "RT_Temporal"  "LT_Temporal"  "RT_Parietal"  "LT_Parietal" \
+    "RT_Occipital"  "LT_Occipital"  "RT_Cingulate"  "LT_Cingulate"  "RT_Insula"  "LT_Insula"  "RT_Putamen"  "LT_Putamen" \
+    "RT_Caudate"  "LT_Caudate"  "RT_Thalamus"  "LT_Thalamus" "RT_Pallidum"  "LT_Pallidum"  "RT_Accumbens"  "LT_Accumbens"  "RT_Amygdala"  "LT_Amygdala" \
+    "RT_Hippocampus"  "LT_Hippocampus"  "RT_PWM"  "LT_PWM");
+
+    declare -a wm=("4001"  "3001"  "4005"  "3005"  "4006"  "3006" \
+    "4004"  "3004"  "4003"  "3003"  "4007"  "3007" "0"  "0" \
+    "0"  "0"  "0"  "0"  "0"  "0"  "0"  "0"  "0"  "0" \
+    "0"  "0"  "5002"  "5001");
+
+    declare -a gm=("2001"  "1001"  "2005"  "1005"  "2006"  "1006" \
+    "2004"  "1004"  "2003"  "1003"  "2007"  "1007" "51"  "12" \
+    "50"  "11"  "49"  "10"  "52"  "13"  "58"  "26" "54"  "18" \
+    "53"  "17"  "0"  "0");
+
+    fs_lobes_mgz="${fs_output}/${subj}/mri/lobes_ctx_wm_fs.mgz"
+
+    fs_parc_mgz="${fs_output}/${subj}/mri/aparc+aseg.mgz"
+
+    fs_parc_nii="${fs_output}/${subj}/mri/sub-${subj}_aparc+aseg.nii"
+
+    fs_parc_minL_nii="${fs_output}/${subj}/mri/sub-${subj}_aparc+aseg_minL.nii"
+
+    fs_lobes_nii="${fs_output}/${subj}/mri/sub-${subj}_lobes_ctx_wm_fs.nii"
+
+    fs_lobes_minL_nii="${fs_output}/${subj}/mri/sub-${subj}_lobes_ctx_wm_fs_minL.nii"
+
+    fs_parc_plusL_nii="${fs_output}/${subj}/mri/sub-${subj}_aparc+aseg+Lesion.nii"
+
+    fs_lobes_plusL_nii="${fs_output}/${subj}/mri/sub-${subj}_aparc+aseg.nii"
+
+    labelslength=${#labels[@]}
+
+    wmslength=${#wm[@]}
+
+    gmslength=${#gm[@]}
+
+    fs_lobes_mark=${fs_lobes_nii}
+
+    search_wf_mark5=($(find ${fs_lobes_nii} -type f | grep lobes_ctx_wm_fs.nii));
+
+    if [[ -z "$search_wf_mark5" ]]; then
+
+        # quick sanity check
+
+        if [[ "${labelslength}" -eq "${wmslength}" ]] && [[ "${gmslength}" -eq "${wmslength}" ]]; then
+
+            echo "we're doing okay captain! ${labelslength} ${wmslength} ${gmslength}" >> ${prep_log}
+
+        else
+
+            echo "we have a problem captain! ${labelslength} ${wmslength} ${gmslength}" >> ${prep_log}
+            
+            exit 2
+
+        fi
+
+        # this approach apparently screws up the labels order, so i need to use annotation2label and mergelabels instead.
+
+        task_in="mri_annotation2label --subject ${subj} --sd ${fs_output} --hemi rh --lobesStrict ${fs_output}/${subj}/label/rh.lobesStrict"
+
+        task_exec
+
+        task_in="mri_annotation2label --subject ${subj} --sd ${fs_output} --hemi lh --lobesStrict ${fs_output}/${subj}/label/lh.lobesStrict"
+
+        task_exec
+
+        task_in="mri_aparc2aseg --s ${subj} --sd ${fs_output} --labelwm --hypo-as-wm --rip-unknown --volmask --annot lobesStrict --o ${fs_lobes_mgz}"
+
+        task_exec
+
+        task_in="mri_convert -rl ${T1_nat_filled_out} -rt nearest ${fs_lobes_mgz} ${fs_lobes_nii}"
+        
+        task_exec
+
+        task_in="mri_convert -rl ${T1_nat_filled_out} -rt nearest ${fs_parc_mgz} ${fs_parc_nii}"
+        
+        task_exec
+
+        # here we want to add a loop looking at lesion mask volume
+        l_vol=($(fslstats ${L_mask_reori} -V))
+
+        if [[ ${l_vol} -lt 10000 ]] ; then
+
+            echo "this lesion is not larger than 10 ml, we will not erode it"
+
+            task_in="fslmaths ${L_mask_reori} -binv -mul ${clean_mask_nat}-bin ${bmc_minL_true}"
+
+            task_exec
+
+            task_in="maskfilter -force -nthreads ${ncpu} ${bmc_minL_true} connect - -connectivity -largest | mrcalc - 0.1 -gt ${bmc_minL_conn} -force -nthreads ${ncpu} -quiet"
+
+            task_exec
+
+            task_in="ImageMath 3 ${fs_parc_minL_nii} PropagateLabelsThroughMask ${bmc_minL_conn} ${fs_parc_nii}"
+
+            task_exec
+
+            task_in="fslmaths ${L_mask_reori} -mul 99 ${L_mask_reori_scaled}"
+
+            task_exec
+
+            task_in="ImageMath 3 ${fs_parc_plusL_nii} addtozero ${fs_parc_minL_nii} ${L_mask_reori_scaled}"
+
+            task_exec
+
+            task_in="ImageMath 3 ${fs_lobes_minL_nii} PropagateLabelsThroughMask ${bmc_minL_conn} ${fs_lobes_nii}"
+
+            task_exec
+
+            task_in="ImageMath 3 ${fs_lobes_plusL_nii} addtozero ${fs_lobes_minL_nii} ${L_mask_reori_scaled}"
+
+            task_exec
+
+        elif [[ ${l_vol} -gt 10000 ]] && [[ ${l_vol} -lt 50000 ]] ; then
+
+            echo "this lesion is larger than 10 ml but less than 50 ml, we will erode it once"
+
+            task_in="maskfilter -force -nthreads ${ncpu} ${L_mask_reori} erode ${L_mask_reori_ero1}"
+
+            task_exec
+
+            task_in="fslmaths ${L_mask_reori_ero1} -binv -mul ${clean_mask_nat}-bin ${bmc_minL_ero1}"
+
+            task_exec
+
+            task_in="maskfilter -force -nthreads ${ncpu} ${bmc_minL_ero1} connect - -connectivity -largest | mrcalc - 0.1 -gt ${bmc_minL_conn} -force -nthreads ${ncpu} -quiet"
+
+            task_exec
+
+            task_in="ImageMath 3 ${fs_parc_minL_nii} PropagateLabelsThroughMask ${bmc_minL_conn} ${fs_parc_nii}"
+
+            task_exec
+
+            task_in="fslmaths ${L_mask_reori} -mul 99 ${L_mask_reori_scaled}"
+
+            task_exec
+
+            task_in="ImageMath 3 ${fs_parc_plusL_nii} addtozero ${fs_parc_minL_nii} ${L_mask_reori_scaled}"
+
+            task_exec
+
+            task_in="ImageMath 3 ${fs_lobes_minL_nii} PropagateLabelsThroughMask ${bmc_minL_conn} ${fs_lobes_nii}"
+
+            task_exec
+
+            task_in="ImageMath 3 ${fs_lobes_plusL_nii} addtozero ${fs_lobes_minL_nii} ${L_mask_reori_scaled}"
+
+            task_exec
+
+        elif [[ ${l_vol} -gt 50000 ]] ; then
+
+            echo "this lesion is larger than 50 ml but less than 100 ml, we will erode it twice"
+
+            task_in="maksfilter -force -nthreads ${ncpu} ${L_mask_reori} erode ${L_mask_reori_ero2} -npass 2"
+
+            task_exec
+
+            task_in="fslmaths ${L_mask_reori_ero2} -binv -mul ${clean_mask_nat}-bin ${bmc_minL_ero2}"
+
+            task_exec
+
+            task_in="maskfilter -force -nthreads ${ncpu} ${bmc_minL_ero2} connect - -connectivity -largest | mrcalc - 0.1 -gt ${bmc_minL_conn} -force -nthreads ${ncpu} -quiet"
+
+            task_exec
+
+            task_in="ImageMath 3 ${fs_parc_minL_nii} PropagateLabelsThroughMask ${bmc_minL_conn} ${fs_parc_nii}"
+
+            task_exec
+
+            task_in="fslmaths ${L_mask_reori} -mul 99 ${L_mask_reori_scaled}"
+
+            task_exec
+
+            task_in="ImageMath 3 ${fs_parc_plusL_nii} addtozero ${fs_parc_minL_nii} ${L_mask_reori_scaled}"
+
+            task_exec
+
+            task_in="ImageMath 3 ${fs_lobes_minL_nii} PropagateLabelsThroughMask ${bmc_minL_conn} ${fs_lobes_nii}"
+
+            task_exec
+
+            task_in="ImageMath 3 ${fs_lobes_plusL_nii} addtozero ${fs_lobes_minL_nii} ${L_mask_reori_scaled}"
+
+            task_exec
+
+        fi
+        
+    else
+        
+        echo " lobes fs image already done, skipping. " >> ${prep_log}
+        
+    fi
+
+    # use for loop to read all values and indexes
+
+    search_wf_mark6=($(find ${ROIs} -type f | grep LT_PWM_bin.nii.gz));
+        
+    if [[ -z "$search_wf_mark6" ]]; then
+
+        for i in {0..11}; do
+
+            echo "Now working on ${labels[$i]}" >> ${prep_log}
+
+            task_in="fslmaths ${fs_lobes_nii} -thr ${gm[$i]} -uthr ${gm[$i]} ${ROIs}/${labels[$i]}_gm.nii.gz"
+
+            task_exec
+
+            task_in="fslmaths ${fs_lobes_nii} -thr ${wm[$i]} -uthr ${wm[$i]} ${ROIs}/${labels[$i]}_wm.nii.gz"
+
+            task_exec
+
+            task_in="fslmaths ${ROIs}/${labels[$i]}_gm.nii.gz -add ${ROIs}/${labels[$i]}_wm.nii.gz -bin ${ROIs}/${labels[$i]}_bin.nii.gz"
+
+            task_exec
+
+        done
+
+        i=""
+
+        for i in {12..25}; do
+
+            echo "Now working on ${labels[$i]}" >> ${prep_log}
+
+            task_in="fslmaths ${fs_lobes_nii} -thr ${gm[$i]} -uthr ${gm[$i]} -bin ${ROIs}/${labels[$i]}_bin.nii.gz"
+
+            task_exec
+
+        done
+
+        i=""
+
+        for i in {26..27}; do
+
+            echo "Now working on ${labels[$i]}" >> ${prep_log}
+
+            task_in="fslmaths ${fs_lobes_nii} -thr ${wm[$i]} -uthr ${wm[$i]} -bin ${ROIs}/${labels[$i]}_bin.nii.gz"
+
+            task_exec
+
+        done
+        
+    else
+        
+        echo " isolating lobe labels already done, skipping to lesion overlap check" >> ${prep_log}
+        
+    fi
+
+    i=""
+
+    # Now to check overlap and quantify existing overlaps
+    # we also need to calculate volume and no. of vox for each lobe out of FS
+    # also lesion volume
+
+    l_vol=($(fslstats ${L_mask_reori} -V))
+
+    echo " * The lesion occupies " ${l_vol[0]} " voxels in total with " ${l_vol[0]} " cmm volume. " >> $lesion_lobes_report
+
+    for (( i=0; i<${labelslength}; i++ )); do
+
+
+        task_in="fslmaths ${ROIs}/${labels[$i]}_bin.nii.gz -mas ${Lmask_in_T1_bin} ${overlap}/${labels[$i]}_intersect_L_mask.nii.gz"
+
+        task_exec
+
+        b=($(fslstats ${overlap}/${labels[$i]}_intersect_L_mask.nii.gz -V))
+        
+        a=($( echo ${b[0]} | cut -c1-1))
+
+        vol_lobe=($(fslstats ${ROIs}/${labels[$i]}_bin.nii.gz -V))
+
+        echo " - The " ${labels[$i]} " label is " ${vol_lobe[0]} " voxels in total, with a volume of " ${vol_lobe[1]} " cmm volume. " >> ${lesion_lobes_report}
+
+        if [[ $a -ne 0 ]]; then
+
+            vol_ov=($(fslstats ${overlap}/${labels[$i]}_intersect_L_mask.nii.gz -V))
+            
+            ov_perc=($(echo "scale=4; (${vol_ov[1]}/${vol_lobe[1]})*100" | bc ))
+
+            echo " ** The lesion overlaps with the " ${labels[$i]} " in " ${vol_ov[1]} \
+            " cmm " ${ov_perc} " percent of total lobe volume " >> ${lesion_lobes_report}
+
+        else
+
+        echo " No overlap between the lesion and " ${labels[$i]} " lobe. " >> ${lesion_lobes_report}
+
+        fi
+
+
+    done
+
+elif [[ "${F_flag}" -eq 0 ]] ; then
+
+    echo
+    echo "Fresurfer flag not set, finished, exiting" >&2
+    echo "Fresurfer flag not set, finished, exiting" >> ${prep_log}
+    echo
+
+fi
 
 
 finish_t=$(date +%s)
