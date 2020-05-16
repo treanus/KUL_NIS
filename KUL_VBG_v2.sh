@@ -785,6 +785,8 @@ fi
 
     T1_brain_clean="${str_pp}_Brain_clean.nii.gz"
 
+    MNI_bm_BET_innat="${str_pp}_MNI_BM_inNat.nii.gz"
+
     clean_mask_nat="${str_pp}_Brain_clean_mask.nii.gz"
 
     clean_BM_mgz="${str_pp}_Brain_clean_mask.mgz"
@@ -1020,23 +1022,14 @@ function KUL_antsBETp {
 
         task_exec
 
-        task_in="mrthreshold -force -nthreads ${ncpu} -percentile 50 ${T1_N4BFC_inMNI1} - | mrcalc - ${Lmask_MNIBET} \
-        -subtract ${rough_mask_MNI} -force -nthreads ${ncpu}"
-
-        task_exec
-
-        task_in=""
-
-        MNI_bm_innat_aff=""
-
         # use the inverse priors warp from antsbet to get MNI_brain_mask to T1 space and apply it to the brain
 
-        task_in="WarpImageMultiTransform 3 ${MNI_brain_mask} ${MNI_bm_innat_aff} -R ${prim_in} -i ${output}_BrainExtractionPrior0GenericAffine.mat \
+        task_in="WarpImageMultiTransform 3 ${MNI_brain_mask} ${MNI_bm_BET_innat} -R ${prim_in} -i ${output}_BrainExtractionPrior0GenericAffine.mat \
         ${output}_BrainExtractionPrior1InverseWarp.nii.gz"
 
         task_exec
 
-        task_in="fslmaths ${MNI_bm_innat_aff} -thr 0.1 -bin -mul ${output}_BrainExtractionBrain.nii.gz -save ${T1_brain_clean} -bin ${clean_mask_nat}"
+        task_in="fslmaths ${MNI_bm_BET_innat} -thr 0.1 -bin -mul ${output}_BrainExtractionBrain.nii.gz -save ${T1_brain_clean} -bin ${clean_mask_nat}"
 
         task_exec
 
