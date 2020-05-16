@@ -616,20 +616,6 @@ fi
 
     declare -a atropos2_tpms_filled_GLCbinv
 
-    declare -a T1_tissue_fill
-
-    declare -a T1_tissue_fill_dil_s
-
-    declare -a T1_tissue_fill_ready
-
-    declare -a T1_tissue_fill_ready_HM
-
-    declare -a atropos2_tpms_filled_GLC_nat
-
-    declare -a R_Tiss_intmap
-
-    declare -a atropos2_tpms_filled_binv
-
     declare -a atropos2_tpms_punched
 
     declare -a NP_arr_rs
@@ -2148,10 +2134,24 @@ if [[ "${E_flag}" -eq 0 ]]; then
         # to define:
         # T1b_st2f_mean_im=""
         # atropos1_brain_norm=""
-        # T1b_inMNI1_punched=""
-        # T1b_inMNI1_p_norm=""
-        # declare -a Atropos2_Int_finder
-        # declare -a R_Tiss_Norm_mean
+        
+        T1b_inMNI1_punched=""
+        
+        T1b_inMNI1_p_norm=""
+
+        declare -a Atropos2_Int_finder
+
+        declare -a R_nTiss_Norm_mean
+
+        declare -a R_nTiss_Int_map_norm
+
+        declare -a Atropos1b_ntiss_map
+
+        declare -a A1_nTiss_Norm_mean
+
+        declare -a A1_nTiss_Int_scaled
+
+        declare -a R_nTiss_map_filled
 
         # task_in="fslmaths ${T1_sti2fill_brain} -bin -mul ${T1_st2f_mean} ${T1b_st2f_mean_im} && ImageMath 3 ${atropos1_brain_norm} \
         # Normalize ${T1_sti2fill_brain} ${T1b_st2f_mean_im}"
@@ -2196,28 +2196,8 @@ if [[ "${E_flag}" -eq 0 ]]; then
             atropos2_tpms_filled_GLCbinv[$i]="${str_pp}_atropos2_${tissues[$i]}_filled_GLCbinv.nii.gz"
 
             # T1 stuff
-
-            T1_tissue_fill[$i]="${str_pp}_T1_${tissues[$i]}_stitchedT1_fill.nii.gz"
-
-            T1_tissue_fill_ready[$i]="${str_pp}_T1_${tissues[$i]}_stitchedT1_fill_clean.nii.gz"
-
-            atropos2_tpms_filled_GLC_nat[$i]="${str_pp}_T1_${tissues[$i]}_stitchedT1_fc_nat.nii.gz"
-
-            declare -a R_nTiss_Norm_mean
-
-            declare -a R_nTiss_Int_map_norm
-
-            declare -a Atropos1b_ntiss_map
-
-            declare -a A1_nTiss_Norm_mean
-
-            declare -a A1_nTiss_Int_scaled
-
-            declare -a Atropos1_posts_binv
             
             R_nTiss_intmap[$i]="${str_pp}_T1_${tissues[$i]}_real_intmap.nii.gz"
-            
-            T1_ntissue_fill_ready_HM[$i]="${str_pp}_T1_${tissues[$i]}_stsyn_T1fill_HM.nii.gz"
 
             Atropos1b_ntiss_map[$i]=""
 
@@ -2225,9 +2205,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             A1_nTiss_Int_scaled[$i]=""
 
-            Atropos1_posts_binv[$i]=""
-
-
+            R_nTiss_map_filled[$i]=""
 
             # make the punched tpms
             # Atropos2 was run with only the Lmask_bin excluded
@@ -2245,7 +2223,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             task_exec
 
-            # find out if we still need this
+            # find out if we still need this - yes we do
 
             task_in="maskfilter -force -nthreads ${ncpu} -connectivity -largest ${atropos2_tpms_filled[$i]} connect - | mrcalc - 0 -gt \
             -force -nthreads ${ncpu} ${atropos2_tpms_filled_GLC[$i]} && fslmaths ${atropos2_tpms_filled_GLC[$i]} -binv ${atropos2_tpms_filled_GLCbinv[$i]}"
@@ -2253,10 +2231,6 @@ if [[ "${E_flag}" -eq 0 ]]; then
             task_exec
 
             ##
-
-            task_in="fslmaths ${T1_tissue_fill_dil_s[$i]} -mas ${atropos2_tpms_filled_GLC[$i]} ${T1_tissue_fill_ready[$i]}"
-
-            task_exec
 
             # need to warp the atropos2 tpms (after punching) to native space
             # threshold and apply as masks to the original image to get tissue specific intensity maps
@@ -2270,8 +2244,6 @@ if [[ "${E_flag}" -eq 0 ]]; then
             task_in="mrcalc ${Atropos1_posts[$i]} 0.05 -gt - | maskfilter connect - ${Atropos1_posts_bin[$i]} -force -nthreads ${ncpu} -connectivity -largest"
 
             task_exec
-
-            task_in="fslmaths ${Atropos1_posts_bin[$i]} -binv ${Atropos1_posts_binv[$i]}"
 
             # get Atropos1 brain intensity map per tissue
 
@@ -2296,26 +2268,26 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             # scale the Atropos1b normalized map of normalized intensities to that of the real normalized image normalized intensity map
 
-            task_in="fslmaths ${Atropos1b_ntiss_map[$i]} -div ${A1_nTiss_Norm_mean[$i]} -mul ${R_nTiss_Norm_mean[$i]} ${A1_nTiss_Int_scaled[$i]}"
+            task_in="fslmaths ${Atropos1b_ntiss_map[$i]} -div ${A1_nTiss_Norm_mean[$i]} -mul ${R_nTiss_Norm_mean[$i]} \
+            -save ${A1_nTiss_Int_scaled[$i]} -mas ${Lmask_bin_inMNI1_dilx2} ${A1_nTiss_Int_scaled_fill[$i]}"
             
             task_exec
 
-            # ana kol da less ma3amaltesh el filling!
+            task_in="fslmaths ${T1b_inMNI1_p_norm} -mas ${atropos2_tpms_punched[$i]} -add ${A1_nTiss_Int_scaled_fill[$i]} -mas ${atropos2_tpms_filled_GLC[$i]} ${R_nTiss_map_filled[$i]}"
 
-            # here we need to insert a histogram matching step
-            # for this to work we need to separate intensity maps of the tissue classes in the original image
+            task_exec
 
         done
 
-        # echo ${T1_tissue_fill[@]}
-        # echo ${T1_tissue_fill_ready[@]}
-        # echo ${T1_tissue_fill_ready_HM[@]}
-        # echo ${atropos_tpms_filled_binv[@]}
+        echo ${Atropos1b_ntiss_map[@]}
+        echo ${A1_nTiss_Int_scaled[@]}
+        echo ${R_nTiss_Int_map_norm[@]}
+        echo ${atropos2_tpms_filled_GLCbinv[@]}
 
-        task_in="fslmaths ${T1_tissue_fill_ready_HM[0]} -mas ${Atropos1_posts_binv[1]} -add ${T1_tissue_fill_ready_HM[1]} \
-        -save ${str_pp}_T1_cw_dil_s_fill.nii.gz -mas ${Atropos1_posts_binv[2]} -add ${T1_tissue_fill_ready_HM[2]} \
-        -save ${str_pp}_T1_cwc_dil_s_fill.nii.gz -mas ${Atropos1_posts_binv[3]} -add ${T1_tissue_fill_ready_HM[3]} \
-        -save ${str_pp}_T1_cwcbg_dil_s_fill.nii.gz -mas ${brain_mask_inMNI1} ${str_pp}_synthT1_MNI1_holes.nii.gz"
+        task_in="fslmaths ${R_nTiss_map_filled[0]} -mas ${atropos2_tpms_filled_GLCbinv[1]} -add ${R_nTiss_map_filled[1]} \
+        -save ${str_pp}_T1_cw_dil_s_fill.nii.gz -mas ${atropos2_tpms_filled_GLCbinv[2]} -add ${R_nTiss_map_filled[2]} \
+        -save ${str_pp}_T1_cwc_dil_s_fill.nii.gz -mas ${atropos2_tpms_filled_GLCbinv[3]} -add ${R_nTiss_map_filled[3]} \
+        -save ${str_pp}_T1_cwcbg_dil_s_fill.nii.gz -mas ${brain_mask_inMNI1} -mul ${T1b_inMNI1p_mean} ${str_pp}_synthT1_MNI1_holes.nii.gz"
 
         task_exec
 
@@ -2328,7 +2300,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
         # should respect the actual BG shape....
         # if parts of BG missing, fill with WM
 
-        task_in="ImageMath 3 ${str_pp}_synthT1_MNI1.nii.gz addtozero ${str_pp}_synthT1_MNI1_holes.nii.gz"
+        task_in="ImageMath 3 ${str_pp}_synthT1_MNI1.nii.gz addtozero ${str_pp}_synthT1_MNI1_holes.nii.gz ${T1_brain_inMNI1}"
 
         task_exec
 
@@ -2359,6 +2331,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
         fi
 
         # N4BFC again, sharpen and apply inverse transform to get hybrid ims to native T1 space
+        # not so sure we will need this still 
 
         unset output
 
