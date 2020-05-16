@@ -104,7 +104,7 @@ How to use:
     - cook_template_4VBG requires two brains with unilateral lesions on opposing sides
     - it is meant to facilitate the grafting process and minimize intensity differences
     - You need a high resolution T1 WI and a lesion mask in the same space for VBG to run
-    - If you end up with an empty image, it's possible you have mismatch between the T1 and lesion mask
+    - If you end up with an empty image, it is possible you have mismatch between the T1 and lesion mask
 
 
 Required arguments:
@@ -316,7 +316,7 @@ if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
 			
 	else 
 			
-		echo " There's a problem with sessions in BIDS dir. "
+		echo " There is a problem with sessions in BIDS dir. "
 		echo " Please double check your data structure &/or specify one session with -s if you have multiple ones. "
 		exit 2
 			
@@ -382,7 +382,7 @@ elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 0 ]]; then
 		
 elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 1 ]]; then
 			
-	echo " Wrong optional arguments, we can't have sessions without BIDS, exiting."
+	echo " Wrong optional arguments, we cant have sessions without BIDS, exiting."
     
 	exit 2
 		
@@ -626,13 +626,26 @@ fi
 
     declare -a Atropos2_posts_bin
 
-    declare -a MNI2inT1_tiss_HM
+    declare -a T1_ntiss_At2masked
 
-    declare -a MNI2inT1_tiss_HMM
+    declare -a nMNI2_inT1_ntiss_sc2T1MNI1
 
-    declare -a T1_tiss_At2masked
+    declare -a MNI2_inT1_ntiss
 
-    declare -a MNI2_inT1_tiss
+    declare -a Atropos2_Int_finder
+
+    declare -a R_nTiss_Norm_mean
+
+    declare -a R_nTiss_Int_map_norm
+
+    declare -a Atropos1b_ntiss_map
+
+    declare -a A1_nTiss_Norm_mean
+
+    declare -a A1_nTiss_Int_scaled
+
+    declare -a R_nTiss_map_filled
+
 
 # input variables
 
@@ -643,12 +656,6 @@ fi
     L_mask_reori="${str_pp}_L_mask_reori.nii.gz"
 
     L_O_binv="${str_pp}_L_mask_reori_binv.nii.gz"
-
-    Lmask_MNIBET="${str_pp}_L_mask_MNIBET.nii.gz"
-
-    Lmask_MNIBET_s2bin="${str_pp}_L_mask_MNIBET_bin.nii.gz"
-
-    Lmask_MNIBET_binv="${str_pp}_L_mask_MNIBET_binv.nii.gz"
 
     Lmask_bin="${str_pp}_L_mask_orig_bin.nii.gz"
 
@@ -766,7 +773,7 @@ fi
 
     KULBETp="${str_pp}_atropos4BET"
 
-    rough_mask_MNI="${str_pp}_rough_mask.nii.gz"
+    rough_mask="${str_pp}_rough_mask.nii.gz"
 
     clean_mask_1="${str_pp}_clean_brain_mask_MNI_1.nii.gz"
 
@@ -845,6 +852,18 @@ fi
     T1_H_hemi=${str_pp}_T1_H_hemi.nii.gz
 
     fT1_H_hemi=${str_pp}_fT1_H_hemi.nii.gz
+
+    # img vars for make ims loops
+
+    MNI2_in_T1_linsc_norm="${str_pp}_MNI2_inT1_linsc_norm.nii.gz"
+    
+    atropos1_brain_norm="${str_pp}_Atropos1_brain_norm.nii.gz"
+    
+    T1b_inMNI1_punched="${str_pp}_T1brain_inMNI1_punched.nii.gz"
+    
+    T1b_inMNI1_p_norm="${str_pp}_T1brain_inMNI1_punched_norm.nii.gz"
+
+    #
 
 # workflow markers for processing control
 
@@ -992,73 +1011,32 @@ function KUL_antsBETp {
 
         echo "hd-bet is not found, resorting to ANTs based BET" >> ${prep_log}
 
-
-        task_in="antsBrainExtraction.sh -d 3 -a ${prim_in} -e ${MNI_T1} -m ${MNI_brain_mask} -u 1 -k 1 -o ${output}_"
-
-        task_exec
-
-        task_in="WarpImageMultiTransform 3 ${T1_N4BFC} ${T1_N4BFC_inMNI1} -R ${MNI_T1} \
-        ${output}_BrainExtractionPrior1Warp.nii.gz ${output}_BrainExtractionPrior0GenericAffine.mat"
+        task_in="mrthreshold -force -nthreads ${ncpu} -percentile 60 ${prim_in} - | mrcalc - ${Lmask_MNIBET} \
+        -subtract ${rough_mask} -force -nthreads ${ncpu} && fslmaths ${L_mask_reori} -binv -mul ${rough_mask_minL}"
 
         task_exec
 
-        task_in="WarpImageMultiTransform 3 ${L_mask_reori} ${Lmask_MNIBET} -R ${MNI_T1} \
-        ${output}_BrainExtractionPrior1Warp.nii.gz ${output}_BrainExtractionPrior0GenericAffine.mat"
+        task_in="antsBrainExtraction.sh -d 3 -a ${prim_in} -e ${MNI_T1} -m ${MNI_brain_mask} -f ${rough_mask_minL} -u 1 -k 1 -o ${output}_"
 
         task_exec
 
-        # the next steps will be applied to the prim_in
-        # need to define rough_mask
-        # need to define new priors and document what I did for them:
-        # we now have 7 priors, derived from mixed sources, but ran through Atropos on HRT1_inMNI 
-        # then masked with provided brain mask to give priors currently used
-        # we're using mrf 0.25 and weight 0.2, for stability and smoothness of output tpms
-        # need to change def of brain and brain_mask for rest of script
-        # must bring T1 brain to MNI space before atropos for BET
-        # this now also respects lesion presence
-
-        task_in="fslmaths ${Lmask_MNIBET} -s 2 -thr 0.2 -bin ${Lmask_MNIBET_s2bin}"
-        
-        task_exec
-
-        task_in="fslmaths ${Lmask_MNIBET} -binv ${Lmask_MNIBET_binv}"
-
-        task_exec
-
-        # this one is actually not a problem so far
         task_in="mrthreshold -force -nthreads ${ncpu} -percentile 50 ${T1_N4BFC_inMNI1} - | mrcalc - ${Lmask_MNIBET} \
         -subtract ${rough_mask_MNI} -force -nthreads ${ncpu}"
 
         task_exec
 
-        task_in="antsAtroposN4.sh -d 3 -a ${T1_N4BFC_inMNI1} -x ${rough_mask_MNI} -c 7 -p ${new_priors} \
-        -r [0.3,1,1,1] -w 0.6 -m 2 -n 5 -y 1 -y 2 -y 3 -y 4 -y 5 -y 6 -y 7 -u 1 -g 1 -k 1 -o ${KULBETp}_ -s nii.gz -z 0"
+        task_in=""
+
+        MNI_bm_innat_aff=""
+
+        # use the inverse priors warp from antsbet to get MNI_brain_mask to T1 space and apply it to the brain
+
+        task_in="WarpImageMultiTransform 3 ${MNI_brain_mask} ${MNI_bm_innat_aff} -R ${prim_in} -i ${output}_BrainExtractionPrior0GenericAffine.mat \
+        ${output}_BrainExtractionPrior1InverseWarp.nii.gz"
 
         task_exec
 
-        task_in="mrcalc -force -nthreads ${ncpu} ${KULBETp}_SegmentationPosteriors1.nii.gz ${KULBETp}_SegmentationPosteriors2.nii.gz -add \
-        ${KULBETp}_SegmentationPosteriors3.nii.gz -add ${KULBETp}_SegmentationPosteriors4.nii.gz -add ${Lmask_MNIBET_s2bin} -add \
-        0.1 -gt ${clean_mask_1}"
-
-        task_exec
-
-        task_in="maskfilter -force -nthreads ${ncpu} ${clean_mask_1} clean ${clean_mask_2}"
-
-        task_exec
-        
-        task_in="fslmaths ${clean_mask_2} -fillh ${clean_mask_3}"
-
-        task_exec
-
-        task_in="WarpImageMultiTransform 3 ${clean_mask_3} ${clean_mask_nat} -R ${prim_in} \
-        -i ${output}_BrainExtractionPrior0GenericAffine.mat ${output}_BrainExtractionPrior1InverseWarp.nii.gz"
-
-        task_exec
-
-        # figure this out later
-        # use fslmaths -edge fill then erode perhaps
-        # trying to avoid any holes
-        task_in="mrcalc -force -nthreads ${ncpu} ${prim_in} ${clean_mask_nat} -mult ${T1_brain_clean}"
+        task_in="fslmaths ${MNI_bm_innat_aff} -thr 0.1 -bin -mul ${output}_BrainExtractionBrain.nii.gz -save ${T1_brain_clean} -bin ${clean_mask_nat}"
 
         task_exec
 
@@ -1137,9 +1115,9 @@ function KUL_Lmask_part2 {
 
     task_exec
 
-    # here we're really making the Lmask bigger
+    # here we are really making the Lmask bigger
     # using -dilM x2 and -s 2 with a -thr 0.2 to avoid very low value voxels
-    # actually won't be using dilx2 probably
+    # actually will not be using dilx2 probably
 
     task_in="fslmaths ${Lmask_bin_inMNI1} -binv -mas ${brain_mask_inMNI1} -save ${Lmask_binv_inMNI1} -restart ${Lmask_bin_inMNI1} -dilM -dilM -save ${Lmask_bin_inMNI1_dilx2} \
     -s 2 -thr 0.2 -mas ${brain_mask_inMNI1} ${Lmask_bin_inMNI1_s3} && fslmaths ${brain_mask_inMNI1} -sub ${Lmask_bin_inMNI1_s3} -mas ${brain_mask_inMNI1} \
@@ -1211,7 +1189,7 @@ function KUL_Lmask_part2 {
     # we set a hard-coded threshold of 65, if unilat. then native heatlhy hemi is used
     # if bilateral by more than 35, template brain is used
     # # this needs to be modified, also need to include simple lesion per hemisphere overlap with percent to total hemi volume
-    # this will enable us to use template or simple filling and derive mean values per tissue class form another source (as we're currently using the original images).
+    # this will enable us to use template or simple filling and derive mean values per tissue class form another source (as we are currently using the original images).
     # AR 09/02/2020
     # here we also need to make unilateral L masks, masked by hemi mask to overcome midline issue
     
@@ -1238,7 +1216,7 @@ function KUL_Lmask_part2 {
         echo "${H_hemi_mask}" >> ${prep_log}
 
         # for debugging will set this to -lt 10
-        # should change it back to -gt 65 ( on the off chance you will need the bilateral condition, that's also been tested now)
+        # should change it back to -gt 65 ( on the off chance you will need the bilateral condition, that is also been tested now)
         
     elif [[ "${L_ovRt_2_total}" -gt 65 ]]; then
 
@@ -1289,10 +1267,6 @@ function KUL_Lmask_part2 {
 
     task_exec
 
-    MNI2_in_T1_linsc_norm=""
-
-    T1b_inMNI1_norm=""
-
     # first we get the mean and normalized MNI2_inT1 after the scaling process done above
 
     MNI2_inT1_sc_mean=($(fslstats ${MNI2_inT1_sc_mean} -M))
@@ -1303,9 +1277,18 @@ function KUL_Lmask_part2 {
 
     # same for the T1brain in MNI1 image
 
-    T1b_inMNI1_mean=($(fslstats ${T1_brain_inMNI1} -M))
-    
-    task_in="fslmaths ${T1_brain_inMNI1} -div ${T1b_inMNI1_mean} ${T1b_inMNI1_norm}"
+    # before we get any values for the T1 we are trying to fill
+    # we have to mask out the lesion
+
+    # we get normalized target and source T1 images by dividing each by its mean
+
+    task_in="fslmaths ${T1_brain_inMNI1} -mas ${Lmask_binv_inMNI1_dilx2} ${T1b_inMNI1_punched}"
+
+    task_exec
+
+    T1b_inMNI1p_mean=($(fslstats ${T1b_inMNI1_punched} -M))
+
+    task_in="fslmaths ${T1b_inMNI1_punched} -div ${T1b_inMNI1p_mean} ${T1b_inMNI1_p_norm}"
 
     task_exec
 
@@ -1322,13 +1305,15 @@ function KUL_Lmask_part2 {
 
         Atropos2_posts_bin[$ts]="${str_pp}_atropos_${tissues[$ts]}_bin.nii.gz"
 
-        MNI2inT1_tiss_HM[$ts]="${str_pp}_atropos_${tissues[$ts]}_HM.nii.gz"
+        # MNI2inT1_tiss_HM[$ts]="${str_pp}_atropos_${tissues[$ts]}_HM.nii.gz"
 
-        MNI2inT1_tiss_HMM[$ts]="${str_pp}_atropos_${tissues[$ts]}_HMM.nii.gz"
+        # MNI2inT1_tiss_HMM[$ts]="${str_pp}_atropos_${tissues[$ts]}_HMM.nii.gz"
 
-        MNI2_inT1_tiss[$ts]="${str_pp}_MNItmp_${tissues[$ts]}_IM.nii.gz"
+        MNI2_inT1_ntiss[$ts]="${str_pp}_MNItmp_${tissues[$ts]}_IM.nii.gz"
 
-        T1_tiss_At2masked[$ts]="${str_pp}_T1inMNI2_${tissues[$ts]}_IM.nii.gz"
+        T1_ntiss_At2masked[$ts]="${str_pp}_T1inMNI2_${tissues[$ts]}_IM.nii.gz"
+
+        nMNI2_inT1_ntiss_sc2T1MNI1[$ts]="${str_pp}_nMNI2_inT1_linsc_norm_n${tissues[$ts]}.nii.gz"
 
         # warp the tissues to T1_brain_inMNI1 (first deformation)
 
@@ -1346,22 +1331,16 @@ function KUL_Lmask_part2 {
 
         # get tissue intensity maps from template
 
-        task_in="fslmaths ${MNI2_in_T1_linsc_norm} -mas ${NP_arr_rs_bin[$ts]} ${MNI2_inT1_tiss[$ts]} && fslmaths ${T1b_inMNI1_norm} -mas ${Atropos2_posts_bin[$ts]} \
-        ${T1_tiss_At2masked[$ts]}"
+        task_in="fslmaths ${MNI2_in_T1_linsc_norm} -mas ${NP_arr_rs_bin[$ts]} ${MNI2_inT1_ntiss[$ts]} && fslmaths ${T1b_inMNI1_p_norm} -mas ${Atropos2_posts_bin[$ts]} \
+        ${T1_ntiss_At2masked[$ts]}"
 
         task_exec
 
-        # match the histograms with mrhistmatch
-        # trying linear again
+        T1_ntiss_At2m_mean=($(fslstats ${T1_ntiss_At2masked[$ts]} -M))
 
-        # task_in="mrhistmatch -bin 2048 -force -nthreads ${ncpu} -mask_target ${brain_mask_minL_inMNI2} -mask_input ${MNI_brain_mask} \
-        # nonlinear ${MNI2_in_T1_scaled} ${T1_brain_inMNI2} - | mrcalc - ${NP_arr_rs_bin[$ts]} -mult ${MNI2inT1_tiss_HM[$ts]} -force -nthreads ${ncpu}"
+        MNI2_inT1_ntiss_mean=($(fslstats ${MNI2_inT1_ntiss[$ts]} -M))
 
-        T1_ntis_At2m_mean=($(fslstats ${T1_tiss_At2masked[$ts]} -M))
-
-        MNI2_inT1_ntiss_mean=($(fslstats ${MNI2_inT1_tiss[$ts]} -M))
-
-        task_in="fslmaths ${MNI2_inT1_tiss[$ts]} -div ${MNI2_inT1_ntiss_mean} -mul ${T1_ntis_At2m_mean} ${MNI2_inT1_tiss_sc2T1MNI1[$ts]}"
+        task_in="fslmaths ${MNI2_inT1_ntiss[$ts]} -div ${MNI2_inT1_ntiss_mean} -mul ${T1_ntiss_At2m_mean} ${nMNI2_inT1_ntiss_sc2T1MNI1[$ts]}"
 
         task_exec
 
@@ -1374,9 +1353,9 @@ function KUL_Lmask_part2 {
 
     # Sum up the tissues while masking in and out to minimize overlaps and holes
 
-    task_in="fslmaths ${MNI2_inT1_tiss_sc2T1MNI1[0]} -mas ${NP_arr_rs_binv[1]} -add ${MNI2_inT1_tiss_sc2T1MNI1[1]} -save ${tmp_s2T1_CSFGMC} \
-    -mas ${NP_arr_rs_binv[2]} -add ${MNI2_inT1_tiss_sc2T1MNI1[2]} -save ${tmp_s2T1_CSFGMCB} -mas ${NP_arr_rs_binv[3]} -add \
-    ${MNI2_inT1_tiss_sc2T1MNI1[3]} ${tmp_s2T1_CSFGMCBWM}"
+    task_in="fslmaths ${MNI2_inT1_ntiss_sc2T1MNI1[0]} -mas ${NP_arr_rs_binv[1]} -add ${MNI2_inT1_ntiss_sc2T1MNI1[1]} -save ${tmp_s2T1_CSFGMC} \
+    -mas ${NP_arr_rs_binv[2]} -add ${MNI2_inT1_ntiss_sc2T1MNI1[2]} -save ${tmp_s2T1_CSFGMCB} -mas ${NP_arr_rs_binv[3]} -add \
+    -save ${MNI2_inT1_ntiss_sc2T1MNI1[3]} -mul ${T1b_inMNI1p_mean} ${tmp_s2T1_CSFGMCBWM}"
 
     task_exec
 
@@ -1993,7 +1972,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
         # we set a hard-coded threshold of 65, if unilat. then native heatlhy hemi is used
         # if bilateral by more than 35, template brain is used
         # # this needs to be modified, also need to include simple lesion per hemisphere overlap with percent to total hemi volume
-        # this will enable us to use template or simple filling and derive mean values per tissue class form another source (as we're currently using the original images).
+        # this will enable us to use template or simple filling and derive mean values per tissue class form another source (as we are currently using the original images).
         # AR 09/02/2020
         # here we also need to make unilateral L masks, masked by hemi mask to overcome midline issue
         
@@ -2157,28 +2136,6 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         # task_exec
 
-        # to define:
-        # T1b_st2f_mean_im=""
-        # atropos1_brain_norm=""
-        
-        T1b_inMNI1_punched=""
-        
-        T1b_inMNI1_p_norm=""
-
-        declare -a Atropos2_Int_finder
-
-        declare -a R_nTiss_Norm_mean
-
-        declare -a R_nTiss_Int_map_norm
-
-        declare -a Atropos1b_ntiss_map
-
-        declare -a A1_nTiss_Norm_mean
-
-        declare -a A1_nTiss_Int_scaled
-
-        declare -a R_nTiss_map_filled
-
         # task_in="fslmaths ${T1_sti2fill_brain} -bin -mul ${T1_st2f_mean} ${T1b_st2f_mean_im} && ImageMath 3 ${atropos1_brain_norm} \
         # Normalize ${T1_sti2fill_brain} ${T1b_st2f_mean_im}"
 
@@ -2188,20 +2145,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         task_exec
 
-        # before we get any values for the T1 we are trying to fill
-        # we have to mask out the lesion
-
-        # we get normalized target and source T1 images by dividing each by its mean
-
-        task_in="fslmaths ${T1_brain_inMNI1} -mas ${Lmask_binv_inMNI1_dilx2} ${T1b_inMNI1_punched}"
-
-        task_exec
-
-        T1b_inMNI1p_mean=($(fslstats ${T1b_inMNI1_punched} -M))
-
-        task_in="fslmaths ${T1b_inMNI1_punched} -div ${T1b_inMNI1p_mean} ${T1b_inMNI1_p_norm}"
-
-        task_exec
+        # T1b_inMNI1_p_norm is generated before 
 
         # Match the intensities of the normalized tissue components from each image
 
@@ -2687,7 +2631,7 @@ if [[ "${F_flag}" -eq 1 ]] ; then
 
         if [[ "${labelslength}" -eq "${wmslength}" ]] && [[ "${gmslength}" -eq "${wmslength}" ]]; then
 
-            echo "we're doing okay captain! ${labelslength} ${wmslength} ${gmslength}" >> ${prep_log}
+            echo "we are doing okay captain! ${labelslength} ${wmslength} ${gmslength}" >> ${prep_log}
 
         else
 
