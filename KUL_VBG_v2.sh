@@ -24,7 +24,7 @@
 
 
 
-v="0.31"
+v="0.32"
 # change version when finished with dev to 1.0
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
@@ -1282,10 +1282,30 @@ function KUL_Lmask_part2 {
 
     med_tmp=$(mrstats -quiet -nthreads ${ncpu} -output median -ignorezero -mask ${MNI_brain_mask} ${MNI2_in_T1})
 
-    med_nat=$(mrstats -quiet -nthreads ${ncpu} -output median -ignorezero -mask ${brain_mask_minL_inMNI2} ${T1_brain_inMNI2})
+    med_nat=$(mrstats -quiet -nthreads ${ncpu} -output median -ignorezero -mask ${brain_mask_minL_inMNI2} ${T1_brain_inMNI1})
 
-    task_in="mrcalc -force -nthreads ${ncpu} ${med_nat} ${med_tmp} -divide ${MNI2_in_T1} -mult - | mrhistmatch linear - ${T1_brain_inMNI2} ${MNI2_in_T1_scaled} -force \
+    task_in="mrcalc -force -nthreads ${ncpu} ${med_nat} ${med_tmp} -divide ${MNI2_in_T1} -mult - | mrhistmatch linear - ${T1_brain_inMNI1} ${MNI2_in_T1_scaled} -force \
     -nthreads ${ncpu} -mask_target ${brain_mask_minL_inMNI2} -mask_input ${MNI_brain_mask}"
+
+    task_exec
+
+    MNI2_in_T1_linsc_norm=""
+
+    T1b_inMNI1_norm=""
+
+    # first we get the mean and normalized MNI2_inT1 after the scaling process done above
+
+    MNI2_inT1_sc_mean=($(fslstats ${MNI2_inT1_sc_mean} -M))
+
+    task_in="fslmaths ${MNI2_in_T1_scaled} -div ${MNI2_inT1_sc_mean} ${MNI2_in_T1_linsc_norm}"
+
+    task_exec
+
+    # same for the T1brain in MNI1 image
+
+    T1b_inMNI1_mean=($(fslstats ${T1_brain_inMNI1} -M))
+    
+    task_in="fslmaths ${T1_brain_inMNI1} -div ${T1b_inMNI1_mean} ${T1b_inMNI1_norm}"
 
     task_exec
 
@@ -1320,13 +1340,13 @@ function KUL_Lmask_part2 {
         # create the tissue masks and punch the lesion out of them
 
         task_in="fslmaths ${NP_arr_rs[$ts]} -thr 0.1 -mas ${MNI_brain_mask} -bin -save ${NP_arr_rs_bin[$ts]} -binv \
-        ${NP_arr_rs_binv[$ts]} && fslmaths ${Atropos2_posts[$ts]} -thr 0.1 -mas ${brain_mask_minL_inMNI1} -bin ${Atropos2_posts_bin[$ts]}"
+        ${NP_arr_rs_binv[$ts]} && fslmaths ${Atropos2_posts[$ts]} -thr 0.995 -mas ${brain_mask_minL_inMNI1} -bin ${Atropos2_posts_bin[$ts]}"
 
         task_exec
 
         # get tissue intensity maps from template
 
-        task_in="fslmaths ${MNI2_in_T1_scaled} -mas ${NP_arr_rs_bin[$ts]} ${MNI2_inT1_tiss[$ts]} && fslmaths ${T1_brain_inMNI2} -mas ${Atropos2_posts_bin[$ts]} \
+        task_in="fslmaths ${MNI2_in_T1_linsc_norm} -mas ${NP_arr_rs_bin[$ts]} ${MNI2_inT1_tiss[$ts]} && fslmaths ${T1b_inMNI1_norm} -mas ${Atropos2_posts_bin[$ts]} \
         ${T1_tiss_At2masked[$ts]}"
 
         task_exec
@@ -1337,22 +1357,28 @@ function KUL_Lmask_part2 {
         # task_in="mrhistmatch -bin 2048 -force -nthreads ${ncpu} -mask_target ${brain_mask_minL_inMNI2} -mask_input ${MNI_brain_mask} \
         # nonlinear ${MNI2_in_T1_scaled} ${T1_brain_inMNI2} - | mrcalc - ${NP_arr_rs_bin[$ts]} -mult ${MNI2inT1_tiss_HM[$ts]} -force -nthreads ${ncpu}"
 
-        task_in="ImageMath 3 Normalize"
+        T1_ntis_At2m_mean=($(fslstats ${T1_tiss_At2masked[$ts]} -M))
 
-        task_in="mrcalc ${MNI2_in_T1_scaled} ${NP_arr_rs_bin[$ts]} -mult ${MNI2inT1_tiss_HM[$ts]} -force -nthreads ${ncpu}"
+        MNI2_inT1_ntiss_mean=($(fslstats ${MNI2_inT1_tiss[$ts]} -M))
+
+        task_in="fslmaths ${MNI2_inT1_tiss[$ts]} -div ${MNI2_inT1_ntiss_mean} -mul ${T1_ntis_At2m_mean} ${MNI2_inT1_tiss_sc2T1MNI1[$ts]}"
 
         task_exec
+
+        # task_in="mrcalc ${MNI2_in_T1_scaled} ${NP_arr_rs_bin[$ts]} -mult ${MNI2inT1_tiss_HM[$ts]} -force -nthreads ${ncpu}"
+
+        # task_exec
 
 
     done
 
     # Sum up the tissues while masking in and out to minimize overlaps and holes
 
-    # task_in="fslmaths ${MNI2inT1_tiss_HM[0]} -mas ${NP_arr_rs_binv[1]} -add ${MNI2inT1_tiss_HM[1]} -save ${tmp_s2T1_CSFGMC} \
-    # -mas ${NP_arr_rs_binv[2]} -add ${MNI2inT1_tiss_HM[2]} -save ${tmp_s2T1_CSFGMCB} -mas ${NP_arr_rs_binv[3]} -add \
-    # ${MNI2inT1_tiss_HM[3]} ${tmp_s2T1_CSFGMCBWM}"
+    task_in="fslmaths ${MNI2_inT1_tiss_sc2T1MNI1[0]} -mas ${NP_arr_rs_binv[1]} -add ${MNI2_inT1_tiss_sc2T1MNI1[1]} -save ${tmp_s2T1_CSFGMC} \
+    -mas ${NP_arr_rs_binv[2]} -add ${MNI2_inT1_tiss_sc2T1MNI1[2]} -save ${tmp_s2T1_CSFGMCB} -mas ${NP_arr_rs_binv[3]} -add \
+    ${MNI2_inT1_tiss_sc2T1MNI1[3]} ${tmp_s2T1_CSFGMCBWM}"
 
-    # task_exec
+    task_exec
 
     ############
 
@@ -2283,6 +2309,8 @@ if [[ "${E_flag}" -eq 0 ]]; then
         echo ${A1_nTiss_Int_scaled[@]}
         echo ${R_nTiss_Int_map_norm[@]}
         echo ${atropos2_tpms_filled_GLCbinv[@]}
+
+        # are the intensities now the same or do I have to reconstitute the target image also ?
 
         task_in="fslmaths ${R_nTiss_map_filled[0]} -mas ${atropos2_tpms_filled_GLCbinv[1]} -add ${R_nTiss_map_filled[1]} \
         -save ${str_pp}_T1_cw_dil_s_fill.nii.gz -mas ${atropos2_tpms_filled_GLCbinv[2]} -add ${R_nTiss_map_filled[2]} \
