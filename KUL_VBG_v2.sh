@@ -389,7 +389,7 @@ elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 1 ]]; then
 fi
 
 # set this manually for debugging
-function_path=($(which KUL_VBG.sh | rev | cut -d"/" -f2- | rev))
+function_path=($(which KUL_VBG_v2.sh | rev | cut -d"/" -f2- | rev))
 
 #  the primary image is the noncontrast T1
 
@@ -590,7 +590,7 @@ fi
 
     tmp_s2T1_CSFGMCBWMr="${str_pp}_tmp_s2T1_CSFGMCBWMr.nii.gz"
 
-    MNI2_in_T1_scaled="${str_pp}_T1_brain_inMNI2_IW_scaled.nii.gz"
+    MNI2_in_T1_scaled="${str_pp}_MNI_brain_IW_scaled.nii.gz"
 
     tissues=("CSF" "GMC" "GMBG" "WM");
     
@@ -1298,7 +1298,8 @@ function KUL_Lmask_part2 {
 
     med_nat=$(mrstats -quiet -nthreads ${ncpu} -output median -ignorezero -mask ${brain_mask_minL_inMNI2} ${T1_brain_inMNI2})
 
-    task_in="mrcalc -force -nthreads ${ncpu} ${med_nat} ${med_tmp} -divide ${MNI2_in_T1} -mult ${MNI2_in_T1_scaled}"
+    task_in="mrcalc -force -nthreads ${ncpu} ${med_nat} ${med_tmp} -divide ${MNI2_in_T1} -mult - | mrhistmatch linear - ${T1_brain_inMNI2} ${MNI2_in_T1_scaled} -force \
+    -nthreads ${ncpu} -mask_target ${brain_mask_minL_inMNI2} -mask_input ${MNI_brain_mask}"
 
     task_exec
 
@@ -1345,9 +1346,14 @@ function KUL_Lmask_part2 {
         task_exec
 
         # match the histograms with mrhistmatch
+        # trying linear again
 
-        task_in="mrhistmatch -bin 2048 -force -nthreads ${ncpu} -mask_target ${brain_mask_minL_inMNI2} -mask_input ${MNI_brain_mask} \
-        nonlinear ${MNI2_in_T1_scaled} ${T1_brain_inMNI2} - | mrcalc - ${NP_arr_rs_bin[$ts]} -mult ${MNI2inT1_tiss_HM[$ts]} -force -nthreads ${ncpu}"
+        # task_in="mrhistmatch -bin 2048 -force -nthreads ${ncpu} -mask_target ${brain_mask_minL_inMNI2} -mask_input ${MNI_brain_mask} \
+        # nonlinear ${MNI2_in_T1_scaled} ${T1_brain_inMNI2} - | mrcalc - ${NP_arr_rs_bin[$ts]} -mult ${MNI2inT1_tiss_HM[$ts]} -force -nthreads ${ncpu}"
+
+        task_in="ImageMath 3 Normalize"
+
+        task_in="mrcalc ${MNI2_in_T1_scaled} ${NP_arr_rs_bin[$ts]} -mult ${MNI2inT1_tiss_HM[$ts]} -force -nthreads ${ncpu}"
 
         task_exec
 
@@ -1356,11 +1362,11 @@ function KUL_Lmask_part2 {
 
     # Sum up the tissues while masking in and out to minimize overlaps and holes
 
-    task_in="fslmaths ${MNI2inT1_tiss_HM[0]} -mas ${NP_arr_rs_binv[1]} -add ${MNI2inT1_tiss_HM[1]} -save ${tmp_s2T1_CSFGMC} \
-    -mas ${NP_arr_rs_binv[2]} -add ${MNI2inT1_tiss_HM[2]} -save ${tmp_s2T1_CSFGMCB} -mas ${NP_arr_rs_binv[3]} -add \
-    ${MNI2inT1_tiss_HM[3]} ${tmp_s2T1_CSFGMCBWM}"
+    # task_in="fslmaths ${MNI2inT1_tiss_HM[0]} -mas ${NP_arr_rs_binv[1]} -add ${MNI2inT1_tiss_HM[1]} -save ${tmp_s2T1_CSFGMC} \
+    # -mas ${NP_arr_rs_binv[2]} -add ${MNI2inT1_tiss_HM[2]} -save ${tmp_s2T1_CSFGMCB} -mas ${NP_arr_rs_binv[3]} -add \
+    # ${MNI2inT1_tiss_HM[3]} ${tmp_s2T1_CSFGMCBWM}"
 
-    task_exec
+    # task_exec
 
     ############
 
@@ -1390,20 +1396,9 @@ function KUL_Lmask_part2 {
 
         #######
 
-        # add a addtozero ImageMath step here to fill in holes of tmp_s2T1_CSFGMCBWM with ${stitched_T1_nat}
-        # the resulting stitched_temp_fill should have no holes then, repeat for the second make images step (After Lmask_p2)
-        # H hemi masks have the lesion assigned along with the hemi mask even if it is disconnected
-        # L hemi mask and L hemi mask binv are the ones that split the brain along the midline
-
-        # fill any holes in the previously synthesized donor image using native data
-
-        task_in="ImageMath 3 ${tmp_s2T1_CSFGMCBWMr} addtozero ${tmp_s2T1_CSFGMCBWM} ${stitched_T1_nat}"
-
-        task_exec
-
         # repeat above process for template data - without filling of the donor image
         
-        task_in="fslmaths ${tmp_s2T1_CSFGMCBWMr} -mas ${L_hemi_mask} ${Temp_L_hemi}"
+        task_in="fslmaths ${MNI2_in_T1_scaled} -mas ${L_hemi_mask} ${Temp_L_hemi}"
 
         task_exec
 
@@ -1448,18 +1443,18 @@ function KUL_Lmask_part2 {
 
         # if bilateral we fill holes with the template image of the MNI2 step (which is deformed to match patient anatomy in MNI space)
 
-        task_in="ImageMath 3 ${tmp_s2T1_CSFGMCBWMr} addtozero ${tmp_s2T1_CSFGMCBWM} ${MNI2_in_T1_scaled}"
+        # task_in="ImageMath 3 ${tmp_s2T1_CSFGMCBWMr} addtozero ${tmp_s2T1_CSFGMCBWM} ${MNI2_in_T1_scaled}"
 
-        task_exec
+        # task_exec
 
         # similarly but no hemisphere work and no stitching
         # stitched_T1 and stitched_T1_nat are now fake ones
 
-        stitched_T1=${tmp_s2T1_CSFGMCBWMr}
+        stitched_T1=${MNI2_in_T1_scaled}
 
         # create the initial filling graft
 
-        task_in="fslmaths ${tmp_s2T1_CSFGMCBWMr} -mul ${Lmask_bin_inMNI2_s3} ${Temp_bil_Lmask_fill1}"
+        task_in="fslmaths ${MNI2_in_T1_scaled} -mul ${Lmask_bin_inMNI2_s3} ${Temp_bil_Lmask_fill1}"
 
         task_exec
 
@@ -1626,7 +1621,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
     # check and report if temp flag is set
 
     if [[ "${t_flag}" -eq 0 ]]; then
-        
+    
         echo
         echo "Template flag not set, using native tissue for filling" >&2
         echo "Template flag not set, using native tissue for filling" >> ${prep_log}
@@ -1990,8 +1985,6 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             stitched_T1=${stitched_T1_temp}
 
-            ## CHANGE-ME -lt is theer only for debugging
-
         elif [[ "${L_ovRt_2_total}" -gt 65 ]]; then
 
             echo ${L_ovRt_2_total} >> ${prep_log}
@@ -2010,7 +2003,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             bilateral=1
 
-            stitched_T1=${tmp_s2T1_CSFGMCBWMr}
+            stitched_T1=${MNI2_in_T1_scaled}
 
             T1_filled1=${Temp_T1_bilfilled1}
 
@@ -2116,7 +2109,15 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         echo ${tissues[@]} >> ${prep_log}
 
-        # one for loop to deal with all tpms and filling for the T1
+        # here we make this -> ${str_pp}_synthT1_MNI1.nii.gz using a simple fslmaths step
+
+        task_in="fslmaths ${T1_sti2fill_brain} -mas ${Lmask_bin_inMNI1_dilx2} ${Lfill_T1_dilx2}"
+
+        task_exec
+
+        task_in="fslmaths ${T1_brain_inMNI2} -mas ${Lmask_binv_inMNI1_dilx2} -add ${Lfill_T1_dilx2_im} ${str_pp}_synthT1_MNI1.nii.gz"
+
+        task_exec
 
         for i in ${!tissues[@]}; do
 
@@ -2137,7 +2138,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
             # no smoothing or dilation
             # so dilx2 Lmasks should be fine
 
-            task_in="fslmaths ${Atropos2_posts[$i]} -mas ${Lmask_binv_inMNI1_dilx2} -thr 0.05 ${atropos2_tpms_punched[$i]}"
+            task_in="fslmaths ${Atropos2_posts[$i]} -mas ${Lmask_binv_inMNI1_dilx2} -thr 0.05 -bin ${atropos2_tpms_punched[$i]}"
 
             task_exec
 
@@ -2207,26 +2208,11 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         done
 
-        echo ${T1_tissue_fill[@]}
-        echo ${T1_tissue_fill_ready[@]}
-        echo ${T1_tissue_fill_ready_HM[@]}
-        echo ${atropos_tpms_filled_binv[@]}
-
         # Make the new images
         # this part needs to be redesigned
         # probably mrhistmatch will work better here
         # should respect the actual BG shape....
         # if parts of BG missing, fill with WM
-
-        # possibly a good place also for histogram matching the Synth to the real image
-        # masking out each tissue type before adding it in.
-
-        task_in="fslmaths ${T1_tissue_fill_ready_HM[0]} -mas ${atropos_tpms_filled_GLCbinv[1]} -add ${T1_tissue_fill_ready_HM[1]} \
-        -save ${str_pp}_T1_cw_dil_s_fill.nii.gz -mas ${atropos_tpms_filled_GLCbinv[2]} -add ${T1_tissue_fill_ready_HM[2]} \
-        -save ${str_pp}_T1_cwc_dil_s_fill.nii.gz -mas ${atropos_tpms_filled_GLCbinv[3]} -add ${T1_tissue_fill_ready_HM[3]} \
-        -save ${str_pp}_T1_cwcbg_dil_s_fill.nii.gz -mas ${brain_mask_inMNI1} ${str_pp}_synthT1_MNI1_holes.nii.gz"
-
-        task_exec
 
         task_in="ImageMath 3 ${str_pp}_synthT1_MNI1.nii.gz addtozero ${str_pp}_synthT1_MNI1_holes.nii.gz"
 
@@ -2234,6 +2220,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         # if the lesion is not bilateral, then use the filled T1 to derive diff map, if it is bilateral then use stit2fill
         # added the template flag condition here
+        # diff map may not be needed anymore even
 
         if [[ -z "${bilateral}" ]] && [[ ${t_flag} == 0 ]]; then
 
@@ -2652,7 +2639,7 @@ if [[ "${F_flag}" -eq 1 ]] ; then
 
             echo "this lesion is larger than 50 ml but less than 100 ml, we will erode it twice"
 
-            task_in="maskfilter -force -nthreads ${ncpu} ${L_mask_reori} erode ${L_mask_reori_ero2} -npass 2"
+            task_in="maksfilter -force -nthreads ${ncpu} ${L_mask_reori} erode ${L_mask_reori_ero2} -npass 2"
 
             task_exec
 
