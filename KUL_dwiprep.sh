@@ -51,9 +51,10 @@ Optional arguments:
      -d:  dwiprep options: can be dhollander, tax and/or tournier (default = dhollander) e.g. "tax dhollander"
      -s:  session (BIDS session)
      -n:  number of cpu for parallelisation
+     -b:  use Synb0-DISCO instead of topup (requires docker)
      -t:  options to pass to topup
-     -r:  use reverse phase data only for topup and not for further processing
      -e:  options to pass to eddy
+     -r:  use reverse phase data only for topup and not for further processing
      -v:  show output from mrtrix commands
 
 
@@ -77,6 +78,7 @@ dwipreproc_options="dhollander"
 p_flag=0
 s_flag=0
 rev_only_topup=0
+synb0=0
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -107,8 +109,11 @@ else
         e) #eddy_options
             eddy_options=$OPTARG
         ;;
-        r) #verbose
+        r) #rev_only topup
             rev_only_topup=1
+        ;;
+        b) #use SynB0-DISCO
+            synb0=1
         ;;
         v) #verbose
             silent=0
