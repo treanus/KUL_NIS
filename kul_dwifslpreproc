@@ -821,7 +821,7 @@ def execute(): #pylint: disable=unused-variable
         kul_gid = str(os.getgid())
         kul_fs_path = os.getenv('FREESURFER_HOME')
 
-        kul_disco_cmd = 'docker run --rm -v ' + kul_pwd + '/INPUTS/:/INPUTS/ -v ' + kul_pwd + '/OUTPUTS:/OUTPUTS/ -v ' + kul_fs_path + '/license.txt:/extra/freesurfer/license.txt --user ' + kul_uid + ':' + kul_gid + ' -c 18 justinblaber/synb0_25iso'
+        kul_disco_cmd = 'docker run --rm -v ' + kul_pwd + '/INPUTS/:/INPUTS/ -v ' + kul_pwd + '/OUTPUTS:/OUTPUTS/ -v ' + kul_fs_path + '/license.txt:/extra/freesurfer/license.txt --user ' + kul_uid + ':' + kul_gid + ' justinblaber/synb0_25iso'
         #disco_output = run.command('docker run --rm -v $(pwd)/INPUTS/:/INPUTS/ -v $(pwd)/OUTPUTS:/OUTPUTS/ -v $FREESURFER_HOME/license.txt:/extra/freesurfer/license.txt --user 502:20 justinblaber/synb0_25iso')
         disco_output = run.command(kul_disco_cmd)
         with open('disco_output.txt', 'w') as disco_output_file:
@@ -833,7 +833,7 @@ def execute(): #pylint: disable=unused-variable
         # for now let's use the standard (non-topup & non-disco) brain mask
         run.command('dwi2mask ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
         
-        run.command('cp OUTPUTS/topup_fieldcoef.nii.gz field_fieldcoef.nii')
+        run.command('cp OUTPUTS/topup_fieldcoef.nii.gz field_fieldcoef.nii.gz')
         run.command('cp OUTPUTS/topup_movpar.txt field_movpar.txt')
         eddy_in_topup_option = ' --topup=field'
 
@@ -1035,7 +1035,7 @@ def execute(): #pylint: disable=unused-variable
       eddyqc_options = '-idx eddy_indices.txt -par eddy_config.txt -m eddy_mask.nii -b bvals'
       if os.path.isfile('dwi_post_eddy.eddy_residuals'):
         eddyqc_options += ' -g ' + bvecs_path
-      if do_topup:
+      if do_topup and not kul_disco:
         eddyqc_options += ' -f ' + fsl.find_image('field_map')
       if eddy_mporder:
         eddyqc_options += ' -s slspec.txt'
@@ -1094,7 +1094,8 @@ def execute(): #pylint: disable=unused-variable
 
     if do_topup:
       app.cleanup('topup_in.nii')
-      app.cleanup(fsl.find_image('field_map'))
+      if not kul_disco:
+        app.cleanup(fsl.find_image('field_map'))
 
     # Convert the resulting volume to the output image, and re-insert the diffusion encoding
     run.command('mrconvert ' + eddy_output_image_path + ' result.mif' + dwi_permvols_posteddy_option + dwi_post_eddy_crop_option + stride_option + ' -fslgrad ' + bvecs_path + ' bvals')
