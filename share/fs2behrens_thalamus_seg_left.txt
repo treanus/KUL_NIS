@@ -40,3 +40,64 @@
 7     ctx-lh-temporalpole
 7     ctx-lh-transversetemporal
 #x    ctx-lh-insula
+<<<<<<< Updated upstream
+=======
+
+<<<<<<< HEAD
+=======
+15    Left-Cerebellum-Cortex
+
+#x    Left-Thalamus-Proper
+#x    Left-Caudate
+#x    Left-Putamen
+#x    Left-Pallidum
+#x    Left-Hippocampus
+#x    Left-Amygdala
+#x    Left-Accumbens-area
+
+#x    Right-Thalamus-Proper
+#x    Right-Caudate
+#x    Right-Putamen
+#x    Right-Pallidum
+#x    Right-Hippocampus
+#x    Right-Amygdala
+#x    Right-Accumbens-area
+
+16     Right-Cerebellum-Cortex
+
+14    ctx-rh-bankssts
+#x    ctx-rh-caudalanteriorcingulate
+12    ctx-rh-caudalmiddlefrontal
+10    ctx-rh-cuneus
+14    ctx-rh-entorhinal
+14    ctx-rh-fusiform
+13    ctx-rh-inferiorparietal
+14    ctx-rh-inferiortemporal
+#x    ctx-rh-isthmuscingulate
+10    ctx-rh-lateraloccipital
+11    ctx-rh-lateralorbitofrontal
+10    ctx-rh-lingual
+11    ctx-rh-medialorbitofrontal
+14    ctx-rh-middletemporal
+14    ctx-rh-parahippocampal
+11    ctx-rh-paracentral
+11    ctx-rh-parsopercularis
+11    ctx-rh-parsorbitalis
+11    ctx-rh-parstriangularis
+10    ctx-rh-pericalcarine
+9     ctx-rh-postcentral
+#x    ctx-rh-posteriorcingulate
+8     ctx-rh-precentral
+13    ctx-rh-precuneus
+11    ctx-rh-rostralanteriorcingulate
+11    ctx-rh-rostralmiddlefrontal
+12    ctx-rh-superiorfrontal     
+13    ctx-rh-superiorparietal    
+14    ctx-rh-superiortemporal    
+13    ctx-rh-supramarginal       
+11    ctx-rh-frontalpole         
+14    ctx-rh-temporalpole        
+14    ctx-rh-transversetemporal  
+#x    ctx-rh-insula
+>>>>>>> development
+>>>>>>> Stashed changes
