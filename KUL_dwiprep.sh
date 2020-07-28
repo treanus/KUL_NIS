@@ -167,6 +167,15 @@ log=log/log_${d}.txt
 
 # --- MAIN ----------------
 
+# Check mrtrix3 version
+if ! type "dwicat" > /dev/null; then
+    mrtrix3new=0
+else
+    mrtrix3new=1
+fi
+
+exit
+
 bids_subj=BIDS/sub-${subj}
 
 # Either a session is given on the command line
@@ -250,7 +259,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
         max=10000000
         for i in "${ns_dwi[@]}"
-        do
+            do
             # Update max if applicable
             if [[ "$i" -lt "$max" ]]; then
                 max="$i"
@@ -267,7 +276,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
             dwi_base=${dwi_file%%.*}
         
             mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
-            -json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} -force -clear_property comments -nthreads $ncpu
+                -json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} -force -clear_property comments -nthreads $ncpu
 
             dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
         
@@ -281,18 +290,15 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
             ((dwi_i++))
 
         done 
+        
+        if [ $mrtrix3new -eq 0 ]; then
 
-        #echo "catting dwi_orig"
-        mrcat ${raw}/dwi_p*_scaled.mif ${preproc}/dwi_orig.mif
+            echo "Using mrcat (old style mrtrix)"
+            mrcat ${raw}/dwi_p*_scaled.mif ${preproc}/dwi_orig.mif
 
-        # Also going to try to run dwicat (development version)
-        dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig_dwicat.mif
-
-        # if dwicat ran, overwrite old
-        if [ -f ${preproc}/dwi_orig_dwicat.mif ]; then
-
-            mv ${preproc}/dwi_orig.mif ${preproc}/dwi_orig_oldscaling.mif
-            mv ${preproc}/dwi_orig_dwicat.mif ${preproc}/dwi_orig.mif
+        else
+            echo "Using dwicat (new style mrtrix)"
+            dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif
 
         fi 
         
@@ -354,6 +360,7 @@ else
 
 fi
 
+exit
 
 # check if step 3 of dwi preprocessing is done (dwipreproc, i.e. motion and distortion correction takes very long)
 if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
@@ -446,8 +453,22 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
     if [ $regular_dwipreproc -eq 1 ]; then
 
-        dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-	
+        if [ $mrtrix3new -eq 0 ]; then
+
+            dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+
+        else
+
+            if [ $synb0 -eq 0 ]; then
+
+                dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+            else
+
+                
+                kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+
+            fi
+        fi
     else
 
         # concat all b0 with different pe_schemes
