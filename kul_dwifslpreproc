@@ -1067,7 +1067,6 @@ def execute(): #pylint: disable=unused-variable
   # Get the axis strides from the input series, so the output image can be modified to match
   stride_option = ' -strides ' + ','.join([str(i) for i in dwi_header.strides()])
 
-
   # Determine whether or not volume recombination should be performed
   # This could be either due to use of -rpe_all option, or just due to the data provided with -rpe_header
   # Rather than trying to re-use the code that was used in the case of -rpe_all, run fresh code
