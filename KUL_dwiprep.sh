@@ -297,7 +297,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
 		else
 			echo "Using dwicat (new style mrtrix)"
-			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif -nocleanup
+			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif
 
 		fi
 
@@ -372,14 +372,16 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 	# prepare for Synb0-disco
 	if [ $synb0 -eq 1 ]; then
 		# find T1
-		bids_T1_search="$bids_subj/dwi/sub-*_T1w.nii.gz"
+		bids_T1_search="$cwd/$bids_subj/anat/sub-*_T1w.nii.gz"
+		#echo $bids_T1_search
 		bids_T1_found=$(ls $bids_T1_search)
 		number_of_bids_T1_found=$(echo $bids_T1_found | wc -w)
 		if [ $number_of_bids_T1_found -lt 1 ]; then
 			kul_e2cl "   more than 1 T1 dataset, using first only for Synb0-disco" ${preproc}/${log}
 		fi
-		Synb0_T1=bids_T1_found[1]
-		echo $Synb0_T1
+		#echo $bids_T1_found
+		Synb0_T1=${bids_T1_found[0]}
+		echo "The used T1 for sSynb0-disco is $Synb0_T1"
 	fi
 
 	# prepare eddy_options
@@ -422,9 +424,9 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
 		info_dwipreproc="only 1 b0"
 
-	#elif [ $n_pe -lt 5 ]; then
+	elif [ $n_pe -lt 5 ]; then
 
-	#    info_dwipreproc="less than 5 b0s"
+	    info_dwipreproc="less than 5 b0s"
 
 	else
 
@@ -447,7 +449,7 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
 			else
 
-				info_dwipreproc="more than or equal to 5 b0s, but some have different pe_scheme"
+				info_dwipreproc="more than 5 b0s, but some have different pe_scheme"
 				regular_dwipreproc=0
 
 				echo previous_pe=$previous_pe, current_pe=$current_pe
@@ -461,6 +463,11 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 		done
 
 	fi
+
+	echo "regular_dwipreproc: $regular_dwipreproc"
+	echo "mrtrix3new: $mrtrix3new"
+	echo "synb0: $synb0"
+	echo "rev_only_topup: $rev_only_topup"
 
 	if [ $regular_dwipreproc -eq 1 ]; then
 
@@ -476,24 +483,35 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
 	else
 
+		if [ $synb0 -eq 0 ]; then
+			#Still need test data to implement this
+			#EXIT
+			echo "Contact Stefan to fix scipt KUL_dwiprep.sh synb0=1 case, but regular_dwiprproc=0, lines 485 on"
+			exit 2
+		fi
+
 		# concat all b0 with different pe_schemes
 		mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force
 
-		echo $rev_only_topup
+		#echo $rev_only_topup
 
 		if [ $rev_only_topup -eq 0 ]; then
 
-			dwipreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
+			dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
 			-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 
 		else
 
-			dwipreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_pair \
+			dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_pair \
 			-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 		fi
 	fi
 
-	temp_dir=$(ls -d dwipreproc*)
+	if [ $mrtrix3new -eq 0 ]; then
+		temp_dir=$(ls -d dwipreproc*)
+	else
+		temp_dir=$(ls -d *dwifslpreproc*)
+	fi
 
 	# check id eddy_quad is available
 	#machine_type=$(uname)
@@ -548,7 +566,11 @@ if [ ! -f dwi_preproced.mif ]; then
 
 	# upsample the images
 	kul_e2cl "    upsampling resolution..." ${log}
-	mrresize dwi/biascorr.mif -vox 1.3 dwi/upsampled.mif -nthreads $ncpu -force
+	if [ $mrtrix3new -eq 0 ]; then
+		mrresize dwi/biascorr.mif -vox 1.3 dwi/upsampled.mif -nthreads $ncpu -force
+	else
+		mrgrid dwi/biascorr.mif regrid -voxel 1.3 dwi/upsampled.mif -nthreads $ncpu -force
+	fi
 	rm dwi/biascorr.mif
 
 	# copy to main directory for subsequent processing
