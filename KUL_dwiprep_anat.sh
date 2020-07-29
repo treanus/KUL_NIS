@@ -270,21 +270,21 @@ if [ ! -f dwi_preproced_reg2T1w_mask.nii.gz ]; then
 
     if [ -f response/dhollander_wmfod.mif ]; then    
         mrtransform response/dhollander_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-            response/dhollander_wmfod_reg2T1w.mif -nthreads $ncpu -force 
+            response/dhollander_wmfod_reg2T1w.mif -reorient_fod yes -nthreads $ncpu -force 
         #mrtransform response/dhollander_wmfod_norm.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-            response/dhollander_wmfod_norm_reg2T1w.mif -nthreads $ncpu -force
+        #    response/dhollander_wmfod_norm_reg2T1w.mif -nthreads $ncpu -force
         #mrtransform response/dhollander_wmfod_noGM.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-            response/dhollander_wmfod_noGM_reg2T1w.mif -nthreads $ncpu -force 
+        #    response/dhollander_wmfod_noGM_reg2T1w.mif -nthreads $ncpu -force 
         #mrtransform response/dhollander_wmfod_norm_noGM.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-            response/dhollander_wmfod_norm_noGM_reg2T1w.mif -nthreads $ncpu -force
+        #    response/dhollander_wmfod_norm_noGM_reg2T1w.mif -nthreads $ncpu -force
     fi
     if [ -f response/tax_wmfod.mif ]; then 
         mrtransform response/tax_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-            response/tax_wmfod_reg2T1w.mif -nthreads $ncpu -force 
+            response/tax_wmfod_reg2T1w.mif -reorient_fod yes -nthreads $ncpu -force 
     fi
     if [ -f response/tournier_wmfod.mif ]; then 
         mrtransform response/tournier_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-            response/tournier_wmfod_reg2T1w.mif -nthreads $ncpu -force         
+            response/tournier_wmfod_reg2T1w.mif -reorient_fod yes -nthreads $ncpu -force         
     fi
 
 
@@ -383,7 +383,7 @@ if [ ! -f log/status.mrtransformNL.done ]; then
 
     if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then    
         mrtransform response/dhollander_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
-            response/dhollander_wmfod_NLreg2T1w.mif -nthreads $ncpu -force 
+            response/dhollander_wmfod_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force 
         #mrtransform response/dhollander_wmfod_norm_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
         #    response/dhollander_wmfod_norm_NLreg2T1w.mif -nthreads $ncpu -force
         #mrtransform response/dhollander_wmfod_noGM_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
@@ -393,11 +393,11 @@ if [ ! -f log/status.mrtransformNL.done ]; then
     fi
     if [ -f response/tax_wmfod_NLreg2T1w.mif ]; then 
         mrtransform response/tax_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
-            response/tax_wmfod_NLreg2T1w.mif -nthreads $ncpu -force 
+            response/tax_wmfod_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force 
     fi
     if [ -f response/tournier_wmfod_NLreg2T1w.mif ]; then 
         mrtransform response/tournier_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
-            response/tournier_wmfod_NLreg2T1w.mif -nthreads $ncpu -force         
+            response/tournier_wmfod_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force         
     fi
 
     echo "done" > log/status.mrtransformNL.done
