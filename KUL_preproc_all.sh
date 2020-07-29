@@ -509,8 +509,20 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     kul_e2cl " started (in parallel) KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
-    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} -n $ncpu_dwiprep -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v \
- > $dwiprep_log 2>&1 ")
+    extra_options_synb0=""
+    if [ "$synbzero_disco_instead_of_topup" -eq 1 ]; then
+        extra_options_synb0=" -b "
+
+    fi
+
+    extra_options_revphase=""
+    if [ "$rev_phase_for_topup_only" -eq 1 ]; then
+        extra_options_revphase=" -r "
+
+    fi
+
+    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v \
+> $dwiprep_log 2>&1 ")
 
     echo "   using cmd: $task_dwiprep_cmd"
 
@@ -1311,6 +1323,12 @@ if [ $expert -eq 1 ]; then
 
         dwiprep_options=$(grep dwiprep_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
         dwipreproc_options=$dwiprep_options
+        
+        synbzero_disco_instead_of_topup=0
+        synbzero_disco_instead_of_topup=$(grep synbzero_disco_instead_of_topup $conf | grep -v \# | sed 's/[^0-9]//g')
+
+        rev_phase_for_topup_only=0
+        rev_phase_for_topup_only=$(grep rev_phase_for_topup_only $conf | grep -v \# | sed 's/[^0-9]//g')
 
         topup_options=$(grep topup_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
         eddy_options=$(grep eddy_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
@@ -1327,6 +1345,8 @@ if [ $expert -eq 1 ]; then
         if [ $silent -eq 0 ]; then
 
             echo "  dwiprep_options: $dwiprep_options"
+            echo "  synbzero_disco_instead_of_topup: $synbzero_disco_instead_of_topup"
+            echo "  rev_phase_for_topup_only: $rev_phase_for_topup_only"
             echo "  topup_options: $topup_options"
             echo "  eddy_options: $eddy_options"
             echo "  dwiprep_ncpu: $dwiprep_ncpu"

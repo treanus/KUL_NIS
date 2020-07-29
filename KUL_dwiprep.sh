@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 # Requires Mrtrix3, FSL, ants
@@ -86,7 +86,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:d:t:e:rv" OPT; do
+	while getopts "p:s:n:d:t:e:rbv" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -297,7 +297,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
 		else
 			echo "Using dwicat (new style mrtrix)"
-			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif
+			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif -nocleanup
 
 		fi
 
@@ -364,10 +364,23 @@ fi
 if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
 	# motion and distortion correction using rpe_header
-	kul_e2cl "   Start part 2 of preprocessing: dwipreproc using rpe_header (this takes time!)..." ${log}
+	kul_e2cl "   Start part 2 of preprocessing: dwipreproc (this takes time!)..." ${log}
 
 	# Make the directory for the output of eddy_qc
 	mkdir -p eddy_qc/raw
+
+	# prepare for Synb0-disco
+	if [ $synb0 -eq 1 ]; then
+		# find T1
+		bids_T1_search="$bids_subj/dwi/sub-*_T1w.nii.gz"
+		bids_T1_found=$(ls $bids_T1_search)
+		number_of_bids_T1_found=$(echo $bids_T1_found | wc -w)
+		if [ $number_of_bids_T1_found -lt 1 ]; then
+			kul_e2cl "   more than 1 T1 dataset, using first only for Synb0-disco" ${preproc}/${log}
+		fi
+		Synb0_T1=bids_T1_found[1]
+		echo $Synb0_T1
+	fi
 
 	# prepare eddy_options
 	#
@@ -457,8 +470,7 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 			if [ $synb0 -eq 0 ]; then
 				dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 			else
-				
-				kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+				kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -synb0_disco_T1 $Synb0_T1 -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 			fi
 		fi
 
@@ -527,9 +539,12 @@ if [ ! -f dwi_preproced.mif ]; then
 
 	# bias field correction
 	kul_e2cl "    dwibiascorrect" ${log}
-	#dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force
-	dwibiascorrect -fsl dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force
-	#dwibiascorrect ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force
+	if [ $mrtrix3new -eq 0 ]; then
+		dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force
+		#dwibiascorrect -fsl dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force
+	else 
+		dwibiascorrect ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force
+	fi
 
 	# upsample the images
 	kul_e2cl "    upsampling resolution..." ${log}
