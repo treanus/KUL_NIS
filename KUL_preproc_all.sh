@@ -283,7 +283,7 @@ else
  -v ${cwd}:/out \
  -v ${cwd}/fmriprep_work_${fmriprep_log_p}:/scratch \
  -v ${freesurfer_license}:/opt/freesurfer/license.txt \
- poldracklab/fmriprep:latest \
+ poldracklab/fmriprep:${fmriprep_version} \
  /data /out \
  participant \
  --participant_label ${BIDS_participant} \
@@ -1108,6 +1108,12 @@ if [ $expert -eq 1 ]; then
     
     if [ $do_fmriprep -eq 1 ]; then
 
+        fmriprep_version=$(grep fmriprep_version $conf | grep -v \# | cut -d':' -f 2-1000)
+        fmriprep_version="$(echo -e "${fmriprep_version}" | tr -d '[:space:]')" #remove all whitespaces
+        if [ -z "$fmriprep_version" ]; then
+            fmriprep_version=latest
+        fi 
+
         fmriprep_options=$(grep fmriprep_options $conf | grep -v \# | cut -d':' -f 2-1000)
 
         fmriprep_ncpu=$(grep fmriprep_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
@@ -1137,6 +1143,7 @@ if [ $expert -eq 1 ]; then
 
         if [ $silent -eq 0 ]; then
 
+            echo "  fmriprep_version: $fmriprep_version"
             echo "  fmriprep_options: $fmriprep_options"
             echo "  fmriprep_ncpu: $fmriprep_ncpu"
             echo "  fmriprep_mem: $fmriprep_mem"
