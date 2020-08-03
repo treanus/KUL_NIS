@@ -385,9 +385,19 @@ fi
 
 # set this manually for debugging
 # set this manually for debugging
-function_path=($(which KUL_VBG_v3.sh | rev | cut -d"/" -f2- | rev))
+function_path=($(which KUL_VBG.sh | rev | cut -d"/" -f2- | rev))
 mrtrix_path=($(which mrmath | rev | cut -d"/" -f3- | rev))
 
+if [[  -z  ${function_path}  ]]; then
+
+    echo "update function path to reflect funciton name line 388"
+    exit 2
+
+else
+
+    echo " VBG lives in ${function_path} "
+
+fi
 #  the primary image is the noncontrast T1
 
 prim=${T1_orig}
