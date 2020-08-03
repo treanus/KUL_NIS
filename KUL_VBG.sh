@@ -28,12 +28,18 @@ v="0.32"
 # change version when finished with dev to 1.0
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
-# It is not a final end-all solution but a rather simplistic work around 
+# It is not a final end-all solution but a rather crude and simplistic work around 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the normal hemisphere 
 # maintains subject specificity and diseased hemisphere information but replaces lesion tissue with sham brain 
 # should be followed by a loop calculating overlap between fake labels from sham brain with actual lesion 
 #  To do: # 
-# Single modality version, same as the one used for the manuscript
+# - This version shall be single channel based and will be used solely for validation
+# - further dev in progress (25/02/2020)
+# - improving brain extraction to improve segmentation - done
+# - changing make images strategy - done
+# - implementing Template use for large unilateral lesions - done
+# - need to modify smoothed masks, so that the center is always 1 and smooth values are only at periphery
+# - need to switch to hd-bet (if I can get it to run on MAC OS X)
 
 
 # Description: (outdated)
@@ -105,7 +111,7 @@ Required arguments:
 
     -p:  BIDS participant name (anonymised name of the subject without the "sub-" prefix)
     -b:  if data is in BIDS
-    -l:  full path and file name to lesion mask file per session (this should be a binary mask with 1s for the lesion and 0s for the background, preferably in integer format)
+    -l:  full path and file name to lesion mask file per session
     -z:  space of the lesion mask used (only T1 supported in this version)
     -a:  Input precontrast T1WIs
 
@@ -128,7 +134,6 @@ Notes:
     - You can use -b and the script will find your BIDS files automatically
     - If your data is not in BIDS, then use -a without -b
     - This version is for validation only.
-    ** remember to edit lines 1042 for the appropriate HD-BET command
 
 
 
@@ -384,7 +389,6 @@ elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 1 ]]; then
 fi
 
 # set this manually for debugging
-# set this manually for debugging
 function_path=($(which KUL_VBG.sh | rev | cut -d"/" -f2- | rev))
 mrtrix_path=($(which mrmath | rev | cut -d"/" -f3- | rev))
 
@@ -630,6 +634,18 @@ fi
     priors_str="${new_priors::${#new_priors}-9}*.nii.gz"
 
     priors_array=($(ls ${priors_str}))
+
+    if [[ -z ${priors_array} ]]; then 
+
+        echo " priors are not found!"
+        exit 2
+    
+    else
+
+    
+        echo "priors are ${priors_array}"
+
+    fi
     
     # arrays
 
@@ -2508,8 +2524,8 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             # will need this here
 
-            task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -save ${T1_nat_filled_out} -mul ${BET_mask_s2} \
-            -add ${T1_skull} -save ${T1_nat_fout_wskull} -add ${stitched_noise_nat} ${T1_nat_fout_wN_skull}"
+            task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -thr 0 -save ${T1_nat_filled_out} -mul ${BET_mask_s2} \
+            -add ${T1_skull} -thr 0 -save ${T1_nat_fout_wskull} -add ${stitched_noise_nat} -thr 0 ${T1_nat_fout_wN_skull}"
 
             task_exec
         
@@ -2527,16 +2543,14 @@ if [[ "${E_flag}" -eq 0 ]]; then
         
             # if bilateral is 1, then we generate final output with original noise map
         
-            task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -save ${T1_nat_filled_out} -mul ${BET_mask_s2} \
-            -add ${T1_skull} -save ${T1_nat_fout_wskull} -add ${str_pp}_T1_noise.nii.gz ${T1_nat_fout_wN_skull}"
+            task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -thr 0 -save ${T1_nat_filled_out} -mul ${BET_mask_s2} \
+            -add ${T1_skull} -thr 0 -save ${T1_nat_fout_wskull} -add ${str_pp}_T1_noise.nii.gz -thr 0 ${T1_nat_fout_wN_skull}"
 
             task_exec
             
             task_in="convert_xfm -omat ${T1_reori_mat_inv} -inverse ${T1_reori_mat} && sleep 5 && flirt -in ${T1_nat_fout_wN_skull} -ref ${T1_orig} \
             -out ${T1_4_FS} -applyxfm -init ${T1_reori_mat_inv} && sleep 5 && flirt -in ${T1_nat_filled_out} -ref ${T1_orig} -out ${T1_Brain_4_FS} \
             -applyxfm -init ${T1_reori_mat_inv} && sleep 5 && fslmaths ${T1_Brain_4_FS} -bin ${T1_BM_4_FS}"
-
-            task_exec
 
             task_exec
 
@@ -2782,18 +2796,6 @@ if [[ "${F_flag}" -eq 1 ]] ; then
 
     fs_lobes_plusL_nii="${str_op}_lobes_ctx_wm_fs+Lesion.nii.gz"
 
-    LC_parc_nii="${str_op}_aparc+aseg_LC.nii.gz"
-
-    LC_lobes_nii="${str_op}_lobes_ctx_wm_fs_LC.nii.gz"
-
-    LC_lobes_plusL_nii="${str_op}_lobes_ctx_wm_fs+Lesion_LC.nii.gz"
-
-    LC_parc_plusL_nii="${str_op}_aparc+aseg_fs+Lesion_LC.nii.gz"
-
-    LC_parc_minL_nii="${str_op}_aparc+aseg_fs_minL_LC.nii.gz"
-
-    LC_lobes_minL_nii="${str_op}_lobes_ctx_wm_fs_minL_LC.nii.gz"
-
     labelslength=${#labels[@]}
 
     wmslength=${#wm[@]}
@@ -2867,17 +2869,6 @@ if [[ "${F_flag}" -eq 1 ]] ; then
         task_in="fslmaths ${fs_lobes_nii} -mas ${bmc_minL_conn} ${fs_lobes_minL_nii} && ImageMath 3 ${fs_lobes_plusL_nii} \
         addtozero ${fs_lobes_minL_nii} ${L_mask_reori_scaled}"
 
-        task_exec
-
-        task_in="labelconvert -force -nthreads ${ncpu} ${fs_parc_minL_nii} ${FREESURFER_HOME}/FreeSurferColorLUT.txt \
-        ${mrt_path}/share/mrtrix3/labelconvert/fs_default.txt ${LC_parc_minL_nii} \
-        && \
-        labelconvert -force -nthreads ${ncpu} ${function_path}/share/labelconvert/FreeSurferColorLUT+lesion.txt \
-        ${function_path}/share/labelconvert/fs_default+lesion.txt ${LC_parc_plusL_nii} \
-        && \
-        labelconvert -force -nthreads ${ncpu} ${fs_parc_nii} ${FREESURFER_HOME}/FreeSurferColorLUT.txt \
-        ${mrtrix_path}/share/mrtrix3/labelconvert/fs_default.txt ${LC_parc_nii}"
-            
         task_exec
     
     else
