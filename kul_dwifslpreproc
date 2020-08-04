@@ -744,8 +744,18 @@ def execute(): #pylint: disable=unused-variable
   eddy_in_topup_option = ''
   dwi_post_eddy_crop_option = ''
   dwi_path = 'dwi.mif'
-  if do_topup:
+  
+  # KUL - Stefan
+   
+  if do_topup or kul_disco:
 
+    # KUL - Stefan - needed for SynB0-DISCO
+    # in case there is no phase contast (no rev_phase) make your own se_epi.mif
+    if not do_topup and kul_disco:
+      run.command('dwiextract dwi.mif se_epi.mif -bzero')
+      se_epi_path = 'se_epi.mif'
+    app.console('Made an image for synb0-disco when there is no rev_phase, i.e. se_epi_path= ' + str(se_epi_path))  
+    
     # topup will crash if its input image has a spatial dimension with a non-even size;
     #   presumably due to a downsampling by a factor of 2 in a multi-resolution scheme
     # The newest eddy also requires the output from topup and the input DWIs to have the same size;
