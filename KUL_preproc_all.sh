@@ -155,7 +155,9 @@ if [ $mriqc_singularity -eq 1 ]; then
 
 else
 
+ mkdir ${cwd}/mriqc_home
  local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
+ -v ${cwd}/mriqc_home:/home/bidsapp/ \
  -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
  poldracklab/mriqc:latest \
  --participant_label $BIDS_participant \
@@ -163,7 +165,8 @@ else
  --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
  /data /out participant \
  > $mriqc_log 2>&1 ") 
-
+ rm -rf ${cwd}/mriqc_home
+ 
 fi
 
 echo "   using cmd: $task_mriqc_cmd"
@@ -278,6 +281,7 @@ if [ $fmriprep_singularity -eq 1 ]; then
 
 else
 
+    #local task_fmriprep_cmd=$(echo "docker run -u $(id -u):$(id -g) --rm \
     local task_fmriprep_cmd=$(echo "docker run --rm \
  -v ${cwd}/${bids_dir}:/data \
  -v ${cwd}:/out \
