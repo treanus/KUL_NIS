@@ -1883,12 +1883,14 @@ kul_e2cl "Performing mriqc group summary" $log
 mriqc_file_to_check=mriqc/group_bold.html
 
 if [ ! -f $mriqc_file_to_check ]; then
-    
+    mkdir ${cwd}/mriqc_home
     docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
+        -v ${cwd}/mriqc_home:/home/bidsapp/ \
         -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
         poldracklab/mriqc:latest \
         /data /out group
-
+    rm -rf ${cwd}/mriqc_home
+    
 else
 
     kul_e2cl " group mriqc already done, skipping..." $log
