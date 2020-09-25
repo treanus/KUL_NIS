@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 #
 # Creates a summary of information of the BIDS directory
 # Information gathered is:
@@ -52,7 +52,7 @@ for i in `seq 0 $(($num_mri-1))`; do
     echo "Type: $type"
 
     scan=$(echo $mri | cut -d_ -f 3 | cut -d. -f 1)
-    Echo "Scan: $scan"
+    echo "Scan: $scan"
 
     json=${mri%%.*}.json
     #echo $json
