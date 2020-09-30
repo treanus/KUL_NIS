@@ -52,6 +52,7 @@ Optional arguments:
 	 -s:  session (BIDS session)
 	 -n:  number of cpu for parallelisation
 	 -b:  use Synb0-DISCO instead of topup (requires docker)
+	 -f:  specify that an fmap (reverse phase image) exists in the bids folder for topup
 	 -t:  options to pass to topup
 	 -e:  options to pass to eddy
 	 -r:  use reverse phase data only for topup and not for further processing
@@ -79,6 +80,7 @@ p_flag=0
 s_flag=0
 rev_only_topup=0
 synb0=0
+fmap=0
 
 if [ "$#" -lt 1 ]; then
 	Usage >&2
@@ -86,7 +88,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:d:t:e:rbv" OPT; do
+	while getopts "p:s:n:d:t:e:rbfv" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -114,6 +116,9 @@ else
 		;;
 		b) #use SynB0-DISCO
 			synb0=1
+		;;
+		f) #use fmap in bids
+			fmap=1
 		;;
 		v) #verbose
 			silent=0
@@ -251,7 +256,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 			# read the number of slices
 			ns_dwi[dwi_i]=$(mrinfo ${dwi_base}.nii.gz -size | awk '{print $(NF-1)}')
 			kul_e2cl "   dataset p${dwi_i} has ${ns_dwi[dwi_i]} as number of slices" ${preproc}/${log}
-
+			 
 			((dwi_i++))
 
 		done
@@ -384,6 +389,23 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 		echo "The used T1 for sSynb0-disco is $Synb0_T1"
 	fi
 
+	# prepare for fmap
+	if [ $fmap -eq 1 ]; then
+		# find fmap
+		bids_fmap_search="$cwd/$bids_subj/fmap/sub-*_epi.nii.gz"
+		echo $bids_fmap_search
+		bids_fmap_found=$(ls $bids_fmap_search)
+		number_of_bids_fmap_found=$(echo $bids_fmap_found | wc -w)
+		if [ $number_of_bids_fmap_found -lt 1 ]; then
+			kul_e2cl "   more than 1 fmap dataset, using first only for topup" ${preproc}/${log}
+		fi
+		#echo $bids_fmap_found
+		fmap_epi=${bids_fmap_found[0]}
+		echo "The used fmap for topup is $fmap_epi"
+		fmap_base=${fmap_epi%%.*}
+		mrconvert ${fmap_base}.nii.gz -json_import ${fmap_base}.json raw/dwi_reverse_phase.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu
+	fi
+
 	# prepare eddy_options
 	#
 	echo "eddy_options: $eddy_options"
@@ -422,15 +444,15 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 	# in case there is only 1 b0
 	if [ $n_pe -eq 1 ]; then
 
-		info_dwipreproc="only 1 b0"
+		echo "Prepare for topup: only 1 b0"
 
 	elif [ $n_pe -lt 5 ]; then
 
-	    info_dwipreproc="less than 5 b0s"
+	    echo "Prepare for topup: less than 5 b0s"
 
 	else
 
-		info_dwipreproc="more than or equal to 5 b0s, but all same pe_scheme"
+		echo "Prepare for topup: more than or equal to 5 b0s, now checking pe_scheme"
 
 		# extract first b0
 		dwiextract dwi_orig.mif -bzero - | mrconvert - -coord 3 0 raw/b0s_pe0.mif -force
@@ -449,7 +471,7 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
 			else
 
-				info_dwipreproc="more than 5 b0s, but some have different pe_scheme"
+				echo "Prepare for topup: more than 5 b0s, but some have different pe_scheme"
 				regular_dwipreproc=0
 
 				echo previous_pe=$previous_pe, current_pe=$current_pe
@@ -467,15 +489,24 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 	echo "regular_dwipreproc: $regular_dwipreproc"
 	echo "mrtrix3new: $mrtrix3new"
 	echo "synb0: $synb0"
+	echo "fmap: $fmap"
 	echo "rev_only_topup: $rev_only_topup"
 
+	
 	if [ $regular_dwipreproc -eq 1 ]; then
 
 		if [ $mrtrix3new -eq 0 ]; then
 			dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 		else
 			if [ $synb0 -eq 0 ]; then
-				dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+				if [ $fmap -eq 0 ]; then
+					dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
+						-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+				else
+					mrcat raw/b0s_pe*.mif raw/dwi_reverse_phase.mif raw/se_epi_for_topup.mif -force
+					dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
+						-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+				fi
 			else
 				kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -synb0_disco_T1 $Synb0_T1 -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 			fi
@@ -484,10 +515,8 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 	else
 
 		if [ $synb0 -eq 0 ]; then
-			#Still need test data to implement this
-			#EXIT
-			echo "Contact Stefan to fix scipt KUL_dwiprep.sh synb0=1 case, but regular_dwiprproc=0, lines 485 on"
-			exit 2
+			echo "EXPERIMENTAL: Not tested well; contact Stefan to fix scipt KUL_dwiprep.sh synb0=1 case, but regular_dwiprproc=0, lines 485 on"
+			kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -synb0_disco_T1 $Synb0_T1 -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 		fi
 
 		# concat all b0 with different pe_schemes
@@ -723,8 +752,8 @@ echo "done" > log/${current_session}_done.log
 
 
 # STEP 5 - CLEANUP - here we clean up (large) temporary files
-rm -fr dwi/degibbs.mif
-rm -rf dwi/geomcorr.mif
+#rm -fr dwi/degibbs.mif
+#rm -rf dwi/geomcorr.mif
 #rm -rf raw
 
 echo " Finished processing session $bids_subj"

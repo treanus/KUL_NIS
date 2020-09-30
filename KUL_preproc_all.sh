@@ -3,7 +3,7 @@
 #
 # v0.1 - dd 06/11/2018 - alpha version
 # v0.2a - dd 12/12/2018 - preparing for beta release 0.2
-v="v0.2 - dd 19/12/2018"
+v="v0.3 - dd 30/09/2020"
 
 # This is the main script of the KUL_NeuroImaging_Toools
 #
@@ -525,7 +525,14 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     fi
 
-    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v \
+    extra_options_fmapbids=""
+    if [ "$topup_fmap_present_in_bids" -eq 1 ]; then
+        extra_options_fmapbids=" -f "
+
+    fi
+
+
+    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} $extra_options_fmapbids $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v \
 > $dwiprep_log 2>&1 ")
 
     echo "   using cmd: $task_dwiprep_cmd"
@@ -1341,6 +1348,9 @@ if [ $expert -eq 1 ]; then
         rev_phase_for_topup_only=0
         rev_phase_for_topup_only=$(grep rev_phase_for_topup_only $conf | grep -v \# | sed 's/[^0-9]//g')
 
+        topup_fmap_present_in_bids=0
+        topup_fmap_present_in_bids=$(grep topup_fmap_present_in_bids $conf | grep -v \# | sed 's/[^0-9]//g')
+
         topup_options=$(grep topup_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
         eddy_options=$(grep eddy_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
 
@@ -1358,6 +1368,7 @@ if [ $expert -eq 1 ]; then
             echo "  dwiprep_options: $dwiprep_options"
             echo "  synbzero_disco_instead_of_topup: $synbzero_disco_instead_of_topup"
             echo "  rev_phase_for_topup_only: $rev_phase_for_topup_only"
+            echo "  topup_fmap_present_in_bids: $topup_fmap_present_in_bids"
             echo "  topup_options: $topup_options"
             echo "  eddy_options: $eddy_options"
             echo "  dwiprep_ncpu: $dwiprep_ncpu"
