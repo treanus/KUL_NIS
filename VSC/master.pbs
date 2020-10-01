@@ -2,7 +2,7 @@
 
 #PBS -l nodes=1:ppn=##CPU##
 #PBS -l pmem=##MEM##gb
-
+##PARTITION##
 #PBS -A ##LP##
 #PBS -m abe
 #PBS -M ##EMAIL##
