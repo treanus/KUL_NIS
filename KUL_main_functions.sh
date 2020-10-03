@@ -26,8 +26,11 @@ function kul_e2cl {
     fi
     
     local old_elapsed_s=$elapsed_s
-    local b=$(tput bold)
-    local n=$(tput sgr0)
+    #local b=$(tput bold)
+    #local n=$(tput sgr0)
+    local b=''
+    local n=''
+
     
     # calculate time in minutes since start of the script
     now=$(date +%s)
@@ -96,14 +99,13 @@ else
 
     fi
 
+
+
 fi 
 
 # -- Set global defaults --
-
 silent=1
 tmp=/tmp
-
-
 
 
 # -- Execute global startup --
@@ -112,7 +114,7 @@ tmp=/tmp
 start=$(date +%s)
 
 # Directory to write preprocessed data in, i.e $preproc
-preproc=KUL_preproc/${subj}
+preproc=KUL_LOG/${subj}
 
 # Define directory/files to log in 
 log_dir=${preproc}/log/$script
