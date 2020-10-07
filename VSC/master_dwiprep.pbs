@@ -32,4 +32,5 @@ PATH=${VSC_DATA}/apps/KUL_NeuroImaging_Tools:${PATH}
 
 
 cd $VSC_SCRATCH/VSC
-KUL_dwiprep.sh -p Benats -n 9 -v
+#KUL_dwiprep.sh -p 001 -n 9 -v
+##COMMAND##
