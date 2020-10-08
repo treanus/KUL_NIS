@@ -274,9 +274,8 @@ if [ $fmriprep_singularity -eq 1 ]; then
  --participant_label ${BIDS_participant} \
  -w /work \
  --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
- --mem_mb $mem_mb \
+ --mem $fmriprep_mem \
  $fmriprep_options \
- --notrack \
  > $fmriprep_log  2>&1") 
 
 else
@@ -293,9 +292,8 @@ else
  --participant_label ${BIDS_participant} \
  -w /scratch \
  --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
- --mem_mb $mem_mb \
+ --mem $fmriprep_mem \
  $fmriprep_options \
- --notrack \
  > $fmriprep_log  2>&1") 
 
 fi
@@ -303,6 +301,7 @@ fi
 echo "   using cmd: $task_fmriprep_cmd"
 
 # Now start the parallel job
+# echo $make_pbs_files_instead_of_running
 if [ $make_pbs_files_instead_of_running -eq 0 ]; then
 
     eval $task_fmriprep_cmd &
@@ -317,19 +316,21 @@ else
     echo " making a PBS file"
     mkdir -p VSC
 
-    task_command=$(echo "mkdir -p ./fmriprep_work_\${fmriprep_log_p}; singularity run --cleanenv \
+    task_command=$(echo "mkdir -p ./fmriprep_work_\${fmriprep_log_p}; \ 
+ singularity run --cleanenv \
+ -B ./\${bids_dir}:/data \
+ -B .:/out
  -B ./fmriprep_work_\${fmriprep_log_p}:/work \
  -B \$FS_LICENSE:/opt/freesurfer/license.txt \
  \$KUL_fmriprep_singularity \
- ./\${bids_dir} \
- . \
+ data \
+ out \
  participant \
  --participant_label \${BIDS_participant} \
  -w /work \
  --nthreads \$ncpu_fmriprep --omp-nthreads \$ncpu_fmriprep_ants \
- --mem_mb \$mem_mb \
+ --mem \$fmriprep_mem \
  \$fmriprep_options \
- --notrack \
  > \$fmriprep_log  2>&1") 
 
     cp $kul_main_dir/VSC/master.pbs VSC/run_fmriprep.pbs
@@ -337,6 +338,7 @@ else
     perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_fmriprep.pbs
     perl  -pi -e "s/##CPU##/${pbs_cpu}/g" VSC/run_fmriprep.pbs
     perl  -pi -e "s/##MEM##/${pbs_mem}/g" VSC/run_fmriprep.pbs
+    perl  -pi -e "s/##PARTITION##/${pbs_partition}/g" VSC/run_fmriprep.pbs
     esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
     perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_fmriprep.pbs
     esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
@@ -351,9 +353,9 @@ else
 
     echo $pbs_data_file
     if [ ! -f $pbs_data_file ]; then
-        echo "BIDS_participant,fmriprep_log_p,bids_dir,ncpu_fmriprep,ncpu_fmriprep_ants,mem_mb,fmriprep_options,fmriprep_log" > $pbs_data_file
+        echo "BIDS_participant,fmriprep_log_p,bids_dir,ncpu_fmriprep,ncpu_fmriprep_ants,fmriprep_mem,fmriprep_options,fmriprep_log" > $pbs_data_file
     fi 
-    echo "$BIDS_participant,$fmriprep_log_p,$bids_dir,$ncpu_fmriprep,$ncpu_fmriprep_ants,$mem_mb,$fmriprep_options,$fmriprep_log" >> $pbs_data_file
+    echo "$BIDS_participant,$fmriprep_log_p,$bids_dir,$ncpu_fmriprep,$ncpu_fmriprep_ants,$fmriprep_mem,$fmriprep_options,$fmriprep_log" >> $pbs_data_file
 
 
 fi
@@ -536,13 +538,41 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 > $dwiprep_log 2>&1 ")
 
     echo "   using cmd: $task_dwiprep_cmd"
+    
+    if [ $make_pbs_files_instead_of_running -eq 0 ]; then
+        # Now we start the parallel job
+        eval $task_dwiprep_cmd &
+        dwiprep_pid="$!"
+        echo " KUL_dwiprep pid is $dwiprep_pid"
+        sleep 2
+    else
+        echo " making a PBS file"
+        mkdir -p VSC
+        cp $kul_main_dir/VSC/master_dwiprep.pbs VSC/run_dwiprep.pbs
+        task_command=$(echo "KUL_dwiprep.sh -p \${BIDS_participant} $extra_options_fmapbids $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v \
+> \$dwiprep_log 2>&1 ")
+        echo $task_command
+        perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_dwiprep.pbs
+        perl  -pi -e "s/##CPU##/${pbs_cpu}/g" VSC/run_dwiprep.pbs
+        perl  -pi -e "s/##MEM##/${pbs_mem}/g" VSC/run_dwiprep.pbs
+        perl  -pi -e "s/##PARTITION##/${pbs_partition}/g" VSC/run_dwiprep.pbs
+        esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_dwiprep.pbs
+        esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##WALLTIME##/${esc_pbs_walltime}/g" VSC/run_dwiprep.pbs
+        esc_pbs_singularity_fmriprep=$(echo $pbs_singularity_fmriprep | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##FMRIPREP##/${esc_pbs_singularity_fmriprep}/g" VSC/run_dwiprep.pbs
+        esc_task_command=$(echo $task_command | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##COMMAND##/${esc_task_command}/g" VSC/run_dwiprep.pbs
+        pbs_data_file=VSC/pbs_data_dwiprep.csv
+        echo $pbs_data_file
+        if [ ! -f $pbs_data_file ]; then
+            echo "BIDS_participant, dwiprep_log" > $pbs_data_file
+        fi 
+        echo "$BIDS_participant, $dwiprep_log" >> $pbs_data_file
 
-    # Now we start the parallel job
-    eval $task_dwiprep_cmd &
-    dwiprep_pid="$!"
-    echo " KUL_dwiprep pid is $dwiprep_pid"
 
-    sleep 2
+    fi
 
 else
 

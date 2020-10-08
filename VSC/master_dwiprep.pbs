@@ -25,12 +25,9 @@ module load Python/3.6.4-foss-2018a
 module load CUDA/9.1.85
 module load ANTs/2.3.1-foss-2018a-Python-2.7.14 
 
-export OMP_NUM_THREADS=9
+export OMP_NUM_THREADS=##CPU##
 
 #add the path to neuroimaging tools
 PATH=${VSC_DATA}/apps/KUL_NeuroImaging_Tools:${PATH}
 
-
-cd $VSC_SCRATCH/VSC
-#KUL_dwiprep.sh -p 001 -n 9 -v
 ##COMMAND##
