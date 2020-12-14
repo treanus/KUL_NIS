@@ -107,6 +107,7 @@ if [ $silent -eq 1 ] ; then
 fi
 
 # --- MAIN ---
+printf "\n\n\n"
 
 # Check if all necessary data exists
 if [ -f "DICOM_classic/DICOM/IM_0002" ]; then
@@ -135,11 +136,11 @@ else
 fi
 
 # Prepare the nii files for the tracts
-mkdir -p for_elements/dti
+mkdir -p for_elements_$participant/dti
 
 # Convert the B0
 echo "Now converting the B0"
-mrconvert 16bit_Elements/*rBO.img for_elements/B0.nii
+mrconvert 16bit_Elements/*rBO.img for_elements_$participant/B0.nii
 
 # convert each tract
 cd 16bit_Elements
@@ -147,13 +148,16 @@ files=( $(find -name "*r_*.img" -type f -printf '%P\n') )
 
 color=3
 for t in "${files[@]}"; do 
-   
-    echo $t
+    #echo $t
+    printf "\n"
+    d1=${t#*_r_}
+    def=${d1%.*}
+    #echo $def
     PS3="File ${t} corresponds to tract: "
 
     select opt in Other Ignore CST_L CST_R SLF_L SLF_R IFOF_L IFOF_R \
             ILF_L ILF_R SMAPT_L SMAPT_R FAT_L FAT_R CINGc_L \
-            CINGc_R CINGt_L CINGt_R UNC_L UNC_R; do 
+            CINGc_R CINGt_L CINGt_R UNC_L UNC_R $def; do 
         #echo "you have selected $REPLY"
         #echo "this is $opt"
         if [ $simple -eq 0 ]; then
@@ -166,7 +170,7 @@ for t in "${files[@]}"; do
         else
             tract=$opt
         fi    
-        mrcalc $t 1 -gt $color -mult ../for_elements/dti/${tract}.nii
+        mrcalc $t 1 -gt $color -mult ../for_elements_$participant/dti/${tract}.nii
         break
     done
 done
@@ -175,17 +179,19 @@ cd ..
 #fi
 
 # Prepare the nii for the fMRI act
-mkdir -p for_elements/fmri
+mkdir -p for_elements_$participant/fmri
 
 # Convert the T1w anat
+printf "\n\n\n"
 echo "Now converting the T1"
-mrconvert 16bit_Anat/*anat.img for_elements/T1.nii
+mrconvert 16bit_Anat/*anat.img for_elements_$participant/T1.nii
 
 cd 16bit_Elements
 files=( $(find -name "*_act_*.img" -type f -printf '%P\n') )
 
 color=1
 for fmri in "${files[@]}"; do 
+    printf "\n"
     #echo $fmri
     d1=${fmri#*_act_}
     def=${d1%.*}
@@ -205,19 +211,22 @@ for fmri in "${files[@]}"; do
         fi
         #echo $task
         #echo $color
-        mrcalc $fmri 2 -gt $color -mult ../for_elements/fmri/${task}.nii
+        mrcalc $fmri 2 -gt $color -mult ../for_elements_$participant/fmri/${task}.nii
         break
     done
 done
 cd ..
 
 # Call Karawun
-echo "\n\n\n"
+printf "\n\n\n"
 echo "Now preparing for Karawun DICOM conversion"
 
-importTractography -d DICOM_classic/DICOM/IM_0002 -o for_elements/Upload_dti \
-    -n for_elements/B0.nii -l for_elements/dti/*.nii
+echo "Converting tracts now... wait..."
+importTractography -d DICOM_classic/DICOM/IM_0002 -o for_elements_$participant/Upload_dti \
+    -n for_elements_$participant/B0.nii -l for_elements_$participant/dti/*.nii
 
+echo "Converting fMRI now... wait..."
+importTractography -d DICOM_classic/DICOM/IM_0002 -o for_elements_$participant/Upload_fmri \
+    -n for_elements_$participant/T1.nii -l for_elements_$participant/fmri/*.nii
 
-importTractography -d DICOM_classic/DICOM/IM_0002 -o for_elements/Upload_fmri \
-    -n for_elements/T1.nii -l for_elements/fmri/*.nii
+echo "Finished"
