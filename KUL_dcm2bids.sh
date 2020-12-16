@@ -1,12 +1,15 @@
 #!/bin/bash
+
+# set -x
+
 # Bash shell script to convert dicoms to bids format
 #
 # Requires dcm2bids (jooh fork), dcm2niix, Mrtrix3
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
+# @ Ahmed Radwan - KUL - ahmed.radwan@kuleuven.be
 #
-# v0.1 - dd 26/10/2018 - alpha version
-v="v0.3 - dd 12/02/2020"
+v="v0.4 - dd 12/03/2020"
 
 # Notes
 #  - works for GE/Siemens/Philips
@@ -22,7 +25,7 @@ v="v0.3 - dd 12/02/2020"
 # source general functions
 kul_main_dir=`dirname "$0"`
 script=`basename "$0"`
-source $kul_main_dir/KUL_main_functions.sh
+source "${kul_main_dir}/KUL_main_functions.sh"
 cwd=$(pwd)
 # set -x
 
@@ -84,6 +87,19 @@ USAGE
 
     exit 1
 }
+
+# check if jsontool is installed and install it if not
+
+if [[ $(which jsontool) ]]; then
+
+    echo "jsontool already installed, good" $log
+
+else
+
+    echo "jsontool not installed, installing it with pip using pip install jsontool" $log
+    pip install jsontool
+
+fi
 
 
 
@@ -306,7 +322,7 @@ function kul_dcmtags {
 
 function kul_find_relevant_dicom_file {
 
-    kul_e2cl "  Searching for $identifier using search_string $search_string" $log
+    kul_e2cl "  Searching for ${identifier} using search_string $search_string" $log
 
     # find the search_string in the dicom dump_file            
     # search for search_string in dump_file, find ORIGINAL, remove dicom tags, sort, take first line, remove trailing space 
@@ -314,13 +330,13 @@ function kul_find_relevant_dicom_file {
 
     if [ "$seq_file" = "" ]; then
 
-        kul_e2cl "    $identifier dicoms are NOT FOUND" $log
+        kul_e2cl "    ${identifier} dicoms are NOT FOUND" $log
         seq_found=0
 
     else
 
         seq_found=1
-        kul_e2cl "    a relevant $identifier dicom is $(basename "${seq_file}") " $log
+        kul_e2cl "    a relevant ${identifier} dicom is $(basename "${seq_file}") " $log
 
     fi
 
@@ -444,13 +460,13 @@ d=$(date "+%Y-%m-%d_%H-%M-%S")
 log=$log_dir/${subj}_main_log_${d}.txt
 
 # file for initial dicom tags
-dump_file=$log_dir/${subj}_${sess}_initial_dicom_info.txt
+dump_file=${log_dir}/${subj}_${sess}_initial_dicom_info.txt
 
 # file with final dicom tags
-final_dcm_tags_file=$log_dir/${subj}_${sess}_final_dicom_info.csv
+final_dcm_tags_file=${log_dir}/${subj}_${sess}_final_dicom_info.csv
 
 # location of bids_config_json_file
-bids_config_json_file=$log_dir/${subj}_${sess}_bids_config.json
+bids_config_json_file=${log_dir}/${subj}_${sess}_bids_config.json
 
 # location of dcm2niix_log_file
 dcm2niix_log_file=$log_dir/${subj}_${sess}_dcm2niix_log_file.txt
@@ -479,7 +495,7 @@ rm -f $bids_config_json_file
 # ----------- SAY HELLO ----------------------------------------------------------------------------------
 
 
-if [ $silent -eq 0 ]; then
+if [[ $silent -eq 0 ]]; then
     echo "  The script you are running has basename `basename "$0"`, located in dirname $kul_main_dir"
     echo "  The present working directory is `pwd`"
 fi
@@ -490,7 +506,7 @@ fi
 
 mkdir -p ${tmp}
 
-if [ -d "$dcm" ]; then
+if [[ -d "$dcm" ]]; then
 
     # it is a directory
     kul_e2cl "  you gave the directory $dcm as input; linking to to $tmp/$subj" $log
@@ -504,11 +520,11 @@ else
     #echo $arch_ext
 
 
-    if [ $arch_ext = "zip" ]; then 
+    if [[ $arch_ext = "zip" ]]; then 
 
         unzip -q -o ${dcm} -d ${tmp}
 
-    elif [ $arch_ext = "tar" ]; then
+    elif [[] $arch_ext = "tar" ]]; then
 
         tar --strip-components=5 -C ${tmp} -xzf ${dcm}
 
@@ -543,14 +559,19 @@ wait
 
 
 # create empty bids description
-bids=""
+# bids=""
 
 # we read the config file
+
+declare -a sub_bids
+
 while IFS=, read identifier search_string task mb pe_dir; do
-    
- if [[ ! $identifier == \#* ]]; then
 
-    if [ $identifier = "T1w" ]; then 
+    bs=$(( $bs + 1))
+
+ if [[ ! ${identifier} == \#* ]]; then
+
+    if [[ ${identifier} == "T1w" ]]; then 
         
         kul_find_relevant_dicom_file
 
@@ -559,25 +580,16 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids=$(cat <<EOF
-            {
-            "dataType": "anat",
-            "suffix": "T1w",
-            "criteria": {
-                "in": {
-                "SeriesDescription": "${search_string}",
-                "ImageType": "ORIGINAL"
-                    }
-                }
-            })
+            sub_bids_T1='{"dataType": "anat", "suffix": "T1w", "criteria": { "in": 
+            { "SeriesDescription": "'${search_string}'", "ImageType": "ORIGINAL"}}}'
 
-        bids="$bids,$sub_bids"
+            sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
 
         fi
 
     fi
 
-    if [ $identifier = "T2w" ]; then 
+    if [[ ${identifier} == "T2w" ]]; then 
         
         kul_find_relevant_dicom_file
 
@@ -586,25 +598,16 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids=$(cat <<EOF
-            {
-            "dataType": "anat",
-            "suffix": "T2w",
-            "criteria": {
-                "in": {
-                "SeriesDescription": "${search_string}",
-                "ImageType": "ORIGINAL"
-                    }
-                }
-            })
+            sub_bids_T2='{"dataType": "anat", "suffix": "T2w", "criteria": { "in": 
+            { "SeriesDescription": "'${search_string}'", "ImageType": "ORIGINAL"}}}'
 
-        bids="$bids,$sub_bids"
+            sub_bids_[$bs]=$(echo ${sub_bids_T2} | python -m json.tool)
 
         fi
 
     fi
 
-    if [ $identifier = "PD" ]; then 
+    if [[ ${identifier} == "PD" ]]; then 
         
         kul_find_relevant_dicom_file
 
@@ -613,26 +616,17 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids=$(cat <<EOF
-            {
-            "dataType": "anat",
-            "suffix": "PD",
-            "criteria": {
-                "in": {
-                "SeriesDescription": "${search_string}",
-                "ImageType": "ORIGINAL"
-                    }
-                }
-            })
+            sub_bids_PD='{"dataType": "anat", "suffix": "PD", "criteria": { "in": 
+            { "SeriesDescription": "'${search_string}'", "ImageType": "ORIGINAL"}}}'
 
-        bids="$bids,$sub_bids"
+            sub_bids_[$bs]=$(echo ${sub_bids_PD} | python -m json.tool)
 
         fi
 
     fi
 
 
-    if [ $identifier = "FLAIR" ]; then 
+    if [[ ${identifier} == "FLAIR" ]]; then 
         
         kul_find_relevant_dicom_file
 
@@ -641,25 +635,16 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids=$(cat <<EOF
-            {
-            "dataType": "anat",
-            "suffix": "FLAIR",
-            "criteria": {
-                "in": {
-                "SeriesDescription": "${search_string}",
-                "ImageType": "ORIGINAL"
-                    }
-                }
-            })
+            sub_bids_FL='{"dataType": "anat", "suffix": "FLAIR", "criteria": { "in": 
+            { "SeriesDescription": "'${search_string}'", "ImageType": "ORIGINAL"}}}'
 
-        bids="$bids,$sub_bids"
+            sub_bids_[$bs]=$(echo ${sub_bids_FL} | python -m json.tool)
 
         fi     
 
     fi
 
-    if [ $identifier = "fmap" ]; then 
+    if [[ ${identifier} == "fmap" ]]; then 
         
         kul_find_relevant_dicom_file
         
@@ -668,54 +653,22 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids=$(cat <<EOF
-            {
-            "dataType": "fmap",
-            "suffix": "magnitude",
-            "criteria": 
-                {
-                "in": 
-                    {
-                    "SeriesDescription": "${search_string}",
-                    "ImageType": "ORIGINAL"
-                    },
-                "equal": 
-                    {
-                    "EchoNumber": 1
-                    }
-                }
-            },
-            {
-            "dataType": "fmap",
-            "suffix": "fieldmap",
-            "criteria": 
-                {
-                "in": 
-                    {
-                    "SeriesDescription": "${search_string}",
-                    "ImageType": "ORIGINAL"
-                    },
-                "equal": 
-                    {
-                    "EchoNumber": 2
-                    }
-                },
-            "customHeader": 
-                {
-                "Units": "Hz",
-                "IntendedFor": "##REPLACE_ME_INTENDED_FOR##"
-                }
-            })
+            sub_bids_fm='{"dataType": "fmap","suffix": "magnitude","criteria": 
+            {"in":{"SeriesDescription": "'${search_string}'","ImageType": "ORIGINAL"},
+            "equal": {"EchoNumber": 1}},{"dataType": "fmap","suffix": "fieldmap",
+            "criteria": {"in": {"SeriesDescription": "'${search_string}'","ImageType":
+            "ORIGINAL"},"equal": {"EchoNumber": 2}},"customHeader":
+            {"Units": "Hz","IntendedFor": "##REPLACE_ME_INTENDED_FOR##"}}'
 
-        bids="$bids,$sub_bids"
+            sub_bids_[$bs]=$(echo ${sub_bids_fm} | python -m json.tool)
         
-        fmap_task=$task
+            fmap_task=$task
         
         fi     
 
     fi
 
-    if [ $identifier = "func" ]; then 
+    if [[ ${identifier} == "func" ]]; then 
 
         kul_find_relevant_dicom_file
 
@@ -724,22 +677,10 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids1=$(cat <<EOF
-            {
-            "dataType": "func",
-            "suffix": "bold",
-            "criteria": {
-                "in": {
-                "SeriesDescription": "${search_string}",
-                "ImageType": "ORIGINAL"
-                }
-            },
-            "customHeader": {
-                "KUL_dcm2bids": "yes",
-                "TaskName": "${task}")
-
-
-            #echo $sub_bids1
+            sub_bids_fu1='{"dataType": "func","suffix": 
+            "bold","criteria": {"in": {"SeriesDescription": 
+            "'${search_string}'","ImageType": "ORIGINAL"}}, 
+            "customHeader": {"KUL_dcm2bids": "yes","TaskName": "'${task}'"'
 
             # for siemens (& ge?) ess/trt is not necessary as CustomHeader
             # also not for philips, when it cannot be calculated
@@ -753,21 +694,17 @@ while IFS=, read identifier search_string task mb pe_dir; do
                     kul_e2cl "   It's NOT original dicom data (anonymised?): ees/trt could not be calculated" $log
                 fi
             
-                sub_bids2=""
+                sub_bids_fu2=""
 
             else
 
                 kul_e2cl "   It's a PHILIPS, ees/trt are were calculated" $log
-                sub_bids2=$(cat <<EOF
-                    ,
-                    "EffectiveEchoSpacing": ${ees_sec},
-                    "TotalReadoutTime": ${trt_sec},
-                    "MultibandAccelerationFactor": ${mb},
-                    "PhaseEncodingDirection": "${pe_dir}")
-                    
-            fi
 
-            #echo $sub_bids2        
+                sub_bids_fu2=',"EffectiveEchoSpacing": '${ees_sec}',"TotalReadoutTime":
+                '${trt_sec}',"MultibandAccelerationFactor": '${mb}',"PhaseEncodingDirection": "'${pe_dir}'"'
+                
+                    
+            fi        
                     
             # for siemens (& ge?) slicetiming is not necessary as CustomHeader
             # also not for philips, when it cannot be calculated
@@ -781,31 +718,24 @@ while IFS=, read identifier search_string task mb pe_dir; do
                     kul_e2cl "   It's NOT original dicom data (anonymised?): slicetiming could not be calculated" $log
                 fi
 
-                sub_bids3=$(cat <<EOF
-                }
-                })    
+                sub_bids_fu3='}}'
 
             else
 
                 kul_e2cl "   It's a PHILIPS, slicetiming was calculated" $log
-                sub_bids3=$(cat <<EOF    
-                    ,
-                    "SliceTiming": $slice_time
-                }
-                })
+
+                sub_bids_fu3=',"SliceTiming": '${slice_time}'}}'
             
 
             fi
 
-            #echo $sub_bids3
-
-            bids="${bids},${sub_bids1}${sub_bids2}${sub_bids3}"
+            sub_bids_[$bs]=$(echo ${sub_bids_fu1}${sub_bids_fu2}${sub_bids_fu3} | python -m json.tool)
 
         fi
 
     fi
 
-    if [ $identifier = "dwi" ]; then 
+    if [[ ${identifier} == "dwi" ]]; then 
 
         kul_find_relevant_dicom_file
 
@@ -814,20 +744,10 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids1=$(cat <<EOF
-            {
-            "dataType": "dwi",
-            "suffix": "dwi",
-            "criteria": {
-                "in": {
-                "SeriesDescription": "${search_string}",
-                "ImageType": "ORIGINAL"
-                }
-            },
-            "customHeader": {
-                "KUL_dcm2bids": "yes")
+            sub_bids_dw1='{"dataType": "dwi","suffix": "dwi","criteria": {"in": 
+            {"SeriesDescription": "'${search_string}'","ImageType": "ORIGINAL"}}, 
+            "customHeader": {"KUL_dcm2bids": "yes"'
             
-            #echo $sub_bids1
 
             # for siemens (& ge?) ess/trt is not necessary as CustomHeader
             # also not for philips, when it cannot be calculated
@@ -841,21 +761,16 @@ while IFS=, read identifier search_string task mb pe_dir; do
                     kul_e2cl "   It's NOT original dicom data (anonymised?): ees/trt could not be calculated" $log
                 fi
             
-                sub_bids2=""
+                sub_bids_dw2=""
 
             else
 
                 kul_e2cl "   It's a PHILIPS, ees/trt were calculated" $log
-                sub_bids2=$(cat <<EOF
-                    ,
-                    "EffectiveEchoSpacing": ${ees_sec},
-                    "TotalReadoutTime": ${trt_sec},
-                    "MultibandAccelerationFactor": ${mb},
-                    "PhaseEncodingDirection": "${pe_dir}")
+
+                sub_bids_dw2=',"EffectiveEchoSpacing": '${ees_sec}', "TotalReadoutTime": '${trt_sec}', 
+                "MultibandAccelerationFactor": '${mb}', "PhaseEncodingDirection": "'${pe_dir}'"'
                     
             fi
-
-            #echo $sub_bids2        
                     
             # for siemens (& ge?) slicetiming is not necessary as CustomHeader
             # also not for philips, when it cannot be calculated
@@ -869,26 +784,18 @@ while IFS=, read identifier search_string task mb pe_dir; do
                     kul_e2cl "   It's NOT original dicom data (anonymised?): slicetiming could not be calculated" $log
                 fi
             
-                sub_bids3=$(cat <<EOF
-                }
-                })    
+                sub_bids_dw3='}}'    
 
             else
 
                 kul_e2cl "   It's a PHILIPS, slicetiming was calculated" $log
 
-                sub_bids3=$(cat <<EOF    
-                    ,
-                    "SliceTiming": $slice_time
-                }
-                })
+                sub_bids_dw3=', "SliceTiming": '${slice_time}'}}'
             
 
             fi
-
-            #echo $sub_bids3
             
-            bids="${bids},${sub_bids1}${sub_bids2}${sub_bids3}"
+            sub_bids_[$bs]=$(echo ${sub_bids_dw1}${sub_bids_dw2}${sub_bids_dw3} | python -m json.tool)
 
         fi
 
@@ -899,15 +806,37 @@ while IFS=, read identifier search_string task mb pe_dir; do
 done < $conf
 
 # make the full bids_conf string and write it to file
-bids_conf=$(cat <<EOF
-{
-  "descriptions": [
-      ${bids:1}
-        ]
-}
-EOF)
 
-echo $bids_conf  > $bids_config_json_file 
+bids_conf=""
+
+for bf in ${!sub_bids_[@]}; do
+
+    echo "now generating dcm2bids config files"
+
+    if [[ ! ${bids_conf} ]]; then
+
+        echo "first field"
+
+        bids_conf="${sub_bids_[$bf]}"
+
+    else
+
+        echo "Series ${bf}"
+
+        bids_conf="${bids_conf}, ${sub_bids_[$bf]}"
+
+    fi
+
+done
+
+# echo ${bids_conf} >> ${bids_config_json_file}
+
+echo "{\"descriptions\":[ ${bids_conf} ] }"
+
+bids_conf_str="{\"descriptions\":[ ${bids_conf} ] }"
+
+echo ${bids_conf_str} >> ${bids_config_json_file}
+
 
 # MAIN HERE - WE RUN dcm2bids - HERE
 # invoke dcm2bids
@@ -1032,6 +961,6 @@ echo ${cleanup}
 eval ${cleanup}
 
 # Fix README BIDS validation
-echo "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
+# echo "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
 
 kul_e2cl "Finished $script" $log
