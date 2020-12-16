@@ -50,20 +50,24 @@ Usage:
   FLAIR,FLAIR
   func,rsfMRI,rest,8,j
   func,tb_fMRI,nback,2,j
+  func,tb_fMRI,hands,2,j
   dwi,part1,-,2,j
   dwi,part2,-,2,j-
+  sbref,MB2_sref,nback hands,1,j
 
   explains that the T1w scan should be found by the search string "MPRAGE"
   func by rsfMRI, and has multiband_factor 8, and pe_dir = j
+  the sbref will be used for the tb_fMRI for both tasks (hands and nback)
   
   For Siemens dicom it can be as simple as:
   T1w,MPRAGE
   FLAIR,FLAIR
   func,rsfMRI,rest,-,-
   func,tb_fMRI,nback,-,-
+  func,tb_fMRI,hands,-,-
   dwi,part1,-,-,-
   dwi,part2,-,-,-
-
+  sbref,MB2_sref,nback hands,-,-
 
 Example:
 
@@ -735,6 +739,79 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
     fi
 
+    if [[ ${identifier} == "sbref" ]]; then 
+
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            # Take care of fact that 1 sbref could be used for multiple funcs
+            # we convert the first here, and copy later (see below)
+            sbref_tasks=($task)
+            n_sbref_tasks=${#sbref_tasks[@]}
+            sbref_task1=${sbref_tasks[0]}
+
+            sub_bids_fu1='{"dataType": "func","suffix": 
+            "sbref","criteria": {"in": {"SeriesDescription": 
+            "'${search_string}'","ImageType": "ORIGINAL"}}, 
+            "customHeader": {"KUL_dcm2bids": "yes","TaskName": "'${sbref_task1}'"'
+
+            # for siemens (& ge?) ess/trt is not necessary as CustomHeader
+            # also not for philips, when it cannot be calculated
+            #echo "ess_trt_provided_by_vendor: $ees_trt_provided_by_vendor"
+            #echo "ees_sec: $ees_sec"
+            if [ $ees_trt_provided_by_vendor -eq 1 ]  || [ $ees_sec = "empty" ]; then
+
+                if [ $ees_trt_provided_by_vendor -eq 1 ]; then
+                    kul_e2cl "   It's a SIEMENS, ees/trt are in the dicom-header" $log
+                else
+                    kul_e2cl "   It's NOT original dicom data (anonymised?): ees/trt could not be calculated" $log
+                fi
+            
+                sub_bids_fu2=""
+
+            else
+
+                kul_e2cl "   It's a PHILIPS, ees/trt are were calculated" $log
+
+                sub_bids_fu2=',"EffectiveEchoSpacing": '${ees_sec}',"TotalReadoutTime":
+                '${trt_sec}',"MultibandAccelerationFactor": '${mb}',"PhaseEncodingDirection": "'${pe_dir}'"'
+                
+                    
+            fi        
+                    
+            # for siemens (& ge?) slicetiming is not necessary as CustomHeader
+            # also not for philips, when it cannot be calculated
+            #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
+            #echo "slice_time: $slice_time"
+            if [ $slicetime_provided_by_vendor -eq 1 ]  || [ "$slice_time" = "empty" ]; then
+                
+                if [ $slicetime_provided_by_vendor -eq 1 ]; then
+                    kul_e2cl "   It's a SIEMENS, slicetiming is in the dicom-header" $log
+                else
+                    kul_e2cl "   It's NOT original dicom data (anonymised?): slicetiming could not be calculated" $log
+                fi
+
+                sub_bids_fu3='}}'
+
+            else
+
+                kul_e2cl "   It's a PHILIPS, slicetiming was calculated" $log
+
+                sub_bids_fu3=',"SliceTiming": '${slice_time}'}}'
+            
+
+            fi
+
+            sub_bids_[$bs]=$(echo ${sub_bids_fu1}${sub_bids_fu2}${sub_bids_fu3} | python -m json.tool)
+
+        fi
+
+    fi
+
     if [[ ${identifier} == "dwi" ]]; then 
 
         kul_find_relevant_dicom_file
@@ -811,17 +888,17 @@ bids_conf=""
 
 for bf in ${!sub_bids_[@]}; do
 
-    echo "now generating dcm2bids config files"
+    #echo "now generating dcm2bids config files"
 
     if [[ ! ${bids_conf} ]]; then
 
-        echo "first field"
+        #echo "first field"
 
         bids_conf="${sub_bids_[$bf]}"
 
     else
 
-        echo "Series ${bf}"
+        #echo "Series ${bf}"
 
         bids_conf="${bids_conf}, ${sub_bids_[$bf]}"
 
@@ -831,7 +908,7 @@ done
 
 # echo ${bids_conf} >> ${bids_config_json_file}
 
-echo "{\"descriptions\":[ ${bids_conf} ] }"
+#echo "{\"descriptions\":[ ${bids_conf} ] }"
 
 bids_conf_str="{\"descriptions\":[ ${bids_conf} ] }"
 
@@ -944,12 +1021,24 @@ else
 
 fi
 
+# Take care of fact that 1 sbref could be used for multiple funcs
+# we convert the first above, now copy for each task
+i=$((n_bref_tasks-1))
+if [ $n_sbref_tasks -gt 1 ];then
+    for t in ${sbref_tasks[@]:0-$i}; do
+        cp  ${bids_output}/sub-${subj}/func/sub-${subj}_task-${sbref_tasks[0]}_sbref.json \
+            ${bids_output}/sub-${subj}/func/sub-${subj}_task-${t}_sbref.json
+        cp  ${bids_output}/sub-${subj}/func/sub-${subj}_task-${sbref_tasks[0]}_sbref.nii.gz \
+            ${bids_output}/sub-${subj}/func/sub-${subj}_task-${t}_sbref.nii.gz
+    done
+fi
+
 
 # copying task based events.tsv to BIDS directory
 if [ $events_flag -eq 1 ]; then
     test_events_exist=$(ls -l *conf*/task-*_events.tsv | grep "No such file")
-    echo $test_events_exist
-    if [ $test_events_exist = "" ]; then
+    #echo $test_events_exist
+    if [ "$test_events_exist" = "" ]; then
         kul_e2cl "Copying task based events.tsv to BIDS directory" $log
         cp *conf*/task-*_events.tsv $bids_output
     fi  
@@ -960,7 +1049,8 @@ cleanup="rm -fr ${tmp}"
 echo ${cleanup}
 eval ${cleanup}
 
-# Fix README BIDS validation
-# echo "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
+# Fix BIDS validation
+echo "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
+sed -i 's/"Funding": ""/"Funding": [""]/' ${bids_output}/dataset_description.json
 
 kul_e2cl "Finished $script" $log

@@ -286,7 +286,7 @@ else
  -v ${cwd}:/out \
  -v ${cwd}/fmriprep_work_${fmriprep_log_p}:/scratch \
  -v ${freesurfer_license}:/opt/freesurfer/license.txt \
- poldracklab/fmriprep:${fmriprep_version} \
+ nipreps/fmriprep:${fmriprep_version} \
  /data /out \
  participant \
  --participant_label ${BIDS_participant} \
