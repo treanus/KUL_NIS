@@ -769,7 +769,7 @@ function WaitForTaskCompletion {
         done
 
         ## Log a standby message every hour
-        every_time=1200
+        every_time=1201
         exec_time=$(($SECONDS - $seconds_begin))
         if [ $((($exec_time + 1) % $every_time)) -eq 0 ]; then
             if [ $log_ttime -ne $exec_time ]; then

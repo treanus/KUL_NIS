@@ -106,6 +106,17 @@ if [ $silent -eq 1 ] ; then
 
 fi
 
+function KUL_antsApply_Transform {
+
+    antsApplyTransforms -d 3 --float 1 \
+        --verbose 1 \
+        -i $input \
+        -o $output \
+        -r $reference \
+        -t $transform \
+        -n Linear
+}
+
 # --- MAIN ---
 
 # convert the DICOM to BIDS
@@ -117,9 +128,9 @@ fi
 
 # run fmriprep
 if [ ! -f fmriprep/sub-$participant.html ]; then
-    cp study_config/run_fmriprep.txt KUL_LOG/run_fmriprep_$participant.txt
-    sed -i "s/BIDS_participants: /BIDS_participants: $participant/" KUL_LOG/run_fmriprep_$participant.txt
-    KUL_preproc_all.sh -e -c KUL_LOG/run_fmriprep_$participant.txt 
+    cp study_config/run_fmriprep.txt KUL_LOG/$participant_run_fmriprep.txt
+    sed -i "s/BIDS_participants: /BIDS_participants: $participant/" KUL_LOG/$participant_run_fmriprep.txt
+    KUL_preproc_all.sh -e -c KUL_LOG/$participant_run_fmriprep.txt 
     rm -fr fmriprep_work_$participant
 else
     echo "fmriprep already done"
@@ -127,38 +138,82 @@ fi
 
 
 # run SPM12
-echo "Preparing for SPM"
-fmridatadir="$cwd/SPM/sub-$participant/fmridata"
-mkdir -p $fmridatadir
-fmriprepdir="fmriprep/sub-$participant/func"
-searchtask="smoothAROMAnonaggr_bold.nii"
-tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f -printf '%P\n') )
-tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run.m" #template config file
-tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run_job.m" #template job file
-#echo ${tasks[@]}
-matlab_exe=$(which matlab)
+if [ ! -f KUL_LOG/${participant}_SPM.done ]; then
+    echo "Preparing for SPM"
+    fmridatadir="$cwd/SPM/sub-$participant/fmridata"
+    mkdir -p $fmridatadir
+    fmriprepdir="fmriprep/sub-$participant/func"
+    searchtask="smoothAROMAnonaggr_bold.nii"
+    tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f -printf '%P\n') )
+    # the template files in KNT for SPM analysis
+    tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run.m" #template config file
+    tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run_job.m" #template job file
+    #echo ${tasks[@]}
+    matlab_exe=$(which matlab)
 
-for task in ${tasks[@]}; do
-    d1=${task#*_task-}
-    shorttask=${d1%_space*}
-    if [ ! "$shorttask" = "rest" ]; then
+    # we loop over the found tasks
+    for task in ${tasks[@]}; do
+        d1=${task#*_task-}
+        shorttask=${d1%_space*}
+        if [ ! "$shorttask" = "rest" ]; then
+            #echo "$task -- $shorttask"
+            echo " Analysing task $shorttask"
+            fmrifile="${shorttask}_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
+            cp $fmriprepdir/*$fmrifile.gz $fmridatadir
+            gunzip $fmridatadir/*$fmrifile.gz
+            fmriresults="$cwd/SPM/sub-$participant/compute/stats_$shorttask"
+            mkdir -p $fmriresults
+            scriptsdir="$cwd/SPM/sub-$participant/scripts"
+            mkdir -p $scriptsdir
+            pcf="${scriptsdir}/stats_${shorttask}.m" #participant config file
+            pjf="${scriptsdir}/stats_${shorttask}_job.m" #participant job file
+            cp $tcf $pcf
+            cp $tjf $pjf
+            sed -i "s|###JOBFILE###|$pjf|" $pcf
+            sed -i "s|###FMRIDIR###|$fmridatadir|" $pjf
+            sed -i "s|###FMRIFILE###|$fmrifile|" $pjf
+            sed -i "s|###FMRIRESULTS###|$fmriresults|" $pjf
+            $matlab_exe -nodisplay -nosplash -nodesktop -r "run('$pcf');exit;"
+            mkdir -p $cwd/SPM/sub-$participant/RESULTS/MNI
+            result=$cwd/SPM/sub-$participant/RESULTS/MNI/${shorttask}_space-MNI152NLin6Asym.nii
+            cp $fmriresults/spmT_0001.nii $result
+
+            # since SPM analysis was in MNI space, we transform back in native space
+            input=$result
+            output=$cwd/SPM/sub-$participant/RESULTS/${shorttask}_space-native.nii
+            transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
+            reference=$result
+            KUL_antsApply_Transform
+        fi
+    done
+    echo "Done" > KUL_LOG/${participant}_SPM.done
+else
+    echo "SPM analysis already done"
+fi
+
+# run FSL Melodic
+if [ ! -f KUL_LOG/${participant}_melodic.done ]; then
+    echo "Preparing for Melodic"
+    fmridatadir="$cwd/Melodic/sub-$participant/fmridata"
+    mkdir -p $fmridatadir
+    fmriprepdir="fmriprep/sub-$participant/func"
+    searchtask="smoothAROMAnonaggr_bold.nii"
+    tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f -printf '%P\n') )
+    # we loop over the found tasks
+    for task in ${tasks[@]}; do
+        d1=${task#*_task-}
+        shorttask=${d1%_space*}
         #echo "$task -- $shorttask"
-        echo "Analysing task $shorttask"
+        echo " Analysing task $shorttask"
         fmrifile="${shorttask}_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
         cp $fmriprepdir/*$fmrifile.gz $fmridatadir
         gunzip $fmridatadir/*$fmrifile.gz
-        fmriresults="$cwd/SPM/sub-$participant/stats_$shorttask"
+        fmriresults="$cwd/Melodic/sub-$participant/stats_$shorttask"
         mkdir -p $fmriresults
-        pcf="${fmriresults}.m" #participant config file
-        pjf="${fmriresults}_job.m" #participant job file
-        cp $tcf $pcf
-        cp $tjf $pjf
-        sed -i "s|###JOBFILE###|$pjf|" $pcf
-        sed -i "s|###FMRIDIR###|$fmridatadir|" $pjf
-        sed -i "s|###FMRIFILE###|$fmrifile|" $pjf
-        sed -i "s|###FMRIRESULTS###|$fmriresults|" $pjf
-        $matlab_exe -nodisplay -nosplash -nodesktop -r "run('$pcf');exit;"
-        cp $fmriresults/spmT_0001.nii $cwd/SPM/sub-$participant/${shorttask}.nii
-    fi
-done
-
+        melodic_in="$cwd/Melodic/sub-$participant/fmridata/sub-${participant}_task-$fmrifile"
+        melodic -i $melodic_in -o $fmriresults --report
+    done
+    echo "Done" > KUL_LOG/${participant}_melodic.done
+else
+    echo "Melodic analysis already done"
+fi
