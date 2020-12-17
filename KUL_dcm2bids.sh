@@ -366,6 +366,7 @@ conf_flag=0
 bids_flag=0
 tmp_flag=0
 events_flag=0
+n_sbref_tasks=0
 
 if [ "$#" -lt 4 ]; then
     Usage >&2
