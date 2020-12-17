@@ -158,7 +158,7 @@ else
  mkdir ${cwd}/mriqc_home
  local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
  -v ${cwd}/mriqc_home:/home/bidsapp/ \
- -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
+ -v ${cwd}/${bids_dir}:/data -v ${cwd}/mriqc:/out \
  poldracklab/mriqc:latest \
  --participant_label $BIDS_participant \
  $mriqc_options \

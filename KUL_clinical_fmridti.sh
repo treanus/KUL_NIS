@@ -31,10 +31,10 @@ Example:
 Required arguments:
 
      -p:  participant name
-     -d:  dicom zip file (or directory)
 
 Optional arguments:
 
+     -d:  dicom zip file (or directory)
      -v:  show output from commands
 
 
@@ -98,12 +98,6 @@ if [ $p_flag -eq 0 ] ; then
 	echo
 	exit 2
 fi
-if [ $d_flag -eq 0 ] ; then
-	echo
-	echo "Option -d is required: give the DICOM location." >&2
-	echo
-	exit 2
-fi
 
 # MRTRIX verbose or not?
 if [ $silent -eq 1 ] ; then
@@ -115,30 +109,56 @@ fi
 # --- MAIN ---
 
 # convert the DICOM to BIDS
-KUL_dcm2bids.sh -d $dicomzip -p $participant -c study_config/sequences.txt -e
+if [ ! -d "BIDS/sub-$participant" ];then
+    KUL_dcm2bids.sh -d $dicomzip -p $participant -c study_config/sequences.txt -e
+else
+    echo "BIDS conversion already done"
+fi
 
 # run fmriprep
-cp study_config/run_fmriprep.txt KUL_LOG/run_fmriprep_$participant.txt
-sed -i "s/BIDS_participants: /BIDS_participants: $participant/" KUL_LOG/run_fmriprep_$participant.txt
-KUL_preproc_all.sh -e -c KUL_LOG/run_fmriprep_$participant.txt 
+if [ ! -f fmriprep/sub-$participant.html ]; then
+    cp study_config/run_fmriprep.txt KUL_LOG/run_fmriprep_$participant.txt
+    sed -i "s/BIDS_participants: /BIDS_participants: $participant/" KUL_LOG/run_fmriprep_$participant.txt
+    KUL_preproc_all.sh -e -c KUL_LOG/run_fmriprep_$participant.txt 
+    rm -fr fmriprep_work_$participant
+else
+    echo "fmriprep already done"
+fi
 
-exit
 
 # run SPM12
-tcf="/DATA/test/study_config/test.m" #template config file
-tjf="/DATA/test/study_config/test_job.m" #template job file
-pcf="/DATA/test/study_config/test_$participant.m" #participant config file
-pjf="/DATA/test/study_config/test_job_$participant.m" #participant job file
-cp $tcf $pcf
-cp $tjf $pjf
-sed -i "s|###JOBFILE###|$pjf|" $pcf
+echo "Preparing for SPM"
+fmridatadir="$cwd/SPM/sub-$participant/fmridata"
+mkdir -p $fmridatadir
+fmriprepdir="fmriprep/sub-$participant/func"
+searchtask="smoothAROMAnonaggr_bold.nii"
+tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f -printf '%P\n') )
+tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run.m" #template config file
+tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run_job.m" #template job file
+#echo ${tasks[@]}
+matlab_exe=$(which matlab)
 
-fmridir="/DATA/test/SPM"
-fmrifile="HAND_bold.nii"
-fmriresults="/DATA/test/SPM/RESULTS"
-sed -i "s|###FMRIDIR###|$fmridir|" $pjf
-sed -i "s|###FMRIFILE###|$fmrifile|" $pjf
-sed -i "s|###FMRIRESULTS###|$fmriresults|" $pjf
-
-/usr/local/MATLAB/R2018a/bin/matlab -nodisplay -nosplash -nodesktop -r "run('$pcf');exit ; "
+for task in ${tasks[@]}; do
+    d1=${task#*_task-}
+    shorttask=${d1%_space*}
+    if [ ! "$shorttask" = "rest" ]; then
+        #echo "$task -- $shorttask"
+        echo "Analysing task $shorttask"
+        fmrifile="${shorttask}_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
+        cp $fmriprepdir/*$fmrifile.gz $fmridatadir
+        gunzip $fmridatadir/*$fmrifile.gz
+        fmriresults="$cwd/SPM/sub-$participant/stats_$shorttask"
+        mkdir -p $fmriresults
+        pcf="${fmriresults}.m" #participant config file
+        pjf="${fmriresults}_job.m" #participant job file
+        cp $tcf $pcf
+        cp $tjf $pjf
+        sed -i "s|###JOBFILE###|$pjf|" $pcf
+        sed -i "s|###FMRIDIR###|$fmridatadir|" $pjf
+        sed -i "s|###FMRIFILE###|$fmrifile|" $pjf
+        sed -i "s|###FMRIRESULTS###|$fmriresults|" $pjf
+        $matlab_exe -nodisplay -nosplash -nodesktop -r "run('$pcf');exit;"
+        cp $fmriresults/spmT_0001.nii $cwd/SPM/sub-$participant/${shorttask}.nii
+    fi
+done
 
