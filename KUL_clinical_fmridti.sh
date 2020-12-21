@@ -129,7 +129,7 @@ fi
 # run fmriprep
 if [ ! -f fmriprep/sub-$participant.html ]; then
     cp study_config/run_fmriprep.txt KUL_LOG/$participant_run_fmriprep.txt
-    sed -i "s/BIDS_participants: /BIDS_participants: $participant/" KUL_LOG/$participant_run_fmriprep.txt
+    sed -i.bck "s/BIDS_participants: /BIDS_participants: $participant/" KUL_LOG/$participant_run_fmriprep.txt
     KUL_preproc_all.sh -e -c KUL_LOG/$participant_run_fmriprep.txt 
     rm -fr fmriprep_work_$participant
 else
@@ -150,10 +150,10 @@ function KUL_compute_SPM {
     #echo "$pcf -- $pjf"
     cp $tcf $pcf
     cp $tjf $pjf
-    sed -i "s|###JOBFILE###|$pjf|" $pcf
-    sed -i "s|###FMRIDIR###|$fmridatadir|" $pjf
-    sed -i "s|###FMRIFILE###|$fmrifile|" $pjf
-    sed -i "s|###FMRIRESULTS###|$fmriresults|" $pjf
+    sed -i.bck "s|###JOBFILE###|$pjf|" $pcf
+    sed -i.bck "s|###FMRIDIR###|$fmridatadir|" $pjf
+    sed -i.bck "s|###FMRIFILE###|$fmrifile|" $pjf
+    sed -i.bck "s|###FMRIRESULTS###|$fmriresults|" $pjf
     $matlab_exe -nodisplay -nosplash -nodesktop -r "run('$pcf');exit;"
             
     result=$computedir/RESULTS/MNI/${shorttask}_space-MNI152NLin6Asym.nii
