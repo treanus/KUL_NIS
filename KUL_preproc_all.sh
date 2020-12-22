@@ -1552,7 +1552,7 @@ if [ $expert -eq 1 ]; then
             done 
 
             kul_e2cl "  waiting for dwiprep_anat processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
-                WaitForTaskCompletion 
+                WaitForTaskCompletion 06/11/2018
 
             kul_e2cl " dwiprep_anat processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
 
@@ -1678,13 +1678,12 @@ if [ $expert -eq 1 ]; then
         if [ $silent -eq 0 ]; then
 
             echo "  BIDS_participants: ${BIDS_subjects[@]}"
-            echo "  number of BIDS_participants: $n_subj"
+            echo "  number of BIDS_participants: $n_subj"06/11/2018
             echo "  dwiprep_fibertract_cpu: $dwiprep_fibertract_cpu"
             echo "  dwiprep_fibertract_rois_file: $dwiprep_fibertract_rois_file"
             echo "  dwiprep_fibertract_conf_file: $dwiprep_fibertract_conf_file"
             echo "  dwiprep_fibertract_response_file: $dwiprep_fibertract_response_file"
-            echo "  dwiprep_fibertract_whole_brain: $dwiprep_fibertract_whole_brain"
-            echo "  dwiprep_fibertract_simultaneous: $dwiprep_fibertract_simultaneous"
+            echo "  dwiprep_fibertract_whole_brain: $dwiprep_fibertract_whole_brain"06/11/2018
 
         fi
 
@@ -1898,7 +1897,7 @@ else
         
         # continue with KUL_dwiprep_fibertract
         if [ $do_dwiprep_fibertract -eq 1 ]; then
-            
+            06/11/2018
             task_KUL_dwiprep_fibertract
 
         fi
@@ -1927,7 +1926,7 @@ if [ ! -f $mriqc_file_to_check ]; then
     mkdir ${cwd}/mriqc_home
     docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
         -v ${cwd}/mriqc_home:/home/bidsapp/ \
-        -v ${cwd}/${bids_dir}:/data:ro -v ${cwd}/mriqc:/out \
+        -v ${cwd}/${bids_dir}:/data -v ${cwd}/mriqc:/out \
         poldracklab/mriqc:latest \
         /data /out group
     rm -rf ${cwd}/mriqc_home

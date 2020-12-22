@@ -45,8 +45,9 @@ Usage:
   Depends on a config file that defines parameters with sequence information, e.g.
 
   For Philips dicom we need to manually specify the mb and pe_dir:
-  Identifier,search-string,task,mb,pe_dir
+  Identifier,search-string,fmritask/contrastT1w,mb,pe_dir
   T1w,MPRAGE
+  T1w,3DTFE_POST,1
   FLAIR,FLAIR
   func,rsfMRI,rest,8,j
   func,tb_fMRI,nback,2,j
@@ -576,7 +577,7 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
  if [[ ! ${identifier} == \#* ]]; then
 
-    if [[ ${identifier} == "T1w" ]]; then 
+    if [[ ${identifier} == "T1w" ]] && [[ ${task} == "" ]]; then 
         
         kul_find_relevant_dicom_file
 
@@ -587,6 +588,26 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
             sub_bids_T1='{"dataType": "anat", "suffix": "T1w", "criteria": { "in": 
             { "SeriesDescription": "'${search_string}'", "ImageType": "ORIGINAL"}}}'
+
+            sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
+
+        fi
+
+    fi
+
+        if [[ ${identifier} == "T1w" ]] && [[ ! ${task} == "" ]]; then 
+        
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids_T1='{"dataType": "anat", "suffix": "T1w", "criteria": { "in": 
+            { "SeriesDescription": "'${search_string}'", "ImageType": "ORIGINAL"}},
+            "customHeader": {"KUL_dcm2bids": "yes","TaskName": "'${task}'"'
+            }'
 
             sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
 
