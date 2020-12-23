@@ -595,7 +595,7 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
     fi
 
-        if [[ ${identifier} == "T1w" ]] && [[ ! ${task} == "" ]]; then 
+    if [[ ${identifier} == "cT1w" ]] && [[ ! ${task} == "" ]]; then 
         
         kul_find_relevant_dicom_file
 
@@ -606,7 +606,7 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
             sub_bids_T1='{"dataType": "anat", "suffix": "T1w", "criteria": { "in": 
             { "SeriesDescription": "'${search_string}'", "ImageType": "ORIGINAL"}},
-            "customHeader": {"KUL_dcm2bids": "yes","TaskName": "'${task}'"'
+            "customHeader": {"KUL_dcm2bids": "yes","TaskName": "'${task}'"
             }'
 
             sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
@@ -1073,6 +1073,7 @@ eval ${cleanup}
 
 # Fix BIDS validation
 echo "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
-sed -i 's/"Funding": ""/"Funding": [""]/' ${bids_output}/dataset_description.json
+sed -i.bck 's/"Funding": ""/"Funding": [""]/' ${bids_output}/dataset_description.json
+rm ${bids_output}/dataset_description.json.bck
 
 kul_e2cl "Finished $script" $log
