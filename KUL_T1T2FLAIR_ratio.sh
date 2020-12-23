@@ -112,26 +112,20 @@ if [ $silent -eq 1 ] ; then
 fi
 
 # --- FUNCTIONS ---
- 
 
-# Function to do biascorrection
-function KUL_ants_biascorrect {
-N4BiasFieldCorrection --verbose $ants_verbose \
+# Function to do step 1
+function KUL_reorient_crop_hdbet_biascorrect_iso {
+    fslreorient2std $input $outputdir/compute/${output}_std
+    mrgrid $outputdir/compute/${output}_std.nii.gz crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 \
+            $outputdir/compute/${output}_std_cropped.nii.gz
+    hd-bet -i $outputdir/compute/${output}_std_cropped.nii.gz -o $outputdir/compute/${output}_std_cropped_brain.nii.gz
+    bias_input=$outputdir/compute/${output}_std_cropped_brain.nii.gz
+    bias_output=$outputdir/compute/${output}_std_cropped_brain_biascorrected.nii.gz
+    N4BiasFieldCorrection --verbose $ants_verbose \
     -d 3 \
     -i $bias_input \
     -o $bias_output
-}
-
-# Function to do step 1
-function KUL_reorient_crop_hdbet_biascorrect {
-    fslreorient2std $input $outputdir/compute/std_$output
-    mrgrid $outputdir/compute/std_$output crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 \
-            $outputdir/compute/cropped_std_$output
-    hd-bet -i $outputdir/compute/cropped_std_$output -o $outputdir/compute/brain_cropped_std_$output
-    bias_input=$outputdir/compute/brain_cropped_std_$output
-    bias_output=$outputdir/compute/biascorrected_brain_cropped_std_$output
-    iso_output=$outputdir/compute/iso_biascorrected_brain_cropped_std_$output
-    KUL_ants_biascorrect
+    iso_output=$outputdir/compute/${output}_std_cropped_brain_biascorrected_iso.nii.gz
     mrgrid $bias_output regrid -voxel 1 $iso_output
 }
 
@@ -195,29 +189,32 @@ for test_T1w in ${T1w[@]}; do
         # for the T1w
         input=$test_T1w
         output=${test_T1w##*/}
+        output=${output%%.*}
         crop_x=24
         crop_z=48
-        KUL_reorient_crop_hdbet_biascorrect
+        KUL_reorient_crop_hdbet_biascorrect_iso
 
         if [ $t2 -eq 1 ];then
             input=$test_T2w
             output=${test_T2w##*/}
+            output=${output%%.*}
             crop_x=0
             crop_z=0
-            KUL_reorient_crop_hdbet_biascorrect
+            KUL_reorient_crop_hdbet_biascorrect_iso
 
             base0=${test_T1w##*/}
             base=${base0%_T1w*}
             ants_type="rigid_T2w_reg2t1"
-            newname="1iso_biascorrected_brain_cropped_std_${base}_T2w_reg2T1w.nii.gz"
-            ants_template="iso_biascorrected_brain_cropped_std_${base}_T1w.nii.gz"
-            ants_source="iso_biascorrected_brain_cropped_std_${base}_T2w.nii.gz"
+            ants_template="${output}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
+            ants_source="${output}_T2w_std_cropped_brain_biascorrected_iso.nii.gz"
+            newname="${output}_T2w_std_cropped_brain_biascorrected_iso_reg2T1w.nii.gz"
             KUL_rigid_register
 
             mrcalc $outputdir/compute/$ants_template $outputdir/compute/$newname -divide  $outputdir/${base}-T1T2ratio.nii.gz
 
         fi
 
+        flair=0
         if [ $flair -eq 1 ];then
             input=$test_FLAIR
             output=${test_FLAIR##*/}
