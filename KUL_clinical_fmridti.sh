@@ -131,7 +131,7 @@ function KUL_convert2bids {
 function KUL_run_fmriprep {
     if [ ! -f fmriprep/sub-${participant}.html ]; then
         cp study_config/run_fmriprep.txt KUL_LOG/sub-${participant}_run_fmriprep.txt
-        sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/${participant}_run_fmriprep.txt
+        sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_fmriprep.txt
         KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_fmriprep.txt 
         rm -fr fmriprep_work_${participant}
     else
@@ -142,7 +142,7 @@ function KUL_run_fmriprep {
 function KUL_run_freesurfer {
     if [ ! -f freesurfer/sub-${participant}.done ]; then
         cp study_config/run_freesurfer.txt KUL_LOG/sub-${participant}_run_freesurfer.txt
-        sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/${participant}_run_fmriprep.txt
+        sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_freesurfer.txt
         KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_freesurfer.txt 
     else
         echo "freesurfer already done"
@@ -186,16 +186,13 @@ fslmaths flair_reg.nii.gz -mas t1_bet_mask.nii.gz FLAIR_reorient_reg_bet.nii.gz 
 wait
 }
 
-{
+
 # --- MAIN ---
 
 KUL_convert2bids
 KUL_run_fmriprep &
 KUL_run_freesurfer &
 wait
-
-
-
 
 # run SPM12
 # define functions
@@ -260,7 +257,7 @@ gunzip $globalresultsdir/T1w.nii.gz
 if [ ! -f KUL_LOG/${participant}_SPM.done ]; then
     echo "Preparing for SPM"
     tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f -printf '%P\n') )
-    #echo ${tasks[@]}
+    echo ${tasks[@]}
 
     # we loop over the found tasks
     for task in ${tasks[@]}; do
