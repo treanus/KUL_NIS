@@ -289,7 +289,6 @@ else
     echo "SPM analysis already done"
 fi
 
-exit
 
 # run FSL Melodic
 computedir="$cwd/compute/FSL/melodic/sub-$participant"
