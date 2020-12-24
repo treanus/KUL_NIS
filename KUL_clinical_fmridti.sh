@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Bash shell script to analyse clinical fMRI/DTI
 #
 # Requires matlab fmriprep
@@ -216,18 +216,22 @@ function KUL_compute_SPM {
     result=$computedir/RESULTS/MNI/${shorttask}_space-MNI152NLin6Asym.nii
     cp $fmriresults/spmT_0001.nii $result
             
-    result_global=$cwd/RESULTS/sub-$participant/SPM_${shorttask}_space-native.nii
+    result_global=$cwd/RESULTS/sub-$participant/SPM_${shorttask}.nii
             
     # since SPM analysis was in MNI space, we transform back in native space
     input=$result
     output=$result_global
     transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
     reference=$result
+    #echo "input=$input"
+    #echo "output=$output"
+    #echo "transform=$transform"
+    #echo "reference=$reference"
     KUL_antsApply_Transform
 
     gm_mask="$fmriprepdir/../anat/sub-${participant}_label-GM_probseg.nii.gz"
     gm_mask2=$computedir/RESULTS/gm_mask_${shorttask}.nii.gz
-    gm_result_global=$cwd/RESULTS/sub-$participant/SPM_${shorttask}_space-native_gm.nii
+    gm_result_global=$cwd/RESULTS/sub-$participant/SPM_${shorttask}_gm.nii
     mrgrid $gm_mask regrid -template $result_global $gm_mask2
     mrcalc $result_global $gm_mask2 0.3 -gt -mul $gm_result_global
 
@@ -251,12 +255,12 @@ mkdir -p $computedir/RESULTS/MNI
 mkdir -p $globalresultsdir
 
 # Provide the anatomy
-cp $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/T1w.nii.gz
-gunzip $globalresultsdir/T1w.nii.gz
+cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/T1w.nii.gz
+gunzip -f $globalresultsdir/T1w.nii.gz
 
 if [ ! -f KUL_LOG/${participant}_SPM.done ]; then
     echo "Preparing for SPM"
-    tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f -printf '%P\n') )
+    tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
     echo ${tasks[@]}
 
     # we loop over the found tasks
