@@ -46,30 +46,47 @@ Usage:
   Depends on a config file that defines parameters with sequence information, e.g.
 
   For Philips dicom we need to manually specify the mb and pe_dir:
-  Identifier,search-string,fmritask/contrastT1w,mb,pe_dir
-  T1w,MPRAGE
-  T1w,3DTFE_POST,1
-  FLAIR,FLAIR
-  func,rsfMRI,rest,8,j
-  func,tb_fMRI,nback,2,j
-  func,tb_fMRI,hands,2,j
-  dwi,part1,-,2,j
-  dwi,part2,-,2,j-
-  sbref,MB2_sref,nback hands,1,j
+  Identifier,search-string,fmritask/contrastT1w,mb,pe_dir,acq_label
+    T1w,T1_PRE
+    cT1w,T1_Post
+    FLAIR,3D_FLAIR
+    T2w,3D_T2
+    SWI,SWI
+    func,rsfMRI_MB6,rest,6,j,singleTE
+    sbref,rsfMRI_SBREF,rest,1,j,singleTE
+    func,MB_mTE,rest,4,j,multiTE
+    sbref,mTE_SBREF,rest,4,j,multiTE
+    func,MB2_hand,HAND,2,j
+    func,MB2_lip,LIP,2,j
+    func,MB2_nback,nback,2,j
+    sbref,MB2_SBREF,HAND nback,1,j
+    dwi,p1_b1200,-,3,j-,b1200
+    dwi,p2_b0,-,3,j-,b0
+    dwi,p3_b2500,-,3,j-,b2500
+    dwi,p4_b2500,-,3,j,rev
 
-  explains that the T1w scan should be found by the search string "MPRAGE"
-  func by rsfMRI, and has multiband_factor 8, and pe_dir = j
+  explains that the T1w scan should be found by the search string "T1_PRE"
+  func by rsfMRI, and has multiband_factor 6, and pe_dir = j
   the sbref will be used for the tb_fMRI for both tasks (hands and nback)
   
   For Siemens dicom it can be as simple as:
-  T1w,MPRAGE
-  FLAIR,FLAIR
-  func,rsfMRI,rest,-,-
-  func,tb_fMRI,nback,-,-
-  func,tb_fMRI,hands,-,-
-  dwi,part1,-,-,-
-  dwi,part2,-,-,-
-  sbref,MB2_sref,nback hands,-,-
+    T1w,T1_PRE
+    cT1w,T1_Post
+    FLAIR,3D_FLAIR
+    T2w,3D_T2
+    SWI,SWI
+    func,rsfMRI_MB6,rest,-,-,singleTE
+    sbref,rsfMRI_SBREF,rest,-,-,singleTE
+    func,MB_mTE,rest,-,-,multiTE
+    sbref,mTE_SBREF,rest,-,-,multiTE
+    func,MB2_hand,HAND,-,-
+    func,MB2_lip,LIP,-,-
+    func,MB2_nback,nback,-,-
+    sbref,MB2_SBREF,HAND nback,-,-
+    dwi,p1_b1200,-,-,-,b1200
+    dwi,p2_b0,-,-,-,b0
+    dwi,p3_b2500,-,-,-,b2500
+    dwi,p4_b2500,-,-,-,rev
 
 Example:
 
@@ -588,7 +605,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_T1='{"dataType": "anat", "modalityLabel": "T1w", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*", "ImageType": "*ORIGINAL*"}}'
+             "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
 
@@ -722,10 +739,21 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
+            # remove any whitespaces
+            task_nospace="$(echo -e "${task}" | tr -d '[:space:]')"
+
             sub_bids_fu1='{"dataType": "func","modalityLabel": 
             "bold","criteria": {"SeriesDescription": "*'${search_string}'*"},
-            "customLabels": "task-'${task}'",
-            "sidecarChanges": {"KUL_dcm2bids": "yes","TaskName": "'${task}'"'
+            "customLabels": "task-'${task_nospace}''
+
+            # add an acq_label if any
+            if [ "$acq_label" = "" ];then
+                sub_bids_fu1b='"',
+            else
+                sub_bids_fu1b='_acq-'${acq_label}'",'
+            fi
+
+            sub_bids_fu1c='"sidecarChanges": {"KUL_dcm2bids": "yes","TaskName": "'${task}'"'
 
             # for siemens (& ge?) ess/trt is not necessary as sidecarChanges
             # also not for philips, when it cannot be calculated
@@ -774,7 +802,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
             fi
 
-            sub_bids_[$bs]=$(echo ${sub_bids_fu1}${sub_bids_fu2}${sub_bids_fu3} | python -m json.tool)
+            sub_bids_[$bs]=$(echo ${sub_bids_fu1}${sub_bids_fu1b}${sub_bids_fu1c}${sub_bids_fu2}${sub_bids_fu3} | python -m json.tool)
 
         fi
 
@@ -794,11 +822,19 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             sbref_tasks=($task)
             n_sbref_tasks=${#sbref_tasks[@]}
             sbref_task1=${sbref_tasks[0]}
-            echo $sbref_task1
-            sub_bids_fu1='{"dataType": "func","modalityLabel": 
+            #echo $sbref_task1
+
+            sub_bids_sb1='{"dataType": "func","modalityLabel": 
             "sbref","criteria": {"SeriesDescription": "*'${search_string}'*"}, 
-            "customLabels": "task-'${sbref_task1}'",
-            "sidecarChanges": {"KUL_dcm2bids": "yes","TaskName": "'${sbref_task1}'"'
+            "customLabels": "task-'${sbref_task1}''
+            
+            if [ "$acq_label" = "" ];then
+                sub_bids_sb1b='"',
+            else
+                sub_bids_sb1b='_acq-'${acq_label}'",'
+            fi
+            
+            sub_bids_sb1c='"sidecarChanges": {"KUL_dcm2bids": "yes","TaskName": "'${sbref_task1}'"'
 
             # for siemens (& ge?) ess/trt is not necessary as sidecarChanges
             # also not for philips, when it cannot be calculated
@@ -812,13 +848,13 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
                     kul_e2cl "   It's NOT original dicom data (anonymised?): ees/trt could not be calculated" $log
                 fi
             
-                sub_bids_fu2=""
+                sub_bids_sb2=""
 
             else
 
                 kul_e2cl "   It's a PHILIPS, ees/trt are were calculated" $log
 
-                sub_bids_fu2=',"EffectiveEchoSpacing": '${ees_sec}',"TotalReadoutTime":
+                sub_bids_sb2=',"EffectiveEchoSpacing": '${ees_sec}',"TotalReadoutTime":
                 '${trt_sec}',"MultibandAccelerationFactor": '${mb}',"PhaseEncodingDirection": "'${pe_dir}'"'
                 
                     
@@ -836,18 +872,18 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
                     kul_e2cl "   It's NOT original dicom data (anonymised?): slicetiming could not be calculated" $log
                 fi
 
-                sub_bids_fu3='}}'
+                sub_bids_sb3='}}'
 
             else
 
                 kul_e2cl "   It's a PHILIPS, slicetiming was calculated" $log
 
-                sub_bids_fu3=',"SliceTiming": '${slice_time}'}}'
+                sub_bids_sb3=',"SliceTiming": '${slice_time}'}}'
             
 
             fi
 
-            sub_bids_[$bs]=$(echo ${sub_bids_fu1}${sub_bids_fu2}${sub_bids_fu3} | python -m json.tool)
+            sub_bids_[$bs]=$(echo ${sub_bids_sb1}${sub_bids_sb1b}${sub_bids_sb1c}${sub_bids_sb2}${sub_bids_sb3} | python -m json.tool)
 
         fi
 
@@ -973,6 +1009,7 @@ if [ ! -d BIDS ];then
     cd BIDS
     dcm2bids_scaffold
     echo "tmp_dcm2bids/*" > .bidsignore
+    echo "*/anat/*SWI*" >> .bidsignore
     cd ..
 fi
 
@@ -986,8 +1023,7 @@ dcm2bids  -d "${tmp}" -p $subj $dcm2bids_session -c $bids_config_json_file \
     -o $bids_output -l DEBUG --clobber > $dcm2niix_log_file
 
 
-
-
+# Multi Echo func needs extra work. dcm2bids does not convert these correctly. "run" needs to be "echo"
 
 if [[ ${sess} = "" ]] ; then 
     ses_long=""
@@ -998,30 +1034,31 @@ fi
 me_file=($(grep EchoNumber ${bids_output}/sub-${subj}${ses_long}/func/*.json 2> /dev/null | awk -F ':' '{print $1}'))
 me_echo=($(grep EchoNumber ${bids_output}/sub-${subj}${ses_long}/func/*.json 2> /dev/null | awk -F ':' '{print $3}' | cut -c 2 )) 
 
-    if [[ ${me_file} = "" ]] ; then 
+if [[ ${me_file} = "" ]] ; then 
 
-        echo " No Multiecho fMRI data found "
+    echo " No Multiecho fMRI data found "
 
-    else
+else
 
-        echo " Multiecho fMRI data found "
-        n_multi_echo=${#me_echo[@]}
+    echo " Multiecho fMRI data found "
 
-        for echo_number in $(seq 0 $(($n_multi_echo-1)) ) ; do 
+    n_multi_echo=${#me_echo[@]}
 
-            me_file_before_run=$(echo ${me_file[$echo_number]} | awk -F '_run-' '{print $1}')
-            me_file_after_run=$(echo ${me_file[$echo_number]} | awk -F '_run-' '{print $2}')
-            me_file_after_run=${me_file_after_run:2}
-            cmd_json="mv ${me_file[$echo_number]} ${me_file_before_run}_echo-${me_echo[$echo_number]}${me_file_after_run}"
-            cmd_nii=$(echo $cmd_json | perl -p -e 's/json/nii.gz/g')
+    for echo_number in $(seq 0 $(($n_multi_echo-1)) ) ; do 
 
-            eval $cmd_json
-            eval $cmd_nii
+        me_file_before_run=$(echo ${me_file[$echo_number]} | awk -F '_run-' '{print $1}')
+        me_file_after_run=$(echo ${me_file[$echo_number]} | awk -F '_run-' '{print $2}')
+        me_file_after_run=${me_file_after_run:2}
+        cmd_json="mv ${me_file[$echo_number]} ${me_file_before_run}_echo-${me_echo[$echo_number]}${me_file_after_run}"
+        cmd_nii=$(echo $cmd_json | perl -p -e 's/json/nii.gz/g')
 
-        done
+        eval $cmd_json
+        eval $cmd_nii
+
+    done
 
 
-    fi
+fi
 
 
 # Update the Intended For of the fmaps

@@ -149,6 +149,47 @@ function KUL_run_freesurfer {
     fi
 }
 
+function KUL_compute_SPM {
+    fmriresults="$computedir/RESULTS/stats_$shorttask"
+    mkdir -p $fmriresults
+    pcf="${scriptsdir}/stats_${shorttask}.m" #participant config file
+    pjf="${scriptsdir}/stats_${shorttask}_job.m" #participant job file
+    # get rid of - in filename, since this breaks -r in matlab
+    pcf=${pcf/run-/run}
+    pjf=${pjf/run-/run}
+    #echo "$pcf -- $pjf"
+    cp $tcf $pcf
+    cp $tjf $pjf
+    sed -i.bck "s|###JOBFILE###|$pjf|" $pcf
+    sed -i.bck "s|###FMRIDIR###|$fmridatadir|" $pjf
+    sed -i.bck "s|###FMRIFILE###|$fmrifile|" $pjf
+    sed -i.bck "s|###FMRIRESULTS###|$fmriresults|" $pjf
+    $matlab_exe -nodisplay -nosplash -nodesktop -r "run('$pcf');exit;"
+            
+    result=$computedir/RESULTS/MNI/${shorttask}_space-MNI152NLin6Asym.nii
+    cp $fmriresults/spmT_0001.nii $result
+            
+    result_global=$cwd/RESULTS/sub-$participant/SPM_${shorttask}.nii
+            
+    # since SPM analysis was in MNI space, we transform back in native space
+    input=$result
+    output=$result_global
+    transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
+    reference=$result
+    #echo "input=$input"
+    #echo "output=$output"
+    #echo "transform=$transform"
+    #echo "reference=$reference"
+    KUL_antsApply_Transform
+
+    gm_mask="$fmriprepdir/../anat/sub-${participant}_label-GM_probseg.nii.gz"
+    gm_mask2=$computedir/RESULTS/gm_mask_${shorttask}.nii.gz
+    gm_result_global=$cwd/RESULTS/sub-$participant/SPM_${shorttask}_gm.nii
+    mrgrid $gm_mask regrid -template $result_global $gm_mask2
+    mrcalc $result_global $gm_mask2 0.3 -gt -mul $gm_result_global
+
+} 
+
 function KUL_segment_tumor {
 cd /DATA/HD/HD
 
@@ -189,59 +230,31 @@ wait
 
 # --- MAIN ---
 
+# STEP 1 - BIDS conversion
 KUL_convert2bids
+
+# STEP 2 - CHECK BIDS DATA
+# check if all T1w, T2w, FLAIR and cT1w exist
+bidsdir="BIDS/sub-$participant"
+T1w=($(find $bidsdir -name "*T1w.nii.gz" -type f ))
+nT1w=${#T1w[@]}
+echo "number of non-contrast T1w: $nT1w"
+
+exit
+
 KUL_run_fmriprep &
 KUL_run_freesurfer &
 wait
 
 # run SPM12
 # define functions
-function KUL_compute_SPM {
-    fmriresults="$computedir/RESULTS/stats_$shorttask"
-    mkdir -p $fmriresults
-    pcf="${scriptsdir}/stats_${shorttask}.m" #participant config file
-    pjf="${scriptsdir}/stats_${shorttask}_job.m" #participant job file
-    # get rid of - in filename, since this breaks -r in matlab
-    pcf=${pcf/run-/run}
-    pjf=${pjf/run-/run}
-    #echo "$pcf -- $pjf"
-    cp $tcf $pcf
-    cp $tjf $pjf
-    sed -i.bck "s|###JOBFILE###|$pjf|" $pcf
-    sed -i.bck "s|###FMRIDIR###|$fmridatadir|" $pjf
-    sed -i.bck "s|###FMRIFILE###|$fmrifile|" $pjf
-    sed -i.bck "s|###FMRIRESULTS###|$fmriresults|" $pjf
-    $matlab_exe -nodisplay -nosplash -nodesktop -r "run('$pcf');exit;"
-            
-    result=$computedir/RESULTS/MNI/${shorttask}_space-MNI152NLin6Asym.nii
-    cp $fmriresults/spmT_0001.nii $result
-            
-    result_global=$cwd/RESULTS/sub-$participant/SPM_${shorttask}.nii
-            
-    # since SPM analysis was in MNI space, we transform back in native space
-    input=$result
-    output=$result_global
-    transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
-    reference=$result
-    #echo "input=$input"
-    #echo "output=$output"
-    #echo "transform=$transform"
-    #echo "reference=$reference"
-    KUL_antsApply_Transform
-
-    gm_mask="$fmriprepdir/../anat/sub-${participant}_label-GM_probseg.nii.gz"
-    gm_mask2=$computedir/RESULTS/gm_mask_${shorttask}.nii.gz
-    gm_result_global=$cwd/RESULTS/sub-$participant/SPM_${shorttask}_gm.nii
-    mrgrid $gm_mask regrid -template $result_global $gm_mask2
-    mrcalc $result_global $gm_mask2 0.3 -gt -mul $gm_result_global
-
-}            
+           
 
 #  setup variables
 computedir="$cwd/compute/SPM/sub-$participant"
 fmridatadir="$computedir/fmridata"
 scriptsdir="$computedir/scripts"
-fmriprepdir="fmriprep/sub-$participant/func"
+
 globalresultsdir=$cwd/RESULTS/sub-$participant
 searchtask="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
 matlab_exe=$(which matlab)
