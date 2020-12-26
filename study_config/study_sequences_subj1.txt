@@ -1,7 +1,0 @@
-Identifier,search-string,task,mb,pe_dir
-T1w,MPRAGE
-FLAIR,FLAIR
-func,rsfMRI,rest,8,j
-func,tb_fMRI,nback,2,j
-dwi,part1,-,2,j
-dwi,part2,-,2,j-

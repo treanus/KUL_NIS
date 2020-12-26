@@ -1,0 +1,18 @@
+#Identifier,search-string,task,mb,pe_dir,acq_label
+T1w,T1_PRE
+cT1w,T1_Post
+FLAIR,3D_FLAIR
+T2w,3D_T2
+SWI,SWI
+func,rsfMRI_MB6,rest,6,j,singleTE
+sbref,rsfMRI_SBREF,rest,1,j,singleTE
+func,MB_mTE,rest,4,j,multiTE
+sbref,mTE_SBREF,rest,4,j,multiTE
+func,MB2_hand,HAND,2,j
+func,MB2_lip,LIP,2,j
+func,MB2_taal,TAAL,2,j
+sbref,MB2_SBREF,HAND LIP TAAL,1,j
+dwi,p1_b1200,-,3,j-,b1200
+dwi,p2_b0,-,3,j-,b0
+dwi,p3_b2500,-,3,j-,b2500
+dwi,p4_b2500,-,3,j,rev
