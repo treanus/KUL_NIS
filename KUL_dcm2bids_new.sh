@@ -104,6 +104,7 @@ Optional arguments:
      -s:  session (for longitudinal study with multiple timepoints)
      -t:  temporary directory (default = /tmp)
      -e:  copy task-*_events.tsv from config to BIDS dir
+     -a:  further anonymise the subject by using pydeface (takes much longer)
      -v:  verbose 
 
 USAGE
@@ -112,18 +113,27 @@ USAGE
 }
 
 # check if jsontool is installed and install it if not
-
 if [[ $(which jsontool) ]]; then
 
-    echo "jsontool already installed, good" $log
+    echo "  jsontool already installed, good" $log
 
 else
 
-    echo "jsontool not installed, installing it with pip using pip install jsontool" $log
+    echo "  jsontool not installed, installing it with pip using pip install jsontool" $log
     pip install jsontool
 
 fi
+# check if pydeface is installed and install it if not
+if [[ $(which pydeface) ]]; then
 
+    echo "  pydeface already installed, good" $log
+
+else
+
+    echo "  pydeface not installed, installing it with pip using pip install jsontool" $log
+    pip install pydeface
+
+fi
 
 
 # --- function kul_dcmtags (for reading specific parameters from dicom header & calculating missing BIDS parameters) ---
@@ -386,6 +396,8 @@ bids_flag=0
 tmp_flag=0
 events_flag=0
 n_sbref_tasks=0
+silent=1
+anon=0
 
 if [ "$#" -lt 4 ]; then
     Usage >&2
@@ -393,7 +405,7 @@ if [ "$#" -lt 4 ]; then
 
 else
 
-    while getopts "c:d:p:o:s:t:veh" OPT; do
+    while getopts "c:d:p:o:s:t:aveh" OPT; do
 
         case $OPT in
         d) #dicom_zip_file
@@ -415,6 +427,9 @@ else
         s) #session
             sess_flag=1
             sess=$OPTARG
+        ;;
+        a) #pydeface
+            anon=1
         ;;
         v) #verbose
             silent=0
@@ -992,13 +1007,17 @@ for bf in ${!sub_bids_[@]}; do
 
 done
 
-# echo ${bids_conf} >> ${bids_config_json_file}
-
-#echo "{\"descriptions\":[ ${bids_conf} ] }"
-
-bids_conf_str="{\"descriptions\":[ ${bids_conf} ] }"
-
-echo ${bids_conf_str} >> ${bids_config_json_file}
+# WRITE THE .JSON FILE USED BY dcm2bids
+# Note: we also set dcm2niix options here and set pydeface
+json_anon=""
+if [ $anon -eq 1 ]; then
+    $json_anon='"defaceTpl": "pydeface --outfile {dstFile} {srcFile}",'
+fi
+bids_conf_str="{${json_anon}
+ \"dcm2niixOptions\": \"-b y -ba y -z y -i y -f '%3s_%f_%p_%t'\",
+ \"descriptions\":[ ${bids_conf} ] }"
+#echo ${bids_conf_str}
+echo ${bids_conf_str} | python -m json.tool > ${bids_config_json_file}
 
 
 # MAIN HERE - WE RUN dcm2bids - HERE
@@ -1148,5 +1167,9 @@ eval ${cleanup}
 echo "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
 sed -i.bck 's/"Funding": ""/"Funding": [""]/' ${bids_output}/dataset_description.json
 rm ${bids_output}/dataset_description.json.bck
+
+# Run BIDS validation
+docker run -ti --rm -v ${cwd}/${bids_output}:/data:ro bids/validator /data
+
 
 kul_e2cl "Finished $script" $log
