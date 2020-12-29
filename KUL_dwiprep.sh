@@ -379,9 +379,9 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 		# find T1
 		bids_T1_search="$cwd/$bids_subj/anat/sub-*_T1w.nii.gz"
 		#echo $bids_T1_search
-		bids_T1_found=$(ls $bids_T1_search)
-		number_of_bids_T1_found=$(echo $bids_T1_found | wc -w)
-		if [ $number_of_bids_T1_found -lt 1 ]; then
+		bids_T1_found=($(ls $bids_T1_search))
+		number_of_bids_T1_found=${#bids_T1_found[@]}
+		if [ $number_of_bids_T1_found -gt 1 ]; then
 			kul_e2cl "   more than 1 T1 dataset, using first only for Synb0-disco" ${preproc}/${log}
 		fi
 		#echo $bids_T1_found
@@ -508,32 +508,42 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 						-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 				fi
 			else
-				kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -synb0_disco_T1 $Synb0_T1 -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+				kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif \
+				 -synb0_disco_T1 "$Synb0_T1" \
+				 -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 			fi
 		fi
 
 	else
 
-		if [ $synb0 -eq 0 ]; then
+		if [ $synb0 -eq 1 ]; then
 			echo "EXPERIMENTAL: Not tested well; contact Stefan to fix scipt KUL_dwiprep.sh synb0=1 case, but regular_dwiprproc=0, lines 485 on"
-			kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -synb0_disco_T1 $Synb0_T1 -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-		fi
-
-		# concat all b0 with different pe_schemes
-		mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force
-
-		#echo $rev_only_topup
-
-		if [ $rev_only_topup -eq 0 ]; then
-
-			dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
-			-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-
+			kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif \
+			 -synb0_disco_T1 "$Synb0_T1" \
+			 -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+		
+		
+		
 		else
 
-			dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_pair \
-			-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+			# concat all b0 with different pe_schemes
+			mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force
+
+			echo $rev_only_topup
+
+			if [ $rev_only_topup -eq 0 ]; then
+
+				dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
+				-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+
+			else
+
+				dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_pair \
+				-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+			fi
+
 		fi
+
 	fi
 
 	if [ $mrtrix3new -eq 0 ]; then
