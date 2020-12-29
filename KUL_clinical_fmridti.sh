@@ -230,6 +230,7 @@ wait
 
 # --- MAIN ---
 hdglio=1
+vbg=1
 
 # STEP 1 - BIDS conversion
 KUL_convert2bids
@@ -256,17 +257,17 @@ mkdir -p $globalresultsdir
 
 # STEP 3 - run HD-GLIO-AUTO
 # this will segment the lesion automatically
-chd="compute/hdglio/input"
+hdgliodir="compute/hdglio/input"
 if [ $hdglio -eq 1 ]; then
 
     if [ $nT1w -eq 1 ] && [ $ncT1w -eq 1 ] && [ $nFLAIR -eq 1 ] && [ $nT2w -eq 1 ];then
-        mkdir -p $chd
+        mkdir -p $hdgliodir
         mkdir -p compute/hdglio/output
         if [ ! -f "compute/hdglio/output/volumes.txt" ]; then
-            cp $T1w $chd/T1.nii.gz
-            cp $cT1w $chd/CT1.nii.gz
-            cp $FLAIR $chd/FLAIR.nii.gz
-            cp $T2w $chd/T2.nii.gz
+            cp $T1w $hdgliodir/T1.nii.gz
+            cp $cT1w $hdgliodir/CT1.nii.gz
+            cp $FLAIR $hdgliodir/FLAIR.nii.gz
+            cp $T2w $hdgliodir/T2.nii.gz
             echo "Running HD-GLIO-AUTO using docker"
             docker run --gpus all --mount type=bind,source=${cwd}/compute/hdglio/input,target=/input \
              --mount type=bind,source=${cwd}/compute/hdglio/output,target=/output \
@@ -280,7 +281,14 @@ if [ $hdglio -eq 1 ]; then
     fi 
 fi
 
+# STEP 4 - run VBG
+# this will fill the lesion automatically
+vbgdir="compute/VBG"
+if [ $vbg -eq 1 ]; then
 
+    KUL_VBG.sh -p $participant -l $globalresultsdir/lesion.nii -z T1 -b -B 1 -t -F -n 12 -v
+
+fi
 
 exit
 
