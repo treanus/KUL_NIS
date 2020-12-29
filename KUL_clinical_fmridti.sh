@@ -229,6 +229,7 @@ wait
 
 
 # --- MAIN ---
+hdglio=1
 
 # STEP 1 - BIDS conversion
 KUL_convert2bids
@@ -236,9 +237,50 @@ KUL_convert2bids
 # STEP 2 - CHECK BIDS DATA
 # check if all T1w, T2w, FLAIR and cT1w exist
 bidsdir="BIDS/sub-$participant"
-T1w=($(find $bidsdir -name "*T1w.nii.gz" -type f ))
+T1w=($(find $bidsdir -name "*T1w.nii.gz" ! -name "*gadolinium*" -type f ))
 nT1w=${#T1w[@]}
 echo "number of non-contrast T1w: $nT1w"
+cT1w=($(find $bidsdir -name "*T1w.nii.gz" -name "*gadolinium*" -type f ))
+ncT1w=${#cT1w[@]}
+echo "number of contrast enhanced T1w: $ncT1w"
+FLAIR=($(find $bidsdir -name "*FLAIR.nii.gz" -type f ))
+nFLAIR=${#FLAIR[@]}
+echo "number of FLAIR: $nFLAIR"
+T2w=($(find $bidsdir -name "*T2w.nii.gz" -type f ))
+nT2w=${#T2w[@]}
+echo "number of T2w: $nT2w"
+
+globalresultsdir=$cwd/RESULTS/sub-$participant
+mkdir -p $globalresultsdir
+
+
+# STEP 3 - run HD-GLIO-AUTO
+# this will segment the lesion automatically
+chd="compute/hdglio/input"
+if [ $hdglio -eq 1 ]; then
+
+    if [ $nT1w -eq 1 ] && [ $ncT1w -eq 1 ] && [ $nFLAIR -eq 1 ] && [ $nT2w -eq 1 ];then
+        mkdir -p $chd
+        mkdir -p compute/hdglio/output
+        if [ ! -f "compute/hdglio/output/volumes.txt" ]; then
+            cp $T1w $chd/T1.nii.gz
+            cp $cT1w $chd/CT1.nii.gz
+            cp $FLAIR $chd/FLAIR.nii.gz
+            cp $T2w $chd/T2.nii.gz
+            echo "Running HD-GLIO-AUTO using docker"
+            docker run --gpus all --mount type=bind,source=${cwd}/compute/hdglio/input,target=/input \
+             --mount type=bind,source=${cwd}/compute/hdglio/output,target=/output \
+             jenspetersen/hd-glio-auto
+            mrcalc compute/hdglio/output/segmentation.nii.gz 1 -ge $globalresultsdir/lesion.nii.gz
+        else
+            echo "HD-GLIO-AUTO already done"
+        fi
+    else
+        echo "Not possible to run HD-GLIO-AUTO"
+    fi 
+fi
+
+
 
 exit
 
@@ -255,7 +297,7 @@ computedir="$cwd/compute/SPM/sub-$participant"
 fmridatadir="$computedir/fmridata"
 scriptsdir="$computedir/scripts"
 
-globalresultsdir=$cwd/RESULTS/sub-$participant
+
 searchtask="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
 matlab_exe=$(which matlab)
 #  the template files in KNT for SPM analysis
@@ -265,7 +307,7 @@ tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run_job.m" #template job file
 mkdir -p $fmridatadir
 mkdir -p $scriptsdir
 mkdir -p $computedir/RESULTS/MNI
-mkdir -p $globalresultsdir
+
 
 # Provide the anatomy
 cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/T1w.nii.gz

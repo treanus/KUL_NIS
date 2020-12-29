@@ -281,7 +281,7 @@ if [ $fmriprep_singularity -eq 1 ]; then
 else
 
     #local task_fmriprep_cmd=$(echo "docker run -u $(id -u):$(id -g) --rm \
-    local task_fmriprep_cmd=$(echo "docker run --rm \
+    local task_fmriprep_cmd=$(echo "docker run --rm -u $(id -u) \
  -v ${cwd}/${bids_dir}:/data \
  -v ${cwd}:/out \
  -v ${cwd}/fmriprep_work_${fmriprep_log_p}:/scratch \
