@@ -1,0 +1,7 @@
+visual
+sensorimotor
+dorsalattention
+ventralattention
+limbic
+frontoparietal
+default
