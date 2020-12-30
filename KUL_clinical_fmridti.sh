@@ -159,7 +159,7 @@ function KUL_run_freesurfer {
     fi
 }
 
-function KUL_compute_SPM {
+function KUL_compute_SPM_matlab {
     fmriresults="$computedir/RESULTS/stats_$shorttask"
     mkdir -p $fmriresults
     pcf="${scriptsdir}/stats_${shorttask}.m" #participant config file
@@ -199,6 +199,63 @@ function KUL_compute_SPM {
     mrcalc $result_global $gm_mask2 0.3 -gt -mul $gm_result_global
 
 } 
+
+function KUL_compute_SPM {
+    #  setup variables
+    computedir="$cwd/compute/SPM/sub-$participant"
+    fmridatadir="$computedir/fmridata"
+    scriptsdir="$computedir/scripts"
+    fmriprepdir="fmriprep/sub-$participant/func"
+    searchtask="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
+    matlab_exe=$(which matlab)
+    #  the template files in KNT for SPM analysis
+    tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run.m" #template config file
+    tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run_job.m" #template job file
+
+    mkdir -p $fmridatadir
+    mkdir -p $scriptsdir
+    mkdir -p $computedir/RESULTS/MNI
+
+
+    # Provide the anatomy
+    cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/T1w.nii.gz
+    gunzip -f $globalresultsdir/T1w.nii.gz
+
+    if [ ! -f KUL_LOG/${participant}_SPM.done ]; then
+        echo "Preparing for SPM"
+        tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
+        #echo ${tasks[@]}
+
+        # we loop over the found tasks
+        for task in ${tasks[@]}; do
+            d1=${task#*_task-}
+            shorttask=${d1%_space*}
+            #echo "$task -- $shorttask"
+            if [[ ! "$shorttask" = *"rest"* ]]; then
+                echo " Analysing task $shorttask"
+                fmrifile="${shorttask}${searchtask}"
+                cp $fmriprepdir/*$fmrifile.gz $fmridatadir
+                gunzip -f $fmridatadir/*$fmrifile.gz
+                KUL_compute_SPM_matlab
+
+                # do the combined analysis
+                if [[ "$shorttask" == *"run-2" ]]; then
+                    echo "this is run2, we run full analysis now" 
+                    shorttask=${shorttask%_run-2}
+                    #echo $shorttask
+                    tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs.m" #template config file
+                    tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs_job.m" #template job file
+                    fmrifile="${shorttask}"
+                    KUL_compute_SPM_matlab
+                fi
+            
+            fi
+        done
+        echo "Done" > KUL_LOG/${participant}_SPM.done
+    else
+        echo "SPM analysis already done"
+    fi
+}
 
 function KUL_segment_tumor {
     bidsdir="BIDS/sub-$participant"
@@ -261,6 +318,7 @@ function KUL_run_VBG {
 # --- MAIN ---
 hdglio=1
 vbg=1
+ncpu=12
 globalresultsdir=$cwd/RESULTS/sub-$participant
 
 # STEP 1 - BIDS conversion
@@ -283,64 +341,13 @@ fi
 # WAIT FOR ALL TO FINISH
 wait
 
+KUL_compute_SPM &
 
-# run SPM12
-# define functions
-#  setup variables
-computedir="$cwd/compute/SPM/sub-$participant"
-fmridatadir="$computedir/fmridata"
-scriptsdir="$computedir/scripts"
-fmriprepdir="fmriprep/sub-$participant/func"
+KUL_dwiprep_anat.sh -p $participant -n $ncpu
+KUL_dwiprep_fibertract.sh -p $participant -n $ncpu -c study_config/tracto_tracts.csv -r study_config/tracto_rois.csv -w dhollander_wmfod_reg2T1w -v
 
-searchtask="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
-matlab_exe=$(which matlab)
-#  the template files in KNT for SPM analysis
-tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run.m" #template config file
-tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run_job.m" #template job file
+exit
 
-mkdir -p $fmridatadir
-mkdir -p $scriptsdir
-mkdir -p $computedir/RESULTS/MNI
-
-
-# Provide the anatomy
-cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/T1w.nii.gz
-gunzip -f $globalresultsdir/T1w.nii.gz
-
-if [ ! -f KUL_LOG/${participant}_SPM.done ]; then
-    echo "Preparing for SPM"
-    tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
-    echo ${tasks[@]}
-
-    # we loop over the found tasks
-    for task in ${tasks[@]}; do
-        d1=${task#*_task-}
-        shorttask=${d1%_space*}
-        echo "$task -- $shorttask"
-        if [[ ! "$shorttask" = *"rest"* ]]; then
-            echo " Analysing task $shorttask"
-            fmrifile="${shorttask}${searchtask}"
-            cp $fmriprepdir/*$fmrifile.gz $fmridatadir
-            gunzip $fmridatadir/*$fmrifile.gz
-            KUL_compute_SPM
-
-            # do the combined analysis
-            if [[ "$shorttask" == *"run-2" ]]; then
-                echo "this is run2, we run full analysis now" 
-                shorttask=${shorttask%_run-2}
-                #echo $shorttask
-                tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs.m" #template config file
-                tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs_job.m" #template job file
-                fmrifile="${shorttask}"
-                KUL_compute_SPM
-            fi
-            
-        fi
-    done
-    echo "Done" > KUL_LOG/${participant}_SPM.done
-else
-    echo "SPM analysis already done"
-fi
 
 
 # run FSL Melodic
@@ -377,7 +384,8 @@ if [ ! -f KUL_LOG/${participant}_melodic.done ]; then
         t_glm_con="$kul_main_dir/share/FSL/fsl_glm.con"
         t_glm_mat="$kul_main_dir/share/FSL/fsl_glm_${dyn}dyn.mat"        
         #melodic -i Melodic/sub-Croes/fmridata/sub-Croes_task-LIP_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii -o test/ --report --Tdes=glm.mat --Tcon=glm.con
-        melodic -i $melodic_in -o $fmriresults --report --tr=$tr --Tdes=$t_glm_mat --Tcon=$t_glm_con --Oall
+        melodic -i $melodic_in -o $fmriresults --report --tr=$tr --Tdes=$t_glm_mat --Tcon=$t_glm_con
+
     done
     echo "Done" > KUL_LOG/${participant}_melodic.done
 else

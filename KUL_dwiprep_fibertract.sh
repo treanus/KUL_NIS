@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 #  Project PI's: Stefan Sunaert & Bart Nuttin
@@ -109,11 +109,11 @@ function kul_mrtrix_tracto {
 
         #echo ${a}            
         #pwd
-        echo $s
-        echo $i
-        echo $e
-        echo $m
-        echo $parameters
+        #echo $s
+        #echo $i
+        #echo $e
+        #echo $m
+        #echo $parameters
 
         if [ $f_flag -eq 1 ]; then
 
@@ -169,7 +169,7 @@ function kul_mrtrix_tracto {
                 input=${d}/${tract}.nii.gz
                 output=${d}/MNI_Space_${tract}_${a}.nii.gz
                 transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-                reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+                reference=$FSLDIR/data/standard/MNI152_T1_1mm.nii.gz
                 KUL_antsApply_Transform
 
                 # make a probabilistic image in subject and MNI space
@@ -182,7 +182,7 @@ function kul_mrtrix_tracto {
                 #input=${d}/Subj_Space_${tract}_${a}.nii.gz
                 #output=${d}/MNI_Space_${tract}_${a}.nii.gz
                 #transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
-                #reference=/KUL_apps/fsl/data/standard/MNI152_T1_1mm.nii.gz
+                #reference=$FSLDIR/data/standard/MNI152_T1_1mm.nii.gz
                 #KUL_antsApply_Transform
             
                 # Make a smoothed version of the tracts for iPlan
@@ -351,8 +351,8 @@ if [ $s_flag -eq 1 ]; then
 
     # session is given on the command line
     search_sessions=BIDS/sub-${subj}/ses-${ses}
-    xfm_search=($(find ${cwd}/${fmriprep_subj}/ses-${ses} -type f | grep from-orig_to-T1w_mode-image_xfm))
-        num_xfm=${#xfm_search[@]}
+    xfm_search=($(find ${cwd}/${fmriprep_subj}/ses-${ses} -type f -name "*from-orig_to-T1w_mode-image_xfm*" ! -name "*gadolinium*"))
+    num_xfm=${#xfm_search[@]}
     echo "  Xfm files: number : $num_xfm"
     echo "    notably: ${xfm_search[@]}"
 
@@ -362,7 +362,7 @@ else
     search_sessions=($(find BIDS/sub-${subj} -type d | grep dwi))
 
     # Transforming the T1w to fmriprep space
-    xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
+    xfm_search=($(find ${cwd}/${fmriprep_subj} -type f -name "*from-orig_to-T1w_mode-image_xfm*" ! -name "*gadolinium*"))
     num_xfm=${#xfm_search[@]}
     echo "  Xfm files: number : $num_xfm"
     echo "    notably: ${xfm_search[@]}"
@@ -426,6 +426,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
                         
                         #echo $label_id_tmp
                         atlas_file="$(echo -e "${from_atlas}" | sed -e 's/^[[:space:]]*//')"
+                        echo "fslmaths roi/$atlas_file -thr $label_id_tmp -uthr $label_id_tmp -bin roi/${roi_name}_${label_id_tmp}"
                         fslmaths roi/$atlas_file -thr $label_id_tmp -uthr $label_id_tmp -bin roi/${roi_name}_${label_id_tmp}
                     
                     done 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 # Requires Mrtrix3, FSL, ants
@@ -211,7 +211,8 @@ if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
     fslmaths $fmriprep_anat -mas $fmriprep_anat_mask $ants_anat_tmp
 
     # Transforming the T1w to fmriprep space
-    xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
+    #xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
+    xfm_search=($(find ${cwd}/${fmriprep_subj} -type f -name "*from-orig_to-T1w_mode-image_xfm*" ! -name "*gadolinium*" ))
     num_xfm=${#xfm_search[@]}
     echo "  Xfm files: number : $num_xfm"
     echo "    notably: ${xfm_search[@]}"
@@ -317,10 +318,10 @@ if [ ! -f qa/dhollander_dec_reg2T1w.mif ]; then
     if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then  
         fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w.mif -force -nthreads $ncpu
         fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
-        fod2dec response/dhollander_wmfod_noGM_reg2T1w.mif qa/dhollander_noGM_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
-        fod2dec response/dhollander_wmfod_norm_reg2T1w.mif qa/dhollander_norm_dec_reg2T1w.mif -force -nthreads $ncpu
-        fod2dec response/dhollander_wmfod_norm_reg2T1w.mif qa/dhollander_norm_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
-        fod2dec response/dhollander_wmfod_norm_noGM_reg2T1w.mif qa/dhollander_norm_noGM_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
+        #fod2dec response/dhollander_wmfod_noGM_reg2T1w.mif qa/dhollander_noGM_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
+        #fod2dec response/dhollander_wmfod_norm_reg2T1w.mif qa/dhollander_norm_dec_reg2T1w.mif -force -nthreads $ncpu
+        #fod2dec response/dhollander_wmfod_norm_reg2T1w.mif qa/dhollander_norm_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
+        #fod2dec response/dhollander_wmfod_norm_noGM_reg2T1w.mif qa/dhollander_norm_noGM_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
 
     fi
 
@@ -363,10 +364,10 @@ if [ ! -f dwi_reg/mrtrix_warp_corrected.mif ]; then
 
     warpinit $input_fod_image dwi_reg/identity_warp[].nii -force
 
-    for i in {0..2}
+    for j in {0..2}
     do
-        echo $i
-        WarpImageMultiTransform 3 dwi_reg/identity_warp${i}.nii dwi_reg/mrtrix_warp${i}.nii -R $template $ants_warp $ants_affine   
+        echo $j
+        WarpImageMultiTransform 3 dwi_reg/identity_warp${j}.nii dwi_reg/mrtrix_warp${j}.nii -R $template $ants_warp $ants_affine   
     done
 
     warpcorrect dwi_reg/mrtrix_warp[].nii dwi_reg/mrtrix_warp_corrected.mif -force
@@ -467,7 +468,7 @@ if [ ! -f 5tt/5tt2gmwmi.nii.gz ]; then
     #5ttgen freesurfer $fs_aparc 5tt/5ttseg.mif -nocrop -force -nthreads $ncpu
     5ttgen freesurfer $fs_labels 5tt/5ttseg.mif -nocrop -force -nthreads $ncpu
     
-    5ttcheck -masks 5tt/failed_5tt 5tt/5ttseg.mif -force -nthreads $ncpu 
+    5ttcheck 5tt/5ttseg.mif -force -nthreads $ncpu 
     5tt2gmwmi 5tt/5ttseg.mif 5tt/5tt2gmwmi.nii.gz -force 
 
 else
@@ -479,19 +480,20 @@ fi
 # Perform default mrtrix_fs labelconvert
 mkdir -p connectome
 if [ ! -f log/status.labelconvert.done ]; then
-
+    mrtrixdir=$(which mrconvert)
+    mrtrixdir=${mrtrixdir%mrtrix3*}/mrtrix3
     kul_e2cl " Performig labelconvert..." ${log}
     labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
-        /KUL_apps/mrtrix3/share/mrtrix3/labelconvert/fs_default.txt connectome/labelconvert_fs_default.nii.gz -force
+        $mrtrixdir/share/mrtrix3/labelconvert/fs_default.txt connectome/labelconvert_fs_default.nii.gz -force
     labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
-        /KUL_apps/mrtrix3/share/mrtrix3/labelconvert/fs2lobes_cinginc_convert.txt connectome/labelconvert_fs2lobes_cinginc.nii.gz -force
+        $mrtrixdir/share/mrtrix3/labelconvert/fs2lobes_cinginc_convert.txt connectome/labelconvert_fs2lobes_cinginc.nii.gz -force
     labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
-        /KUL_apps/KUL_NeuroImaging_Tools/share/fs2thalamus_seg_convert.txt connectome/labelconvert_fs2thalamus_seg.nii.gz -force
-    labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
-        /KUL_apps/KUL_NeuroImaging_Tools/share/fs2behrens_thalamus_seg_right.txt connectome/labelconvert_fs2behrens_thalamus_seg_right.nii.gz -force
-    labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
-        /KUL_apps/KUL_NeuroImaging_Tools/share/fs2behrens_thalamus_seg_left.txt connectome/labelconvert_fs2behrens_thalamus_seg_left.nii.gz -force   
-    cat "done" > log/status.labelconvert.done
+        $kul_main_dir/share/fs2thalamus_seg_convert.txt connectome/labelconvert_fs2thalamus_seg.nii.gz -force
+    #labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
+    #    $kul_main_dir/share/fs2behrens_thalamus_seg_right.txt connectome/labelconvert_fs2behrens_thalamus_seg_right.nii.gz -force
+    #labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
+    #    $kul_main_dir/share/fs2behrens_thalamus_seg_left.txt connectome/labelconvert_fs2behrens_thalamus_seg_left.nii.gz -force   
+    echo "done" > log/status.labelconvert.done
 
 else
 

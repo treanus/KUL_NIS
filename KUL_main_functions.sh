@@ -50,7 +50,7 @@ function kul_e2cl {
 }
 
 machine_type=$(uname)
-echo $machine_type
+#echo $machine_type
 
 if [ $machine_type = "Linux" ]; then
 
