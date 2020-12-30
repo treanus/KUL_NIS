@@ -122,7 +122,7 @@ function KUL_antsApply_Transform {
 function KUL_convert2bids {
     # convert the DICOM to BIDS
     if [ ! -d "BIDS/sub-${participant}" ];then
-        KUL_dcm2bids.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e
+        KUL_dcm2bids_new.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e
     else
         echo "BIDS conversion already done"
     fi
@@ -141,7 +141,7 @@ function KUL_run_fmriprep {
 
 function KUL_run_dwiprep {
     if [ ! -f dwiprep/sub-${participant}/dwiprep_is_done.log ]; then
-        cp study_config/run_fmriprep.txt KUL_LOG/sub-${participant}_run_dwiprep.txt
+        cp study_config/run_dwiprep.txt KUL_LOG/sub-${participant}_run_dwiprep.txt
         sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_dwiprep.txt
         KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_dwiprep.txt 
     else
@@ -303,7 +303,7 @@ function KUL_segment_tumor {
 function KUL_run_VBG {
     if [ $vbg -eq 1 ]; then
         vgb_test="lesion_wf/output_LWF/sub-${participant}/sub-${participant}_aparc+aseg.nii.gz"
-        if [ ! -f $vbg_test ]; then
+        if [[ ! -f $vbg_test ]]; then
             KUL_VBG.sh -p ${participant} -l $globalresultsdir/lesion.nii -z T1 -b -B 1 -t -F -n 12 -v
             mkdir -p freesurfer
             ln -s ${cwd}/lesion_wf/output_LWF/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/ freesurfer
@@ -323,6 +323,11 @@ globalresultsdir=$cwd/RESULTS/sub-$participant
 
 # STEP 1 - BIDS conversion
 KUL_convert2bids
+
+read -p "Are you happy? (y/n) " answ
+if [[ ! "$answ" == "y" ]]; then
+    exit 1
+fi
 
 # STEP 2 - run fmriprep/dwiprep and continue
 KUL_run_fmriprep &

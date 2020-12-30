@@ -281,20 +281,33 @@ if [ $fmriprep_singularity -eq 1 ]; then
 else
 
     #local task_fmriprep_cmd=$(echo "docker run -u $(id -u):$(id -g) --rm \
+ #   local task_fmriprep_cmd=$(echo "docker run --rm -u $(id -u) \
+ #-v ${cwd}/${bids_dir}:/data \
+ #-v ${cwd}:/out \
+ #-v ${cwd}/fmriprep_work_${fmriprep_log_p}:/scratch \
+ #-v ${freesurfer_license}:/opt/freesurfer/license.txt \
+ #nipreps/fmriprep:${fmriprep_version} \
+ #/data /out \
+ #participant \
+ #--participant_label ${BIDS_participant} \
+ #-w /scratch \
+ #--nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
+ #--mem $fmriprep_mem \
+ #$fmriprep_options \
+ #> $fmriprep_log  2>&1") 
+
     local task_fmriprep_cmd=$(echo "docker run --rm -u $(id -u) \
  -v ${cwd}/${bids_dir}:/data \
  -v ${cwd}:/out \
- -v ${cwd}/fmriprep_work_${fmriprep_log_p}:/scratch \
  -v ${freesurfer_license}:/opt/freesurfer/license.txt \
  nipreps/fmriprep:${fmriprep_version} \
  /data /out \
  participant \
  --participant_label ${BIDS_participant} \
- -w /scratch \
  --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
  --mem $fmriprep_mem \
  $fmriprep_options \
- > $fmriprep_log  2>&1") 
+ > $fmriprep_log  2>&1")
 
 fi
 
