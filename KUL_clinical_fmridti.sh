@@ -396,13 +396,13 @@ if [ ! -f KUL_LOG/${participant}_melodic.done ]; then
             network_name=$(sed "${network}q;d" $kul_main_dir/atlasses/Yeo2011_rsfMRI_in_FSL_Space/yeo2011_7_liberal_combined_networks.txt)
             echo $network_name
             icfile="$fmriresults/stats/thresh_zstat${ic}.nii.gz"
-            network_file="$fmriresults/kul/melodic_${shorttask}_${network_name}_ic${ic}.nii.gz"
+            network_file="$fmriresults/kul/melodic_${network_name}_ic${ic}.nii.gz"
             echo $icfile
             echo $network_file
-            mrcalc $icfile 2 -gt $network_file
+            mrcalc $icfile 2 -gt $icfile -mul $network_file
             # since Melodic analysis was in MNI space, we transform back in native space
             input=$network_file
-            output=$globalresultsdir/melodic_$${network_name}_ic${ic}.nii.gz
+            output=$globalresultsdir/melodic_${shorttask}_${network_name}_ic${ic}.nii
             transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
             reference=$network_file
             echo "input=$input"
