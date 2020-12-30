@@ -2,18 +2,23 @@
 # Roi definition file
 # roi_name, from_atlas, space, label_id
 #
-M1_L, aparc+aseg.mgz, subject, 1024
-M1_R, aparc+aseg.mgz, subject, 2024
-S1_L, aparc+aseg.mgz, subject, 1022
-S1_R, aparc+aseg.mgz, subject, 2022
-Thalamus_L, aparc+aseg.mgz, subject, 10
-Thalamus_R, aparc+aseg.mgz, subject, 49
-MFG_L, aparc+aseg.mgz, subject, 1003
-MFG_R, aparc+aseg.mgz, subject, 2003
+M1_L, labels_from_FS.nii.gz, subject, 1024
+M1_R, labels_from_FS.nii.gz, subject, 2024
+S1_L, labels_from_FS.nii.gz, subject, 1022
+S1_R, labels_from_FS.nii.gz, subject, 2022
+Thalamus_L, labels_from_FS.nii.gz, subject, 10
+Thalamus_R, labels_from_FS.nii.gz, subject, 49
+MFG_L, labels_from_FS.nii.gz, subject, 1003
+MFG_R, labels_from_FS.nii.gz, subject, 2003
 #
-SFG_L, aparc+aseg.mgz, subject, 1028
-SFG_R, aparc+aseg.mgz, subject, 2028
-IFGparsopercularis_L, aparc+aseg.mgz, subject, 1018
-IFGparsopercularis_R, aparc+aseg.mgz, subject, 2018
-WM_R, aparc+aseg.mgz, subject, 41
-WM_L, aparc+aseg.mgz, subject, 2
+Front_mw_L, labels_wm_from_FS.nii.gz, subject, 3012 3014 3018 3027 3028
+Front_mw_R, labels_wm_from_FS.nii.gz, subject, 4012 4014 4018 4027 4028
+WM_R, labels_from_FS.nii.gz, subject, 41
+WM_L, labels_from_FS.nii.gz, subject, 2
+#
+SFG_L, labels_from_FS.nii.gz, subject, 1028
+SFG_R, labels_from_FS.nii.gz, subject, 2028
+IFGparsopercularis_L, labels_from_FS.nii.gz, subject, 1018
+IFGparsopercularis_R, labels_from_FS.nii.gz, subject, 2018
+WM_R, labels_from_FS.nii.gz, subject, 41
+WM_L, labels_from_FS.nii.gz, subject, 2

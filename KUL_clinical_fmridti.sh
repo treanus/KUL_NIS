@@ -348,12 +348,8 @@ wait
 
 KUL_compute_SPM &
 
-KUL_dwiprep_anat.sh -p $participant -n $ncpu
-KUL_dwiprep_fibertract.sh -p $participant -n $ncpu -c study_config/tracto_tracts.csv -r study_config/tracto_rois.csv -w dhollander_wmfod_reg2T1w -v
-
-exit
-
-
+#KUL_dwiprep_anat.sh -p $participant -n $ncpu
+#KUL_dwiprep_fibertract.sh -p $participant -n $ncpu -c study_config/tracto_tracts.csv -r study_config/tracto_rois.csv -w dhollander_wmfod_reg2T1w -v
 
 # run FSL Melodic
 computedir="$cwd/compute/FSL/melodic/sub-$participant"
@@ -389,11 +385,32 @@ if [ ! -f KUL_LOG/${participant}_melodic.done ]; then
         t_glm_con="$kul_main_dir/share/FSL/fsl_glm.con"
         t_glm_mat="$kul_main_dir/share/FSL/fsl_glm_${dyn}dyn.mat"        
         #melodic -i Melodic/sub-Croes/fmridata/sub-Croes_task-LIP_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii -o test/ --report --Tdes=glm.mat --Tcon=glm.con
-        melodic -i $melodic_in -o $fmriresults --report --tr=$tr --Tdes=$t_glm_mat --Tcon=$t_glm_con
+        melodic -i $melodic_in -o $fmriresults --report --tr=$tr --Tdes=$t_glm_mat --Tcon=$t_glm_con --Oall
         # now we compare to known networks
+        mkdir -p $fmriresults/kul
         fslcc --noabs -p 3 -t .204 $kul_main_dir/atlasses/Yeo2011_rsfMRI_in_FSL_Space/yeo2011_7_liberal_combined.nii.gz \
-         $fmriresults/melodic_IC.nii.gz > $fmriresults/kul_networks.txt
-         
+         $fmriresults/melodic_IC.nii.gz > $fmriresults/kul/kul_networks.txt
+
+        while IFS=$' ' read network ic stat; do
+            echo $network
+            network_name=$(sed "${network}q;d" $kul_main_dir/atlasses/Yeo2011_rsfMRI_in_FSL_Space/yeo2011_7_liberal_combined_networks.txt)
+            echo $network_name
+            icfile="$fmriresults/stats/thresh_zstat${ic}.nii.gz"
+            network_file="$fmriresults/kul/melodic_${shorttask}_${network_name}_ic${ic}.nii.gz"
+            echo $icfile
+            echo $network_file
+            mrcalc $icfile 2 -gt $network_file
+            # since Melodic analysis was in MNI space, we transform back in native space
+            input=$network_file
+            output=$globalresultsdir/melodic_$${network_name}_ic${ic}.nii.gz
+            transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
+            reference=$network_file
+            echo "input=$input"
+            echo "output=$output"
+            echo "transform=$transform"
+            echo "reference=$reference"
+            KUL_antsApply_Transform
+        done < $fmriresults/kul/kul_networks.txt
     done
     echo "Done" > KUL_LOG/${participant}_melodic.done
 else
