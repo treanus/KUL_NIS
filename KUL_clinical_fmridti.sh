@@ -285,16 +285,18 @@ fi
 # this will fill the lesion automatically
 vbgdir="compute/VBG"
 if [ $vbg -eq 1 ]; then
-
-    KUL_VBG.sh -p $participant -l $globalresultsdir/lesion.nii -z T1 -b -B 1 -t -F -n 12 -v
-
+    vgb_test="lesion_wf/output_LWF/sub-${participant}/sub-${participant}_aparc+aseg.nii.gz"
+    if [ ! -f $vbg_test ]; then
+        KUL_VBG.sh -p ${participant} -l $globalresultsdir/lesion.nii -z T1 -b -B 1 -t -F -n 12 -v
+    else
+        echo "KUL_VBG has already run"
+    fi
 fi
 
-exit
 
-KUL_run_fmriprep &
-KUL_run_freesurfer &
-wait
+#KUL_run_fmriprep &
+#KUL_run_freesurfer &
+#wait
 
 # run SPM12
 # define functions
@@ -304,7 +306,7 @@ wait
 computedir="$cwd/compute/SPM/sub-$participant"
 fmridatadir="$computedir/fmridata"
 scriptsdir="$computedir/scripts"
-
+fmriprepdir="fmriprep/sub-$participant/func"
 
 searchtask="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
 matlab_exe=$(which matlab)
@@ -330,8 +332,8 @@ if [ ! -f KUL_LOG/${participant}_SPM.done ]; then
     for task in ${tasks[@]}; do
         d1=${task#*_task-}
         shorttask=${d1%_space*}
-        #echo "$task -- $shorttask"
-        if [ ! "$shorttask" = "rest" ]; then
+        echo "$task -- $shorttask"
+        if [[ ! "$shorttask" = *"rest"* ]]; then
             echo " Analysing task $shorttask"
             fmrifile="${shorttask}${searchtask}"
             cp $fmriprepdir/*$fmrifile.gz $fmridatadir
