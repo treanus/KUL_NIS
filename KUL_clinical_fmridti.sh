@@ -304,7 +304,7 @@ function KUL_run_VBG {
     if [ $vbg -eq 1 ]; then
         vgb_test="lesion_wf/output_LWF/sub-${participant}/sub-${participant}_aparc+aseg.nii.gz"
         if [[ ! -f $vbg_test ]]; then
-            KUL_VBG.sh -p ${participant} -l $globalresultsdir/lesion.nii -z T1 -b -B 1 -t -F -n 12 -v
+            KUL_VBG.sh -p ${participant} -l $globalresultsdir/lesion.nii -z T1 -b -B 1 -t -F -n $ncpu -v
             mkdir -p freesurfer
             ln -s ${cwd}/lesion_wf/output_LWF/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/ freesurfer
             echo "done" > freesurfer/sub-${participant}_freesurfer_is.done
@@ -318,7 +318,7 @@ function KUL_run_VBG {
 # --- MAIN ---
 hdglio=1
 vbg=1
-ncpu=12
+ncpu=6
 globalresultsdir=$cwd/RESULTS/sub-$participant
 
 # STEP 1 - BIDS conversion
@@ -384,14 +384,17 @@ if [ ! -f KUL_LOG/${participant}_melodic.done ]; then
         dyn=$(mrinfo $melodic_in -size | cut -d " " -f 4)
         t_glm_con="$kul_main_dir/share/FSL/fsl_glm.con"
         t_glm_mat="$kul_main_dir/share/FSL/fsl_glm_${dyn}dyn.mat"        
-        # set dimensionality for rsfMRI
-        dim=""
+        # set dimensionality and model for rs-/a-fMRI
         if [[ $shorttask == *"rest"* ]]; then
             dim="--dim=15"
+            model=""
+        else
+            dim=""
+            model="--Tdes=$t_glm_mat --Tcon=$t_glm_con"
         fi
         
         #melodic -i Melodic/sub-Croes/fmridata/sub-Croes_task-LIP_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii -o test/ --report --Tdes=glm.mat --Tcon=glm.con
-        melodic -i $melodic_in -o $fmriresults --report --tr=$tr --Tdes=$t_glm_mat --Tcon=$t_glm_con --Oall $dim
+        melodic -i $melodic_in -o $fmriresults --report --tr=$tr --Oall $model $dim
         
         # now we compare to known networks
         mkdir -p $fmriresults/kul

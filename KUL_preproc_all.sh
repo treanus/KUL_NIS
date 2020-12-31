@@ -274,7 +274,7 @@ if [ $fmriprep_singularity -eq 1 ]; then
  --participant_label ${BIDS_participant} \
  -w /work \
  --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
- --mem $fmriprep_mem \
+ --mem $mem_mb \
  $fmriprep_options \
  > $fmriprep_log  2>&1") 
 
@@ -292,7 +292,7 @@ else
  #--participant_label ${BIDS_participant} \
  #-w /scratch \
  #--nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
- #--mem $fmriprep_mem \
+ #--mem $mem_mb \
  #$fmriprep_options \
  #> $fmriprep_log  2>&1") 
 
@@ -305,7 +305,7 @@ else
  participant \
  --participant_label ${BIDS_participant} \
  --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
- --mem $fmriprep_mem \
+ --mem $mem_mb \
  $fmriprep_options \
  > $fmriprep_log  2>&1")
 
@@ -342,7 +342,7 @@ else
  --participant_label \${BIDS_participant} \
  -w /work \
  --nthreads \$ncpu_fmriprep --omp-nthreads \$ncpu_fmriprep_ants \
- --mem \$fmriprep_mem \
+ --mem \$mem_mb \
  \$fmriprep_options \
  > \$fmriprep_log  2>&1") 
 
@@ -366,9 +366,9 @@ else
 
     echo $pbs_data_file
     if [ ! -f $pbs_data_file ]; then
-        echo "BIDS_participant,fmriprep_log_p,bids_dir,ncpu_fmriprep,ncpu_fmriprep_ants,fmriprep_mem,fmriprep_options,fmriprep_log" > $pbs_data_file
+        echo "BIDS_participant,fmriprep_log_p,bids_dir,ncpu_fmriprep,ncpu_fmriprep_ants,mem_mb,fmriprep_options,fmriprep_log" > $pbs_data_file
     fi 
-    echo "$BIDS_participant,$fmriprep_log_p,$bids_dir,$ncpu_fmriprep,$ncpu_fmriprep_ants,$fmriprep_mem,$fmriprep_options,$fmriprep_log" >> $pbs_data_file
+    echo "$BIDS_participant,$fmriprep_log_p,$bids_dir,$ncpu_fmriprep,$ncpu_fmriprep_ants,$mem_mb,$fmriprep_options,$fmriprep_log" >> $pbs_data_file
 
 
 fi
