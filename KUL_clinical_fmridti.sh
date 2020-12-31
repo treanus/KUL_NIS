@@ -384,8 +384,15 @@ if [ ! -f KUL_LOG/${participant}_melodic.done ]; then
         dyn=$(mrinfo $melodic_in -size | cut -d " " -f 4)
         t_glm_con="$kul_main_dir/share/FSL/fsl_glm.con"
         t_glm_mat="$kul_main_dir/share/FSL/fsl_glm_${dyn}dyn.mat"        
+        # set dimensionality for rsfMRI
+        dim=""
+        if [[ $shorttask == *"rest"* ]]; then
+            dim="--dim=15"
+        fi
+        
         #melodic -i Melodic/sub-Croes/fmridata/sub-Croes_task-LIP_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii -o test/ --report --Tdes=glm.mat --Tcon=glm.con
-        melodic -i $melodic_in -o $fmriresults --report --tr=$tr --Tdes=$t_glm_mat --Tcon=$t_glm_con --Oall
+        melodic -i $melodic_in -o $fmriresults --report --tr=$tr --Tdes=$t_glm_mat --Tcon=$t_glm_con --Oall $dim
+        
         # now we compare to known networks
         mkdir -p $fmriresults/kul
         fslcc --noabs -p 3 -t .204 $kul_main_dir/atlasses/Yeo2011_rsfMRI_in_FSL_Space/yeo2011_7_liberal_combined.nii.gz \
