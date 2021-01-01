@@ -134,7 +134,18 @@ else
     pip install pydeface
 
 fi
+# check if the correct dcm2bids is installed and install it if not
+if [[ $(which dcm2bids_scaffold) ]]; then
 
+    echo "  dcm2bids already installed, good" $log
+
+else
+
+    echo "  dcm2bids not installed, installing it with pip using pip install jsontool" $log
+    pip uninstall Dcm2Bids
+    pip install dcm2bids
+
+fi
 
 # --- function kul_dcmtags (for reading specific parameters from dicom header & calculating missing BIDS parameters) ---
 function kul_dcmtags {
