@@ -31,6 +31,10 @@ Example:
 Required arguments:
 
      -p:  participant name
+     -t:  processing type
+        type 1: do hd-glio and vbg (tumor with T1w, cT1w, T2w and FLAIR)
+        type 2: do vbg with manual mask (tumor but missing one of T1w, cT1w, T2w and FLAIR)
+        type 3: don't run hd-glio nor vbg (cavernoma, epilepsy, etc... cT1w)
 
 Optional arguments:
 
@@ -52,6 +56,7 @@ silent=1 # default if option -v is not given
 # Set required options
 p_flag=0
 d_flag=0 
+t_flag=0
 
 if [ "$#" -lt 1 ]; then
 	Usage >&2
@@ -59,12 +64,16 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:d:v" OPT; do
+	while getopts "p:t:d:v" OPT; do
 
 		case $OPT in
 		p) #participant
 			participant=$OPTARG
             p_flag=1
+		;;
+        t) #type
+			type=$OPTARG
+            t_flag=1
 		;;
         d) #dicomzip
 			dicomzip=$OPTARG
@@ -99,11 +108,29 @@ if [ $p_flag -eq 0 ] ; then
 	exit 2
 fi
 
+if [ $t_flag -eq 0 ] ; then
+	echo
+	echo "Option -t is required: give the analysis type." >&2
+	echo
+	exit 2
+fi
+
 # MRTRIX verbose or not?
 if [ $silent -eq 1 ] ; then
 
 	export MRTRIX_QUIET=1
 
+fi
+
+if [ $type -eq 1 ]; then
+    hdglio=1
+    vbg=1
+elif [ $type -eq 2 ]; then
+    hdglio=0
+    vbg=1
+elif [ $type -eq 3 ]; then
+    hdglio=0
+    vbg=0
 fi
 
 # --- functions ---
@@ -316,13 +343,14 @@ function KUL_run_VBG {
 
 
 # --- MAIN ---
-hdglio=1
-vbg=1
 ncpu=6
 globalresultsdir=$cwd/RESULTS/sub-$participant
 
 # STEP 1 - BIDS conversion
 KUL_convert2bids
+
+# Run BIDS validation
+docker run -ti --rm -v ${cwd}/BIDS:/data:ro bids/validator /data
 
 read -p "Are you happy? (y/n) " answ
 if [[ ! "$answ" == "y" ]]; then
@@ -334,7 +362,9 @@ KUL_run_fmriprep &
 KUL_run_dwiprep &
 
 # STEP 3 - run HD-GLIO-AUTO
-KUL_segment_tumor
+if [ $hdglio -eq 1 ];then
+    KUL_segment_tumor
+fi
 
 # STEP 4 - run VBG+freesurfer or freesurfer only
 if [ $vbg -eq 1 ];then
