@@ -193,6 +193,7 @@ if [ $auto -eq 0 ]; then
     T1w=("$datadir/sub-${participant}_T1w.nii.gz")
     T2w=("$datadir/sub-${participant}_T2w.nii.gz")
     FLAIR=("$datadir/sub-${participant}_FLAIR.nii.gz")
+    MTI=("$datadir/sub-${participant}_MTI.nii.gz")
 else
     T1w=($(find BIDS -type f -name "*T1w.nii.gz"))
 fi
@@ -201,6 +202,7 @@ fi
 d=0
 t2=0
 flair=0
+mti=0
 for test_T1w in ${T1w[@]}; do
 
     # Test whether T2 and/or FLAIR also exist
@@ -215,6 +217,12 @@ for test_T1w in ${T1w[@]}; do
         #echo "The FLAIR exists"
         d=$((d+1))
         flair=1
+    fi
+    test_MTI="${test_T1w%_T1w*}_MTI.nii.gz"
+    if [ -f $test_MTI ];then
+        #echo "The MTI exists"
+        d=$((d+1))
+        mti=1
     fi
 
     # If a T2 and/or a FLAIR exists
@@ -255,6 +263,19 @@ for test_T1w in ${T1w[@]}; do
             KUL_reorient_crop_hdbet_biascorrect_iso
             td="FLAIR"
             echo " coregistering FLAIR to T1 and computing the ratio"
+            KUL_register_computeratio
+        fi
+
+        if [ $mti -eq 1 ];then
+            input=$test_MTI
+            output=${test_MTI##*/}
+            output=${output%%.*}
+            crop_x=0
+            crop_z=0
+            echo " doing hd-bet and biascorrection of the MTI"
+            KUL_reorient_crop_hdbet_biascorrect_iso
+            td="MTI"
+            echo " coregistering MTI to T1 and computing the MTC ratio"
             KUL_register_computeratio
         fi
 
