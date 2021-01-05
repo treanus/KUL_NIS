@@ -52,6 +52,7 @@ Usage:
     FLAIR,3D_FLAIR
     T2w,3D_T2
     SWI,SWI
+    MTI,mtc_2dyn
     func,rsfMRI_MB6,rest,6,j,singleTE
     sbref,rsfMRI_SBREF,rest,1,j,singleTE
     func,MB_mTE,rest,4,j,multiTE
@@ -75,6 +76,7 @@ Usage:
     FLAIR,3D_FLAIR
     T2w,3D_T2
     SWI,SWI
+    MTI,mtc_2dyn
     func,rsfMRI_MB6,rest,-,-,singleTE
     sbref,rsfMRI_SBREF,rest,-,-,singleTE
     func,MB_mTE,rest,-,-,multiTE
@@ -714,6 +716,25 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
     fi
 
+    if [[ ${identifier} == "MTI" ]]; then 
+        
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids_SWI='{"dataType": "anat", "modalityLabel": "MTI", "criteria": {  
+             "SeriesDescription": "*'${search_string}'*","ImageType": [
+                "ORIGINAL","PRIMARY","M","FFE","M","FFE"]}}'
+
+            sub_bids_[$bs]=$(echo ${sub_bids_SWI} | python -m json.tool)
+
+        fi
+
+    fi
+
     if [[ ${identifier} == "FLAIR" ]]; then 
         
         kul_find_relevant_dicom_file
@@ -1040,6 +1061,7 @@ if [ ! -d BIDS ];then
     dcm2bids_scaffold
     echo "tmp_dcm2bids/*" > .bidsignore
     echo "*/anat/*SWI*" >> .bidsignore
+    echo "*/anat/*MTI*" >> .bidsignore
     cd ..
 fi
 
