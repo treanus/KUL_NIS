@@ -248,9 +248,7 @@ elif [ $KUL_use_fmriprep_singularity -eq 1 ]; then
     fmriprep_singularity=1
 
 fi
-
 #echo $fmriprep_singularity
-
 
 fmriprep_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
 fmriprep_log=${preproc}/log/fmriprep/${fmriprep_log_p}.txt
@@ -280,26 +278,11 @@ if [ $fmriprep_singularity -eq 1 ]; then
 
 else
 
-    #local task_fmriprep_cmd=$(echo "docker run -u $(id -u):$(id -g) --rm \
- #   local task_fmriprep_cmd=$(echo "docker run --rm -u $(id -u) \
- #-v ${cwd}/${bids_dir}:/data \
- #-v ${cwd}:/out \
- #-v ${cwd}/fmriprep_work_${fmriprep_log_p}:/scratch \
- #-v ${freesurfer_license}:/opt/freesurfer/license.txt \
- #nipreps/fmriprep:${fmriprep_version} \
- #/data /out \
- #participant \
- #--participant_label ${BIDS_participant} \
- #-w /scratch \
- #--nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
- #--mem $mem_mb \
- #$fmriprep_options \
- #> $fmriprep_log  2>&1") 
-
     local task_fmriprep_cmd=$(echo "docker run --rm -u $(id -u) \
  -v ${cwd}/${bids_dir}:/data \
  -v ${cwd}:/out \
  -v ${freesurfer_license}:/opt/freesurfer/license.txt \
+ $fmriprep_filter_mount \
  nipreps/fmriprep:${fmriprep_version} \
  /data /out \
  participant \
@@ -1169,6 +1152,15 @@ if [ $expert -eq 1 ]; then
         fi 
 
         fmriprep_options=$(grep fmriprep_options $conf | grep -v \# | cut -d':' -f 2-1000)
+        
+        fmriprep_bids_filter_file=$(grep fmriprep_bids_filter_file $conf | grep -v \# | cut -d':' -f 2-1000)
+        fmriprep_bids_filter_file="$(echo -e "${fmriprep_bids_filter_file}" | tr -d '[:space:]')" #remove all whitespaces
+        if [ ! -z "$fmriprep_bids_filter_file" ]; then
+            fmriprep_filter_mount=" -v ${cwd}/$fmriprep_bids_filter_file:/resources/bids_configuration/KUL_filter.json "
+            fmriprep_options="$fmriprep_options --bids-filter-file /resources/bids_configuration/KUL_filter.json"
+        else
+            fmriprep_filter_mount=""
+        fi
 
         fmriprep_ncpu=$(grep fmriprep_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
         ncpu_fmriprep=$fmriprep_ncpu
