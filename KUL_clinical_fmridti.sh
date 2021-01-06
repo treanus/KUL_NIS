@@ -395,7 +395,7 @@ mkdir -p $globalresultsdir
 
 if [ ! -f KUL_LOG/${participant}_melodic.done ]; then
     echo "Preparing for Melodic"
-    tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f -printf '%P\n') )
+    tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
     # we loop over the found tasks
     for task in ${tasks[@]}; do
         d1=${task#*_task-}
