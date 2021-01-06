@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -e 
 # Sarah Cappelle & Stefan Sunaert
 # 22/12/2020
 # This script is the first part of Sarah's Study1
@@ -39,7 +39,7 @@ Required arguments:
 Optional arguments:
 
 	 -a:  automatic mode (just work on all images in the BIDS folder)
-	 -v:  show output from mrtrix commands
+	 -v:  show output from commands
 
 
 USAGE
@@ -125,7 +125,8 @@ function KUL_antsApply_Transform {
 function KUL_reorient_crop_hdbet_biascorrect_iso {
     fslreorient2std $input $outputdir/compute/${output}_std
     mrgrid $outputdir/compute/${output}_std.nii.gz crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 \
-            $outputdir/compute/${output}_std_cropped.nii.gz
+            $outputdir/compute/${output}_std_cropped.nii.gz -force
+    echo "running hd-bet"
     result=$(hd-bet -i $outputdir/compute/${output}_std_cropped.nii.gz -o $outputdir/compute/${output}_std_cropped_brain.nii.gz 2>&1)
     if [ $silent -eq 0 ]; then
         echo $result
@@ -134,11 +135,26 @@ function KUL_reorient_crop_hdbet_biascorrect_iso {
     mask=$outputdir/compute/${output}_std_cropped_brain_mask.nii.gz
     bias_output=$outputdir/compute/${output}_std_cropped_brain_biascorrected.nii.gz
     N4BiasFieldCorrection --verbose $ants_verbose \
-    -d 3 \
-    -i $bias_input \
-    -o $bias_output
+     -d 3 \
+     -i $bias_input \
+     -o $bias_output
     iso_output=$outputdir/compute/${output}_std_cropped_brain_biascorrected_iso.nii.gz
-    mrgrid $bias_output regrid -voxel 1 $iso_output
+    mrgrid $bias_output regrid -voxel 1 $iso_output -force
+}
+
+function KUL_MTI_reorient_crop_hdbet_iso {
+    fslreorient2std $input $outputdir/compute/${output}_std
+    mrgrid $outputdir/compute/${output}_std.nii.gz crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 $outputdir/compute/${output}_std_cropped.nii.gz -force
+    mrmath $outputdir/compute/${output}_std_cropped.nii.gz mean $outputdir/compute/${output}_mean_std_cropped.nii.gz -axis 3
+    echo "running hd-bet"
+    result=$(hd-bet -i $outputdir/compute/${output}_mean_std_cropped.nii.gz -o $outputdir/compute/${output}_mean_std_cropped_brain.nii.gz 2>&1)
+    if [ $silent -eq 0 ]; then
+        echo $result
+    fi 
+    mrcalc $outputdir/compute/${output}_std_cropped.nii.gz $outputdir/compute/${output}_mean_std_cropped_brain_mask.nii.gz \
+        -mul $outputdir/compute/${output}_std_cropped_brain.nii.gz -force
+    iso_output=$outputdir/compute/${output}_std_cropped_brain_iso.nii.gz
+    mrgrid $outputdir/compute/${output}_std_cropped_brain.nii.gz regrid -voxel 1 $iso_output -force
 }
 
 # Rigidly register the input to the T1w
@@ -177,11 +193,26 @@ function KUL_register_computeratio {
     newname="${base}_${td}_std_cropped_brain_biascorrected_iso_reg2T1w.nii.gz"
     KUL_rigid_register
     # make a better mask
-    maskfilter ${output} erode $outputdir/compute/${base}_${td}_mask_eroded.nii.gz
+    maskfilter ${output} erode $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -force
     #mrcalc $outputdir/compute/$ants_template $outputdir/compute/$newname -divide \
     #    $outputdir/${base}_T1${td}_ratio_a.nii.gz
     mrcalc $outputdir/compute/$ants_template $outputdir/compute/$newname -divide \
-        $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -multiply $outputdir/${base}_T1${td}_ratio.nii.gz
+        $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -multiply $outputdir/${base}_T1${td}_ratio.nii.gz -force
+}
+
+function KUL_MTI_register_computeratio {
+    base0=${test_T1w##*/}
+    base=${base0%_T1w*}
+    ants_type="${base}_rigid_${td}_reg2t1_"
+    ants_template="${base}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
+    ants_source="${base}_${td}_std_cropped_brain_iso.nii.gz"
+    newname="${base}_${td}_std_cropped_brain_iso_reg2T1w.nii.gz"
+    KUL_rigid_register
+    # make a better mask
+    #maskfilter ${output} erode $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -force
+    mrconvert $output -coord 3 0 
+    mrcalc $outputdir/compute/$ants_template $outputdir/compute/$newname -divide \
+        $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -multiply $outputdir/${base}_T1${td}_ratio.nii.gz -force
 }
 
 # --- MAIN ---
@@ -272,11 +303,11 @@ for test_T1w in ${T1w[@]}; do
             output=${output%%.*}
             crop_x=0
             crop_z=0
-            echo " doing hd-bet and biascorrection of the MTI"
-            KUL_reorient_crop_hdbet_biascorrect_iso
+            echo " doing hd-bet of the MTI"
+            KUL_MTI_reorient_crop_hdbet_iso
             td="MTI"
             echo " coregistering MTI to T1 and computing the MTC ratio"
-            KUL_register_computeratio
+            KUL_MTI_register_computeratio
         fi
 
         echo " done"
