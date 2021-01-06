@@ -1,13 +1,5 @@
 {
-  "fmap": {"datatype": "fmap"},
-  "bold": {"datatype": "func", "suffix": "bold"},
-  "sbref": {"datatype": "func", "suffix": "sbref"},
-  "flair": {"datatype": "anat", "suffix": "FLAIR"},
-  "t2w": {"datatype": "anat", "suffix": "T2w"},
   "t1w": {
-        "datatype": "anat",
-        "ceagent": null,
-        "suffix": "T1w"
-    },
-  "roi": {"datatype": "anat", "suffix": "roi"}
+        "ceagent": null
+    }
 }
