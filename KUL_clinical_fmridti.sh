@@ -324,7 +324,7 @@ function KUL_segment_tumor {
             else
                 echo "HD-GLIO-AUTO already done"
             fi
-        elses
+        else
             echo "Not possible to run HD-GLIO-AUTO"
         fi 
     fi
