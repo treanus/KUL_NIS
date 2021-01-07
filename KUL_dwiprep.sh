@@ -377,9 +377,7 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 	# prepare for Synb0-disco
 	if [ $synb0 -eq 1 ]; then
 		# find T1
-		bids_T1_search="$cwd/$bids_subj/anat/sub-*_T1w.nii.gz"
-		#echo $bids_T1_search
-		bids_T1_found=($(ls $bids_T1_search))
+		bids_T1_found=($(find $cwd/$bids_subj/anat -type f -name "*T1w.nii.gz" ! -name "*gadolinium*")) 
 		number_of_bids_T1_found=${#bids_T1_found[@]}
 		if [ $number_of_bids_T1_found -gt 1 ]; then
 			kul_e2cl "   more than 1 T1 dataset, using first only for Synb0-disco" ${preproc}/${log}

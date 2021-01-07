@@ -212,7 +212,8 @@ function KUL_compute_SPM_matlab {
     input=$result
     output=$result_global
     transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
-    reference=$result
+    find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
+    reference=${find_T1w[0]}
     #echo "input=$input"
     #echo "output=$output"
     #echo "transform=$transform"
@@ -223,7 +224,9 @@ function KUL_compute_SPM_matlab {
     gm_mask2=$computedir/RESULTS/gm_mask_${shorttask}.nii.gz
     gm_result_global=$cwd/RESULTS/sub-$participant/SPM_${shorttask}_gm.nii
     mrgrid $gm_mask regrid -template $result_global $gm_mask2
-    mrcalc $result_global $gm_mask2 0.3 -gt -mul $gm_result_global
+    gm_mask3=$computedir/RESULTS/gm_mask_smooth_${shorttask}.nii.gz
+    mrfilter $gm_mask2 smooth $gm_mask3
+    mrcalc $result_global $gm_mask3 0.3 -gt -mul $gm_result_global
 
 } 
 
@@ -302,13 +305,13 @@ function KUL_segment_tumor {
     mkdir -p $globalresultsdir
     
     # this will segment the lesion automatically
-    hdgliodir="compute/hdglio/input"
+    hdgliodir="compute/hdglio/sub-${participant}/input"
     if [ $hdglio -eq 1 ]; then
 
         if [ $nT1w -eq 1 ] && [ $ncT1w -eq 1 ] && [ $nFLAIR -eq 1 ] && [ $nT2w -eq 1 ];then
             mkdir -p $hdgliodir
-            mkdir -p compute/hdglio/output
-            if [ ! -f "compute/hdglio/output/volumes.txt" ]; then
+            mkdir -p compute/hdglio/sub-${participant}/output
+            if [ ! -f "compute/hdglio/sub-${participant}/output/volumes.txt" ]; then
                 cp $T1w $hdgliodir/T1.nii.gz
                 cp $cT1w $hdgliodir/CT1.nii.gz
                 cp $FLAIR $hdgliodir/FLAIR.nii.gz

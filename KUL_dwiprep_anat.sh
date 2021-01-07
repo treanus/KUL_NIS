@@ -435,7 +435,7 @@ if [ ! -f log/status.freesurfer.done ]; then
     mri_convert -rl $ants_anat -rt nearest $fs_wmparc $fs_wmlabels_tmp
 
     # Transforming the FS aparc to fmriprep space
-    xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
+    xfm_search=($(find ${cwd}/${fmriprep_subj} -type f -name "*from-orig_to-T1w_mode-image_xfm*"))
     num_xfm=${#xfm_search[@]}
     echo "  Xfm files: number : $num_xfm"
     echo "    notably: ${xfm_search[@]}"    
