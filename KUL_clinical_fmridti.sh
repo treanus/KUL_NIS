@@ -317,14 +317,14 @@ function KUL_segment_tumor {
                 cp $FLAIR $hdgliodir/FLAIR.nii.gz
                 cp $T2w $hdgliodir/T2.nii.gz
                 echo "Running HD-GLIO-AUTO using docker"
-                docker run --gpus all --mount type=bind,source=${cwd}/compute/hdglio/input,target=/input \
-                 --mount type=bind,source=${cwd}/compute/hdglio/output,target=/output \
+                docker run --gpus all --mount type=bind,source=${cwd}/compute/hdglio/sub-${participant}/input,target=/input \
+                 --mount type=bind,source=${cwd}/compute/hdglio/sub-${participant}/output,target=/output \
                  jenspetersen/hd-glio-auto
-                mrcalc compute/hdglio/output/segmentation.nii.gz 1 -ge $globalresultsdir/lesion.nii.gz
+                mrcalc compute/hdglio/sub-${participant}/output/segmentation.nii.gz 1 -ge $globalresultsdir/lesion.nii.gz
             else
                 echo "HD-GLIO-AUTO already done"
             fi
-        else
+        elses
             echo "Not possible to run HD-GLIO-AUTO"
         fi 
     fi
@@ -381,8 +381,8 @@ wait
 
 KUL_compute_SPM &
 
-#KUL_dwiprep_anat.sh -p $participant -n $ncpu
-#KUL_dwiprep_fibertract.sh -p $participant -n $ncpu -c study_config/tracto_tracts.csv -r study_config/tracto_rois.csv -w dhollander_wmfod_reg2T1w -v
+KUL_dwiprep_anat.sh -p $participant -n $ncpu
+KUL_dwiprep_fibertract.sh -p $participant -n $ncpu -c study_config/tracto_tracts.csv -r study_config/tracto_rois.csv -w dhollander_wmfod_reg2T1w -v
 
 # run FSL Melodic
 computedir="$cwd/compute/FSL/melodic/sub-$participant"
