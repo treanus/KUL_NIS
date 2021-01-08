@@ -5,15 +5,9 @@
 #  - execute startup
 #
 
-# parameters for version_checking
-mrtrix_version_needed=133
-dcm2niix_version_needed=20180622
-dcm2bids_version_needed=4
-fsl_version_needed=6
 
 # parameters for logging
 log_every_seconds=120
-
 
 # -- function kul_e2cl to echo to console & log file with matlab tic/toc behavior ---
 function kul_e2cl {
@@ -52,56 +46,6 @@ function kul_e2cl {
 machine_type=$(uname)
 #echo $machine_type
 
-if [ $machine_type = "Linux" ]; then
-
-    echo "You are using Linux (probably the VSC) and we assume that you kno what you are doing (loaded all modules correctly)"
-
-else
-
-    # check version of mrtrix3
-    mrtrix_version=$(mrconvert -version | head -n 1 | cut -d'-' -f 2)
-    if [ $mrtrix_version -lt $mrtrix_version_needed ]; then
-
-        echo "Your mrtrix3 RC3 subversion is $mrtrix_version"
-        echo "You need mrtrix3 RC3 subversion => $mrtrix_version_needed"
-        #exit 2
-
-    fi
-
-    # check version of dcm2niix
-    dcm2niix_version=$(dcm2niix | grep version | cut -d'.' -f 3 | cut -c -8)
-    if [ $dcm2niix_version -lt $dcm2niix_version_needed ]; then
-
-        echo "Your version of dcm2nixx is $dcm2niix_version"
-        echo "You need dcm2nixx version more recent than $dcm2niix_version_needed"
-        exit 2
-
-    fi
-
-
-    # check version of dcm2bids
-    dcm2bids_version=$(dcm2bids -h | grep version | head -n 1 | cut -d'.' -f 2)
-    if [ $dcm2bids_version -lt $dcm2bids_version_needed ]; then
-
-        echo "Your version of dcm2bids is $dcm2bids_version"
-        echo "You need dcm2bids version equal or more than $dcm2bids_version_needed"
-        exit 2
-
-    fi
-
-    # check version of fsl
-    fsl_version=$(flirt -version | cut -d' ' -f 3 | cut -d'.' -f 1)
-    if [ $fsl_version -lt $fsl_version_needed ]; then
-
-        echo "Your version of FSL is $fsl_version"
-        echo "You need FSL version equal or more than $fsl_version_needed"
-        exit 2
-
-    fi
-
-
-
-fi 
 
 # -- Set global defaults --
 silent=1
@@ -118,16 +62,14 @@ preproc=KUL_LOG/${subj}
 
 # Define directory/files to log in 
 log_dir=${preproc}/log/$script
-
-# create preprocessing & log directory/files
-mkdir -p $log_dir
-
-# main log file naming
 d=$(date "+%Y-%m-%d_%H-%M-%S")
 log=$log_dir/main_log_${d}.txt
 
-
-# -- Say Welcome --
-command_line_options=$@
-kul_e2cl "Welcome to $script, version $v, invoked with parameters $command_line_options" $log
-echo "   starting at $d"
+# create preprocessing & log directory/files
+if [ ! -z "$1" ];then
+    mkdir -p $log_dir
+    # -- Say Welcome --
+    command_line_options=$@
+    kul_e2cl "Welcome to $script, version $v, invoked with parameters $command_line_options" $log
+    echo "   starting at $d"
+fi
