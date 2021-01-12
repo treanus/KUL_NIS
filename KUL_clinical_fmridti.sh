@@ -381,6 +381,36 @@ function KUL_run_VBG {
     fi
 }
 
+function KUL_run_msbp {
+
+    docker run -it --rm -u $(id -u) -v $cwd/BIDS:/bids_dir \
+     -v $cwd/BIDS/derivatives:/output_dir \
+     -v $HOME/KUL_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
+     sebastientourbier/multiscalebrainparcellator:v1.1.1 /bids_dir /output_dir participant \
+     --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
+     --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
+     --multiproc_number_of_cores $ncpu
+
+}
+
+function KUL_run_TCKSEG {
+
+    KUL_genVOIs_4TCKseg.sh -p ${participant} \
+     -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
+     -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
+     -c $cwd/trial_tracks_list_2.txt \
+     -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
+     -n $ncpu
+
+    WIP_tracking_script.sh -p ${participant} \
+     -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
+     -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
+     -c $cwd/trial_tracks_list_2.txt \
+     -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
+     -T 2 -a iFOD2 -n $ncpu
+
+}
+
 function KUL_compute_melodic {
 # run FSL Melodic
 computedir="$cwd/compute/FSL/melodic/sub-$participant"
