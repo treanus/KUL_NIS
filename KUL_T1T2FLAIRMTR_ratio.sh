@@ -2,13 +2,14 @@
 # Sarah Cappelle & Stefan Sunaert
 # 22/12/2020
 # This script is the first part of Sarah's Study1
+# This script computes a T1/T2, T1/FLAIR and MT (magnetisation transfer contrast) ratio
 # 
 # This scripts follows the rationale of D. Pareto et al. AJNR 2020
 # Starting from 3D-T1w, 3D-FLAIR and 2D-T2w scans we compute:
 #  create masked brain images using HD-BET
 #  bias correct the images using N4biascorrect from ANTs
 #  ANTs rigid coregister and reslice all images to the 3D-T1w (in isotropic 1 mm space)
-#  compute a T1FLAIR_ratio and a T1T2_ratio
+#  compute a T1FLAIR_ratio, a T1T2_ratio and a MTR
 
 kul_main_dir=`dirname "$0"`
 source $kul_main_dir/KUL_main_functions.sh
@@ -38,9 +39,9 @@ Required arguments:
 
 Optional arguments:
 
-	 -s:  session of the participant
+     -s:  session of the participant
      -a:  automatic mode (just work on all images in the BIDS folder)
-	 -v:  show output from commands
+     -v:  show output from commands
 
 
 USAGE
@@ -54,7 +55,7 @@ USAGE
 # Set defaults
 auto=0 # default if option -s is not given
 silent=1 # default if option -v is not given
-outputdir="T1T2FLAIR_ratio"
+outputdir="T1T2FLAIRMTR_ratio"
 
 # Set required options
 #p_flag=0
@@ -125,12 +126,10 @@ function KUL_antsApply_Transform {
     -n Linear
 }
 
-# Function to do step 1
 function KUL_reorient_crop_hdbet_biascorrect_iso {
     fslreorient2std $input $outputdir/compute/${output}_std
     mrgrid $outputdir/compute/${output}_std.nii.gz crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 \
             $outputdir/compute/${output}_std_cropped.nii.gz -force
-    echo "running hd-bet"
     result=$(hd-bet -i $outputdir/compute/${output}_std_cropped.nii.gz -o $outputdir/compute/${output}_std_cropped_brain.nii.gz 2>&1)
     if [ $silent -eq 0 ]; then
         echo $result
@@ -152,7 +151,6 @@ function KUL_MTI_reorient_crop_hdbet_iso {
     fslreorient2std $input $outputdir/compute/${output}_std
     mrgrid $outputdir/compute/${output}_std.nii.gz crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 $outputdir/compute/${output}_std_cropped.nii.gz -force
     mrmath $outputdir/compute/${output}_std_cropped.nii.gz mean $outputdir/compute/${output}_mean_std_cropped.nii.gz -axis 3
-    echo "running hd-bet"
     result=$(hd-bet -i $outputdir/compute/${output}_mean_std_cropped.nii.gz -o $outputdir/compute/${output}_mean_std_cropped_brain.nii.gz 2>&1)
     if [ $silent -eq 0 ]; then
         echo $result
@@ -247,7 +245,7 @@ if [ $auto -eq 0 ]; then
     FLAIR=("$datadir/sub-${participant}_ses-${session}_FLAIR.nii.gz")
     MTI=("$datadir/sub-${participant}_ses-${session}_MTI.nii.gz")
 else
-    T1w=($(find BIDS -type f -name "*T1w.nii.gz"))
+    T1w=($(find BIDS -type f -name "*T1w.nii.gz" | sort ))
 fi
 
 d=0
@@ -290,6 +288,9 @@ for test_T1w in ${T1w[@]}; do
         crop_z=0
         KUL_reorient_crop_hdbet_biascorrect_iso
         mask_T1W=$mask
+        base0=${test_T1w##*/}
+        base=${base0%_T1w*}
+        cp $iso_output $outputdir/${base}_T1w.nii.gz
 
         if [ $t2 -eq 1 ];then
             input=$test_T2w
@@ -329,6 +330,9 @@ for test_T1w in ${T1w[@]}; do
             echo " coregistering MTI to T1 and computing the MTC ratio"
             KUL_MTI_register_computeratio
         fi
+
+        rm -fr $outputdir/compute/${base}*.gz
+        touch $outputdir/compute/${base}.done
 
         echo " done"
     
