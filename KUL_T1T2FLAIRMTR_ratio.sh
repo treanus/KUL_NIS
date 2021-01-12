@@ -2,7 +2,7 @@
 # Sarah Cappelle & Stefan Sunaert
 # 22/12/2020
 # This script is the first part of Sarah's Study1
-# This script computes a T1/T2, T1/FLAIR and MT (magnetisation transfer contrast) ratio
+# This script computes a T1/T2, T1/FLAIR and MTC (magnetisation transfer contrast) ratio
 # 
 # This scripts follows the rationale of D. Pareto et al. AJNR 2020
 # Starting from 3D-T1w, 3D-FLAIR and 2D-T2w scans we compute:
@@ -254,90 +254,97 @@ flair=0
 mti=0
 for test_T1w in ${T1w[@]}; do
 
-    # Test whether T2 and/or FLAIR also exist
-    test_T2w="${test_T1w%_T1w*}_T2w.nii.gz"
-    if [ -f $test_T2w ];then
-        #echo "The T2 exists"
-        d=$((d+1))
-        t2=1
-    fi
-    test_FLAIR="${test_T1w%_T1w*}_FLAIR.nii.gz"
-    if [ -f $test_FLAIR ];then
-        #echo "The FLAIR exists"
-        d=$((d+1))
-        flair=1
-    fi
-    test_MTI="${test_T1w%_T1w*}_MTI.nii.gz"
-    if [ -f $test_MTI ];then
-        #echo "The MTI exists"
-        d=$((d+1))
-        mti=1
-    fi
+    base0=${test_T1w##*/};base=${base0%_T1w*}
+    check_done="$outputdir/compute/${base}.done"
 
-    # If a T2 and/or a FLAIR exists
-    if [ $d -gt 0 ]; then
-        echo "KUL_T1T2FLAIR_ratio is starting"
-        mkdir -p $outputdir/compute
+    if [ ! -f $check_done ];then
 
-        # for the T1w
-        input=$test_T1w
-        output=${test_T1w##*/}
-        output=${output%%.*}
-        echo " doing hd-bet and biascorrection on image $output"
-        crop_x=0
-        crop_z=0
-        KUL_reorient_crop_hdbet_biascorrect_iso
-        mask_T1W=$mask
-        base0=${test_T1w##*/}
-        base=${base0%_T1w*}
-        cp $iso_output $outputdir/${base}_T1w.nii.gz
+        # Test whether T2 and/or FLAIR also exist
+        test_T2w="${test_T1w%_T1w*}_T2w.nii.gz"
+        if [ -f $test_T2w ];then
+            #echo "The T2 exists"
+            d=$((d+1))
+            t2=1
+        fi
+        test_FLAIR="${test_T1w%_T1w*}_FLAIR.nii.gz"
+        if [ -f $test_FLAIR ];then
+            #echo "The FLAIR exists"
+            d=$((d+1))
+            flair=1
+        fi
+        test_MTI="${test_T1w%_T1w*}_MTI.nii.gz"
+        if [ -f $test_MTI ];then
+            #echo "The MTI exists"
+            d=$((d+1))
+            mti=1
+        fi
 
-        if [ $t2 -eq 1 ];then
-            input=$test_T2w
-            output=${test_T2w##*/}
+        # If a T2 and/or a FLAIR exists
+        if [ $d -gt 0 ]; then
+            echo "KUL_T1T2FLAIR_ratio is starting"
+            mkdir -p $outputdir/compute
+
+            # for the T1w
+            input=$test_T1w
+            output=${test_T1w##*/}
             output=${output%%.*}
+            echo " doing hd-bet and biascorrection on image $output"
             crop_x=0
             crop_z=0
-            echo " doing hd-bet and biascorrection of the T2w"
             KUL_reorient_crop_hdbet_biascorrect_iso
-            td="T2w"
-            echo " coregistering T2 to T1 and computing the ratio"
-            KUL_register_computeratio
+            mask_T1W=$mask
+            cp $iso_output $outputdir/${base}_T1w.nii.gz
+
+            if [ $t2 -eq 1 ];then
+                input=$test_T2w
+                output=${test_T2w##*/}
+                output=${output%%.*}
+                crop_x=0
+                crop_z=0
+                echo " doing hd-bet and biascorrection of the T2w"
+                KUL_reorient_crop_hdbet_biascorrect_iso
+                td="T2w"
+                echo " coregistering T2 to T1 and computing the ratio"
+                KUL_register_computeratio
+            fi
+
+            if [ $flair -eq 1 ];then
+                input=$test_FLAIR
+                output=${test_FLAIR##*/}
+                output=${output%%.*}
+                crop_x=0
+                crop_z=0
+                echo " doing hd-bet and biascorrection of the FLAIR"
+                KUL_reorient_crop_hdbet_biascorrect_iso
+                td="FLAIR"
+                echo " coregistering FLAIR to T1 and computing the ratio"
+                KUL_register_computeratio
+            fi
+
+            if [ $mti -eq 1 ];then
+                input=$test_MTI
+                output=${test_MTI##*/}
+                output=${output%%.*}
+                crop_x=0
+                crop_z=0
+                echo " doing hd-bet of the MTI"
+                KUL_MTI_reorient_crop_hdbet_iso
+                td="MTI"
+                echo " coregistering MTI to T1 and computing the MTC ratio"
+                KUL_MTI_register_computeratio
+            fi
+
+            rm -fr $outputdir/compute/${base}*.gz
+            touch $check_done
+
+            echo " done"
+
+        else
+            echo " Nothing to do here"
         fi
 
-        if [ $flair -eq 1 ];then
-            input=$test_FLAIR
-            output=${test_FLAIR##*/}
-            output=${output%%.*}
-            crop_x=0
-            crop_z=0
-            echo " doing hd-bet and biascorrection of the FLAIR"
-            KUL_reorient_crop_hdbet_biascorrect_iso
-            td="FLAIR"
-            echo " coregistering FLAIR to T1 and computing the ratio"
-            KUL_register_computeratio
-        fi
-
-        if [ $mti -eq 1 ];then
-            input=$test_MTI
-            output=${test_MTI##*/}
-            output=${output%%.*}
-            crop_x=0
-            crop_z=0
-            echo " doing hd-bet of the MTI"
-            KUL_MTI_reorient_crop_hdbet_iso
-            td="MTI"
-            echo " coregistering MTI to T1 and computing the MTC ratio"
-            KUL_MTI_register_computeratio
-        fi
-
-        rm -fr $outputdir/compute/${base}*.gz
-        touch $outputdir/compute/${base}.done
-
-        echo " done"
-    
     else
-        echo "Nothing to do here"
+        echo " $base already done"
     fi
 
 done
