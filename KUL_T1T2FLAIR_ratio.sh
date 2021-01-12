@@ -38,7 +38,8 @@ Required arguments:
 
 Optional arguments:
 
-	 -a:  automatic mode (just work on all images in the BIDS folder)
+	 -s:  session of the participant
+     -a:  automatic mode (just work on all images in the BIDS folder)
 	 -v:  show output from commands
 
 
@@ -64,7 +65,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:av" OPT; do
+	while getopts "p:s:av" OPT; do
 
 		case $OPT in
 		a) #automatic mode
@@ -72,6 +73,9 @@ else
 		;;
 		p) #participant
 			participant=$OPTARG
+		;;
+        s) #session
+			session=$OPTARG
 		;;
 		v) #verbose
 			silent=0
@@ -140,6 +144,8 @@ function KUL_reorient_crop_hdbet_biascorrect_iso {
      -o $bias_output
     iso_output=$outputdir/compute/${output}_std_cropped_brain_biascorrected_iso.nii.gz
     mrgrid $bias_output regrid -voxel 1 $iso_output -force
+    iso_output2=$outputdir/compute/${output}_std_cropped_brain_mask_iso.nii.gz
+    mrgrid $mask regrid -voxel 1 $iso_output2 -force
 }
 
 function KUL_MTI_reorient_crop_hdbet_iso {
@@ -203,16 +209,36 @@ function KUL_register_computeratio {
 function KUL_MTI_register_computeratio {
     base0=${test_T1w##*/}
     base=${base0%_T1w*}
+    echo $base
     ants_type="${base}_rigid_${td}_reg2t1_"
     ants_template="${base}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
-    ants_source="${base}_${td}_std_cropped_brain_iso.nii.gz"
-    newname="${base}_${td}_std_cropped_brain_iso_reg2T1w.nii.gz"
+    ants_source="${base}_${td}_mean_std_cropped_brain.nii.gz"
+    newname="${base}_${td}_mean_std_cropped_brain_reg2T1w.nii.gz"
     KUL_rigid_register
+    # convert the 4D MTI to single 3Ds
+    input="$outputdir/compute/${base}_${td}_std_cropped_brain_iso.nii.gz"
+    S0="$outputdir/compute/${base}_${td}_std_cropped_brain_iso_S0.nii.gz"
+    Smt="$outputdir/compute/${base}_${td}_std_cropped_brain_iso_Smt.nii.gz"
+    mrconvert $input -coord 3 0 $S0 -force
+    mrconvert $input -coord 3 1 $Smt -force
+    # Now apply the coregistration to the 4D MTI 
+    input=$S0
+    output="$outputdir/compute/${base}_${td}_std_cropped_brain_iso_S0_reg2T1w.nii.gz"
+    S0=$output
+    transform="$outputdir/compute/${base}_rigid_${td}_reg2t1_0GenericAffine.mat"
+    reference="$outputdir/compute/${base}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
+    KUL_antsApply_Transform
+    input=$Smt
+    output="$outputdir/compute/${base}_${td}_std_cropped_brain_iso_Smt_reg2T1w.nii.gz"
+    Smt=$output
+    transform="$outputdir/compute/${base}_rigid_${td}_reg2t1_0GenericAffine.mat"
+    reference="$outputdir/compute/${base}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
+    KUL_antsApply_Transform
     # make a better mask
-    #maskfilter ${output} erode $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -force
-    mrconvert $output -coord 3 0 
-    mrcalc $outputdir/compute/$ants_template $outputdir/compute/$newname -divide \
-        $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -multiply $outputdir/${base}_T1${td}_ratio.nii.gz -force
+    mask=$outputdir/compute/${base}_T1w_std_cropped_brain_mask_iso.nii.gz
+    # MTR formula: (S0 - Smt)/S0
+    mrcalc $S0 $Smt -subtract $S0 -divide $mask -multiply \
+     $outputdir/${base}_MTC_ratio.nii.gz -force
 }
 
 # --- MAIN ---
@@ -220,15 +246,14 @@ printf "\n\n\n"
 
 # here we give the data
 if [ $auto -eq 0 ]; then
-    datadir="$cwd/BIDS/sub-${participant}/anat"
-    T1w=("$datadir/sub-${participant}_T1w.nii.gz")
-    T2w=("$datadir/sub-${participant}_T2w.nii.gz")
-    FLAIR=("$datadir/sub-${participant}_FLAIR.nii.gz")
-    MTI=("$datadir/sub-${participant}_MTI.nii.gz")
+    datadir="$cwd/BIDS/sub-${participant}/ses-$session/anat"
+    T1w=("$datadir/sub-${participant}_ses-${session}_T1w.nii.gz")
+    T2w=("$datadir/sub-${participant}_ses-${session}_T2w.nii.gz")
+    FLAIR=("$datadir/sub-${participant}_ses-${session}_FLAIR.nii.gz")
+    MTI=("$datadir/sub-${participant}_ses-${session}_MTI.nii.gz")
 else
     T1w=($(find BIDS -type f -name "*T1w.nii.gz"))
 fi
-
 
 d=0
 t2=0

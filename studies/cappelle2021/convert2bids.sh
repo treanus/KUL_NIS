@@ -11,15 +11,15 @@
 # we use dicomsort.py from https://github.com/pieper/dicomsort
 # this will warn for some double files, probably beacuse IDE export both dicom classic and enhanced
 # The DICOMs from Ide are in /DATA/Data_MRI_Ide/DATA_RAW
-dicomsort.py -k /DATA/Data_MRI_Ide/DATA_RAW \
- DICOM_sorted/%PatientName/%StudyDate/%SeriesDescription-%SeriesNumber/%InstanceNumber.dcm
+# dicomsort.py -k /DATA/Data_MRI_Ide/DATA_RAW \
+# DICOM_sorted/%PatientName/%StudyDate/%SeriesDescription-%SeriesNumber/%InstanceNumber.dcm
 
 # STEP 2 - clean the DICOM_sorted
 # IDE also exported derived images, such as MPRs from the 3D T1w
 # these can be found in the series ending with a number higher than 1
 #  e.g. series 301 is the 3D T1w
 #       series 302 is the COR mpr of 301
-rm -rf DICOM_sorted/P*/*/*[2-9]
+# rm -rf DICOM_sorted/P*/*/*[2-9]
 
 # STEP 3 - convert to bids
 # We loop over all subjects
@@ -37,7 +37,7 @@ for f
     #echo "s: $s"
     if ! [ "$p" = "$s" ]; then
         echo "Converting participant $p session $s"
-        KUL_dcm2bids_linux.sh -p $p -s $s -d DICOM_sorted/$f -c study_config/sequences.txt
+        KUL_dcm2bids_new.sh -p $p -s $s -d DICOM_sorted/$f -c study_config/sequences.txt
     fi
 done
 #rm -rf BIDS/tmp_dcm2bids
