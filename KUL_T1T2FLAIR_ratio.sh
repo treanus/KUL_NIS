@@ -209,28 +209,23 @@ function KUL_register_computeratio {
 function KUL_MTI_register_computeratio {
     base0=${test_T1w##*/}
     base=${base0%_T1w*}
-    echo $base
-    ants_type="${base}_rigid_${td}_reg2t1_"
-    ants_template="${base}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
-    ants_source="${base}_${td}_mean_std_cropped_brain.nii.gz"
-    newname="${base}_${td}_mean_std_cropped_brain_reg2T1w.nii.gz"
-    KUL_rigid_register
     # convert the 4D MTI to single 3Ds
     input="$outputdir/compute/${base}_${td}_std_cropped_brain_iso.nii.gz"
     S0="$outputdir/compute/${base}_${td}_std_cropped_brain_iso_S0.nii.gz"
     Smt="$outputdir/compute/${base}_${td}_std_cropped_brain_iso_Smt.nii.gz"
     mrconvert $input -coord 3 0 $S0 -force
     mrconvert $input -coord 3 1 $Smt -force
+    # determine the registration
+    ants_type="${base}_rigid_${td}_reg2t1_"
+    ants_template="${base}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
+    ants_source="${base}_${td}_std_cropped_brain_iso_Smt.nii.gz"
+    newname="${base}_${td}_std_cropped_brain_iso_Smt_reg2T1w.nii.gz"
+    KUL_rigid_register
+    Smt="$outputdir/compute/$newname"
     # Now apply the coregistration to the 4D MTI 
     input=$S0
     output="$outputdir/compute/${base}_${td}_std_cropped_brain_iso_S0_reg2T1w.nii.gz"
     S0=$output
-    transform="$outputdir/compute/${base}_rigid_${td}_reg2t1_0GenericAffine.mat"
-    reference="$outputdir/compute/${base}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
-    KUL_antsApply_Transform
-    input=$Smt
-    output="$outputdir/compute/${base}_${td}_std_cropped_brain_iso_Smt_reg2T1w.nii.gz"
-    Smt=$output
     transform="$outputdir/compute/${base}_rigid_${td}_reg2t1_0GenericAffine.mat"
     reference="$outputdir/compute/${base}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
     KUL_antsApply_Transform
