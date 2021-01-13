@@ -156,7 +156,7 @@ if [ $mriqc_singularity -eq 1 ]; then
 else
 
  mkdir ${cwd}/mriqc_home
- local task_mriqc_cmd=$(echo "docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
+ local task_mriqc_cmd=$(echo "docker run -u $(id -u) --tmpfs /run --tmpfs /tmp --rm \
  -v ${cwd}/mriqc_home:/home/bidsapp/ \
  -v ${cwd}/${bids_dir}:/data -v ${cwd}/mriqc:/out \
  poldracklab/mriqc:latest \
@@ -1929,7 +1929,7 @@ mriqc_file_to_check=mriqc/group_bold.html
 
 if [ ! -f $mriqc_file_to_check ]; then
     mkdir ${cwd}/mriqc_home
-    docker run --read-only --tmpfs /run --tmpfs /tmp --rm \
+    docker run -u $(id -u) --tmpfs /run --tmpfs /tmp --rm \
         -v ${cwd}/mriqc_home:/home/bidsapp/ \
         -v ${cwd}/${bids_dir}:/data -v ${cwd}/mriqc:/out \
         poldracklab/mriqc:latest \
