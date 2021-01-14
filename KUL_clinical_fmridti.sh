@@ -306,7 +306,7 @@ function KUL_segment_tumor {
     
     # this will segment the lesion automatically
     hdglioinputdir="compute/hdglio/sub-${participant}/input"
-    hdgliooutputdir="compute/hdglio/sub-${participant}/ouput"
+    hdgliooutputdir="compute/hdglio/sub-${participant}/output"
     if [ $hdglio -eq 1 ]; then
 
         if [ $nT1w -eq 1 ] && [ $ncT1w -eq 1 ] && [ $nFLAIR -eq 1 ] && [ $nT2w -eq 1 ];then
@@ -357,7 +357,8 @@ function KUL_segment_tumor {
                     jenspetersen/hd-glio-auto
                 fi
                 
-                mrcalc compute/hdglio/sub-${participant}/output/segmentation.nii.gz 1 -ge $globalresultsdir/lesion.nii.gz
+                mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -ge $globalresultsdir/lesion.nii
+
             else
                 echo "HD-GLIO-AUTO already done"
             fi
@@ -525,8 +526,12 @@ fi
 # WAIT FOR ALL TO FINISH
 wait
 
+# STEP 5 - run SPM/melodic/msbp
 KUL_compute_SPM &
 KUL_compute_melodic &
+KUL_run_msbp &
+
+wait 
 
 KUL_dwiprep_anat.sh -p $participant -n $ncpu
 KUL_dwiprep_fibertract.sh -p $participant -n $ncpu -c study_config/tracto_tracts.csv -r study_config/tracto_rois.csv -w dhollander_wmfod_reg2T1w -v

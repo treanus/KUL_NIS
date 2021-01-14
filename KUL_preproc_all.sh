@@ -458,18 +458,27 @@ if [ ! -f  $freesurfer_file_to_check ]; then
 
     fi
 
-    mkdir -p freesurfer
+    #mkdir -p freesurfer
+    if [ $freesurfer_store_in_derivatives -eq 1 ];then
+        SUBJECTS_DIR="${cwd}/${bids_dir}/derivatives/freesurfer"
+        mkdir -p ${SUBJECTS_DIR} 
+        fs_BIDS_participant="sub-$BIDS_participant"
+        notify_file=${SUBJECTS_DIR}/${BIDS_participant}_freesurfer_is.done
+    else
+        SUBJECTS_DIR=${cwd}/freesurfer/sub-${BIDS_participant}
+        fs_BIDS_participant=$BIDS_participant
+        notify_file=${SUBJECTS_DIR}_freesurfer_is.done
+        #start clean
+        rm -rf $SUBJECTS_DIR
+        mkdir -p $SUBJECTS_DIR
+    fi
 
-    SUBJECTS_DIR=${cwd}/freesurfer/sub-${BIDS_participant}
-
-    #start clean
-    rm -rf $SUBJECTS_DIR
-    mkdir -p $SUBJECTS_DIR
+    
     export SUBJECTS_DIR
-    notify_file=${SUBJECTS_DIR}_freesurfer_is.done
+
     echo $notify_file
 
-    local task_freesurfer_cmd=$(echo "recon-all -subject $BIDS_participant $freesurfer_invol \
+    local task_freesurfer_cmd=$(echo "recon-all -subject $fs_BIDS_participant $freesurfer_invol \
         $fs_use_flair $fs_hippoT1T2 $fs_options_direct -all -openmp $ncpu_freesurfer \
         -parallel -notify $notify_file > $freesurfer_log 2>&1 ")
 
@@ -1285,10 +1294,16 @@ if [ $expert -eq 1 ]; then
 
         freesurfer_ncpu=$(grep freesurfer_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
         ncpu_freesurfer=$freesurfer_ncpu
-       
+
+        freesurfer_store_in_derivatives=0
+        freesurfer_store_in_derivatives=$(grep freesurfer_store_in_derivatives $conf | grep -v \# | sed 's/[^0-9]//g')
  
         #get bids_participants
         BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+        if [ -z "$BIDS_subjects" ]; then
+            bids_search=($(find BIDS/ -maxdepth 1 -name "sub-*" -type d))
+            BIDS_subjects=${bids_search[@]#*-}
+        fi
         n_subj=${#BIDS_subjects[@]}
             
         freesurfer_simultaneous=$(grep freesurfer_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
@@ -1301,6 +1316,7 @@ if [ $expert -eq 1 ]; then
             echo "  BIDS_participants: ${BIDS_subjects[@]}"
             echo "  number of BIDS_participants: $n_subj"
             echo "  freesurfer_simultaneous: $freesurfer_simultaneous"
+            echo "  freesurfer_store_in_derivatives: $freesurfer_store_in_derivatives"
 
         fi
 
@@ -1311,8 +1327,11 @@ if [ $expert -eq 1 ]; then
 
         for i_bids_participant in $(seq 0 $(($n_subj-1))); do
 
-            freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_subjects[i_bids_participant]}_freesurfer_is.done
-
+            if [ $freesurfer_store_in_derivatives -eq 1 ];then
+                freesurfer_file_to_check=${cwd}/${bids_dir}/derivatives/freesurfer/sub-${BIDS_subjects[i_bids_participant]}_freesurfer_is.done
+            else
+                freesurfer_file_to_check=${cwd}/freesurfer/sub-${BIDS_subjects[i_bids_participant]}_freesurfer_is.done
+            fi 
             #echo $freesurfer_file_to_check
             if [ ! -f $freesurfer_file_to_check ]; then
 
