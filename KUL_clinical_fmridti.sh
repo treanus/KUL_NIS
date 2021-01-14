@@ -322,13 +322,13 @@ function KUL_segment_tumor {
                     fslreorient2std $hdglioinputdir/T1.nii.gz $hdgliooutputdir/T1_reorient.nii.gz
                     fslreorient2std $hdglioinputdir/CT1.nii.gz $hdgliooutputdir/CT1_reorient.nii.gz
                     fslreorient2std $hdglioinputdir/T2.nii.gz $hdgliooutputdir/T2_reorient.nii.gz
-                    fslreorient2std$hdglioinputdir/ FLAIR.nii.gz $hdgliooutputdir/FLAIR_reorient.nii.gz
+                    fslreorient2std $hdglioinputdir/FLAIR.nii.gz $hdgliooutputdir/FLAIR_reorient.nii.gz
                     cd $hdgliooutputdir
                     # run hd bet
-                    hd-bet -i T1_reorient.nii.gz -o t1_bet.nii.gz -s 1
-                    hd-bet -i CT1_reorient.nii.gz -o ct1_bet.nii.gz
-                    hd-bet -i T2_reorient.nii.gz -o t2_bet.nii.gz
-                    hd-bet -i FLAIR_reorient.nii.gz -o flair_bet.nii.gz
+                    hd-bet -i T1_reorient.nii.gz -o t1_bet.nii.gz -s 1 -device cpu -mode fast -tta 0
+                    hd-bet -i CT1_reorient.nii.gz -o ct1_bet.nii.gz -device cpu -mode fast -tta 0
+                    hd-bet -i T2_reorient.nii.gz -o t2_bet.nii.gz -device cpu -mode fast -tta 0
+                    hd-bet -i FLAIR_reorient.nii.gz -o flair_bet.nii.gz -device cpu -mode fast -tta 0
                     # register brain extracted images to t1, save matrix
                     flirt -in ct1_bet.nii.gz -out ct1_bet_reg.nii.gz -ref t1_bet.nii.gz -omat ct1_to_t1.mat -interp spline -dof 6 &
                     flirt -in t2_bet.nii.gz -out t2_bet_reg.nii.gz -ref t1_bet.nii.gz -omat t2_to_t1.mat -interp spline -dof 6 &
@@ -349,7 +349,9 @@ function KUL_segment_tumor {
                     wait
                     # run hd-glio
                     hd_glio_predict -t1 T1_reorient.nii.gz -t1c CT1_reorient_reg_bet.nii.gz -t2 T2_reorient_reg_bet.nii.gz \
-                     -flair FLAIR_reorient_reg_bet.nii.gz -o OUTPUT_FILE.nII.gz
+                     -flair FLAIR_reorient_reg_bet.nii.gz -o OUTPUT_FILE.nii.gz
+                    # change back
+                    cd $cwd
                 else
                     echo "Running HD-GLIO-AUTO using docker"
                     docker run --gpus all --mount type=bind,source=${cwd}/$hdglioinputdir,target=/input \
