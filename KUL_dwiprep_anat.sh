@@ -22,6 +22,7 @@ v="v0.2 - dd 19/12/2018"
 kul_main_dir=`dirname "$0"`
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
+non_linear=0 
 
 # FUNCTIONS --------------
 
@@ -327,15 +328,18 @@ if [ ! -f qa/dhollander_dec_reg2T1w.mif ]; then
 
 fi
 
-# register ADC to betted T1w (non-linear) 
-ants_adc=qa/adc_reg2T1w.nii.gz
-ants_type=dwi_reg/nonlinear
-ADC_nii_brain_mask=dwi_preproced_reg2T1w_mask.nii.gz
-T1_brain_nii=T1w/T1w_BrainExtractionBrain.nii.gz
-T1_brain_mask=$fmriprep_anat_mask
+# NON-LINEAR registration
+# register ADC to betted T1w (non-linear)
+
+if [ $non_linear -eq 1 ]; then 
+ ants_adc=qa/adc_reg2T1w.nii.gz
+ ants_type=dwi_reg/nonlinear
+ ADC_nii_brain_mask=dwi_preproced_reg2T1w_mask.nii.gz
+ T1_brain_nii=T1w/T1w_BrainExtractionBrain.nii.gz
+ T1_brain_mask=$fmriprep_anat_mask
 
 
-if [ ! -f dwi_reg/nonlinear_outWarped.nii.gz ]; then
+ if [ ! -f dwi_reg/nonlinear_outWarped.nii.gz ]; then
 
     kul_e2cl " registering the the dmri ADC to the betted T1w image (non-linear)..." ${log}
     antsRegistration --dimensionality 3 \
@@ -346,15 +350,15 @@ if [ ! -f dwi_reg/nonlinear_outWarped.nii.gz ]; then
         -m mattes[${T1_brain_nii},${ants_adc},1,64,Regular,0.5] -c [200x200x50,1e-7,5] \
         -t SyN[0.1,3,0] -f 4x2x1 -s 2x1x0mm -u 1 -z 1 --winsorize-image-intensities [0.005, 0.995]
 
-else
+ else
 
     echo " registering the diffusion data to T1w (non-linear) already done, skipping..."
 
-fi
+ fi
 
 
-# mrtransform the FODs non-linearly
-if [ ! -f dwi_reg/mrtrix_warp_corrected.mif ]; then
+ # mrtransform the FODs non-linearly
+ if [ ! -f dwi_reg/mrtrix_warp_corrected.mif ]; then
 
     kul_e2cl " converting ants (non-linear) warps to mrtrix format..." ${log}
     input_fod_image=response/dhollander_wmfod_reg2T1w.mif
@@ -372,13 +376,13 @@ if [ ! -f dwi_reg/mrtrix_warp_corrected.mif ]; then
 
     warpcorrect dwi_reg/mrtrix_warp[].nii dwi_reg/mrtrix_warp_corrected.mif -force
 
-fi
+ fi
 
-# Apply the non-linear transformation of the dMRI to T1 
-#  to the wmfod 
-#mrtransform $input_fod_image -warp dwi_reg/mrtrix_warp_corrected.mif dwi_reg/warped_fod_image.mif -force
+ # Apply the non-linear transformation of the dMRI to T1 
+ #  to the wmfod 
+ #mrtransform $input_fod_image -warp dwi_reg/mrtrix_warp_corrected.mif dwi_reg/warped_fod_image.mif -force
 
-if [ ! -f log/status.mrtransformNL.done ]; then
+ if [ ! -f log/status.mrtransformNL.done ]; then
 
     kul_e2cl " Applying the non-linear transformation of the dMRI to T1..." ${log}
 
@@ -403,9 +407,9 @@ if [ ! -f log/status.mrtransformNL.done ]; then
 
     echo "done" > log/status.mrtransformNL.done
 
+ fi
+
 fi
-
-
 
 # Create and transform extra freesurfer data ---------------------------------
 mkdir -p roi
@@ -414,19 +418,30 @@ fs_wmlabels=roi/labels_wm_from_FS.nii.gz
 if [ ! -f log/status.freesurfer.done ]; then
 
     kul_e2cl " Starting with additional freesurfer processing..." ${log}
+    # test for location in bids_derivatives
+    #echo ${cwd}/BIDS/derivatives/freesurfer/sub-${subj}
+    if [ -d ${cwd}/BIDS/derivatives/freesurfer/sub-${subj} ]; then 
+        fs_subject_dir="${cwd}/BIDS/derivatives/freesurfer"
+        fs_subj="sub-${subj}"
+    else
+        fs_subject_dir="${cwd}/freesurfer/sub-${subj}"
+        fs_subj=$subj
+    fi
+    fs_loc="${fs_subject_dir}/${fs_subj}"
+    echo " location of freesurfer: $fs_loc"
 
     # create the subcortical wm segmentations
     source $FREESURFER_HOME/SetUpFreeSurfer.sh
-    mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi lh --lobesStrict lobes
-    mri_annotation2label --subject ${subj} --sd ${cwd}/freesurfer/sub-${subj} --hemi rh --lobesStrict lobes
-    mri_aparc2aseg --s ${subj} --sd ${cwd}/freesurfer/sub-${subj}  --labelwm --hypo-as-wm --rip-unknown \
-     --volmask --o ${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
+    mri_annotation2label --subject ${fs_subj} --sd ${fs_subject_dir} --hemi lh --lobesStrict lobes
+    mri_annotation2label --subject ${fs_subj} --sd ${fs_subject_dir} --hemi rh --lobesStrict lobes
+    mri_aparc2aseg --s ${fs_subj} --sd ${fs_subject_dir}  --labelwm --hypo-as-wm --rip-unknown \
+     --volmask --o ${fs_loc}/mri/wmparc.lobes.mgz --ctxseg aparc+aseg.mgz \
      --annot lobes --base-offset 200
 
 
     # Where is the freesurfer parcellation? 
-    fs_aparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/aparc+aseg.mgz
-    fs_wmparc=${cwd}/freesurfer/sub-${subj}/${subj}/mri/wmparc.mgz
+    fs_aparc=${fs_loc}/mri/aparc+aseg.mgz
+    fs_wmparc=${fs_loc}/mri/wmparc.mgz
 
     # Convert FS aparc back to original space
     fs_labels_tmp=roi/labels_from_FS_tmp.nii.gz

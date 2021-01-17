@@ -39,6 +39,7 @@ Required arguments:
 Optional arguments:
 
      -d:  dicom zip file (or directory)
+     -n:  number of cpu to use
      -v:  show output from commands
 
 
@@ -52,6 +53,7 @@ USAGE
 #
 # Set defaults
 silent=1 # default if option -v is not given
+ncpu=6
 
 # Set required options
 p_flag=0
@@ -64,7 +66,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:v" OPT; do
+	while getopts "p:t:d:n:v" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -78,6 +80,9 @@ else
         d) #dicomzip
 			dicomzip=$OPTARG
             d_flag=1
+		;;
+        n) #ncpu
+			ncpu=$OPTARG
 		;;
 		v) #verbose
 			silent=0
@@ -386,6 +391,10 @@ function KUL_run_VBG {
 
 function KUL_run_msbp {
 
+    # there seems tpo be a problem with docker if the fsaverage dir is a soft link; so we delete the link and hardcopy it
+    rm -fr $cwd/BIDS/derivatives/freesurfer/fsaverage
+    cp $FREESURFER_HOME/subjects/fsaverage $cwd/BIDS/derivatives/freesurfer/fsaverage
+
     docker run -it --rm -u $(id -u) -v $cwd/BIDS:/bids_dir \
      -v $cwd/BIDS/derivatives:/output_dir \
      -v $HOME/KUL_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
@@ -410,7 +419,7 @@ function KUL_run_TCKSEG {
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
      -c $cwd/trial_tracks_list_2.txt \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-     -T 2 -a iFOD2 -n $ncpu
+     -T 1 -a iFOD2 -n $ncpu
 
 }
 
@@ -495,7 +504,6 @@ fi
 }
 
 # --- MAIN ---
-ncpu=6
 globalresultsdir=$cwd/RESULTS/sub-$participant
 
 # STEP 1 - BIDS conversion
@@ -529,13 +537,12 @@ fi
 wait
 
 # STEP 5 - run SPM/melodic/msbp
+KUL_dwiprep_anat.sh -p $participant -n $ncpu &
 KUL_compute_SPM &
 KUL_compute_melodic &
 KUL_run_msbp &
 
 wait 
 
-KUL_dwiprep_anat.sh -p $participant -n $ncpu
-KUL_dwiprep_fibertract.sh -p $participant -n $ncpu -c study_config/tracto_tracts.csv -r study_config/tracto_rois.csv -w dhollander_wmfod_reg2T1w -v
-
+echo "Finished"
 
