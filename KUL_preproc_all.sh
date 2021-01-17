@@ -21,29 +21,14 @@ v="v0.3 - dd 30/09/2020"
 #   Requirements:
 #       A correct installation of your mac (for now, maybe later also a hpc) at the lab
 #           - including:
-#               - dcm2niix (in KUL_apps)
-#               - dcm2bids (jooh fork, using pip)
+#               - dcm2niix
+#               - dcm2bids
 #               - docker
-#               - freesurfer (in KUL_apps)
-#               - mrtrix (in KUL_apps)  
-#               - last but not least, a correct installation of up-to-date KUL_NeuroImaging_Tools (in KUL_apps)
+#               - freesurfer
+#               - mrtrix
+#               - last but not least, a correct installation of up-to-date KUL_NeuroImaging_Tools
 #               - correct setup of your .bashrc and .bash_profile
 #
-
-
-
-
-
-
-
-# To do:
-#
-#       - other ideas:
-#               - add processing for fmri stats
-
-
-
-
 
 
 # Source KUL_main_functions
@@ -55,10 +40,6 @@ kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
 cwd=$(pwd)
 source $kul_main_dir/KUL_main_functions.sh
-
-
-
-
 
 
 # Start with defining local functions
