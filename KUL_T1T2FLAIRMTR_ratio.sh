@@ -145,6 +145,7 @@ function KUL_reorient_crop_hdbet_biascorrect_iso {
     mrgrid $bias_output regrid -voxel 1 $iso_output -force
     iso_output2=$outputdir/compute/${output}_std_cropped_brain_mask_iso.nii.gz
     mrgrid $mask regrid -voxel 1 $iso_output2 -force
+    mv $iso_output $outputdir
 }
 
 function KUL_MTI_reorient_crop_hdbet_iso {
@@ -202,6 +203,7 @@ function KUL_register_computeratio {
     #    $outputdir/${base}_T1${td}_ratio_a.nii.gz
     mrcalc $outputdir/compute/$ants_template $outputdir/compute/$newname -divide \
         $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -multiply $outputdir/${base}_T1${td}_ratio.nii.gz -force
+    mv $newname $outputdir
 }
 
 function KUL_MTI_register_computeratio {
@@ -334,7 +336,7 @@ for test_T1w in ${T1w[@]}; do
                 KUL_MTI_register_computeratio
             fi
 
-            rm -fr $outputdir/compute/${base}*.gz
+            #rm -fr $outputdir/compute/${base}*.gz
             touch $check_done
 
             echo " done"
