@@ -4,8 +4,10 @@
 # This script is the first part of Sarah's Study1
 # This script computes a MS lesion map using freesurfer samseg
 # 
+v="0.9"
 
 kul_main_dir=`dirname "$0"`
+script="$0"
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
 
@@ -16,7 +18,7 @@ function Usage {
 
 cat <<USAGE
 
-`basename $0` computes a lesion mask in MS subjects and the median of the MTR, T1T2 and T1FLAIR ratio's.
+`basename $0` computes statistics on the MSlesion images as well as on MTR, T1T2 and T1FLAIR ratio's.
 
 Usage:
 
@@ -167,24 +169,24 @@ for test_T1w in ${T1w_all[@]}; do
             FLAIR_reg2T1w="$cwd/$outputdir/compute/${participant_and_session}_FLAIR_reg2T1w.nii.gz"
 
             # make the T1 iso 1mm 
-            echo " starting on $T1w: make an 1x1x1mm isotropic"
-            mrgrid $T1w regrid -voxel 1 $T1w_iso -force
+            #echo " starting on $T1w: make an 1x1x1mm isotropic"
+            #mrgrid $T1w regrid -voxel 1 $T1w_iso -force
 
             # coregister the flair to the T1w
-            echo " coregistering FLAIR to T1w_iso"
-            my_cmd="mri_coreg --mov $FLAIR --ref $T1w_iso \
-            --reg $cwd/$outputdir/compute/${participant_and_session}_flair2T1.lta $fs_silent"
-            eval $my_cmd
-            my_cmd="mri_vol2vol --mov $FLAIR --reg $cwd/$outputdir/compute/${participant_and_session}_flair2T1.lta \
-                --o $FLAIR_reg2T1w --targ $T1w_iso $fs_silent"
-            eval $my_cmd
+            #echo " coregistering FLAIR to T1w_iso"
+            #my_cmd="mri_coreg --mov $FLAIR --ref $T1w_iso \
+            #--reg $cwd/$outputdir/compute/${participant_and_session}_flair2T1.lta $fs_silent"
+            #eval $my_cmd
+            #my_cmd="mri_vol2vol --mov $FLAIR --reg $cwd/$outputdir/compute/${participant_and_session}_flair2T1.lta \
+            #    --o $FLAIR_reg2T1w --targ $T1w_iso $fs_silent"
+            #eval $my_cmd
 
             # run samseg
-            echo " running samseg (takes about 20 minutes)"
-            my_cmd="run_samseg --input $T1w_iso $FLAIR_reg2T1w --pallidum-separate \
-            --lesion --lesion-mask-pattern 0 1 --output $cwd/$outputdir/compute/samsegOutput_$participant_and_session \
-            --threads $ncpu $fs_silent"
-            eval $my_cmd
+            #echo " running samseg (takes about 20 minutes)"
+            #my_cmd="run_samseg --input $T1w_iso $FLAIR_reg2T1w --pallidum-separate \
+            #--lesion --lesion-mask-pattern 0 1 --output $cwd/$outputdir/compute/samsegOutput_$participant_and_session \
+            #--threads $ncpu $fs_silent"
+            #eval $my_cmd
 
             # compute masks
             SamSeg="$cwd/$outputdir/compute/samsegOutput_${participant_and_session}/seg.mgz"
@@ -206,7 +208,7 @@ for test_T1w in ${T1w_all[@]}; do
             CSF_3rd="$cwd/$outputdir/${participant_and_session}_CSF_3rd.nii.gz"
             CSF_4th="$cwd/$outputdir/${participant_and_session}_CSF_4th.nii.gz"
             CSF="$cwd/$outputdir/${participant_and_session}_CSF.nii.gz"
-            MSlesion="$cwd/$outputdir/${participant_and_session}_MSLesion.nii.gz"
+            #MSlesion="$cwd/$outputdir/${participant_and_session}_MSLesion.nii.gz"
 
             mrcalc $SamSeg 2 -eq $NAWM_lh -force
             mrcalc $SamSeg 41 -eq $NAWM_rh -force
@@ -222,7 +224,7 @@ for test_T1w in ${T1w_all[@]}; do
             mrcalc $SamSeg 14 -eq $CSF_3rd -force
             mrcalc $SamSeg 15 -eq $CSF_4th -force
             mrcalc $CSF_lateral $CSF_3rd $CSF_4th -add $CSF -force
-            mrcalc $SamSeg 99 -eq $MSlesion -force
+            #mrcalc $SamSeg 99 -eq $MSlesion -force
 
             NAWM_mtr=$(mrstats -mask $NAWM -output median $MTR)
             NAWM_t1t2=$(mrstats -mask $NAWM -output median $T1T2)

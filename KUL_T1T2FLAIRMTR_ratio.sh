@@ -1,4 +1,4 @@
-#!/bin/bash -e 
+#!/bin/bash 
 # Sarah Cappelle & Stefan Sunaert
 # 22/12/2020
 # This script is the first part of Sarah's Study1
@@ -10,8 +10,10 @@
 #  bias correct the images using N4biascorrect from ANTs
 #  ANTs rigid coregister and reslice all images to the 3D-T1w (in isotropic 1 mm space)
 #  compute a T1FLAIR_ratio, a T1T2_ratio and a MTR
+v="1.0"
 
 kul_main_dir=`dirname "$0"`
+script=$0
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
 
@@ -34,13 +36,15 @@ Example:
 
 Required arguments:
 
-	 -p:  participant name
+     -p:  participant name
 
 
 Optional arguments:
 
      -s:  session of the participant
      -a:  automatic mode (just work on all images in the BIDS folder)
+     -n:  number of cpu to use (default 15)
+     -m:  also run MS lesion segmentation using Freesurfer7 SamSeg
      -v:  show output from commands
 
 
@@ -56,6 +60,8 @@ USAGE
 auto=0 # default if option -s is not given
 silent=1 # default if option -v is not given
 outputdir="T1T2FLAIRMTR_ratio"
+ms=0
+ncpu=15
 
 # Set required options
 #p_flag=0
@@ -66,7 +72,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:av" OPT; do
+	while getopts "p:s:n:amv" OPT; do
 
 		case $OPT in
 		a) #automatic mode
@@ -77,6 +83,12 @@ else
 		;;
         s) #session
 			session=$OPTARG
+		;;
+        n) #ncpu
+			ncpu=$OPTARG
+		;;
+        m) #MS lesion segmentation
+			ms=1
 		;;
 		v) #verbose
 			silent=0
@@ -108,16 +120,18 @@ fi
 #fi
 
 ants_verbose=1
+fs_silent=""
 # verbose or not?
 if [ $silent -eq 1 ] ; then
 	export MRTRIX_QUIET=1
     ants_verbose=0
+    fs_silent=" > /dev/null 2>&1" 
 fi
 
 # --- FUNCTIONS ---
 
 function KUL_antsApply_Transform {
-    antsApplyTransforms -d 3 --float 1 \
+    antsApplyTransforms -d 3 \
     --verbose $ants_verbose \
     -i $input \
     -o $output \
@@ -129,7 +143,7 @@ function KUL_antsApply_Transform {
 function KUL_reorient_crop_hdbet_biascorrect_iso {
     fslreorient2std $input $outputdir/compute/${output}_std
     mrgrid $outputdir/compute/${output}_std.nii.gz crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 \
-            $outputdir/compute/${output}_std_cropped.nii.gz -force
+            $outputdir/compute/${output}_std_cropped.nii.gz -nthreads $ncpu -force
     result=$(hd-bet -i $outputdir/compute/${output}_std_cropped.nii.gz -o $outputdir/compute/${output}_std_cropped_brain.nii.gz 2>&1)
     if [ $silent -eq 0 ]; then
         echo $result
@@ -144,14 +158,14 @@ function KUL_reorient_crop_hdbet_biascorrect_iso {
     iso_output=$outputdir/compute/${output}_std_cropped_brain_biascorrected_iso.nii.gz
     mrgrid $bias_output regrid -voxel 1 $iso_output -force
     iso_output2=$outputdir/compute/${output}_std_cropped_brain_mask_iso.nii.gz
-    mrgrid $mask regrid -voxel 1 $iso_output2 -force
-    mv $iso_output $outputdir
+    mrgrid $mask regrid -voxel 1 $iso_output2 -nthreads $ncpu -force
 }
 
 function KUL_MTI_reorient_crop_hdbet_iso {
     fslreorient2std $input $outputdir/compute/${output}_std
-    mrgrid $outputdir/compute/${output}_std.nii.gz crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 $outputdir/compute/${output}_std_cropped.nii.gz -force
-    mrmath $outputdir/compute/${output}_std_cropped.nii.gz mean $outputdir/compute/${output}_mean_std_cropped.nii.gz -axis 3
+    mrgrid $outputdir/compute/${output}_std.nii.gz crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 \
+        $outputdir/compute/${output}_std_cropped.nii.gz -nthreads $ncpu -force
+    mrmath $outputdir/compute/${output}_std_cropped.nii.gz mean $outputdir/compute/${output}_mean_std_cropped.nii.gz -axis 3 -nthreads $ncpu
     result=$(hd-bet -i $outputdir/compute/${output}_mean_std_cropped.nii.gz -o $outputdir/compute/${output}_mean_std_cropped_brain.nii.gz 2>&1)
     if [ $silent -eq 0 ]; then
         echo $result
@@ -196,14 +210,15 @@ function KUL_register_computeratio {
     ants_template="${base}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
     ants_source="${base}_${td}_std_cropped_brain_biascorrected_iso.nii.gz"
     newname="${base}_${td}_std_cropped_brain_biascorrected_iso_reg2T1w.nii.gz"
+    finalname="${base}_${td}_reg2T1w.nii.gz"
     KUL_rigid_register
     # make a better mask
-    maskfilter ${output} erode $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -force
+    maskfilter ${output} erode $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -nthreads $ncpu -force
     #mrcalc $outputdir/compute/$ants_template $outputdir/compute/$newname -divide \
     #    $outputdir/${base}_T1${td}_ratio_a.nii.gz
     mrcalc $outputdir/compute/$ants_template $outputdir/compute/$newname -divide \
-        $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -multiply $outputdir/${base}_T1${td}_ratio.nii.gz -force
-    mv $newname $outputdir
+        $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -multiply $outputdir/${base}_T1${td}_ratio.nii.gz -nthreads $ncpu -force
+    cp $outputdir/compute/$newname $outputdir/$finalname
 }
 
 function KUL_MTI_register_computeratio {
@@ -220,6 +235,7 @@ function KUL_MTI_register_computeratio {
     ants_template="${base}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
     ants_source="${base}_${td}_std_cropped_brain_iso_Smt.nii.gz"
     newname="${base}_${td}_std_cropped_brain_iso_Smt_reg2T1w.nii.gz"
+    finalname="${base}_${td}_reg2T1w.nii.gz"
     KUL_rigid_register
     Smt="$outputdir/compute/$newname"
     # Now apply the coregistration to the 4D MTI 
@@ -233,7 +249,8 @@ function KUL_MTI_register_computeratio {
     mask=$outputdir/compute/${base}_T1w_std_cropped_brain_mask_iso.nii.gz
     # MTR formula: (S0 - Smt)/S0
     mrcalc $S0 $Smt -subtract $S0 -divide $mask -multiply \
-     $outputdir/${base}_MTC_ratio.nii.gz -force
+     $outputdir/${base}_MTC_ratio.nii.gz -nthreads $ncpu -force
+    cp $outputdir/compute/$newname $outputdir/$finalname
 }
 
 # --- MAIN ---
@@ -321,6 +338,24 @@ for test_T1w in ${T1w[@]}; do
                 td="FLAIR"
                 echo " coregistering FLAIR to T1 and computing the ratio"
                 KUL_register_computeratio
+            fi
+
+            # if MS lesion segmentation
+            if [ $ms -eq 1 ];then
+                if [ $flair -eq 1 ];then
+                    echo " running samseg (takes about 20 minutes)"
+                    T1w_iso="$outputdir/${base}_T1w.nii.gz"
+                    FLAIR_reg2T1w="$outputdir/${base}_FLAIR_reg2T1w.nii.gz"
+                    my_cmd="run_samseg --input $T1w_iso $FLAIR_reg2T1w --pallidum-separate \
+                     --lesion --lesion-mask-pattern 0 1 --output $cwd/$outputdir/compute/${base}_samsegOutput \
+                     --threads $ncpu $fs_silent"
+                    eval $my_cmd
+                    SamSeg="$cwd/$outputdir/compute/${base}_samsegOutput/seg.mgz"
+                    MSlesion="$cwd/$outputdir/${base}_MSLesion.nii.gz"
+                    mrcalc $SamSeg 99 -eq $MSlesion -force -nthreads $ncpu
+                else
+                    echo " Warning! No Flair available to do lesion MS segmentation"
+                fi        
             fi
 
             if [ $mti -eq 1 ];then
