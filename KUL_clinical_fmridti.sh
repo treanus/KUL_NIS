@@ -393,7 +393,7 @@ function KUL_run_msbp {
 
     # there seems tpo be a problem with docker if the fsaverage dir is a soft link; so we delete the link and hardcopy it
     rm -fr $cwd/BIDS/derivatives/freesurfer/fsaverage
-    cp $FREESURFER_HOME/subjects/fsaverage $cwd/BIDS/derivatives/freesurfer/fsaverage
+    cp -r $FREESURFER_HOME/subjects/fsaverage $cwd/BIDS/derivatives/freesurfer/fsaverage
 
     docker run -it --rm -u $(id -u) -v $cwd/BIDS:/bids_dir \
      -v $cwd/BIDS/derivatives:/output_dir \
@@ -410,14 +410,14 @@ function KUL_run_TCKSEG {
     KUL_genVOIs_4TCKseg.sh -p ${participant} \
      -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
-     -c $cwd/trial_tracks_list_2.txt \
+     -c $cwd/study_config/trial_tracks_list_2.txt \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
      -n $ncpu
 
     WIP_tracking_script.sh -p ${participant} \
      -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
-     -c $cwd/trial_tracks_list_2.txt \
+     -c $cwd/study_config/trial_tracks_list_2.txt \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
      -T 1 -a iFOD2 -n $ncpu
 
@@ -543,6 +543,8 @@ KUL_compute_melodic &
 KUL_run_msbp &
 
 wait 
+
+KUL_run_TCKSEG
 
 echo "Finished"
 
