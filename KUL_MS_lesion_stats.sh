@@ -251,12 +251,12 @@ for test_T1w in ${T1w_all[@]}; do
 
         else
 
-            echo " $participant_and_session does not have a flair - nothing to do here"
+            echo " $base does not have a flair - nothing to do here"
         
         fi
     
     else
-        echo " $participant_and_session  already done".
+        echo " $base already done".
     fi
 
 done

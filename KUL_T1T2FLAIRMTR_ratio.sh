@@ -128,6 +128,9 @@ if [ $silent -eq 1 ] ; then
     fs_silent=" > /dev/null 2>&1" 
 fi
 
+d=$(date "+%Y-%m-%d_%H-%M-%S")
+log=log/log_${d}.txt
+
 # --- FUNCTIONS ---
 
 function KUL_antsApply_Transform {
@@ -300,8 +303,10 @@ for test_T1w in ${T1w[@]}; do
 
         # If a T2 and/or a FLAIR exists
         if [ $d -gt 0 ]; then
-            echo "KUL_T1T2FLAIR_ratio is starting"
             mkdir -p $outputdir/compute
+            mkdir -p $outputdir/log
+            kul_e2cl "KUL_T1T2FLAIR_ratio is starting" ${outputdir}/${log}
+            
 
             # for the T1w
             input=$test_T1w
