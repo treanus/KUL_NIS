@@ -391,18 +391,24 @@ function KUL_run_VBG {
 
 function KUL_run_msbp {
 
-    # there seems tpo be a problem with docker if the fsaverage dir is a soft link; so we delete the link and hardcopy it
-    rm -fr $cwd/BIDS/derivatives/freesurfer/fsaverage
-    cp -r $FREESURFER_HOME/subjects/fsaverage $cwd/BIDS/derivatives/freesurfer/fsaverage
+    if [ ! -f KUL_LOG/${participant}_MSBP.done ]; then
+        # there seems tpo be a problem with docker if the fsaverage dir is a soft link; so we delete the link and hardcopy it
+        rm -fr $cwd/BIDS/derivatives/freesurfer/fsaverage
+        cp -r $FREESURFER_HOME/subjects/fsaverage $cwd/BIDS/derivatives/freesurfer/fsaverage
 
-    docker run -it --rm -u $(id -u) -v $cwd/BIDS:/bids_dir \
-     -v $cwd/BIDS/derivatives:/output_dir \
-     -v $HOME/KUL_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
-     sebastientourbier/multiscalebrainparcellator:v1.1.1 /bids_dir /output_dir participant \
-     --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
-     --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
-     --multiproc_number_of_cores $ncpu
-
+        docker run -it --rm -u $(id -u) -v $cwd/BIDS:/bids_dir \
+         -v $cwd/BIDS/derivatives:/output_dir \
+         -v $HOME/KUL_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
+         sebastientourbier/multiscalebrainparcellator:v1.1.1 /bids_dir /output_dir participant \
+         --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
+         --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
+         --multiproc_number_of_cores $ncpu
+        
+        touch KUL_LOG/${participant}_MSBP.done
+        
+    else
+        echo "MSBP already done"
+    fi
 }
 
 function KUL_run_TCKSEG {

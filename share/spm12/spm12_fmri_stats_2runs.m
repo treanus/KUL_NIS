@@ -1,5 +1,7 @@
 % List of open inputs
-addpath /home/stefan/KUL_apps/spm12
+
+spm_path = [getenv('HOME') filesep 'KUL_apps/spm12'];
+addpath(spm_path)
 nrun = 1; % enter the number of runs here
 jobfile = {'###JOBFILE###'};
 jobs = repmat(jobfile, 1, nrun);
