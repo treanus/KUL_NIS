@@ -746,7 +746,7 @@ if [ ! -f qa/dec.mif ]; then
 	fi
 	if [[ $dwipreproc_options == *"dhollander"* ]]; then
 		fod2dec response/dhollander_wmfod.mif qa/dhollander_dec.mif -force
-		fod2dec response/dhollander_wmfod_norm.mif qa/dhollander_dec_norm.mif -force
+		#fod2dec response/dhollander_wmfod_norm.mif qa/dhollander_dec_norm.mif -force
 	fi
 
 	#mrconvert dwi/noiselevel.mif qa/noiselevel.nii.gz

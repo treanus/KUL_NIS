@@ -122,9 +122,8 @@ fi
 
 # MRTRIX verbose or not?
 if [ $silent -eq 1 ] ; then
-
 	export MRTRIX_QUIET=1
-
+    str_silent=" > /dev/null 2>&1" 
 fi
 
 if [ $type -eq 1 ]; then
@@ -164,6 +163,7 @@ function KUL_run_fmriprep {
     if [ ! -f fmriprep/sub-${participant}.html ]; then
         cp study_config/run_fmriprep.txt KUL_LOG/sub-${participant}_run_fmriprep.txt
         sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_fmriprep.txt
+        rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
         KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_fmriprep.txt 
         rm -fr fmriprep_work_${participant}
     else
@@ -175,6 +175,7 @@ function KUL_run_dwiprep {
     if [ ! -f dwiprep/sub-${participant}/dwiprep_is_done.log ]; then
         cp study_config/run_dwiprep.txt KUL_LOG/sub-${participant}_run_dwiprep.txt
         sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_dwiprep.txt
+        rm -f KUL_LOG/sub-${participant}_run_dwiprep.txt.bck
         KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_dwiprep.txt 
     else
         echo "dwiprep already done"
@@ -182,9 +183,10 @@ function KUL_run_dwiprep {
 }
 
 function KUL_run_freesurfer {
-    if [ ! -f freesurfer/sub-${participant}.done ]; then
+    if [ ! -f BIDS/derivatives/freesurfer/${participant}_freesurfer_is.done ]; then
         cp study_config/run_freesurfer.txt KUL_LOG/sub-${participant}_run_freesurfer.txt
         sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_freesurfer.txt
+        rm -f KUL_LOG/sub-${participant}_run_freesurfer.txt.bck
         KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_freesurfer.txt 
     else
         echo "freesurfer already done"
@@ -251,12 +253,11 @@ function KUL_compute_SPM {
     mkdir -p $scriptsdir
     mkdir -p $computedir/RESULTS/MNI
 
-
     # Provide the anatomy
     cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/T1w.nii.gz
     gunzip -f $globalresultsdir/T1w.nii.gz
 
-    if [ ! -f KUL_LOG/${participant}_SPM.done ]; then
+    if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
         echo "Preparing for SPM"
         tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
         #echo ${tasks[@]}
@@ -286,7 +287,7 @@ function KUL_compute_SPM {
             
             fi
         done
-        echo "Done" > KUL_LOG/${participant}_SPM.done
+        touch KUL_LOG/sub-${participant}_SPM.done
     else
         echo "SPM analysis already done"
     fi
@@ -390,21 +391,25 @@ function KUL_run_VBG {
 }
 
 function KUL_run_msbp {
+    if [ ! -f KUL_LOG/sub-${participant}_MSBP.done ]; then
 
-    if [ ! -f KUL_LOG/${participant}_MSBP.done ]; then
+        echo " starting MSBP"
+
         # there seems tpo be a problem with docker if the fsaverage dir is a soft link; so we delete the link and hardcopy it
         rm -fr $cwd/BIDS/derivatives/freesurfer/fsaverage
         cp -r $FREESURFER_HOME/subjects/fsaverage $cwd/BIDS/derivatives/freesurfer/fsaverage
 
-        docker run -it --rm -u $(id -u) -v $cwd/BIDS:/bids_dir \
+        my_cmd="docker run --rm -u $(id -u) -v $cwd/BIDS:/bids_dir \
          -v $cwd/BIDS/derivatives:/output_dir \
          -v $HOME/KUL_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
          sebastientourbier/multiscalebrainparcellator:v1.1.1 /bids_dir /output_dir participant \
          --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
          --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
-         --multiproc_number_of_cores $ncpu
+         --multiproc_number_of_cores $ncpu $str_silent"
+        #echo $my_cmd
+        eval $my_cmd
         
-        touch KUL_LOG/${participant}_MSBP.done
+        touch KUL_LOG/sub-${participant}_MSBP.done
         
     else
         echo "MSBP already done"
@@ -413,20 +418,23 @@ function KUL_run_msbp {
 
 function KUL_run_TCKSEG {
 
-    KUL_genVOIs_4TCKseg.sh -p ${participant} \
+    echo " starting FWT VOI generation"
+    my_cmd="KUL_genVOIs_4TCKseg.sh -p ${participant} \
      -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
      -c $cwd/study_config/trial_tracks_list_2.txt \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-     -n $ncpu
+     -n $ncpu $str_silent"
+    eval $my_cmd
 
-    WIP_tracking_script.sh -p ${participant} \
+    echo " starting FWT tracking"
+    my_cmd="WIP_tracking_script.sh -p ${participant} \
      -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
      -c $cwd/study_config/trial_tracks_list_2.txt \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-     -T 1 -a iFOD2 -n $ncpu
-
+     -T 1 -a iFOD2 -n $ncpu $str_silent"
+    eval $my_cmd
 }
 
 function KUL_compute_melodic {
@@ -442,7 +450,7 @@ mkdir -p $fmridatadir
 mkdir -p $computedir/RESULTS
 mkdir -p $globalresultsdir
 
-if [ ! -f KUL_LOG/${participant}_melodic.done ]; then
+if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
     echo "Preparing for Melodic"
     tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
     # we loop over the found tasks
@@ -458,7 +466,7 @@ if [ ! -f KUL_LOG/${participant}_melodic.done ]; then
         mkdir -p $fmriresults
         melodic_in="$fmridatadir/sub-${participant}_task-$fmrifile"
         # find the TR
-        tr=$(mrinfo $melodic_in -spacing | cut -d " " -f 4)
+        tr=$(mrinfo $melodic_in -sMelodic analysis already donepacing | cut -d " " -f 4)
         # make model and contrast
         dyn=$(mrinfo $melodic_in -size | cut -d " " -f 4)
         t_glm_con="$kul_main_dir/share/FSL/fsl_glm.con"
@@ -503,7 +511,7 @@ if [ ! -f KUL_LOG/${participant}_melodic.done ]; then
             KUL_antsApply_Transform
         done < $fmriresults/kul/kul_networks.txt
     done
-    echo "Done" > KUL_LOG/${participant}_melodic.done
+    touch KUL_LOG/sub-${participant}_melodic.done
 else
     echo "Melodic analysis already done"
 fi
@@ -516,12 +524,16 @@ globalresultsdir=$cwd/RESULTS/sub-$participant
 KUL_convert2bids
 
 # Run BIDS validation
-docker run -ti --rm -v ${cwd}/BIDS:/data:ro bids/validator /data
+if [ ! -f KUL_LOG/sub-${participant}_1_bidscheck.done ]; then 
+    docker run -ti --rm -v ${cwd}/BIDS:/data:ro bids/validator /data
 
-read -p "Are you happy? (y/n) " answ
-if [[ ! "$answ" == "y" ]]; then
-    exit 1
-fi
+    read -p "Are you happy? (y/n) " answ
+    if [[ ! "$answ" == "y" ]]; then
+        exit 1
+    else
+        touch KUL_LOG/sub-${participant}_1_bidscheck.done
+    fi
+fi 
 
 # STEP 2 - run fmriprep/dwiprep and continue
 KUL_run_fmriprep &
@@ -543,7 +555,7 @@ fi
 wait
 
 # STEP 5 - run SPM/melodic/msbp
-KUL_dwiprep_anat.sh -p $participant -n $ncpu &
+KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
 KUL_compute_SPM &
 KUL_compute_melodic &
 KUL_run_msbp &

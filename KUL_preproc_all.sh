@@ -344,8 +344,12 @@ fi
 function task_freesurfer {
 
 # check if already performed freesurfer
-freesurfer_file_to_check=freesurfer/sub-${BIDS_participant}/${BIDS_participant}/scripts/recon-all.done
-        
+if [ $freesurfer_store_in_derivatives -eq 1 ];then
+    freesurfer_file_to_check=BIDS/derivatives/freesurfer/${BIDS_participant}_freesurfer_is.done
+else
+    freesurfer_file_to_check=freesurfer/sub-${BIDS_participant}/${BIDS_participant}/scripts/recon-all.done
+fi
+
 if [ ! -f  $freesurfer_file_to_check ]; then
     
     freesurfer_log=${preproc}/log/freesurfer/${BIDS_participant}.txt
