@@ -36,8 +36,7 @@ Required arguments:
 Optional arguments:
 
      -s:  session of the participant
-     -a:  automatic mode (just work on all images in the BIDS folder)
-     -n:  number of cpu to use
+     -a:  automatic mode (just work on all images in the T1T2FLAIRMTR folder)
      -v:  show output from commands
 
 
@@ -52,8 +51,7 @@ USAGE
 # Set defaults
 auto=0 # default if option -s is not given
 silent=1 # default if option -v is not given
-outputdir="Study_MSlesions"
-ncpu=6
+outputdir="T1T2FLAIRMTR_ratio"
 
 # Set required options
 #p_flag=0
@@ -75,9 +73,6 @@ else
 		;;
         s) #session
 			session=$OPTARG
-		;;
-        n) #ncpu
-			ncpu=$OPTARG
 		;;
 		v) #verbose
 			silent=0
@@ -108,13 +103,10 @@ fi
 #	exit 2
 #fi
 
-ants_verbose=1
-fs_silent=""
+
 # verbose or not?
 if [ $silent -eq 1 ] ; then
 	export MRTRIX_QUIET=1
-    ants_verbose=0
-    fs_silent=" > /dev/null 2>&1"
 fi
 
 # --- FUNCTIONS ---
@@ -125,7 +117,6 @@ printf "\n\n\n"
 if [ $auto -eq 0 ]; then
     datadir="$cwd/BIDS/sub-${participant}/ses-$session/anat"
     T1w_all=("$datadir/sub-${participant}_ses-${session}_T1w.nii.gz")
-    FLAIR=("$datadir/sub-${participant}_ses-${session}_FLAIR.nii.gz")
 else
     T1w_all=($(find BIDS -type f -name "*T1w.nii.gz" | sort ))
 fi
@@ -141,14 +132,14 @@ echo "participant_and_session, \
     CSF_lateral_mtr, CSF_lateral_t1t2, CSF_lateral_t1flair, \
     CSF_3rd_mtr, CSF_3rd_t1t2, CSF_3rd_t1flair, \
     CSF_4th_mtr, CSF_4th_t1t2, CSF_4th_t1flair, \
-    MSlesion_mtr, MSlesion_t1t2, MSlesion_t1flair \
+    MSlesion_mtr, MSlesion_t1t2, MSlesion_t1flair, \
     Volume_NAWM, Volume_NAGM, Volume_CSF, Volume_MSlesions" > $outputdir/mijn_resultaten.csv
 
 flair=0
 for test_T1w in ${T1w_all[@]}; do
 
     base0=${test_T1w##*/};base=${base0%_T1w*}
-    check_done="$outputdir/compute/${base}.done"
+    check_done="$outputdir/compute/${base}_stats.done"
 
     if [ ! -f $check_done ];then
 
@@ -165,35 +156,17 @@ for test_T1w in ${T1w_all[@]}; do
 
             participant_and_session=$base
 
+            echo "Processing $participant_and_session"
             T1w_iso="$cwd/$outputdir/compute/${participant_and_session}_T1w_iso.nii.gz"
             FLAIR_reg2T1w="$cwd/$outputdir/compute/${participant_and_session}_FLAIR_reg2T1w.nii.gz"
 
-            # make the T1 iso 1mm 
-            #echo " starting on $T1w: make an 1x1x1mm isotropic"
-            #mrgrid $T1w regrid -voxel 1 $T1w_iso -force
-
-            # coregister the flair to the T1w
-            #echo " coregistering FLAIR to T1w_iso"
-            #my_cmd="mri_coreg --mov $FLAIR --ref $T1w_iso \
-            #--reg $cwd/$outputdir/compute/${participant_and_session}_flair2T1.lta $fs_silent"
-            #eval $my_cmd
-            #my_cmd="mri_vol2vol --mov $FLAIR --reg $cwd/$outputdir/compute/${participant_and_session}_flair2T1.lta \
-            #    --o $FLAIR_reg2T1w --targ $T1w_iso $fs_silent"
-            #eval $my_cmd
-
-            # run samseg
-            #echo " running samseg (takes about 20 minutes)"
-            #my_cmd="run_samseg --input $T1w_iso $FLAIR_reg2T1w --pallidum-separate \
-            #--lesion --lesion-mask-pattern 0 1 --output $cwd/$outputdir/compute/samsegOutput_$participant_and_session \
-            #--threads $ncpu $fs_silent"
-            #eval $my_cmd
-
-            # compute masks
-            SamSeg="$cwd/$outputdir/compute/samsegOutput_${participant_and_session}/seg.mgz"
+            # define the input images
+            SamSeg="$cwd/$outputdir/compute/${participant_and_session}_samsegOutput/seg.mgz"
             MTR="T1T2FLAIRMTR_ratio/${participant_and_session}_MTC_ratio.nii.gz"
             T1T2="T1T2FLAIRMTR_ratio/${participant_and_session}_T1T2w_ratio.nii.gz"
             T1FLAIR="T1T2FLAIRMTR_ratio/${participant_and_session}_T1FLAIR_ratio.nii.gz"
 
+            # define the output images
             NAWM_lh="$cwd/$outputdir/${participant_and_session}_NAWM_lh.nii.gz"
             NAWM_rh="$cwd/$outputdir/${participant_and_session}_NAWM_rh.nii.gz"
             NAWM="$cwd/$outputdir/${participant_and_session}_NAWM.nii.gz"
@@ -208,8 +181,10 @@ for test_T1w in ${T1w_all[@]}; do
             CSF_3rd="$cwd/$outputdir/${participant_and_session}_CSF_3rd.nii.gz"
             CSF_4th="$cwd/$outputdir/${participant_and_session}_CSF_4th.nii.gz"
             CSF="$cwd/$outputdir/${participant_and_session}_CSF.nii.gz"
-            #MSlesion="$cwd/$outputdir/${participant_and_session}_MSLesion.nii.gz"
+            MSlesion="$cwd/$outputdir/${participant_and_session}_MSLesion.nii.gz"
 
+            echo " making VOIs"
+            # do the computation of the masks
             mrcalc $SamSeg 2 -eq $NAWM_lh -force
             mrcalc $SamSeg 41 -eq $NAWM_rh -force
             mrcalc $NAWM_lh $NAWM_rh -add $NAWM -force
@@ -223,9 +198,11 @@ for test_T1w in ${T1w_all[@]}; do
             mrcalc $CSF_lateral_lh $CSF_lateral_rh -add $CSF_lateral -force
             mrcalc $SamSeg 14 -eq $CSF_3rd -force
             mrcalc $SamSeg 15 -eq $CSF_4th -force
-            mrcalc $CSF_lateral $CSF_3rd $CSF_4th -add $CSF -force
+            mrcalc $CSF_lateral $CSF_3rd -add $CSF_4th -add $CSF -force
             #mrcalc $SamSeg 99 -eq $MSlesion -force
 
+            echo " computing stats"
+            # do the stats
             NAWM_mtr=$(mrstats -mask $NAWM -output median $MTR)
             NAWM_t1t2=$(mrstats -mask $NAWM -output median $T1T2)
             NAWM_t1flair=$(mrstats -mask $NAWM -output median $T1FLAIR)
@@ -257,6 +234,8 @@ for test_T1w in ${T1w_all[@]}; do
             Volume_CSF=$(mrstats -ignorezero -output count $CSF)
             Volume_MSlesions=$(mrstats -ignorezero -output count $MSlesion)
 
+            # write the stats to a .csv file
+            echo " saving"
             echo "$participant_and_session, \
                 $NAWM_mtr, $NAWM_t1t2, $NAWM_t1flair, \
                 $NAGM_mtr, $NAGM_t1t2, $NAGM_t1flair, \
@@ -265,7 +244,7 @@ for test_T1w in ${T1w_all[@]}; do
                 $CSF_lateral_mtr, $CSF_lateral_t1t2, $CSF_lateral_t1flair, \
                 $CSF_3rd_mtr, $CSF_3rd_t1t2, $CSF_3rd_t1flair, \
                 $CSF_4th_mtr, $CSF_4th_t1t2, $CSF_4th_t1flair, \
-                $MSlesion_mtr, $MSlesion_t1t2, $MSlesion_t1flair \
+                $MSlesion_mtr, $MSlesion_t1t2, $MSlesion_t1flair, \
                 $Volume_NAWM, $Volume_NAGM, $Volume_CSF, $Volume_MSlesions" >> $outputdir/mijn_resultaten.csv
         
             touch $check_done

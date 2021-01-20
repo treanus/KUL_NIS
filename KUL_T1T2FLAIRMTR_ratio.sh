@@ -371,7 +371,7 @@ for test_T1w in ${T1w[@]}; do
                 KUL_MTI_register_computeratio
             fi
 
-            #rm -fr $outputdir/compute/${base}*.gz
+            rm -fr $outputdir/compute/${base}*.gz
             touch $check_done
 
             echo " done"
