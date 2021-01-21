@@ -39,7 +39,7 @@ Required arguments:
 Optional arguments:
 
      -d:  dicom zip file (or directory)
-     -n:  number of cpu to use
+     -n:  number of cpu to use (default 15)
      -v:  show output from commands
 
 
@@ -53,7 +53,7 @@ USAGE
 #
 # Set defaults
 silent=1 # default if option -v is not given
-ncpu=6
+ncpu=15
 
 # Set required options
 p_flag=0
