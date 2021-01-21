@@ -140,7 +140,6 @@ fi
 # --- functions ---
 
 function KUL_antsApply_Transform {
-
     antsApplyTransforms -d 3 --float 1 \
         --verbose 1 \
         -i $input \

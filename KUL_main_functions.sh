@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Bash shell script to:
 #  - define global functions used by all sub-scripts
 #  - define defaults
@@ -8,6 +8,13 @@
 
 # parameters for logging
 log_every_seconds=120
+
+# echo loud or silent
+function kul_echo {
+    if [ $silent -eq 0 ];then
+        echo $1
+    fi
+}
 
 # -- function kul_e2cl to echo to console & log file with matlab tic/toc behavior ---
 function kul_e2cl {
