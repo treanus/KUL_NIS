@@ -1,0 +1,2 @@
+*eddy_cuda* filter=lfs diff=lfs merge=lfs -text
+share/FSL/eddy_cuda11.2 filter=lfs diff=lfs merge=lfs -text
