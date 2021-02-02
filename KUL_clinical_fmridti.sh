@@ -377,8 +377,9 @@ function KUL_segment_tumor {
 
 function KUL_run_VBG {
     if [ $vbg -eq 1 ]; then
-        vgb_test="lesion_wf/output_LWF/sub-${participant}/sub-${participant}_aparc+aseg.nii.gz"
+        vbg_test="lesion_wf/output_LWF/sub-${participant}/sub-${participant}_aparc+aseg.nii.gz"
         if [[ ! -f $vbg_test ]]; then
+            echo "Starting KUL_VBG"
             KUL_VBG.sh -p ${participant} -l $globalresultsdir/lesion.nii -z T1 -b -B 1 -t -F -n $ncpu -v
             mkdir -p freesurfer
             ln -s ${cwd}/lesion_wf/output_LWF/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/ freesurfer
@@ -418,7 +419,7 @@ function KUL_run_msbp {
 function KUL_run_TCKSEG {
 
     echo " starting FWT VOI generation"
-    my_cmd="KUL_genVOIs_4TCKseg.sh -p ${participant} \
+    my_cmd="KUL_FWT_make_VOIs.sh -p ${participant} \
      -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
      -c $cwd/study_config/trial_tracks_list_2.txt \
@@ -427,7 +428,7 @@ function KUL_run_TCKSEG {
     eval $my_cmd
 
     echo " starting FWT tracking"
-    my_cmd="WIP_tracking_script.sh -p ${participant} \
+    my_cmd="KUL_FWT_make_TCKs.sh -p ${participant} \
      -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
      -c $cwd/study_config/trial_tracks_list_2.txt \
