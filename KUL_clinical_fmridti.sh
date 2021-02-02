@@ -433,7 +433,9 @@ function KUL_run_TCKSEG {
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
      -c $cwd/study_config/trial_tracks_list_2.txt \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-     -T 1 -a iFOD2 -n $ncpu $str_silent"
+     -T 1 -a iFOD2 \
+     -Q -S \
+     -n $ncpu $str_silent"
     eval $my_cmd
 }
 
