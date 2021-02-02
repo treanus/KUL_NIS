@@ -465,7 +465,7 @@ if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
         mkdir -p $fmriresults
         melodic_in="$fmridatadir/sub-${participant}_task-$fmrifile"
         # find the TR
-        tr=$(mrinfo $melodic_in -sMelodic analysis already donepacing | cut -d " " -f 4)
+        tr=$(mrinfo $melodic_in -spacing | cut -d " " -f 4)
         # make model and contrast
         dyn=$(mrinfo $melodic_in -size | cut -d " " -f 4)
         t_glm_con="$kul_main_dir/share/FSL/fsl_glm.con"
