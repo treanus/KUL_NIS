@@ -143,7 +143,7 @@ if [[ $(which dcm2bids_scaffold) ]]; then
 
 else
 
-    echo "  dcm2bids not installed, installing it with pip using pip install jsontool" $log
+    echo "  dcm2bids not installed, installing it with pip using pip install dcm2bids" $log
     pip uninstall Dcm2Bids
     pip install dcm2bids
 
