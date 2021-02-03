@@ -431,7 +431,7 @@ function KUL_run_TCKSEG {
     my_cmd="KUL_FWT_make_TCKs.sh -p ${participant} \
      -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
-     -c $cwd/study_config/trial_tracks_list_2.txt \
+     -c $cwd/study_config/tracks_list.txt \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
      -T 1 -a iFOD2 \
      -Q -S \
