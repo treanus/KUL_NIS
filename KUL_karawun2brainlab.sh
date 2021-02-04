@@ -144,7 +144,7 @@ mrconvert 16bit_Elements/*rBO.img for_elements_$participant/B0.nii
 
 # convert each tract
 cd 16bit_Elements
-files=( $(find -name "*_r_*.img" -type f -printf '%P\n') )
+files=($(find -name "*_r_*.img" -type f -printf '%P\n'))
 
 color=3
 for t in "${files[@]}"; do 
