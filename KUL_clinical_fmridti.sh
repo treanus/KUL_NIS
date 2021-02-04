@@ -212,7 +212,7 @@ function KUL_compute_SPM_matlab {
     result=$computedir/RESULTS/MNI/${shorttask}_space-MNI152NLin6Asym.nii
     cp $fmriresults/spmT_0001.nii $result
             
-    result_global=$cwd/RESULTS/sub-$participant/SPM_${shorttask}.nii
+    result_global=$cwd/RESULTS/sub-$participant/SPM/SPM_${shorttask}.nii
             
     # since SPM analysis was in MNI space, we transform back in native space
     input=$result
@@ -228,7 +228,7 @@ function KUL_compute_SPM_matlab {
 
     gm_mask="$fmriprepdir/../anat/sub-${participant}_label-GM_probseg.nii.gz"
     gm_mask2=$computedir/RESULTS/gm_mask_${shorttask}.nii.gz
-    gm_result_global=$cwd/RESULTS/sub-$participant/SPM_${shorttask}_gm.nii
+    gm_result_global=$cwd/RESULTS/sub-$participant/SPM/SPM_${shorttask}_gm.nii
     mrgrid $gm_mask regrid -template $result_global $gm_mask2
     gm_mask3=$computedir/RESULTS/gm_mask_smooth_${shorttask}.nii.gz
     mrfilter $gm_mask2 smooth $gm_mask3
@@ -253,8 +253,8 @@ function KUL_compute_SPM {
     mkdir -p $computedir/RESULTS/MNI
 
     # Provide the anatomy
-    cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/T1w.nii.gz
-    gunzip -f $globalresultsdir/T1w.nii.gz
+    cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/Anat/T1w.nii.gz
+    gunzip -f $globalresultsdir/Anat/T1w.nii.gz
 
     if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
         echo "Preparing for SPM"
@@ -364,7 +364,7 @@ function KUL_segment_tumor {
                     jenspetersen/hd-glio-auto
                 fi
                 
-                mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -ge $globalresultsdir/lesion.nii
+                mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -ge $globalresultsdir/Anat/lesion.nii
 
             else
                 echo "HD-GLIO-AUTO already done"
@@ -380,7 +380,7 @@ function KUL_run_VBG {
         vbg_test="lesion_wf/output_LWF/sub-${participant}/sub-${participant}_aparc+aseg.nii.gz"
         if [[ ! -f $vbg_test ]]; then
             echo "Starting KUL_VBG"
-            KUL_VBG.sh -p ${participant} -l $globalresultsdir/lesion.nii -z T1 -b -B 1 -t -F -n $ncpu -v
+            KUL_VBG.sh -p ${participant} -l $globalresultsdir/Anat/lesion.nii -z T1 -b -B 1 -t -F -n $ncpu -v
             mkdir -p freesurfer
             ln -s ${cwd}/lesion_wf/output_LWF/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/ freesurfer
             echo "done" > freesurfer/sub-${participant}_freesurfer_is.done
@@ -417,13 +417,15 @@ function KUL_run_msbp {
 }
 
 function KUL_run_TCKSEG {
+    config="tracks_list.txt"
 
     echo " starting FWT VOI generation"
     my_cmd="KUL_FWT_make_VOIs.sh -p ${participant} \
      -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
-     -c $cwd/study_config/trial_tracks_list_2.txt \
+     -c $cwd/study_config/${config} \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
+     -o $cwd/compute/FWT \
      -n $ncpu $str_silent"
     eval $my_cmd
 
@@ -431,13 +433,18 @@ function KUL_run_TCKSEG {
     my_cmd="KUL_FWT_make_TCKs.sh -p ${participant} \
      -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
-     -c $cwd/study_config/tracks_list.txt \
+     -c $cwd/study_config/${config} \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
+     -o $cwd/compute/FWT \
      -T 1 -a iFOD2 \
      -Q -S \
      -n $ncpu $str_silent"
     eval $my_cmd
-}
+
+    ln -s $cwd/compute/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
+    ln -s $cwd/compute/FWT/sub-${participant}_TCKs_output/*/*filt3_BT_iFOD2.tck $globalresultsdir/Tracto/
+    pdfunite $cwd/compute/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
+ }
 
 function KUL_compute_melodic {
 # run FSL Melodic
@@ -502,7 +509,7 @@ if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
 
             # since Melodic analysis was in MNI space, we transform back in native space
             input=$network_file
-            output=$globalresultsdir/melodic_${shorttask}_${network_name}_ic${ic}.nii
+            output=$globalresultsdir/Melodic/melodic_${shorttask}_${network_name}_ic${ic}.nii
             transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
             find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
             reference=${find_T1w[0]}
@@ -521,6 +528,10 @@ fi
 
 # --- MAIN ---
 globalresultsdir=$cwd/RESULTS/sub-$participant
+mkdir -p $globalresultsdir/Anat
+mkdir -p $globalresultsdir/SPM
+mkdir -p $globalresultsdir/Melodic
+mkdir -p $globalresultsdir/Tracto
 
 # STEP 1 - BIDS conversion
 KUL_convert2bids
