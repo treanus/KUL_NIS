@@ -569,7 +569,7 @@ wait
 
 # STEP 5 - run SPM/melodic/msbp
 KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
-KUL_compute_SPM &
+KUL_compute_SPM &  
 KUL_compute_melodic &
 KUL_run_msbp &
 
