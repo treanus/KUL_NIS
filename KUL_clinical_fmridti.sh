@@ -401,7 +401,7 @@ function KUL_run_msbp {
 
         my_cmd="docker run --rm -u $(id -u) -v $cwd/BIDS:/bids_dir \
          -v $cwd/BIDS/derivatives:/output_dir \
-         -v $HOME/KUL_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
+         -v $FS_LICENSE:/opt/freesurfer/license.txt \
          sebastientourbier/multiscalebrainparcellator:v1.1.1 /bids_dir /output_dir participant \
          --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
          --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
