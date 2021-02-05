@@ -31,17 +31,17 @@ Example:
 Required arguments:
 
      -p:  participant name
-     -t:  processing type
-        type 1: do hd-glio and vbg (tumor with T1w, cT1w, T2w and FLAIR)
-        type 2: do vbg with manual mask (tumor but missing one of T1w, cT1w, T2w and FLAIR)
-        type 3: don't run hd-glio nor vbg (cavernoma, epilepsy, etc... cT1w)
 
 Optional arguments:
 
+     -t:  processing type
+        type 1: (DEFAULT) do hd-glio and vbg (tumor with T1w, cT1w, T2w and FLAIR)
+        type 2: do vbg with manual mask (tumor but missing one of T1w, cT1w, T2w and FLAIR)
+        type 3: don't run hd-glio nor vbg (cavernoma, epilepsy, etc... cT1w)
      -d:  dicom zip file (or directory)
+     -c:  make a backup and cleanup 
      -n:  number of cpu to use (default 15)
      -v:  show output from commands
-
 
 USAGE
 
@@ -54,11 +54,11 @@ USAGE
 # Set defaults
 silent=1 # default if option -v is not given
 ncpu=15
+bc=0 
+type=1
 
 # Set required options
 p_flag=0
-d_flag=0 
-t_flag=0
 
 if [ "$#" -lt 1 ]; then
 	Usage >&2
@@ -66,7 +66,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v" OPT; do
+	while getopts "p:t:d:n:cv" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -75,16 +75,17 @@ else
 		;;
         t) #type
 			type=$OPTARG
-            t_flag=1
 		;;
         d) #dicomzip
 			dicomzip=$OPTARG
-            d_flag=1
 		;;
         n) #ncpu
 			ncpu=$OPTARG
 		;;
-		v) #verbose
+		c) #backup&clean
+			bc=1
+		;;
+        v) #verbose
 			silent=0
 		;;
 		\?)
@@ -113,13 +114,6 @@ if [ $p_flag -eq 0 ] ; then
 	exit 2
 fi
 
-if [ $t_flag -eq 0 ] ; then
-	echo
-	echo "Option -t is required: give the analysis type." >&2
-	echo
-	exit 2
-fi
-
 # MRTRIX verbose or not?
 if [ $silent -eq 1 ] ; then
 	export MRTRIX_QUIET=1
@@ -135,6 +129,21 @@ elif [ $type -eq 2 ]; then
 elif [ $type -eq 3 ]; then
     hdglio=0
     vbg=0
+fi
+
+
+if [ $bc -eq 1 ]; then
+    #we backup everything
+    bck_bids="./BIDS/sub-${participant}"
+    bck_dicom="./DICOM/${participant}*"
+    bck_derivatives_KUL_VBG="./BIDS/derivatives/KUL_VBG/sub-${participant}"
+    bck_derivatives_KUL_compute="./BIDS/derivatives/KUL_compute/sub-${participant}"
+    bck_derivatives_freesurfer="./BIDS/derivatives/freesurfer/sub-${participant}"
+    bck_results="./RESULTS/sub-${participant}"
+
+    tar --ignore-failed-read -cvzf sub-${participant}.tar.gz $bck_bids $bck_dicom $bck_derivatives_freesurfer $bck_derivatives_KUL_compute $bck_derivatives_KUL_VBG
+
+    exit 0
 fi
 
 # --- functions ---
@@ -238,7 +247,7 @@ function KUL_compute_SPM_matlab {
 
 function KUL_compute_SPM {
     #  setup variables
-    computedir="$cwd/compute/SPM/sub-$participant"
+    computedir="$kulderivativesdir/SPM/sub-$participant"
     fmridatadir="$computedir/fmridata"
     scriptsdir="$computedir/scripts"
     fmriprepdir="fmriprep/sub-$participant/func"
@@ -310,8 +319,8 @@ function KUL_segment_tumor {
     mkdir -p $globalresultsdir
     
     # this will segment the lesion automatically
-    hdglioinputdir="compute/hdglio/sub-${participant}/input"
-    hdgliooutputdir="compute/hdglio/sub-${participant}/output"
+    hdglioinputdir="$kulderivativesdir/sub-${participant}/hdglio/input"
+    hdgliooutputdir="$kulderivativesdir/sub-${participant}/hdglio/output"
     if [ $hdglio -eq 1 ]; then
 
         if [ $nT1w -eq 1 ] && [ $ncT1w -eq 1 ] && [ $nFLAIR -eq 1 ] && [ $nT2w -eq 1 ];then
@@ -359,8 +368,8 @@ function KUL_segment_tumor {
                     cd $cwd
                 else
                     echo "Running HD-GLIO-AUTO using docker"
-                    docker run --gpus all --mount type=bind,source=${cwd}/$hdglioinputdir,target=/input \
-                     --mount type=bind,source=${cwd}/$hdgliooutputdir,target=/output \
+                    docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
+                     --mount type=bind,source=$hdgliooutputdir,target=/output \
                     jenspetersen/hd-glio-auto
                 fi
                 
@@ -377,13 +386,22 @@ function KUL_segment_tumor {
 
 function KUL_run_VBG {
     if [ $vbg -eq 1 ]; then
-        vbg_test="lesion_wf/output_LWF/sub-${participant}/sub-${participant}_aparc+aseg.nii.gz"
+        vbg_test="${cwd}/BIDS/derivatives/KUL_VBG/sub-${participant}/sub-${participant}_aparc+aseg.nii.gz"
         if [[ ! -f $vbg_test ]]; then
             echo "Starting KUL_VBG"
-            KUL_VBG.sh -p ${participant} -l $globalresultsdir/Anat/lesion.nii -z T1 -b -B 1 -t -F -n $ncpu -v
-            mkdir -p freesurfer
-            ln -s ${cwd}/lesion_wf/output_LWF/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/ freesurfer
-            echo "done" > freesurfer/sub-${participant}_freesurfer_is.done
+            mkdir -p ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
+            mkdir -p ${cwd}/BIDS/derivatives/KUL_VBG/sub-${participant}
+            
+            KUL_VBG.sh -p ${participant} \
+                -l $globalresultsdir/Anat/lesion.nii \
+                -o BIDS/derivatives/KUL_VBG \
+                -z T1 -b -B 1 -t -F -n $ncpu -v
+            
+            cp -r ${cwd}/BIDS/derivatives/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}/* \
+                BIDS/derivatives/freesurfer/sub-${participant}
+            rm -fr ${cwd}/BIDS/derivatives/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}
+            #ln -s ${cwd}/lesion_wf/output_LWF/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/ freesurfer
+            echo "done" > BIDS/derivatives/freesurfer/sub-${participant}_freesurfer_is.done
         else
             echo "KUL_VBG has already run"
         fi
@@ -425,7 +443,7 @@ function KUL_run_TCKSEG {
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
      -c $cwd/study_config/${config} \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-     -o $cwd/compute/FWT/sub-${participant} \
+     -o $kulderivativesdir/FWT/sub-${participant} \
      -n $ncpu $str_silent"
     eval $my_cmd
 
@@ -435,20 +453,20 @@ function KUL_run_TCKSEG {
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
      -c $cwd/study_config/${config} \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-     -o $cwd/compute/FWT/sub-${participant} \
+     -o $kulderivativesdir/FWT/sub-${participant} \
      -T 1 -a iFOD2 \
      -Q -S \
      -n $ncpu $str_silent"
     eval $my_cmd
 
-    ln -s $cwd/compute/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
-    ln -s $cwd/compute/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*filt3_BT_iFOD2.tck $globalresultsdir/Tracto/
-    pdfunite $cwd/compute/FWT/sub-${participant}/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
+    ln -s $kulderivativesdir/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
+    ln -s $kulderivativesdir/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*filt3_BT_iFOD2.tck $globalresultsdir/Tracto/
+    pdfunite $kulderivativesdir/FWT/sub-${participant}/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
  }
 
 function KUL_compute_melodic {
 # run FSL Melodic
-computedir="$cwd/compute/FSL/melodic/sub-$participant"
+computedir="$kulderivativesdir/FSL/melodic/sub-$participant"
 fmridatadir="$computedir/fmridata"
 scriptsdir="$computedir/scripts"
 fmriprepdir="fmriprep/sub-$participant/func"
@@ -527,6 +545,8 @@ fi
 }
 
 # --- MAIN ---
+kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute
+mkdir -p $kulderivativesdir
 globalresultsdir=$cwd/RESULTS/sub-$participant
 mkdir -p $globalresultsdir/Anat
 mkdir -p $globalresultsdir/SPM
