@@ -390,16 +390,16 @@ function KUL_run_VBG {
         if [[ ! -f $vbg_test ]]; then
             echo "Starting KUL_VBG"
             mkdir -p ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
-            mkdir -p ${cwd}/BIDS/derivatives/KUL_VBG/sub-${participant}
+            mkdir -p ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG
             
             KUL_VBG.sh -p ${participant} \
                 -l $globalresultsdir/Anat/lesion.nii \
-                -o BIDS/derivatives/KUL_VBG \
+                -o BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG \
                 -z T1 -b -B 1 -t -F -n $ncpu -v
             
-            cp -r ${cwd}/BIDS/derivatives/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}/* \
+            cp -r ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}/* \
                 BIDS/derivatives/freesurfer/sub-${participant}
-            rm -fr ${cwd}/BIDS/derivatives/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}
+            rm -fr ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}
             #ln -s ${cwd}/lesion_wf/output_LWF/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/ freesurfer
             echo "done" > BIDS/derivatives/freesurfer/sub-${participant}_freesurfer_is.done
         else
@@ -586,6 +586,7 @@ fi
 
 # WAIT FOR ALL TO FINISH
 wait
+exit
 
 # STEP 5 - run SPM/melodic/msbp
 KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
