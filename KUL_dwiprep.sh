@@ -302,7 +302,12 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
 		else
 			echo "Using dwicat (new style mrtrix)"
-			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif
+			#dwicat -version
+			#which dwicat
+			#which mrhistmatch
+			ls ${raw}/dwi_p?.mif
+			#sleep 5
+			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif -nocleanup 
 
 		fi
 
