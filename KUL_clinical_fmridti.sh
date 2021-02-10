@@ -386,7 +386,7 @@ function KUL_segment_tumor {
 
 function KUL_run_VBG {
     if [ $vbg -eq 1 ]; then
-        vbg_test="${cwd}/BIDS/derivatives/KUL_VBG/sub-${participant}/sub-${participant}_aparc+aseg.nii.gz"
+        vbg_test="${cwd}/BIDS/derivatives/output_VBG/sub-${participant}/sub-${participant}_T1_nat_filled.nii.gz"
         if [[ ! -f $vbg_test ]]; then
             echo "Starting KUL_VBG"
             mkdir -p ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
@@ -439,7 +439,7 @@ function KUL_run_msbp {
     fi
 }
 
-function KUL_run_TCKSEG {
+function KUL_run_FWT {
     config="tracks_list.txt"
 
     echo " starting FWT VOI generation"
@@ -599,9 +599,8 @@ KUL_compute_melodic &
 KUL_run_msbp &
 
 wait 
-exit
 
-KUL_run_TCKSEG
+KUL_run_FWT
 
 echo "Finished"
 
