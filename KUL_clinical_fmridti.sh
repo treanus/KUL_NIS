@@ -373,7 +373,7 @@ function KUL_segment_tumor {
                     jenspetersen/hd-glio-auto
                 fi
                 
-                mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -ge $globalresultsdir/Anat/lesion.nii
+                mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -ge $globalresultsdir/Anat/lesion.nii -force
 
             else
                 echo "HD-GLIO-AUTO already done"
@@ -392,14 +392,19 @@ function KUL_run_VBG {
             mkdir -p ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
             mkdir -p ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG
             
+            #KUL_VBG.sh -p ${participant} \
+            #    -l $globalresultsdir/Anat/lesion.nii \
+            #   -o BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
+            #    -m BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
+            #    -z T1 -b -B 1 -t -F -n $ncpu -v
+
             KUL_VBG.sh -p ${participant} \
                 -l $globalresultsdir/Anat/lesion.nii \
-                -o BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG \
-                -z T1 -b -B 1 -t -F -n $ncpu -v
-            
-            cp -r ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}/* \
+                -z T1 -b -B 1 -t -F -n $ncpu -v     
+                       
+            #cp -r ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}/* \
                 BIDS/derivatives/freesurfer/sub-${participant}
-            rm -fr ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}
+            #rm -fr ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}
             #ln -s ${cwd}/lesion_wf/output_LWF/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/ freesurfer
             echo "done" > BIDS/derivatives/freesurfer/sub-${participant}_freesurfer_is.done
         else
@@ -523,7 +528,7 @@ if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
             network_file="$fmriresults/kul/melodic_${network_name}_ic${ic}.nii.gz"
             echo $icfile
             echo $network_file
-            mrcalc $icfile 2 -gt $icfile -mul $network_file
+            mrcalc $icfile 2 -gt $icfile -mul $network_file -force
 
             # since Melodic analysis was in MNI space, we transform back in native space
             input=$network_file
@@ -586,7 +591,6 @@ fi
 
 # WAIT FOR ALL TO FINISH
 wait
-exit
 
 # STEP 5 - run SPM/melodic/msbp
 KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
@@ -595,6 +599,7 @@ KUL_compute_melodic &
 KUL_run_msbp &
 
 wait 
+exit
 
 KUL_run_TCKSEG
 
