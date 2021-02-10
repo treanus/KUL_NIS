@@ -439,7 +439,7 @@ function KUL_run_msbp {
     fi
 }
 
-function KUL_run_TCKSEG {
+function KUL_run_FWT {
     config="tracks_list.txt"
 
     echo " starting FWT VOI generation"
@@ -599,9 +599,8 @@ KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
 KUL_run_msbp &
 
 wait 
-exit
 
-KUL_run_TCKSEG
+KUL_run_FWT
 
 echo "Finished"
 
