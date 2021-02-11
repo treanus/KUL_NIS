@@ -1,4 +1,4 @@
-#!/bin/bash -e 
+#!/bin/bash  
 # Sarah Cappelle & Stefan Sunaert
 # 19/01/2021
 # This script is the first part of Sarah's Study1
@@ -122,9 +122,10 @@ else
 fi
 
 mkdir -p $outputdir/compute
-touch $outputdir/mijn_resultaten.csv
 
-echo "participant_and_session, \
+if [ ! -f $outputdir/mijn_resultaten.csv ];then
+    touch $outputdir/mijn_resultaten.csv
+    echo "participant_and_session, \
     NAWM_mtr, NAWM_t1t2, NAWM_t1flair, \
     NAGM_mtr, NAGM_t1t2, NAGM_t1flair, \
     Thal_rh_mtr, Thal_rh_t1t2, Thal_rh_t1flair, \
@@ -134,126 +135,136 @@ echo "participant_and_session, \
     CSF_4th_mtr, CSF_4th_t1t2, CSF_4th_t1flair, \
     MSlesion_mtr, MSlesion_t1t2, MSlesion_t1flair, \
     Volume_NAWM, Volume_NAGM, Volume_CSF, Volume_MSlesions" > $outputdir/mijn_resultaten.csv
+fi
 
-flair=0
 for test_T1w in ${T1w_all[@]}; do
 
     base0=${test_T1w##*/};base=${base0%_T1w*}
     check_done="$outputdir/compute/${base}_stats.done"
 
     if [ ! -f $check_done ];then
+        participant_and_session=$base
+        echo "Processing $participant_and_session"
 
-        # Test whether FLAIR also exist
-        test_FLAIR="${test_T1w%_T1w*}_FLAIR.nii.gz"
-        if [ -f $test_FLAIR ];then
-            #echo "The FLAIR exists"
-            flair=1
-            T1w=$test_T1w
-            FLAIR=$test_FLAIR
-        fi
+        # define the input images
+        SamSeg="$cwd/$outputdir/compute/${participant_and_session}_samsegOutput/seg.mgz"
+        MTR="T1T2FLAIRMTR_ratio/${participant_and_session}_MTC_ratio.nii.gz"
+        T1T2="T1T2FLAIRMTR_ratio/${participant_and_session}_T1T2w_ratio.nii.gz"
+        T1FLAIR="T1T2FLAIRMTR_ratio/${participant_and_session}_T1FLAIR_ratio.nii.gz"
 
-        if [ $flair -eq 1 ];then 
+        # define the output images
+        NAWM_lh="$cwd/$outputdir/${participant_and_session}_NAWM_lh.nii.gz"
+        NAWM_rh="$cwd/$outputdir/${participant_and_session}_NAWM_rh.nii.gz"
+        NAWM="$cwd/$outputdir/${participant_and_session}_NAWM.nii.gz"
+        NAGM_lh="$cwd/$outputdir/${participant_and_session}_NAGM_lh.nii.gz"
+        NAGM_rh="$cwd/$outputdir/${participant_and_session}_NAGM_rh.nii.gz"
+        NAGM="$cwd/$outputdir/${participant_and_session}_NAGM.nii.gz"
+        Thal_lh="$cwd/$outputdir/${participant_and_session}_Thal_lh.nii.gz"
+        Thal_rh="$cwd/$outputdir/${participant_and_session}_Thal_rh.nii.gz"
+        CSF_lateral_lh="$cwd/$outputdir/${participant_and_session}_CSF_lateral_lh.nii.gz"
+        CSF_lateral_rh="$cwd/$outputdir/${participant_and_session}_CSF_lateral_rh.nii.gz"
+        CSF_lateral="$cwd/$outputdir/${participant_and_session}_CSF_lateral.nii.gz"
+        CSF_3rd="$cwd/$outputdir/${participant_and_session}_CSF_3rd.nii.gz"
+        CSF_4th="$cwd/$outputdir/${participant_and_session}_CSF_4th.nii.gz"
+        CSF="$cwd/$outputdir/${participant_and_session}_CSF.nii.gz"
+        MSlesion="$cwd/$outputdir/${participant_and_session}_MSLesion.nii.gz"
 
-            participant_and_session=$base
+        echo " making VOIs"
+        # do the computation of the masks
+        mrcalc $SamSeg 2 -eq $NAWM_lh -force
+        mrcalc $SamSeg 41 -eq $NAWM_rh -force
+        mrcalc $NAWM_lh $NAWM_rh -add $NAWM -force
+        mrcalc $SamSeg 3 -eq $NAGM_lh -force
+        mrcalc $SamSeg 42 -eq $NAGM_rh -force
+        mrcalc $NAGM_lh $NAGM_rh -add $NAGM -force
+        mrcalc $SamSeg 10 -eq $Thal_lh -force
+        mrcalc $SamSeg 49 -eq $Thal_rh -force
+        mrcalc $SamSeg 4 -eq $CSF_lateral_lh -force
+        mrcalc $SamSeg 43 -eq $CSF_lateral_rh -force
+        mrcalc $CSF_lateral_lh $CSF_lateral_rh -add $CSF_lateral -force
+        mrcalc $SamSeg 14 -eq $CSF_3rd -force
+        mrcalc $SamSeg 15 -eq $CSF_4th -force
+        mrcalc $CSF_lateral $CSF_3rd -add $CSF_4th -add $CSF -force
+        #mrcalc $SamSeg 99 -eq $MSlesion -force
 
-            echo "Processing $participant_and_session"
-            T1w_iso="$cwd/$outputdir/compute/${participant_and_session}_T1w_iso.nii.gz"
-            FLAIR_reg2T1w="$cwd/$outputdir/compute/${participant_and_session}_FLAIR_reg2T1w.nii.gz"
-
-            # define the input images
-            SamSeg="$cwd/$outputdir/compute/${participant_and_session}_samsegOutput/seg.mgz"
-            MTR="T1T2FLAIRMTR_ratio/${participant_and_session}_MTC_ratio.nii.gz"
-            T1T2="T1T2FLAIRMTR_ratio/${participant_and_session}_T1T2w_ratio.nii.gz"
-            T1FLAIR="T1T2FLAIRMTR_ratio/${participant_and_session}_T1FLAIR_ratio.nii.gz"
-
-            # define the output images
-            NAWM_lh="$cwd/$outputdir/${participant_and_session}_NAWM_lh.nii.gz"
-            NAWM_rh="$cwd/$outputdir/${participant_and_session}_NAWM_rh.nii.gz"
-            NAWM="$cwd/$outputdir/${participant_and_session}_NAWM.nii.gz"
-            NAGM_lh="$cwd/$outputdir/${participant_and_session}_NAGM_lh.nii.gz"
-            NAGM_rh="$cwd/$outputdir/${participant_and_session}_NAGM_rh.nii.gz"
-            NAGM="$cwd/$outputdir/${participant_and_session}_NAGM.nii.gz"
-            Thal_lh="$cwd/$outputdir/${participant_and_session}_Thal_lh.nii.gz"
-            Thal_rh="$cwd/$outputdir/${participant_and_session}_Thal_rh.nii.gz"
-            CSF_lateral_lh="$cwd/$outputdir/${participant_and_session}_CSF_lateral_lh.nii.gz"
-            CSF_lateral_rh="$cwd/$outputdir/${participant_and_session}_CSF_lateral_rh.nii.gz"
-            CSF_lateral="$cwd/$outputdir/${participant_and_session}_CSF_lateral.nii.gz"
-            CSF_3rd="$cwd/$outputdir/${participant_and_session}_CSF_3rd.nii.gz"
-            CSF_4th="$cwd/$outputdir/${participant_and_session}_CSF_4th.nii.gz"
-            CSF="$cwd/$outputdir/${participant_and_session}_CSF.nii.gz"
-            MSlesion="$cwd/$outputdir/${participant_and_session}_MSLesion.nii.gz"
-
-            echo " making VOIs"
-            # do the computation of the masks
-            mrcalc $SamSeg 2 -eq $NAWM_lh -force
-            mrcalc $SamSeg 41 -eq $NAWM_rh -force
-            mrcalc $NAWM_lh $NAWM_rh -add $NAWM -force
-            mrcalc $SamSeg 3 -eq $NAGM_lh -force
-            mrcalc $SamSeg 42 -eq $NAGM_rh -force
-            mrcalc $NAGM_lh $NAGM_rh -add $NAGM -force
-            mrcalc $SamSeg 10 -eq $Thal_lh -force
-            mrcalc $SamSeg 49 -eq $Thal_rh -force
-            mrcalc $SamSeg 4 -eq $CSF_lateral_lh -force
-            mrcalc $SamSeg 43 -eq $CSF_lateral_rh -force
-            mrcalc $CSF_lateral_lh $CSF_lateral_rh -add $CSF_lateral -force
-            mrcalc $SamSeg 14 -eq $CSF_3rd -force
-            mrcalc $SamSeg 15 -eq $CSF_4th -force
-            mrcalc $CSF_lateral $CSF_3rd -add $CSF_4th -add $CSF -force
-            #mrcalc $SamSeg 99 -eq $MSlesion -force
-
-            echo " computing stats"
-            # do the stats
-            NAWM_mtr=$(mrstats -mask $NAWM -output median $MTR)
-            NAWM_t1t2=$(mrstats -mask $NAWM -output median $T1T2)
-            NAWM_t1flair=$(mrstats -mask $NAWM -output median $T1FLAIR)
+        echo " computing stats"
+        # do the stats
+        NAGM_mtr="NA"
+        NAWM_mtr="NA"
+        Thal_rh_mtr="NA"
+        Thal_lh_mtr="NA"
+        CSF_lateral_mtr="NA"
+        CSF_3rd_mtr="NA"
+        CSF_4th_mtr="NA"
+        MSlesion_mtr="NA"
+        if [ -f $MTR ]; then
             NAGM_mtr=$(mrstats -mask $NAGM -output median $MTR)
-            NAGM_t1t2=$(mrstats -mask $NAGM -output median $T1T2)
-            NAGM_t1flair=$(mrstats -mask $NAGM -output median $T1FLAIR)
+            NAWM_mtr=$(mrstats -mask $NAWM -output median $MTR)
             Thal_rh_mtr=$(mrstats -mask $Thal_rh -output median $MTR)
-            Thal_rh_t1t2=$(mrstats -mask $Thal_rh -output median $T1T2)
-            Thal_rh_t1flair=$(mrstats -mask $Thal_rh -output median $T1FLAIR)
             Thal_lh_mtr=$(mrstats -mask $Thal_lh -output median $MTR)
-            Thal_lh_t1t2=$(mrstats -mask $Thal_lh -output median $T1T2)
-            Thal_lh_t1flair=$(mrstats -mask $Thal_lh -output median $T1FLAIR)
             CSF_lateral_mtr=$(mrstats -mask $CSF_lateral -output median $MTR)
-            CSF_lateral_t1t2=$(mrstats -mask $CSF_lateral -output median $T1T2)
-            CSF_lateral_t1flair=$(mrstats -mask $CSF_lateral -output median $T1FLAIR)
             CSF_3rd_mtr=$(mrstats -mask $CSF_3rd -output median $MTR)
-            CSF_3rd_t1t2=$(mrstats -mask $CSF_3rd -output median $T1T2)
-            CSF_3rd_t1flair=$(mrstats -mask $CSF_3rd -output median $T1FLAIR)
             CSF_4th_mtr=$(mrstats -mask $CSF_4th -output median $MTR)
-            CSF_4th_t1t2=$(mrstats -mask $CSF_4th -output median $T1T2)
-            CSF_4th_t1flair=$(mrstats -mask $CSF_4th -output median $T1FLAIR)
-            
             MSlesion_mtr=$(mrstats -mask $MSlesion -output median $MTR)
-            MSlesion_t1t2=$(mrstats -mask $MSlesion -output median $T1T2)
-            MSlesion_t1flair=$(mrstats -mask $MSlesion -output median $T1FLAIR)
-
-            Volume_NAWM=$(mrstats -ignorezero -output count $NAWM)
-            Volume_NAGM=$(mrstats -ignorezero -output count $NAGM)
-            Volume_CSF=$(mrstats -ignorezero -output count $CSF)
-            Volume_MSlesions=$(mrstats -ignorezero -output count $MSlesion)
-
-            # write the stats to a .csv file
-            echo " saving"
-            echo "$participant_and_session, \
-                $NAWM_mtr, $NAWM_t1t2, $NAWM_t1flair, \
-                $NAGM_mtr, $NAGM_t1t2, $NAGM_t1flair, \
-                $Thal_rh_mtr, $Thal_rh_t1t2, $Thal_rh_t1flair, \
-                $Thal_lh_mtr, $Thal_lh_t1t2, $Thal_lh_t1flair, \
-                $CSF_lateral_mtr, $CSF_lateral_t1t2, $CSF_lateral_t1flair, \
-                $CSF_3rd_mtr, $CSF_3rd_t1t2, $CSF_3rd_t1flair, \
-                $CSF_4th_mtr, $CSF_4th_t1t2, $CSF_4th_t1flair, \
-                $MSlesion_mtr, $MSlesion_t1t2, $MSlesion_t1flair, \
-                $Volume_NAWM, $Volume_NAGM, $Volume_CSF, $Volume_MSlesions" >> $outputdir/mijn_resultaten.csv
-        
-            touch $check_done
-
-        else
-
-            echo " $base does not have a flair - nothing to do here"
-        
         fi
+
+        NAGM_t1t2="NA"
+        NAWM_t1t2="NA"
+        Thal_rh_t1t2="NA"
+        Thal_lh_t1t2="NA"
+        CSF_lateral_t1t2="NA"
+        CSF_3rd_t1t2="NA"
+        CSF_4th_t1t2="NA"
+        MSlesion_t1t2="NA"
+        if [ -f $T1T2 ]; then
+            NAWM_t1t2=$(mrstats -mask $NAWM -output median $T1T2)
+            NAGM_t1t2=$(mrstats -mask $NAGM -output median $T1T2)
+            Thal_rh_t1t2=$(mrstats -mask $Thal_rh -output median $T1T2)
+            Thal_lh_t1t2=$(mrstats -mask $Thal_lh -output median $T1T2)
+            CSF_lateral_t1t2=$(mrstats -mask $CSF_lateral -output median $T1T2)
+            CSF_3rd_t1t2=$(mrstats -mask $CSF_3rd -output median $T1T2)
+            CSF_4th_t1t2=$(mrstats -mask $CSF_4th -output median $T1T2)
+            MSlesion_t1t2=$(mrstats -mask $MSlesion -output median $T1T2)
+        fi
+
+        NAGM_t1flair="NA"
+        NAWM_t1flair="NA"
+        Thal_rh_t1flair2="NA"
+        Thal_lh_t1flair="NA"
+        CSF_lateral_t1flair="NA"
+        CSF_3rd_t1flair="NA"
+        CSF_4th_t1flair="NA"
+        MSlesion_t1flair="NA"
+        if [ -f $T1FLAIR ]; then
+            NAWM_t1flair=$(mrstats -mask $NAWM -output median $T1FLAIR)
+            NAGM_t1flair=$(mrstats -mask $NAGM -output median $T1FLAIR)
+            Thal_rh_t1flair=$(mrstats -mask $Thal_rh -output median $T1FLAIR)
+            Thal_lh_t1flair=$(mrstats -mask $Thal_lh -output median $T1FLAIR)
+            CSF_lateral_t1flair=$(mrstats -mask $CSF_lateral -output median $T1FLAIR)
+            CSF_3rd_t1flair=$(mrstats -mask $CSF_3rd -output median $T1FLAIR)
+            CSF_4th_t1flair=$(mrstats -mask $CSF_4th -output median $T1FLAIR)
+            MSlesion_t1flair=$(mrstats -mask $MSlesion -output median $T1FLAIR)
+        fi
+    
+        Volume_NAWM=$(mrstats -ignorezero -output count $NAWM)
+        Volume_NAGM=$(mrstats -ignorezero -output count $NAGM)
+        Volume_CSF=$(mrstats -ignorezero -output count $CSF)
+        Volume_MSlesions=$(mrstats -ignorezero -output count $MSlesion)
+
+        # write the stats to a .csv file
+        echo " saving"
+        echo "$participant_and_session, \
+            $NAWM_mtr, $NAWM_t1t2, $NAWM_t1flair, \
+            $NAGM_mtr, $NAGM_t1t2, $NAGM_t1flair, \
+            $Thal_rh_mtr, $Thal_rh_t1t2, $Thal_rh_t1flair, \
+            $Thal_lh_mtr, $Thal_lh_t1t2, $Thal_lh_t1flair, \
+            $CSF_lateral_mtr, $CSF_lateral_t1t2, $CSF_lateral_t1flair, \
+            $CSF_3rd_mtr, $CSF_3rd_t1t2, $CSF_3rd_t1flair, \
+            $CSF_4th_mtr, $CSF_4th_t1t2, $CSF_4th_t1flair, \
+            $MSlesion_mtr, $MSlesion_t1t2, $MSlesion_t1flair, \
+            $Volume_NAWM, $Volume_NAGM, $Volume_CSF, $Volume_MSlesions" >> $outputdir/mijn_resultaten.csv
+    
+        touch $check_done
     
     else
         echo " $base already done".

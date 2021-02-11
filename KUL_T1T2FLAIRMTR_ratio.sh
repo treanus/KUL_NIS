@@ -278,8 +278,9 @@ for test_T1w in ${T1w[@]}; do
 
     base0=${test_T1w##*/};base=${base0%_T1w*}
     check_done="$outputdir/compute/${base}.done"
+    check_done2="$outputdir/${base}_T1w.nii.gz"
 
-    if [ ! -f $check_done ];then
+    if [ ! -f $check_done2 ];then
 
         # Test whether T2 and/or FLAIR also exist
         test_T2w="${test_T1w%_T1w*}_T2w.nii.gz"
