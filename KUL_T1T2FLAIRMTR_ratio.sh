@@ -119,6 +119,7 @@ fi
 #	exit 2
 #fi
 
+export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${ncpu}
 ants_verbose=1
 fs_silent=""
 # verbose or not?
@@ -320,6 +321,14 @@ for test_T1w in ${T1w[@]}; do
             mask_T1W=$mask
             cp $iso_output $outputdir/${base}_T1w.nii.gz
 
+            #KUL_normalise_T1w
+            fix_im="$HOME/KUL_apps/spm12/toolbox/MRTool/template/mni_icbm152_t1_tal_nlin_sym_09a.nii"
+            mov_im="$outputdir/compute/${base}_T1w_std_cropped.nii.gz"
+            output="$outputdir/compute/${base}_T1w_MNI.nii.gz"
+            fixed_mask=$fix_im
+            moving_mask=$mov_im
+            antsRegistrationSyN.sh -d 3 -f ${fix_im} -m ${mov_im} -o ${output} -n ${ncpu} -j 1 -t s -x [${fixed_mask},${moving_mask}]
+
             if [ $t2 -eq 1 ];then
                 input=$test_T2w
                 output=${test_T2w##*/}
@@ -377,7 +386,7 @@ for test_T1w in ${T1w[@]}; do
                 KUL_MTI_register_computeratio
             fi
 
-            rm -fr $outputdir/compute/${base}*.gz
+            #rm -fr $outputdir/compute/${base}*.gz
             touch $check_done
 
             echo " done"
