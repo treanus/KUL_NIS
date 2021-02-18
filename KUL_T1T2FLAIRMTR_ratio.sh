@@ -235,7 +235,7 @@ function KUL_register_computeratio {
         -mask_target /tmp/mni_eye_and_muscle.nii.gz \
         linear \
         $outputdir/compute/$newname \
-        $HOME/KUL_apps/spm12/toolbox/MRTool/template/mni_icbm152_t2_tal_nlin_sym_09a.nii \
+        $kul_main_dir/../spm12/toolbox/MRTool/template/mni_icbm152_t2_tal_nlin_sym_09a.nii \
         $outputdir/compute/${base}_${td}_std_iso_biascorrected_calibrated_reg2T1w.nii.gz -force
     
     # make a better mask
@@ -351,7 +351,7 @@ for test_T1w in ${T1w[@]}; do
             #cp $iso_output $outputdir/${base}_T1w.nii.gz
 
             #KUL_normalise_T1w
-            fix_im="$HOME/KUL_apps/spm12/toolbox/MRTool/template/mni_icbm152_t1_tal_nlin_sym_09a.nii"
+            fix_im="$kul_main_dir/../spm12/toolbox/MRTool/template/mni_icbm152_t1_tal_nlin_sym_09a.nii"
             mov_im=$bias_output
             output="$outputdir/compute/${base}_T1w2MNI_"
             if [ ! -f $outputdir/compute/${base}_T1w2MNI_Warped.nii.gz ]; then 
@@ -362,14 +362,14 @@ for test_T1w in ${T1w[@]}; do
             fi
             
             # Warp the eye and muscle back to subject space
-            input="$HOME/KUL_apps/spm12/toolbox/MRTool/template/eyemask.nii"
+            input="$kul_main_dir/../spm12/toolbox/MRTool/template/eyemask.nii"
             output="$outputdir/compute/${base}_eye.nii.gz"
             reference=$mov_im
             transform1="$outputdir/compute/${base}_T1w2MNI_1InverseWarp.nii.gz"
             transform2="[$outputdir/compute/${base}_T1w2MNI_0GenericAffine.mat,1]"
             KUL_antsApply_Transform_MNI
 
-            input="$HOME/KUL_apps/spm12/toolbox/MRTool/template/tempmask.nii"
+            input="$kul_main_dir/../spm12/toolbox/MRTool/template/tempmask.nii"
             output="$outputdir/compute/${base}_tempmuscle.nii.gz"
             KUL_antsApply_Transform_MNI
             
@@ -377,14 +377,14 @@ for test_T1w in ${T1w[@]}; do
             echo " Performing linear histogram matching"
             mrcalc $outputdir/compute/${base}_eye.nii.gz $outputdir/compute/${base}_tempmuscle.nii.gz -add \
              $outputdir/compute/${base}_eye_and_muscle.nii.gz -force
-            mrcalc $HOME/KUL_apps/spm12/toolbox/MRTool/template/eyemask.nii $HOME/KUL_apps/spm12/toolbox/MRTool/template/tempmask.nii -add \
+            mrcalc $kul_main_dir/../spm12/toolbox/MRTool/template/eyemask.nii $kul_main_dir/../spm12/toolbox/MRTool/template/tempmask.nii -add \
              /tmp/mni_eye_and_muscle.nii.gz -force
             
             mrhistmatch -mask_input $outputdir/compute/${base}_eye_and_muscle.nii.gz \
              -mask_target /tmp/mni_eye_and_muscle.nii.gz \
              linear \
              $bias_output \
-             $HOME/KUL_apps/spm12/toolbox/MRTool/template/mni_icbm152_t1_tal_nlin_sym_09a.nii \
+             $kul_main_dir/../spm12/toolbox/MRTool/template/mni_icbm152_t1_tal_nlin_sym_09a.nii \
              $outputdir/compute/${base}_T1w_std_iso_biascorrected_calibrated.nii.gz -force
 
             cp $outputdir/compute/${base}_T1w_std_iso_biascorrected_calibrated.nii.gz $outputdir/${base}_T1w.nii.gz
