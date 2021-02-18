@@ -59,7 +59,7 @@ USAGE
 # Set defaults
 auto=0 # default if option -s is not given
 silent=1 # default if option -v is not given
-outputdir="T1T2FLAIRMTR_ratio"
+outputdir="$cwd/T1T2FLAIRMTR_ratio"
 ms=0
 ncpu=15
 
@@ -143,26 +143,38 @@ function KUL_antsApply_Transform {
     -t $transform \
     -n Linear
 }
+function KUL_antsApply_Transform_MNI {
+    antsApplyTransforms -d 3 \
+        --verbose $ants_verbose \
+        -i $input \
+        -o $output \
+        -r $reference \
+        -t $transform1 -t $transform2 \
+        -n NearestNeighbor
+}
 
 function KUL_reorient_crop_hdbet_biascorrect_iso {
     fslreorient2std $input $outputdir/compute/${output}_std
-    mrgrid $outputdir/compute/${output}_std.nii.gz crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 \
-            $outputdir/compute/${output}_std_cropped.nii.gz -nthreads $ncpu -force
-    result=$(hd-bet -i $outputdir/compute/${output}_std_cropped.nii.gz -o $outputdir/compute/${output}_std_cropped_brain.nii.gz 2>&1)
-    if [ $silent -eq 0 ]; then
-        echo $result
-    fi 
-    bias_input=$outputdir/compute/${output}_std_cropped_brain.nii.gz
-    mask=$outputdir/compute/${output}_std_cropped_brain_mask.nii.gz
-    bias_output=$outputdir/compute/${output}_std_cropped_brain_biascorrected.nii.gz
+    mrgrid $outputdir/compute/${output}_std.nii.gz regrid -voxel 1 $outputdir/compute/${output}_std_iso.nii.gz -force
+    #mrgrid $outputdir/compute/${output}_std_iso.nii.gz crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 \
+    #        $outputdir/compute/${output}_std_iso_cropped.nii.gz -nthreads $ncpu -force
+    #result=$(hd-bet -i $outputdir/compute/${output}_std_cropped.nii.gz -o $outputdir/compute/${output}_std_cropped_brain.nii.gz 2>&1)
+    #if [ $silent -eq 0 ]; then
+    #    echo $result
+    #fi 
+    bias_input=$outputdir/compute/${output}_std_iso.nii.gz
+    #mask=$outputdir/compute/${output}_std_cropped_mask.nii.gz
+    bias_output=$outputdir/compute/${output}_std_iso_biascorrected.nii.gz
     N4BiasFieldCorrection --verbose $ants_verbose \
      -d 3 \
      -i $bias_input \
      -o $bias_output
-    iso_output=$outputdir/compute/${output}_std_cropped_brain_biascorrected_iso.nii.gz
-    mrgrid $bias_output regrid -voxel 1 $iso_output -force
-    iso_output2=$outputdir/compute/${output}_std_cropped_brain_mask_iso.nii.gz
-    mrgrid $mask regrid -voxel 1 $iso_output2 -nthreads $ncpu -force
+    #iso_output=$outputdir/compute/${output}_std_cropped_brain_biascorrected_iso.nii.gz
+    #mrgrid $bias_output regrid -voxel 1 $iso_output -force
+    #iso_output2=$outputdir/compute/${output}_std_cropped_brain_mask_iso.nii.gz
+    #mrgrid $mask regrid -voxel 1 $iso_output2 -nthreads $ncpu -force
+    #iso_output3=$outputdir/compute/${output}_std_cropped_iso.nii.gz
+    #mrgrid $outputdir/compute/${output}_std_cropped.nii.gz regrid -voxel 1 $iso_output3 -nthreads $ncpu -force
 }
 
 function KUL_MTI_reorient_crop_hdbet_iso {
@@ -193,17 +205,17 @@ antsRegistration --verbose $ants_verbose --dimensionality 3 \
     --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
 
     # also apply the registration to the mask
-    input=$mask
-    output=${mask##*/}
-    output=${output%%.*}
-    output=$outputdir/compute/${output}_reg2T1w.nii.gz
-    transform=$outputdir/compute/${ants_type}0GenericAffine.mat
-    reference=$outputdir/compute/$ants_template
+    #input=$mask
+    #output=${mask##*/}
+    #output=${output%%.*}
+    #output=$outputdir/compute/${output}_reg2T1w.nii.gz
+    #transform=$outputdir/compute/${ants_type}0GenericAffine.mat
+    #reference=$outputdir/compute/$ants_template
     #echo "input $input"
     #echo "output $output"
     #echo "transform $transform"
     #echo "reference $reference"
-    KUL_antsApply_Transform
+    #KUL_antsApply_Transform
 }
 
 # Register and compute the ratio
@@ -211,17 +223,34 @@ function KUL_register_computeratio {
     base0=${test_T1w##*/}
     base=${base0%_T1w*}
     ants_type="${base}_rigid_${td}_reg2t1_"
-    ants_template="${base}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
-    ants_source="${base}_${td}_std_cropped_brain_biascorrected_iso.nii.gz"
-    newname="${base}_${td}_std_cropped_brain_biascorrected_iso_reg2T1w.nii.gz"
+    ants_template="${base}_T1w_std_iso_biascorrected_calibrated.nii.gz"
+    ants_source="${base}_${td}_std_iso_biascorrected.nii.gz"
+    newname="${base}_${td}_std_iso_biascorrected_reg2T1w.nii.gz"
     finalname="${base}_${td}_reg2T1w.nii.gz"
     KUL_rigid_register
+
+    # Calibrate
+    echo " Performing linear histogram matching"
+    mrhistmatch -mask_input $outputdir/compute/${base}_eye_and_muscle.nii.gz \
+        -mask_target /tmp/mni_eye_and_muscle.nii.gz \
+        linear \
+        $outputdir/compute/$newname \
+        $HOME/KUL_apps/spm12/toolbox/MRTool/template/mni_icbm152_t2_tal_nlin_sym_09a.nii \
+        $outputdir/compute/${base}_${td}_std_iso_biascorrected_calibrated_reg2T1w.nii.gz -force
+    
     # make a better mask
-    maskfilter ${output} erode $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -nthreads $ncpu -force
+    result=$(hd-bet -i $outputdir/compute/${base}_${td}_std_iso_biascorrected_calibrated_reg2T1w.nii.gz \
+     -o $outputdir/compute/${base}_${td}_std_iso_biascorrected_calibrated_brain_reg2T1w.nii.gz 2>&1)
+    if [ $silent -eq 0 ]; then
+        echo $result
+    fi 
+    #maskfilter ${output} erode $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -nthreads $ncpu -force
+    
     #mrcalc $outputdir/compute/$ants_template $outputdir/compute/$newname -divide \
     #    $outputdir/${base}_T1${td}_ratio_a.nii.gz
-    mrcalc $outputdir/compute/$ants_template $outputdir/compute/$newname -divide \
-        $outputdir/compute/${base}_${td}_mask_eroded.nii.gz -multiply $outputdir/${base}_T1${td}_ratio.nii.gz -nthreads $ncpu -force
+    mrcalc $outputdir/compute/$ants_template $outputdir/compute/${base}_${td}_std_iso_biascorrected_calibrated_brain_reg2T1w.nii.gz -divide \
+        $outputdir/compute/${base}_${td}_std_iso_biascorrected_calibrated_brain_reg2T1w_mask.nii.gz -multiply \
+        $outputdir/${base}_T1${td}_ratio.nii.gz -nthreads $ncpu -force
     cp $outputdir/compute/$newname $outputdir/$finalname
 }
 
@@ -236,7 +265,7 @@ function KUL_MTI_register_computeratio {
     mrconvert $input -coord 3 1 $Smt -force
     # determine the registration
     ants_type="${base}_rigid_${td}_reg2t1_"
-    ants_template="${base}_T1w_std_cropped_brain_biascorrected_iso.nii.gz"
+    ants_template="${base}_T1w_std_iso_biascorrected_calibrated.nii.gz"
     ants_source="${base}_${td}_std_cropped_brain_iso_Smt.nii.gz"
     newname="${base}_${td}_std_cropped_brain_iso_Smt_reg2T1w.nii.gz"
     finalname="${base}_${td}_reg2T1w.nii.gz"
@@ -314,20 +343,51 @@ for test_T1w in ${T1w[@]}; do
             input=$test_T1w
             output=${test_T1w##*/}
             output=${output%%.*}
-            echo " doing hd-bet and biascorrection on image $output"
+            echo " doing biascorrection on image $output"
             crop_x=0
             crop_z=0
             KUL_reorient_crop_hdbet_biascorrect_iso
             mask_T1W=$mask
-            cp $iso_output $outputdir/${base}_T1w.nii.gz
+            #cp $iso_output $outputdir/${base}_T1w.nii.gz
 
             #KUL_normalise_T1w
             fix_im="$HOME/KUL_apps/spm12/toolbox/MRTool/template/mni_icbm152_t1_tal_nlin_sym_09a.nii"
-            mov_im="$outputdir/compute/${base}_T1w_std_cropped.nii.gz"
-            output="$outputdir/compute/${base}_T1w_MNI.nii.gz"
-            fixed_mask=$fix_im
-            moving_mask=$mov_im
-            antsRegistrationSyN.sh -d 3 -f ${fix_im} -m ${mov_im} -o ${output} -n ${ncpu} -j 1 -t s -x [${fixed_mask},${moving_mask}]
+            mov_im=$bias_output
+            output="$outputdir/compute/${base}_T1w2MNI_"
+            if [ ! -f $outputdir/compute/${base}_T1w2MNI_Warped.nii.gz ]; then 
+                echo " starting MNI spatial normalisation (takes about 20 minutes)"
+                antsRegistrationSyN.sh -d 3 -f ${fix_im} -m ${mov_im} -o ${output} -n ${ncpu} -j 1 -t s
+            else
+                eho " skipping MNI spatial normalisation, since it exists already"
+            fi
+            
+            # Warp the eye and muscle back to subject space
+            input="$HOME/KUL_apps/spm12/toolbox/MRTool/template/eyemask.nii"
+            output="$outputdir/compute/${base}_eye.nii.gz"
+            reference=$mov_im
+            transform1="$outputdir/compute/${base}_T1w2MNI_1InverseWarp.nii.gz"
+            transform2="[$outputdir/compute/${base}_T1w2MNI_0GenericAffine.mat,1]"
+            KUL_antsApply_Transform_MNI
+
+            input="$HOME/KUL_apps/spm12/toolbox/MRTool/template/tempmask.nii"
+            output="$outputdir/compute/${base}_tempmuscle.nii.gz"
+            KUL_antsApply_Transform_MNI
+            
+            # sum the masks
+            echo " Performing linear histogram matching"
+            mrcalc $outputdir/compute/${base}_eye.nii.gz $outputdir/compute/${base}_tempmuscle.nii.gz -add \
+             $outputdir/compute/${base}_eye_and_muscle.nii.gz -force
+            mrcalc $HOME/KUL_apps/spm12/toolbox/MRTool/template/eyemask.nii $HOME/KUL_apps/spm12/toolbox/MRTool/template/tempmask.nii -add \
+             /tmp/mni_eye_and_muscle.nii.gz -force
+            
+            mrhistmatch -mask_input $outputdir/compute/${base}_eye_and_muscle.nii.gz \
+             -mask_target /tmp/mni_eye_and_muscle.nii.gz \
+             linear \
+             $bias_output \
+             $HOME/KUL_apps/spm12/toolbox/MRTool/template/mni_icbm152_t1_tal_nlin_sym_09a.nii \
+             $outputdir/compute/${base}_T1w_std_iso_biascorrected_calibrated.nii.gz -force
+
+            cp $outputdir/compute/${base}_T1w_std_iso_biascorrected_calibrated.nii.gz $outputdir/${base}_T1w.nii.gz
 
             if [ $t2 -eq 1 ];then
                 input=$test_T2w
@@ -335,8 +395,9 @@ for test_T1w in ${T1w[@]}; do
                 output=${output%%.*}
                 crop_x=0
                 crop_z=0
-                echo " doing hd-bet and biascorrection of the T2w"
+                echo " doing biascorrection of the T2w"
                 KUL_reorient_crop_hdbet_biascorrect_iso
+
                 td="T2w"
                 echo " coregistering T2 to T1 and computing the ratio"
                 KUL_register_computeratio
@@ -348,8 +409,9 @@ for test_T1w in ${T1w[@]}; do
                 output=${output%%.*}
                 crop_x=0
                 crop_z=0
-                echo " doing hd-bet and biascorrection of the FLAIR"
+                echo " doing biascorrection of the FLAIR"
                 KUL_reorient_crop_hdbet_biascorrect_iso
+                
                 td="FLAIR"
                 echo " coregistering FLAIR to T1 and computing the ratio"
                 KUL_register_computeratio
