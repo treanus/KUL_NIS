@@ -339,16 +339,17 @@ printf "\n\n\n"
 # here we give the data
 if [ $auto -eq 0 ]; then
     if [ -z "$session" ]; then
-        fullsession=""
+        fullsession1=""
+        fullsession2=""
     else
         fullsession1="ses-$session/"
         fullsession2="ses-$session_"
     fi
-    datadir="$cwd/BIDS/sub-${participant}/${full_session}anat"
-    T1w=("$datadir/sub-${participant}_${full_session}T1w.nii.gz")
-    T2w=("$datadir/sub-${participant}_${full_session}T2w.nii.gz")
-    FLAIR=("$datadir/sub-${participant}_${full_session}FLAIR.nii.gz")
-    MTI=("$datadir/sub-${participant}_${full_session}MTI.nii.gz")
+    datadir="$cwd/BIDS/sub-${participant}/${full_session1}anat"
+    T1w=("$datadir/sub-${participant}_${full_session2}T1w.nii.gz")
+    T2w=("$datadir/sub-${participant}_${full_session2}T2w.nii.gz")
+    FLAIR=("$datadir/sub-${participant}_${full_session2}FLAIR.nii.gz")
+    MTI=("$datadir/sub-${participant}_${full_session2}MTI.nii.gz")
 else
     T1w=($(find BIDS -type f -name "*T1w.nii.gz" | sort ))
 fi
@@ -400,6 +401,19 @@ for test_T1w in ${T1w[@]}; do
             #crop_z=0
             KUL_std_iso_biascorrect
             
+            # run fastsurfer
+            fastsurf=0
+            if [ $fastsurf -eq 1 ]; then
+                docker run --gpus all -v /DATA/Sarah/FSfast:/data \
+                      -v /DATA/Sarah/FSfast/sub-P001_out:/output \
+                      -v $FREESURFER_HOME:/fs60 \
+                      --rm --user XXXX fastsurfer:gpu \
+                      --fs_license /fs60/license.txt \
+                      --t1 /data/sub-P001/sub-P001_T1w.mgz \
+                      --sid subject1 --sd /output \
+                      --parallel
+            fi
+
             # hd-bet brain extraction of the T1w
             echo "  doing hd-bet on ${output}_std_iso_biascorrected.nii.gz"
             if [ ! -f $outputdir/compute/${output}_std_iso_biascorrected_brain.nii.gz ]; then 
@@ -534,11 +548,11 @@ for test_T1w in ${T1w[@]}; do
                     T1w_iso="$outputdir/${base}_T1w.nii.gz"
                     FLAIR_reg2T1w="$outputdir/${base}_FLAIR_reg2T1w.nii.gz"
                     my_cmd="run_samseg --input $T1w_iso $FLAIR_reg2T1w --pallidum-separate \
-                     --lesion --lesion-mask-pattern 0 1 --output $cwd/$outputdir/compute/${base}_samsegOutput \
+                     --lesion --lesion-mask-pattern 0 1 --output $outputdir/compute/${base}_samsegOutput \
                      --threads $ncpu $fs_silent"
                     eval $my_cmd
-                    SamSeg="$cwd/$outputdir/compute/${base}_samsegOutput/seg.mgz"
-                    MSlesion="$cwd/$outputdir/${base}_MSLesion.nii.gz"
+                    SamSeg="$outputdir/compute/${base}_samsegOutput/seg.mgz"
+                    MSlesion="$outputdir/${base}_MSLesion.nii.gz"
                     mrcalc $SamSeg 99 -eq $MSlesion -force -nthreads $ncpu
                 else
                     echo "  Warning! No Flair available to do lesion MS segmentation"
