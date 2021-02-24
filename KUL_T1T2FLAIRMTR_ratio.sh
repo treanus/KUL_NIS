@@ -236,8 +236,8 @@ function KUL_register_computeratio {
 
     # do the NON-LINEAR histogram matching using non-brain tissue
     mrhistmatch \
-        -mask_input $outputdir/compute/${base}_MNI2subj_brainmask_dilated_inverse.nii.gz \
-        -mask_target $kul_main_dir/../spm12/toolbox/MRTool/template/brainmask_dilated_inverse.nii \
+        -mask_input $outputdir/compute/${base}_MNI2subj_brainmask_mni_dilated_inverse.nii.gz \
+        -mask_target $kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii \
         nonlinear \
         $outputdir/compute/$newname \
         $kul_main_dir/../spm12/toolbox/MRTool/template/mni_icbm152_t2_tal_nlin_sym_09a.nii \
@@ -452,11 +452,11 @@ for test_T1w in ${T1w[@]}; do
             KUL_antsApply_Transform_MNI
             
             # Warp the brain_mask and its inverse to subject space
-            input="$kul_main_dir/../spm12/toolbox/MRTool/template/brainmask_dilated.nii"
-            output="$outputdir/compute/${base}_MNI2subj_brainmask_dilated.nii.gz"
+            input="$kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated.nii"
+            output="$outputdir/compute/${base}_MNI2subj_brainmask_mni_dilated.nii.gz"
             KUL_antsApply_Transform_MNI
-            input="$kul_main_dir/../spm12/toolbox/MRTool/template/brainmask_dilated_inverse.nii"
-            output="$outputdir/compute/${base}_MNI2subj_brainmask_dilated_inverse.nii.gz"
+            input="$kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii"
+            output="$outputdir/compute/${base}_MNI2subj_brainmask_mni_dilated_inverse.nii.gz"
             KUL_antsApply_Transform_MNI
 
             # sum the masks
@@ -484,8 +484,8 @@ for test_T1w in ${T1w[@]}; do
 
             # do the NON-LINEAR histogram matching using non-brain tissue
             mrhistmatch \
-             -mask_input $outputdir/compute/${base}_MNI2subj_brainmask_dilated_inverse.nii.gz \
-             -mask_target $kul_main_dir/../spm12/toolbox/MRTool/template/brainmask_dilated_inverse.nii \
+             -mask_input $outputdir/compute/${base}_MNI2subj_brainmask_mni_dilated_inverse.nii.gz \
+             -mask_target $kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii \
              nonlinear \
              $outputdir/compute/${base}_T1w_std_iso_biascorrected_brain.nii.gz \
              $kul_main_dir/../spm12/toolbox/MRTool/template/mni_icbm152_t1_tal_nlin_sym_09a.nii \
