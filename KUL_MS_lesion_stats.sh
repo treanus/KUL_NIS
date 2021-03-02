@@ -1,4 +1,4 @@
-#!/bin/bash  
+#!/bin/bash -e
 # Sarah Cappelle & Stefan Sunaert
 # 19/01/2021
 # This script is the first part of Sarah's Study1
@@ -37,7 +37,7 @@ Optional arguments:
 
      -s:  session of the participant
      -a:  automatic mode (just work on all images in the T1T2FLAIRMTR folder)
-     -t:  type (1=nocalib, 2=lincalib, 3=nonlincalib)
+     -t:  type (1=nocalib, 2=lincalib, 3=nonlincalib, 4=nonlincalib2)
      -v:  show output from commands
 
 
@@ -263,26 +263,36 @@ if [ $auto -eq 0 ]; then
         fullsession1=""
         fullsession2=""
     else
-        fullsession1="ses-$session/"
-        fullsession2="ses-$session_"
+        fullsession1="ses-${session}/"
+        fullsession2="ses-${session}_"
     fi
-    datadir="$cwd/BIDS/sub-${participant}/${fullsession1}/anat"
+    datadir="$cwd/BIDS/sub-${participant}/${fullsession1}anat"
     T1w_all=("$datadir/sub-${participant}_${fullsession2}T1w.nii.gz")
+    resultstype=${participant}_${fullsession2}
 else
     T1w_all=($(find BIDS -type f -name "*T1w.nii.gz" | sort ))
+    resultstype="ALL"
 fi
+
+#echo $session
+#echo $fullsession1
+#echo $fullsession2
+#echo $datadir
+#echo $T1w_all
 
 mkdir -p $outputdir/compute
 
 if [ $type_sel -eq 2 ]; then
     type="lincalib_"
 elif  [ $type_sel -eq 3 ]; then
-    type="nonlincalib"
+    type="nonlincalib_"
+elif  [ $type_sel -eq 4 ]; then
+    type="nonlincalib2_"
 else
     type=""
 fi
 
-my_results_file="mijn_${type}resultaten.csv"
+my_results_file="${resultstype}_my_${type}results.csv"
 KUL_create_results_file
 
 for test_T1w in ${T1w_all[@]}; do
@@ -290,7 +300,7 @@ for test_T1w in ${T1w_all[@]}; do
     base0=${test_T1w##*/};base=${base0%_T1w*}
     check_done="$outputdir/compute/${base}_stats.done"
 
-    if [ ! -f $check_done ];then
+    #if [ ! -f $check_done ];then
 
         participant_and_session=$base
         echo "Processing $participant_and_session"
@@ -299,9 +309,9 @@ for test_T1w in ${T1w_all[@]}; do
     
         touch $check_done
     
-    else
-        echo " $base already done".
-    fi
+    #else
+    #    echo " $base already done".
+    #fi
 
 done
 
