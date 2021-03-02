@@ -37,7 +37,7 @@ Usage:
 
 Example:
 
-  `basename $0` -p JohnDoe -v 
+  `basename $0` -p JohnDoe -f 2 -m -v 
 
 Required arguments:
 
@@ -50,6 +50,7 @@ Optional arguments:
      -a:  automatic mode (just work on all images in the BIDS folder)
      -n:  number of cpu to use (default 15)
      -m:  also run MS lesion segmentation using Freesurfer7 SamSeg
+     -f:  also run fastsurfer (1=full, 2=segmentation only)
      -v:  show output from commands
 
 
@@ -67,6 +68,7 @@ silent=1 # default if option -v is not given
 outputdir="$cwd/T1T2FLAIRMTR_ratio"
 ms=0
 ncpu=15
+fastsurf=0
 
 # Set required options
 #p_flag=0
@@ -77,7 +79,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:amv" OPT; do
+	while getopts "p:s:f:n:amv" OPT; do
 
 		case $OPT in
 		a) #automatic mode
@@ -91,6 +93,9 @@ else
 		;;
         n) #ncpu
 			ncpu=$OPTARG
+		;;
+        f) #fastsurfer
+			fastsurf=$OPTARG
 		;;
         m) #MS lesion segmentation
 			ms=1
@@ -410,20 +415,30 @@ for test_T1w in ${T1w[@]}; do
             #crop_z=0
             KUL_std_iso_biascorrect
             
-            # run fastsurfer
-            fastsurf=0
-            
-            if [ $fastsurf -eq 1 ]; then
+            # run fastsurfer       
+            echo "fastsurf: $fastsurf"     
+            if [ $fastsurf -gt 0 ]; then
                 mkdir -p $outputdir/compute/${base}_FS_in/mri
                 mkdir -p $outputdir/compute/${base}_FS/mri
                 output=${test_T1w##*/}
                 output=${output%%.*}
                 echo "  doing fastsurfer on $output"
                 mgz=${output}.mgz
-                
                 mrconvert $test_T1w $outputdir/compute/${base}_FS_in/mri/$mgz -force
-                
-                my_cmd="docker run --gpus all -v $outputdir/compute/${base}_FS_in:/data \
+                fs_silent=""
+                if [ $fastsurf -eq 1 ]; then
+                    echo "  running full fastsufer"
+                    my_cmd="docker run --gpus all -v $outputdir/compute/${base}_FS_in:/data \
+                      -v $outputdir/compute/${base}_FS:/output \
+                      -v $FREESURFER_HOME:/fs60 \
+                      --rm --user $(id -u) fastsurfer:gpu \
+                      --fs_license /fs60/license.txt \
+                      --t1 /data/mri/$mgz \
+                      --sid $base --sd /output \
+                      --parallel"
+                elif [ $fastsurf -eq 2 ]; then
+                    echo "  running segmentation-only fastsufer"
+                    my_cmd="docker run --gpus all -v $outputdir/compute/${base}_FS_in:/data \
                         -v $outputdir/compute/${base}_FS:/output \
                         --rm --user $(id -u) fastsurfercnn:gpu \
                         --i_dir /data \
@@ -431,6 +446,7 @@ for test_T1w in ${T1w[@]}; do
                         --o_dir /output \
                         --out_name mri/aparc.DKTatlas+aseg.deep.mgz \
                         --log deep_surfer.log $fs_silent"
+                fi
                 eval $my_cmd
             fi
 
