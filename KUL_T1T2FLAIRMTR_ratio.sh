@@ -175,7 +175,8 @@ function KUL_antsApply_Transform_MNI {
 function KUL_std_iso_biascorrect {
     bias_output=$outputdir/compute/${output}_std_iso_biascorrected.nii.gz
     if [ ! -f $bias_output ]; then 
-        fslreorient2std $input $outputdir/compute/${output}_std
+        #fslreorient2std $input $outputdir/compute/${output}_std
+        cp $input $outputdir/compute/${output}_std.nii.gz
         mrgrid $outputdir/compute/${output}_std.nii.gz regrid -voxel 1 $outputdir/compute/${output}_std_iso.nii.gz -force
 
         bias_input=$outputdir/compute/${output}_std_iso.nii.gz        
@@ -187,7 +188,8 @@ function KUL_std_iso_biascorrect {
 }
 
 function KUL_MTI_reorient_crop_hdbet_iso {
-    fslreorient2std $input $outputdir/compute/${output}_std
+    #fslreorient2std $input $outputdir/compute/${output}_std
+    cp $input $outputdir/compute/${output}_std.nii.gz
     mrgrid $outputdir/compute/${output}_std.nii.gz crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 \
         $outputdir/compute/${output}_std_cropped.nii.gz -nthreads $ncpu -force
     mrmath $outputdir/compute/${output}_std_cropped.nii.gz mean $outputdir/compute/${output}_mean_std_cropped.nii.gz -axis 3 -nthreads $ncpu -force
