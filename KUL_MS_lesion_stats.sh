@@ -116,8 +116,8 @@ fi
 
 # --- FUNCTIONS ---
 function KUL_create_results_file {
-    if [ ! -f $outputdir/$my_results_file ];then
-        touch $outputdir/$my_results_file
+    if [ ! -f $outdir/stats/$my_results_file ];then
+        touch $outdir/stats/$my_results_file
         echo "participant_and_session, \
         NAWM_mtr, NAWM_t1t2, NAWM_t1flair, \
         NAGM_mtr, NAGM_t1t2, NAGM_t1flair, \
@@ -127,33 +127,35 @@ function KUL_create_results_file {
         CSF_3rd_mtr, CSF_3rd_t1t2, CSF_3rd_t1flair, \
         CSF_4th_mtr, CSF_4th_t1t2, CSF_4th_t1flair, \
         MSlesion_mtr, MSlesion_t1t2, MSlesion_t1flair, \
-        Volume_NAWM, Volume_NAGM, Volume_CSF, Volume_MSlesions" > $outputdir/$my_results_file
+        Volume_NAWM, Volume_NAGM, Volume_CSF, Volume_MSlesions" > $outdir/stats/$my_results_file
     fi
 }
 
 function KUL_compute_stats {
     # define the input images
-    SamSeg="$cwd/$outputdir/compute/${participant_and_session}_samsegOutput/seg.mgz"
-    MTR="T1T2FLAIRMTR_ratio/${participant_and_session}_MTC_ratio.nii.gz"
-    T1T2="T1T2FLAIRMTR_ratio/${participant_and_session}_T1T2w_${type}ratio.nii.gz"
-    T1FLAIR="T1T2FLAIRMTR_ratio/${participant_and_session}_T1FLAIR_${type}ratio.nii.gz"
+    SamSeg="$cwd/$outdir/samseg/seg.mgz"
+    MTR="$outdir/${participant_and_session}_ratio-MTC.nii.gz"
+    T1T2="$outdir/${participant_and_session}_ratio-T1T2w_${type}.nii.gz"
+    T1FLAIR="$outdir/${participant_and_session}_ratio-T1FLAIR_${type}.nii.gz"
+    echo $MTR
+    echo $T1T2
 
     # define the output images
-    NAWM_lh="$cwd/$outputdir/${participant_and_session}_NAWM_lh.nii.gz"
-    NAWM_rh="$cwd/$outputdir/${participant_and_session}_NAWM_rh.nii.gz"
-    NAWM="$cwd/$outputdir/${participant_and_session}_NAWM.nii.gz"
-    NAGM_lh="$cwd/$outputdir/${participant_and_session}_NAGM_lh.nii.gz"
-    NAGM_rh="$cwd/$outputdir/${participant_and_session}_NAGM_rh.nii.gz"
-    NAGM="$cwd/$outputdir/${participant_and_session}_NAGM.nii.gz"
-    Thal_lh="$cwd/$outputdir/${participant_and_session}_Thal_lh.nii.gz"
-    Thal_rh="$cwd/$outputdir/${participant_and_session}_Thal_rh.nii.gz"
-    CSF_lateral_lh="$cwd/$outputdir/${participant_and_session}_CSF_lateral_lh.nii.gz"
-    CSF_lateral_rh="$cwd/$outputdir/${participant_and_session}_CSF_lateral_rh.nii.gz"
-    CSF_lateral="$cwd/$outputdir/${participant_and_session}_CSF_lateral.nii.gz"
-    CSF_3rd="$cwd/$outputdir/${participant_and_session}_CSF_3rd.nii.gz"
-    CSF_4th="$cwd/$outputdir/${participant_and_session}_CSF_4th.nii.gz"
-    CSF="$cwd/$outputdir/${participant_and_session}_CSF.nii.gz"
-    MSlesion="$cwd/$outputdir/${participant_and_session}_MSLesion.nii.gz"
+    NAWM_lh="$cwd/$outdir/rois/${participant_and_session}_NAWM_lh.nii.gz"
+    NAWM_rh="$cwd/$outdir/rois/${participant_and_session}_NAWM_rh.nii.gz"
+    NAWM="$cwd/$outdir/rois/${participant_and_session}_NAWM.nii.gz"
+    NAGM_lh="$cwd/$outdir/rois/${participant_and_session}_NAGM_lh.nii.gz"
+    NAGM_rh="$cwd/$outdir/rois/${participant_and_session}_NAGM_rh.nii.gz"
+    NAGM="$cwd/$outdir/rois/${participant_and_session}_NAGM.nii.gz"
+    Thal_lh="$cwd/$outdir/rois/${participant_and_session}_Thal_lh.nii.gz"
+    Thal_rh="$cwd/$outdir/rois/${participant_and_session}_Thal_rh.nii.gz"
+    CSF_lateral_lh="$cwd/$outdir/rois/${participant_and_session}_CSF_lateral_lh.nii.gz"
+    CSF_lateral_rh="$cwd/$outdir/rois/${participant_and_session}_CSF_lateral_rh.nii.gz"
+    CSF_lateral="$cwd/$outdir/rois/${participant_and_session}_CSF_lateral.nii.gz"
+    CSF_3rd="$cwd/$outdir/rois/${participant_and_session}_CSF_3rd.nii.gz"
+    CSF_4th="$cwd/$outdir/rois/${participant_and_session}_CSF_4th.nii.gz"
+    CSF="$cwd/$outdir/rois/${participant_and_session}_CSF.nii.gz"
+    MSlesion="$cwd/$outdir/rois/${participant_and_session}_MSLesion.nii.gz"
 
     echo " making VOIs"
     # do the computation of the masks
@@ -250,7 +252,7 @@ function KUL_compute_stats {
         $CSF_3rd_mtr, $CSF_3rd_t1t2, $CSF_3rd_t1flair, \
         $CSF_4th_mtr, $CSF_4th_t1t2, $CSF_4th_t1flair, \
         $MSlesion_mtr, $MSlesion_t1t2, $MSlesion_t1flair, \
-        $Volume_NAWM, $Volume_NAGM, $Volume_CSF, $Volume_MSlesions" >> $outputdir/$my_results_file
+        $Volume_NAWM, $Volume_NAGM, $Volume_CSF, $Volume_MSlesions" >> $outdir/stats/$my_results_file
 
 }
 
@@ -268,10 +270,8 @@ if [ $auto -eq 0 ]; then
     fi
     datadir="$cwd/BIDS/sub-${participant}/${fullsession1}anat"
     T1w_all=("$datadir/sub-${participant}_${fullsession2}T1w.nii.gz")
-    resultstype=${participant}_${fullsession2}
 else
     T1w_all=($(find BIDS -type f -name "*T1w.nii.gz" | sort ))
-    resultstype="ALL"
 fi
 
 #echo $session
@@ -280,30 +280,37 @@ fi
 #echo $datadir
 #echo $T1w_all
 
-mkdir -p $outputdir/compute
 
-if [ $type_sel -eq 2 ]; then
-    type="lincalib_"
+
+if [ $type_sel -eq 1 ]; then
+    type="calib-none"
+elif [ $type_sel -eq 2 ]; then
+    type="calib-lin"
 elif  [ $type_sel -eq 3 ]; then
-    type="nonlincalib_"
+    type="calib-nonlin"
 elif  [ $type_sel -eq 4 ]; then
-    type="nonlincalib2_"
+    type="calib-nonlin2"
 else
     type=""
 fi
 
-my_results_file="${resultstype}_my_${type}results.csv"
-KUL_create_results_file
 
 for test_T1w in ${T1w_all[@]}; do
 
     base0=${test_T1w##*/};base=${base0%_T1w*}
-    check_done="$outputdir/compute/${base}_stats.done"
+    local_participant=${base%_ses*}
+    local_session="ses-${base##*ses-}"
+    outdir=$outputdir/$local_participant/$local_session
+    mkdir -p $outdir/stats
+    check_done="$outdir/stats/${base}_stats.done"
 
     #if [ ! -f $check_done ];then
 
         participant_and_session=$base
         echo "Processing $participant_and_session"
+
+        my_results_file="${participant_and_session}_${type}_results.csv"
+        KUL_create_results_file
 
         KUL_compute_stats
     
