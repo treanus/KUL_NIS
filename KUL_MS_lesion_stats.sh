@@ -291,6 +291,8 @@ elif  [ $type_sel -eq 3 ]; then
 elif  [ $type_sel -eq 4 ]; then
     type="calib-nonlin2"
 elif  [ $type_sel -eq 5 ]; then
+    type="calib-nonlin2b"
+elif  [ $type_sel -eq 6 ]; then
     type="calib-nonlin3"
 else
     exit
