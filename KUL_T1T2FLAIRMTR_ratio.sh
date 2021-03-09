@@ -51,6 +51,7 @@ Optional arguments:
      -n:  number of cpu to use (default 15)
      -m:  also run MS lesion segmentation using Freesurfer7 SamSeg
      -f:  also run fastsurfer (1=full, 2=segmentation with CC & stats, 3=fast segmentation without CC)
+     -c:  do not run, but output files for the VSC HPC
      -v:  show output from commands
 
 Documentation:
@@ -82,6 +83,7 @@ outputdir="$cwd/T1T2FLAIRMTR_ratio"
 ms=0
 ncpu=15
 fastsurf=0
+hpc=0
 
 # Set required options
 #p_flag=0
@@ -92,7 +94,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:f:n:amv" OPT; do
+	while getopts "p:s:f:n:acmv" OPT; do
 
 		case $OPT in
 		a) #automatic mode
@@ -112,6 +114,9 @@ else
 		;;
         m) #MS lesion segmentation
 			ms=1
+		;;
+        c) #VSC HPC
+			hpc=1
 		;;
 		v) #verbose
 			silent=0
@@ -189,20 +194,6 @@ function KUL_iso_biascorrect {
 }
 
 function KUL_MTI_reorient_crop_hdbet_iso {
-    #fslreorient2std $input $outdir/tmp/${output}
-    #cp $input $outdir/tmp/${output}.nii.gz
-    #mrgrid $outdir/tmp/${output}.nii.gz crop -axis 0 $crop_x,$crop_x -axis 2 $crop_z,0 \
-    #    $outdir/tmp/${output}_cropped.nii.gz -nthreads $ncpu -force
-    #mrmath $outdir/tmp/${output}.nii.gz mean $outdir/tmp/${output}_mean.nii.gz \
-    # -axis 3 -nthreads $ncpu -force
-    #echo "  doing hd-bet on ${output}_mean.nii.gz"
-    #if [ ! -f $outdir/tmp/${output}_mean_brain.nii.gz ]; then
-    #    my_cmd="hd-bet -i $outdir/tmp/${output}_mean.nii.gz \
-    #     -o $outdir/tmp/${output}_mean_brain.nii.gz $fs_silent"
-    #   eval my_cmd
-    #fi
-    #mrcalc $outdir/tmp/${output}.nii.gz $outdir/tmp/${output}_mean_brain_mask.nii.gz \
-    #    -mul $outdir/tmp/${output}_brain.nii.gz -force
     iso_output=$outdir/tmp/${output}_iso.nii.gz
     mrgrid $input regrid -voxel 1 $iso_output -force
 }
@@ -297,6 +288,22 @@ function KUL_register_computeratio {
     mrhistogram -bin 100 -ignorezero  \
         $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w.nii.gz \
         $outdir/histograms/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w_histogram.csv -force
+    
+    
+    reference_histo_mask_nobackground="$kul_main_dir/atlasses/Local/Cappelle2021/T2wFLAIR_template_skull_and_ventricles_nobackground_mask.nii.gz"
+    # do the scond NON-LINEAR histogram matching using non-brain tissue
+    #echo $mask3
+    mrhistmatch \
+        -mask_input $mask3 \
+        -mask_target $reference_histo_mask_nobackground \
+        nonlinear \
+        $outdir/tmp/${base}_${td}_iso_biascorrected_reg2T1w.nii.gz \
+        $reference_histo_image \
+        $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2b_reg2T1w.nii.gz -force
+    mrhistogram -bin 100 -ignorezero  \
+        $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2b_reg2T1w.nii.gz \
+        $outdir/histograms/${base}_${td}_iso_biascorrected_calib-nonlin2b_reg2T1w_histogram.csv -force
+
 
     # Calculate the ratio
     mrcalc \
@@ -319,6 +326,11 @@ function KUL_register_computeratio {
          $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w.nii.gz -divide \
         $outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz -multiply \
         $outdir/${base}_ratio-T1${td}_calib-nonlin2.nii.gz -nthreads $ncpu -force
+    mrcalc \
+        $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2b.nii.gz \
+         $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2b_reg2T1w.nii.gz -divide \
+        $outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz -multiply \
+        $outdir/${base}_ratio-T1${td}_calib-nonlin2b.nii.gz -nthreads $ncpu -force
 
     # Also warp to MNI space
     reference=$fix_im
@@ -336,6 +348,9 @@ function KUL_register_computeratio {
     KUL_antsApply_Transform_MNI
     input="$outdir/${base}_ratio-T1${td}_calib-nonlin2.nii.gz"
     output="$outdir/${base}_ratio-T1${td}_calib-nonlin2_MNI.nii.gz"
+    KUL_antsApply_Transform_MNI
+    input="$outdir/${base}_ratio-T1${td}_calib-nonlin2b.nii.gz"
+    output="$outdir/${base}_ratio-T1${td}_calib-nonlin2b_MNI.nii.gz"
     KUL_antsApply_Transform_MNI
     reference=$ref_im
     input="$outdir/tmp/${base}_${td}_iso_biascorrected_reg2T1w.nii.gz"
@@ -424,388 +439,391 @@ for test_T1w in ${T1w[@]}; do
 
     if [ ! -f $check_done ];then
 
-        # Test whether T2 and/or FLAIR also exist
-        test_T2w="${test_T1w%_T1w*}_T2w.nii.gz"
-        if [ -f $test_T2w ];then
-            #echo "The T2 exists"
-            d=$((d+1))
-            t2=1
-        fi
-        test_FLAIR="${test_T1w%_T1w*}_FLAIR.nii.gz"
-        if [ -f $test_FLAIR ];then
-            #echo "The FLAIR exists"
-            d=$((d+1))
-            flair=1
-        fi
-        test_MTI="${test_T1w%_T1w*}_MTI.nii.gz"
-        if [ -f $test_MTI ];then
-            #echo "The MTI exists"
-            d=$((d+1))
-            mti=1
-        fi
-
-        # If a T1w and a T2w and/or a FLAIR exists
-        if [ $d -gt 0 ]; then
-            mkdir -p $outdir/tmp
-            mkdir -p $outdir/histograms
-            mkdir -p $outdir/masks
-            mkdir -p $outdir/rois
-            mkdir -p $outputdir/log
-            kul_e2cl "KUL_T1T2FLAIR_ratio is processing $local_participant and session $local_session" ${outputdir}/${log}
-            
-            # for the T1w
-            input=$test_T1w
-            output=${test_T1w##*/}
-            output=${output%%.*}
-            echo "  doing biascorrection on the T1w"
-            KUL_iso_biascorrect
-            
-            # run fastsurfer       
-            #echo "fastsurf: $fastsurf"     
-            if [ $fastsurf -gt 0 ]; then
-                mkdir -p $outdir/fs
-                if [ ! -f $outdir/fs/$base/mri/aparc.DKTatlas+aseg.deep.mgz ]; then
-                    if [ $fastsurf -eq 1 ]; then
-                        echo "  running full fastsufer"
-                        my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
-                            --sid $base --sd $outdir/fs \
-                            --t1 $cwd/$test_T1w \
-                            --fs_license $FREESURFER_HOME/license.txt \
-                            --vol_segstats --py python --parallel --threads $ncpu $fs_silent"
-                    elif [ $fastsurf -eq 2 ]; then
-                        echo "  running segmentation-with-CC & stats fastsufer"
-                        my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
-                            --sid $base --sd $outdir/fs \
-                            --t1 $cwd/$test_T1w \
-                            --seg_with_cc_only --vol_segstats --py python --ignore_fs_version --threads $ncpu $fs_silent"
-                    elif [ $fastsurf -eq 3 ]; then
-                        echo "  running segmentation-only fastsufer"
-                        my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
-                            --sid $base --sd $outdir/fs \
-                            --t1 $cwd/$test_T1w \
-                            --seg_only --py python --ignore_fs_version --threads $ncpu $fs_silent"
-                    fi
-                    eval $my_cmd
-                else
-                    echo "  fastsurfer seems to have run already"
-                fi
+        # write files for the VSC
+        if [ $hpc -eq 1 ];then
+            vsc_cmd="KUL_T1T2FLAIRMTR_ratio.sh -p $local_participant -s $local_session -m -f 2"
+            echo $vsc_cmd >> VSC_commands.sh
+        else
+        
+            # Test whether T2 and/or FLAIR also exist
+            test_T2w="${test_T1w%_T1w*}_T2w.nii.gz"
+            if [ -f $test_T2w ];then
+                #echo "The T2 exists"
+                d=$((d+1))
+                t2=1
+            fi
+            test_FLAIR="${test_T1w%_T1w*}_FLAIR.nii.gz"
+            if [ -f $test_FLAIR ];then
+                #echo "The FLAIR exists"
+                d=$((d+1))
+                flair=1
+            fi
+            test_MTI="${test_T1w%_T1w*}_MTI.nii.gz"
+            if [ -f $test_MTI ];then
+                #echo "The MTI exists"
+                d=$((d+1))
+                mti=1
             fi
 
-            # hd-bet brain extraction of the T1w
-            echo "  doing hd-bet on ${output}_iso_biascorrected.nii.gz"
-            if [ ! -f $outdir/tmp/${output}_iso_biascorrected_brain.nii.gz ]; then 
-                my_cmd="hd-bet -i $outdir/tmp/${output}_iso_biascorrected.nii.gz \
-                 -o $outdir/tmp/${output}_iso_biascorrected_brain.nii.gz $fs_silent"
-                eval $my_cmd
-                mv $outdir/tmp/${output}_iso_biascorrected_brain_mask.nii.gz $outdir/masks
-            fi
-
-            # find the background by thresholding the T2w
-            max_T1w=$(mrstats $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz -output max)
-            echo "  max signal of the T1w is $max_T1w"
-            background="$outdir/masks/${base}_T1w_iso_biascorrected_background.nii.gz"
-            mrcalc $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz $max_T1w 0.005 -mul -lt \
-                $background -force 
-
-            # Spatially normalise (warp) the T1w to the MNI atlas
-            fix_im="$kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii"
-            ref_im="$kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a_with_neck.nii"
-            mov_im=$bias_output
-            output="$outdir/warp2mni/${base}_T1w2MNI_"
-            mkdir -p $outdir/warp2mni
-            if [ ! -f $outdir/warp2mni/${base}_T1w2MNI_Warped.nii.gz ]; then 
-                echo "  computing the spatial normalisation (warp) of the T1w to MNI (takes about 20 minutes)"
-                my_cmd="antsRegistrationSyN.sh -d 3 -f ${fix_im} -m ${mov_im} \
-                 -o ${output} -n ${ncpu} -j 1 -t s $fs_silent"
-                eval $my_cmd
-            else
-                echo "  skipping MNI spatial normalisation, since it exists already"
-            fi
-            
-            # Warp the eye and muscle back to subject space
-            echo "  warping eye/muscle and skull/air back to subject space"
-            reference=$mov_im
-            transform1="$outdir/warp2mni/${base}_T1w2MNI_1InverseWarp.nii.gz"
-            transform2="[$outdir/warp2mni/${base}_T1w2MNI_0GenericAffine.mat,1]"
-            interpolation_type="NearestNeighbor"
-
-            input="$kul_main_dir/atlasses/Ganzetti2014/eyemask.nii"
-            output="$outdir/masks/${base}_eye.nii.gz"
-            KUL_antsApply_Transform_MNI
-
-            input="$kul_main_dir/atlasses/Ganzetti2014/tempmask.nii"
-            output="$outdir/masks/${base}_tempmuscle.nii.gz"
-            KUL_antsApply_Transform_MNI
-            
-            # Warp the brain_mask and its inverse to subject space
-            input="$kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated.nii"
-            output="$outdir/masks/${base}_MNI2subj_brainmask_mni_dilated.nii.gz"
-            KUL_antsApply_Transform_MNI
-            input="$kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii"
-            output="$outdir/masks/${base}_MNI2subj_brainmask_mni_dilated_inverse.nii.gz"
-            KUL_antsApply_Transform_MNI
-
-            # sum the masks
-            echo "  performing linear histogram matching"
-            mrcalc $outdir/masks/${base}_eye.nii.gz $outdir/masks/${base}_tempmuscle.nii.gz -add \
-             $outdir/masks/${base}_eye_and_muscle.nii.gz -force
-            mrcalc $kul_main_dir/atlasses/Ganzetti2014/eyemask.nii $kul_main_dir/atlasses/Ganzetti2014/tempmask.nii -add \
-             $outdir/masks/mni_eye_and_muscle.nii.gz -force
-            
-            # do the LINEAR histogram matching using eye/muscle tissue
-            mrhistmatch \
-             -mask_input $outdir/masks/${base}_eye_and_muscle.nii.gz \
-             -mask_target $outdir/masks/mni_eye_and_muscle.nii.gz \
-             linear \
-             $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
-             $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
-             $outdir/tmp/${base}_T1w_iso_biascorrected_calib-lin.nii.gz -force
-
-            mrhistogram -bin 100 -ignorezero \
-             $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
-             $outdir/histograms/${base}_T1w_iso_biascorrected_histogram.csv -force
-            mrhistogram -bin 100 -ignorezero \
-             $outdir/tmp/${base}_T1w_iso_biascorrected_calib-lin.nii.gz \
-             $outdir/histograms/${base}_T1w_iso_biascorrected_calib-lin_histogram.csv -force
-
-            # do the NON-LINEAR histogram matching using non-brain tissue
-            echo "  performing nonlinear histogram matching"
-            mrhistmatch \
-             -mask_input $outdir/masks/${base}_MNI2subj_brainmask_mni_dilated_inverse.nii.gz \
-             -mask_target $kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii \
-             nonlinear \
-             $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
-             $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
-             $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin.nii.gz -force
-
-            mrhistogram -bin 100 -ignorezero  \
-             $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin.nii.gz \
-             $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin_histogram.csv -force
-             
-
-            # Methods of Cappelle & Sunaert
-            echo "  performing second (Cappelle) nonlinear histogram matching"
-            mask1="$outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz"
-            mask2="$outdir/masks/${base}_T1w_iso_biascorrected_brain_inverted_mask.nii.gz"
-            mrcalc $mask1 0.1 -lt $mask2 -force
-
-            reference_histo_mask="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template_brain_mask_inverse.nii.gz"
-            reference_histo_image="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template.nii.gz"
-
-            # do the scond NON-LINEAR histogram matching using non-brain tissue
-            mrhistmatch \
-             -mask_input $mask2 \
-             -mask_target $reference_histo_mask \
-             nonlinear \
-             $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
-             $reference_histo_image \
-             $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz -force
-
-            mrhistogram -bin 100 -ignorezero  \
-             $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz \
-             $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin2_histogram.csv -force
-
-            mask3="$outdir/masks/${base}_T1w_iso_biascorrected_brain_inverted_mask_nobackground.nii.gz"
-            mrcalc $mask1 0.1 -lt $background -sub 0.1 -gt $mask3 -force
-
-            reference_histo_mask="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template_brain_mask_inverse_nobackground.nii.gz"
-            reference_histo_image="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template.nii.gz"
-
-            # do the scond NON-LINEAR histogram matching using non-brain tissue
-            mrhistmatch \
-             -mask_input $mask3 \
-             -mask_target $reference_histo_mask \
-             nonlinear \
-             $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
-             $reference_histo_image \
-             $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2b.nii.gz -force
-
-            mrhistogram -bin 100 -ignorezero  \
-             $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2b.nii.gz \
-             $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin2b_histogram.csv -force
-            
-            # Warp into MNI space too
-            echo "  warping results to MNI"
-            reference=$ref_im
-            transform1="$outdir/warp2mni/${base}_T1w2MNI_1Warp.nii.gz"
-            transform2="[$outdir/warp2mni/${base}_T1w2MNI_0GenericAffine.mat,0]"
-            interpolation_type="LanczosWindowedSinc"
-
-            input="$outdir/tmp/${base}_T1w_iso_biascorrected_calib-lin.nii.gz"
-            output="$outdir/tmp/${base}_T1w_iso_biascorrected_calib-lin_MNI.nii.gz"
-            KUL_antsApply_Transform_MNI
-
-            input="$outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin.nii.gz"
-            output="$outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin_MNI.nii.gz"
-            KUL_antsApply_Transform_MNI
-
-            input="$outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz"
-            output="$outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2_MNI.nii.gz"
-            KUL_antsApply_Transform_MNI
-
-            input="$outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz"
-            output="$outdir/tmp/${base}_T1w_iso_biascorrected_MNI.nii.gz"
-
-            KUL_antsApply_Transform_MNI
-            # TODO - add mask here
-
-            cp $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz $outdir/${base}_T1w.nii.gz
-            cp $outdir/tmp/${base}_T1w_iso_biascorrected_MNI.nii.gz $outdir/${base}_T1w_MNI.nii.gz
-
-
-            if [ $t2 -eq 1 ];then
-                input=$test_T2w
-                output=${test_T2w##*/}
+            # If a T1w and a T2w and/or a FLAIR exists
+            if [ $d -gt 0 ]; then
+                mkdir -p $outdir/tmp
+                mkdir -p $outdir/histograms
+                mkdir -p $outdir/masks
+                mkdir -p $outdir/rois
+                mkdir -p $outputdir/log
+                kul_e2cl "KUL_T1T2FLAIR_ratio is processing $local_participant and session $local_session" ${outputdir}/${log}
+                
+                # for the T1w
+                input=$test_T1w
+                output=${test_T1w##*/}
                 output=${output%%.*}
-                crop_x=0
-                crop_z=0
-                echo "  doing biascorrection of the T2w"
-                KUL_iso_biascorrect
-
-                td="T2w"
-                echo "  coregistering T2w to T1w and computing the ratio"
-                KUL_register_computeratio
-            fi
-
-            if [ $flair -eq 1 ];then
-                input=$test_FLAIR
-                output=${test_FLAIR##*/}
-                output=${output%%.*}
-                crop_x=0
-                crop_z=0
-                echo "  doing biascorrection of the FLAIR"
+                echo "  doing biascorrection on the T1w"
                 KUL_iso_biascorrect
                 
-                td="FLAIR"
-                echo "  coregistering FLAIR to T1w and computing the ratio"
-                KUL_register_computeratio
-            fi
-
-            # if MS lesion segmentation
-            if [ $ms -eq 1 ];then
-                if [ $flair -eq 1 ];then
-                    MSlesion="$outdir/rois/${base}_MSLesion.nii.gz"
-                    if [ ! -f $MSlesion ];then
-                        echo "  running samseg (takes about 20 minutes)"
-                        T1w_iso="$outdir/${base}_T1w.nii.gz"
-                        FLAIR_reg2T1w="$outdir/${base}_FLAIR_reg2T1w.nii.gz"
-                        my_cmd="run_samseg --input $T1w_iso $FLAIR_reg2T1w --pallidum-separate \
-                        --lesion --lesion-mask-pattern 0 1 --output $outdir/samseg \
-                        --threads $ncpu $fs_silent"
+                # run fastsurfer       
+                #echo "fastsurf: $fastsurf"     
+                if [ $fastsurf -gt 0 ]; then
+                    mkdir -p $outdir/fs
+                    if [ ! -f $outdir/fs/$base/mri/aparc.DKTatlas+aseg.deep.mgz ]; then
+                        if [ $fastsurf -eq 1 ]; then
+                            echo "  running full fastsufer"
+                            my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
+                                --sid $base --sd $outdir/fs \
+                                --t1 $cwd/$test_T1w \
+                                --fs_license $FS_LICENSE \
+                                --vol_segstats --py python --parallel --threads $ncpu $fs_silent"
+                        elif [ $fastsurf -eq 2 ]; then
+                            echo "  running segmentation-with-CC & stats fastsufer"
+                            my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
+                                --sid $base --sd $outdir/fs \
+                                --t1 $cwd/$test_T1w \
+                                --fs_license $FS_LICENSE \
+                                --seg_with_cc_only --vol_segstats --py python --ignore_fs_version --threads $ncpu $fs_silent"
+                        elif [ $fastsurf -eq 3 ]; then
+                            echo "  running segmentation-only fastsufer"
+                            my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
+                                --sid $base --sd $outdir/fs \
+                                --t1 $cwd/$test_T1w \
+                                --seg_only --py python --ignore_fs_version --threads $ncpu $fs_silent"
+                        fi
                         eval $my_cmd
-                        SamSeg="$outdir/samseg/seg.mgz"
-                        mrcalc $SamSeg 99 -eq $MSlesion -force -nthreads $ncpu
                     else
-                        echo "  already ran samseg"
+                        echo "  fastsurfer seems to have run already"
                     fi
+                fi
+
+                # hd-bet brain extraction of the T1w
+                echo "  doing hd-bet on ${output}_iso_biascorrected.nii.gz"
+                if [ ! -f $outdir/tmp/${output}_iso_biascorrected_brain.nii.gz ]; then 
+                    my_cmd="hd-bet -i $outdir/tmp/${output}_iso_biascorrected.nii.gz \
+                    -o $outdir/tmp/${output}_iso_biascorrected_brain.nii.gz $fs_silent"
+                    eval $my_cmd
+                    mv $outdir/tmp/${output}_iso_biascorrected_brain_mask.nii.gz $outdir/masks
+                fi
+
+                # find the background by thresholding the T1w
+                max_T1w=$(mrstats $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz -output max)
+                echo "  max signal of the T1w is $max_T1w"
+                background="$outdir/masks/${base}_T1w_iso_biascorrected_background.nii.gz"
+                mrcalc $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz $max_T1w 0.005 -mul -lt \
+                    $background -force 
+
+                # Spatially normalise (warp) the T1w to the MNI atlas
+                fix_im="$kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii"
+                ref_im="$kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a_with_neck.nii"
+                mov_im=$bias_output
+                output="$outdir/warp2mni/${base}_T1w2MNI_"
+                mkdir -p $outdir/warp2mni
+                if [ ! -f $outdir/warp2mni/${base}_T1w2MNI_Warped.nii.gz ]; then 
+                    echo "  computing the spatial normalisation (warp) of the T1w to MNI (takes about 20 minutes)"
+                    my_cmd="antsRegistrationSyN.sh -d 3 -f ${fix_im} -m ${mov_im} \
+                    -o ${output} -n ${ncpu} -j 1 -t s $fs_silent"
+                    eval $my_cmd
                 else
-                    echo "  Warning! No Flair available to do lesion MS segmentation"
-                fi        
-            fi
+                    echo "  skipping MNI spatial normalisation, since it exists already"
+                fi
+                
+                # Warp the eye and muscle back to subject space
+                echo "  warping eye/muscle and skull/air back to subject space"
+                reference=$mov_im
+                transform1="$outdir/warp2mni/${base}_T1w2MNI_1InverseWarp.nii.gz"
+                transform2="[$outdir/warp2mni/${base}_T1w2MNI_0GenericAffine.mat,1]"
+                interpolation_type="NearestNeighbor"
 
-            # Last method of calibration
-            # do it in the whole image except for the MS lesions
-            mask1="$outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz"
-            mask_subj="$outdir/masks/${base}_brain_mask_without_lesions.nii.gz"
-            mrcalc $mask1 $MSlesion -subtract $mask_subj -force
-            mask_target=$kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a_mask.nii
+                input="$kul_main_dir/atlasses/Ganzetti2014/eyemask.nii"
+                output="$outdir/masks/${base}_eye.nii.gz"
+                KUL_antsApply_Transform_MNI
 
-            mrhistmatch \
-             -mask_input $mask_subj \
-             -mask_target $mask_target \
-             nonlinear \
-             $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
-             $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
-             $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin3.nii.gz -force
+                input="$kul_main_dir/atlasses/Ganzetti2014/tempmask.nii"
+                output="$outdir/masks/${base}_tempmuscle.nii.gz"
+                KUL_antsApply_Transform_MNI
+                
+                # Warp the brain_mask and its inverse to subject space
+                input="$kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated.nii"
+                output="$outdir/masks/${base}_MNI2subj_brainmask_mni_dilated.nii.gz"
+                KUL_antsApply_Transform_MNI
+                input="$kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii"
+                output="$outdir/masks/${base}_MNI2subj_brainmask_mni_dilated_inverse.nii.gz"
+                KUL_antsApply_Transform_MNI
 
-            mrhistogram -bin 100 -ignorezero  \
-             $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin3.nii.gz \
-             $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin3_histogram.csv -force
-
-            if [ $t2 -eq 1 ];then
+                # sum the masks
+                echo "  performing linear histogram matching"
+                mrcalc $outdir/masks/${base}_eye.nii.gz $outdir/masks/${base}_tempmuscle.nii.gz -add \
+                $outdir/masks/${base}_eye_and_muscle.nii.gz -force
+                mrcalc $kul_main_dir/atlasses/Ganzetti2014/eyemask.nii $kul_main_dir/atlasses/Ganzetti2014/tempmask.nii -add \
+                $outdir/masks/mni_eye_and_muscle.nii.gz -force
+                
+                # do the LINEAR histogram matching using eye/muscle tissue
                 mrhistmatch \
-                 -mask_input $mask_subj \
-                 -mask_target $mask_target \
-                 nonlinear \
-                 $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz \
-                 $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t2_tal_nlin_sym_09a.nii \
-                 $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -force
+                -mask_input $outdir/masks/${base}_eye_and_muscle.nii.gz \
+                -mask_target $outdir/masks/mni_eye_and_muscle.nii.gz \
+                linear \
+                $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
+                $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
+                $outdir/tmp/${base}_T1w_iso_biascorrected_calib-lin.nii.gz -force
 
-                 mrhistogram -bin 100 -ignorezero  \
-                 $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz \
-                 $outdir/histograms/${base}_T2w_iso_biascorrected_calib-nonlin3_histogram.csv -force
+                mrhistogram -bin 100 -ignorezero \
+                $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
+                $outdir/histograms/${base}_T1w_iso_biascorrected_histogram.csv -force
+                mrhistogram -bin 100 -ignorezero \
+                $outdir/tmp/${base}_T1w_iso_biascorrected_calib-lin.nii.gz \
+                $outdir/histograms/${base}_T1w_iso_biascorrected_calib-lin_histogram.csv -force
 
-                mrcalc \
-                    $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin3.nii.gz \
-                    $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -divide \
-                    $outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz -multiply \
-                    $outdir/${base}_ratio-T1T2w_calib-nonlin3.nii.gz -nthreads $ncpu -force
+                # do the NON-LINEAR histogram matching using non-brain tissue
+                echo "  performing nonlinear histogram matching"
+                mrhistmatch \
+                -mask_input $outdir/masks/${base}_MNI2subj_brainmask_mni_dilated_inverse.nii.gz \
+                -mask_target $kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii \
+                nonlinear \
+                $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
+                $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
+                $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin.nii.gz -force
 
-                # Also warp to MNI space
-                reference=$fix_im
+                mrhistogram -bin 100 -ignorezero  \
+                $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin.nii.gz \
+                $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin_histogram.csv -force
+                
+
+                # Methods of Cappelle & Sunaert
+                echo "  performing second (Cappelle) nonlinear histogram matching"
+                mask1="$outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz"
+                mask2="$outdir/masks/${base}_T1w_iso_biascorrected_brain_inverted_mask.nii.gz"
+                mrcalc $mask1 0.1 -lt $mask2 -force
+
+                reference_histo_mask="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template_brain_mask_inverse.nii.gz"
+                reference_histo_image="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template.nii.gz"
+
+                # do the scond NON-LINEAR histogram matching using non-brain tissue
+                mrhistmatch \
+                -mask_input $mask2 \
+                -mask_target $reference_histo_mask \
+                nonlinear \
+                $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
+                $reference_histo_image \
+                $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz -force
+
+                mrhistogram -bin 100 -ignorezero  \
+                $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz \
+                $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin2_histogram.csv -force
+
+                mask3="$outdir/masks/${base}_T1w_iso_biascorrected_brain_inverted_mask_nobackground.nii.gz"
+                mrcalc $mask1 0.1 -lt $background -sub 0.1 -gt $mask3 -force
+
+                reference_histo_mask="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template_brain_mask_inverse_nobackground.nii.gz"
+                reference_histo_image="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template.nii.gz"
+
+                # do the scond NON-LINEAR histogram matching using non-brain tissue
+                mrhistmatch \
+                -mask_input $mask3 \
+                -mask_target $reference_histo_mask \
+                nonlinear \
+                $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
+                $reference_histo_image \
+                $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2b.nii.gz -force
+
+                mrhistogram -bin 100 -ignorezero  \
+                $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2b.nii.gz \
+                $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin2b_histogram.csv -force
+                
+                # Warp into MNI space too
+                echo "  warping results to MNI"
+                reference=$ref_im
                 transform1="$outdir/warp2mni/${base}_T1w2MNI_1Warp.nii.gz"
                 transform2="[$outdir/warp2mni/${base}_T1w2MNI_0GenericAffine.mat,0]"
-                interpolation_type="Linear"
-                input="$outdir/${base}_ratio-T1T2w_calib-nonlin3.nii.gz"
-                output="$outdir/${base}_ratio-T1T2w_calib-nonlin3_MNI.nii.gz"
-                KUL_antsApply_Transform_MNI
-            fi
+                interpolation_type="LanczosWindowedSinc"
 
-            if [ $flair -eq 1 ];then
+                input="$outdir/tmp/${base}_T1w_iso_biascorrected_calib-lin.nii.gz"
+                output="$outdir/tmp/${base}_T1w_iso_biascorrected_calib-lin_MNI.nii.gz"
+                KUL_antsApply_Transform_MNI
+
+                input="$outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin.nii.gz"
+                output="$outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin_MNI.nii.gz"
+                KUL_antsApply_Transform_MNI
+
+                input="$outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz"
+                output="$outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2_MNI.nii.gz"
+                KUL_antsApply_Transform_MNI
+
+                input="$outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz"
+                output="$outdir/tmp/${base}_T1w_iso_biascorrected_MNI.nii.gz"
+
+                KUL_antsApply_Transform_MNI
+                # TODO - add mask here
+
+                cp $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz $outdir/${base}_T1w.nii.gz
+                cp $outdir/tmp/${base}_T1w_iso_biascorrected_MNI.nii.gz $outdir/${base}_T1w_MNI.nii.gz
+
+
+                if [ $t2 -eq 1 ];then
+                    input=$test_T2w
+                    output=${test_T2w##*/}
+                    output=${output%%.*}
+                    echo "  doing biascorrection of the T2w"
+                    KUL_iso_biascorrect
+
+                    td="T2w"
+                    echo "  coregistering T2w to T1w and computing the ratio"
+                    KUL_register_computeratio
+                fi
+
+                if [ $flair -eq 1 ];then
+                    input=$test_FLAIR
+                    output=${test_FLAIR##*/}
+                    output=${output%%.*}
+                    echo "  doing biascorrection of the FLAIR"
+                    KUL_iso_biascorrect
+                    
+                    td="FLAIR"
+                    echo "  coregistering FLAIR to T1w and computing the ratio"
+                    KUL_register_computeratio
+                fi
+
+                # if MS lesion segmentation
+                if [ $ms -eq 1 ];then
+                    if [ $flair -eq 1 ];then
+                        MSlesion="$outdir/rois/${base}_MSLesion.nii.gz"
+                        if [ ! -f $MSlesion ];then
+                            echo "  running samseg (takes about 20 minutes)"
+                            T1w_iso="$outdir/${base}_T1w.nii.gz"
+                            FLAIR_reg2T1w="$outdir/${base}_FLAIR_reg2T1w.nii.gz"
+                            my_cmd="run_samseg --input $T1w_iso $FLAIR_reg2T1w --pallidum-separate \
+                            --lesion --lesion-mask-pattern 0 1 --output $outdir/samseg \
+                            --threads $ncpu $fs_silent"
+                            eval $my_cmd
+                            SamSeg="$outdir/samseg/seg.mgz"
+                            mrcalc $SamSeg 99 -eq $MSlesion -force -nthreads $ncpu
+                        else
+                            echo "  already ran samseg"
+                        fi
+                    else
+                        echo "  Warning! No Flair available to do lesion MS segmentation"
+                    fi        
+                fi
+
+                # Last method of calibration
+                # do it in the whole image except for the MS lesions
+                mask1="$outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz"
+                mask_subj="$outdir/masks/${base}_brain_mask_without_lesions.nii.gz"
+                mrcalc $mask1 $MSlesion -subtract $mask_subj -force
+                mask_target=$kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a_mask.nii
+
                 mrhistmatch \
-                 -mask_input $mask_subj \
-                 -mask_target $mask_target \
-                 nonlinear \
-                 $outdir/tmp/${base}_FLAIR_iso_biascorrected_reg2T1w.nii.gz \
-                 $kul_main_dir/atlasses/Local/Cappelle2021/Winkler2009_GG-366-FLAIR_1.0mm_adapted.nii.gz \
-                 $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -force
+                -mask_input $mask_subj \
+                -mask_target $mask_target \
+                nonlinear \
+                $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
+                $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
+                $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin3.nii.gz -force
 
-                 mrhistogram -bin 100 -ignorezero  \
-                 $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz \
-                 $outdir/histograms/${base}_FLAIR_iso_biascorrected_calib-nonlin3_histogram.csv -force
+                mrhistogram -bin 100 -ignorezero  \
+                $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin3.nii.gz \
+                $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin3_histogram.csv -force
 
-                mrcalc \
-                    $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin3.nii.gz \
-                    $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -divide \
-                    $outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz -multiply \
-                    $outdir/${base}_ratio-T1FLAIR_calib-nonlin3.nii.gz -nthreads $ncpu -force
+                if [ $t2 -eq 1 ];then
+                    mrhistmatch \
+                    -mask_input $mask_subj \
+                    -mask_target $mask_target \
+                    nonlinear \
+                    $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz \
+                    $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t2_tal_nlin_sym_09a.nii \
+                    $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -force
 
-                # Also warp to MNI space
-                reference=$fix_im
-                transform1="$outdir/warp2mni/${base}_T1w2MNI_1Warp.nii.gz"
-                transform2="[$outdir/warp2mni/${base}_T1w2MNI_0GenericAffine.mat,0]"
-                interpolation_type="Linear"
-                input="$outdir/${base}_ratio-T1FLAIR_calib-nonlin3.nii.gz"
-                output="$outdir/${base}_ratio-T1FLAIR_calib-nonlin3_MNI.nii.gz"
-                KUL_antsApply_Transform_MNI
+                    mrhistogram -bin 100 -ignorezero  \
+                    $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz \
+                    $outdir/histograms/${base}_T2w_iso_biascorrected_calib-nonlin3_histogram.csv -force
+
+                    mrcalc \
+                        $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin3.nii.gz \
+                        $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -divide \
+                        $outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz -multiply \
+                        $outdir/${base}_ratio-T1T2w_calib-nonlin3.nii.gz -nthreads $ncpu -force
+
+                    # Also warp to MNI space
+                    reference=$fix_im
+                    transform1="$outdir/warp2mni/${base}_T1w2MNI_1Warp.nii.gz"
+                    transform2="[$outdir/warp2mni/${base}_T1w2MNI_0GenericAffine.mat,0]"
+                    interpolation_type="Linear"
+                    input="$outdir/${base}_ratio-T1T2w_calib-nonlin3.nii.gz"
+                    output="$outdir/${base}_ratio-T1T2w_calib-nonlin3_MNI.nii.gz"
+                    KUL_antsApply_Transform_MNI
+                fi
+
+                if [ $flair -eq 1 ];then
+                    mrhistmatch \
+                    -mask_input $mask_subj \
+                    -mask_target $mask_target \
+                    nonlinear \
+                    $outdir/tmp/${base}_FLAIR_iso_biascorrected_reg2T1w.nii.gz \
+                    $kul_main_dir/atlasses/Local/Cappelle2021/Winkler2009_GG-366-FLAIR_1.0mm_adapted.nii.gz \
+                    $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -force
+
+                    mrhistogram -bin 100 -ignorezero  \
+                    $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz \
+                    $outdir/histograms/${base}_FLAIR_iso_biascorrected_calib-nonlin3_histogram.csv -force
+
+                    mrcalc \
+                        $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin3.nii.gz \
+                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -divide \
+                        $outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz -multiply \
+                        $outdir/${base}_ratio-T1FLAIR_calib-nonlin3.nii.gz -nthreads $ncpu -force
+
+                    # Also warp to MNI space
+                    reference=$fix_im
+                    transform1="$outdir/warp2mni/${base}_T1w2MNI_1Warp.nii.gz"
+                    transform2="[$outdir/warp2mni/${base}_T1w2MNI_0GenericAffine.mat,0]"
+                    interpolation_type="Linear"
+                    input="$outdir/${base}_ratio-T1FLAIR_calib-nonlin3.nii.gz"
+                    output="$outdir/${base}_ratio-T1FLAIR_calib-nonlin3_MNI.nii.gz"
+                    KUL_antsApply_Transform_MNI
+                fi
+
+                test_done_MTI="$outdir/${base}_ratio-MTC_MNI.nii.gz"
+                if [ $mti -eq 1 ] && [ ! -f $test_done_MTI ];then
+                    input=$test_MTI
+                    output=${test_MTI##*/}
+                    output=${output%%.*}
+                    echo "  doing hd-bet of the MTI"
+                    KUL_MTI_reorient_crop_hdbet_iso
+                    td="MTI"
+                    echo "  coregistering MTI to T1 and computing the MTC ratio"
+                    KUL_MTI_register_computeratio
+                fi
+
+                #rm -fr $outdir/tmp/${base}*.gz
+                #cd T1T2FLAIRMTR_ratio/tmp/
+                #rm -fr *std.nii.gz *iso.nii.gz *ted.nii.gz *reg2T1w.nii.gz *mask.nii.gz *eye.nii.gz *muscle.nii.gz *.csv *MTI* *MNI.nii.gz *verse.nii.gz *inv.nii.gz *brain.nii.gz
+                #rm -fr *std.nii.gz *iso.nii.gz *ted.nii.gz *reg2T1w.nii.gz *eye.nii.gz *muscle.nii.gz *.csv *MTI* *MNI.nii.gz *verse.nii.gz *inv.nii.gz *brain.nii.gz
+                #cd ../..
+
+                touch $check_done
+
+                echo " done"
+             
+            else
+                echo " Nothing to do here"
             fi
-
-            if [ $mti -eq 1 ];then
-                input=$test_MTI
-                output=${test_MTI##*/}
-                output=${output%%.*}
-                crop_x=0
-                crop_z=0
-                echo "  doing hd-bet of the MTI"
-                KUL_MTI_reorient_crop_hdbet_iso
-                td="MTI"
-                echo "  coregistering MTI to T1 and computing the MTC ratio"
-                KUL_MTI_register_computeratio
-            fi
-
-            #rm -fr $outdir/tmp/${base}*.gz
-            #cd T1T2FLAIRMTR_ratio/tmp/
-            #rm -fr *std.nii.gz *iso.nii.gz *ted.nii.gz *reg2T1w.nii.gz *mask.nii.gz *eye.nii.gz *muscle.nii.gz *.csv *MTI* *MNI.nii.gz *verse.nii.gz *inv.nii.gz *brain.nii.gz
-            #rm -fr *std.nii.gz *iso.nii.gz *ted.nii.gz *reg2T1w.nii.gz *eye.nii.gz *muscle.nii.gz *.csv *MTI* *MNI.nii.gz *verse.nii.gz *inv.nii.gz *brain.nii.gz
-            #cd ../..
-
-            touch $check_done
-
-            echo " done"
-
-        else
-            echo " Nothing to do here"
-        fi
+        fi 
 
     else
         echo "  $base already done"
