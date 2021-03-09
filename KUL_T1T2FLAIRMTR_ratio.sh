@@ -490,21 +490,21 @@ for test_T1w in ${T1w[@]}; do
                             echo "  running full fastsufer"
                             my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
                                 --sid $base --sd $outdir/fs \
-                                --t1 $cwd/$test_T1w \
+                                --t1 $test_T1w \
                                 --fs_license $FS_LICENSE \
                                 --vol_segstats --py python --parallel --threads $ncpu $fs_silent"
                         elif [ $fastsurf -eq 2 ]; then
                             echo "  running segmentation-with-CC & stats fastsufer"
                             my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
                                 --sid $base --sd $outdir/fs \
-                                --t1 $cwd/$test_T1w \
+                                --t1 $test_T1w \
                                 --fs_license $FS_LICENSE \
                                 --seg_with_cc_only --vol_segstats --py python --ignore_fs_version --threads $ncpu $fs_silent"
                         elif [ $fastsurf -eq 3 ]; then
                             echo "  running segmentation-only fastsufer"
                             my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
                                 --sid $base --sd $outdir/fs \
-                                --t1 $cwd/$test_T1w \
+                                --t1 $test_T1w \
                                 --seg_only --py python --ignore_fs_version --threads $ncpu $fs_silent"
                         fi
                         eval $my_cmd
