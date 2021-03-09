@@ -757,7 +757,7 @@ for test_T1w in ${T1w[@]}; do
                  -mask_target $mask_target \
                  nonlinear \
                  $outdir/tmp/${base}_FLAIR_iso_biascorrected_reg2T1w.nii.gz \
-                 $cwd/FLAIR.nii.gz \
+                 $kul_main_dir/atlasses/Local/Cappelle2021/Winkler2009_GG-366-FLAIR_1.0mm_adapted.nii.gz \
                  $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -force
 
                  mrhistogram -bin 100 -ignorezero  \
