@@ -617,14 +617,14 @@ for test_T1w in ${T1w[@]}; do
                 if [ $deel -ge 6 ];then
                     # hd-bet brain extraction of the T1w
                     
-                    if [ ! -f $outdir/tmp/${output}_iso_biascorrected_brain.nii.gz ]; then 
-                        echo "  doing hd-bet on ${output}_iso_biascorrected.nii.gz"
-                        my_cmd="hd-bet -i $outdir/tmp/${output}_iso_biascorrected.nii.gz \
-                        -o $outdir/tmp/${output}_iso_biascorrected_brain.nii.gz $fs_silent"
+                    if [ ! -f $outdir/tmp/${base}_T1w_iso_biascorrected_brain.nii.gz ]; then 
+                        echo "  doing hd-bet on ${base}_T1w_iso_biascorrected.nii.gz"
+                        my_cmd="hd-bet -i $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
+                        -o $outdir/tmp/${base}_T1w_iso_biascorrected_brain.nii.gz $fs_silent"
                         eval $my_cmd
-                        mv $outdir/tmp/${output}_iso_biascorrected_brain_mask.nii.gz $outdir/masks
+                        mv $outdir/tmp/${base}_T1w_iso_biascorrected_brain_mask.nii.gz $outdir/masks
                     else
-                        echo "  skipping hd-bet on ${output}_iso_biascorrected.nii.gz - already done"
+                        echo "  skipping hd-bet on ${base}_T1w_iso_biascorrected.nii.gz - already done"
                     fi
 
                     # find the background by thresholding the T1w
@@ -639,9 +639,8 @@ for test_T1w in ${T1w[@]}; do
                     fi
                 fi
 
-                exit
                 # PART 7 - Calibration
-                if [ $deel -ge 6 ];then
+                if [ $deel -ge 7 ];then
                     # METHOD 1 - LINEAR histogram matching using eye/muscle tissue
                     echo "  performing linear histogram matching"
                     
@@ -682,8 +681,41 @@ for test_T1w in ${T1w[@]}; do
                     $outdir/tmp/${base}_T1w_iso_biascorrected_calib-lin.nii.gz \
                     $outdir/histograms/${base}_T1w_iso_biascorrected_calib-lin_histogram.csv -force
 
+                    if [ $t2 -eq 1 ];then
+                        mrhistmatch \
+                        -mask_input $outdir/masks/${base}_eye_and_muscle.nii.gz \
+                        -mask_target $outdir/masks/mni_eye_and_muscle.nii.gz \
+                        linear \
+                        $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz \
+                        $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t2_tal_nlin_sym_09a.nii \
+                        $outdir/tmp/${base}_T2w_iso_biascorrected_calib-lin_reg2T1w.nii.gz -force
 
+                        mrhistogram -bin 100 -ignorezero \
+                        $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz \
+                        $outdir/histograms/${base}_T2w_iso_biascorrected_reg2T1w_histogram.csv -force
+                        mrhistogram -bin 100 -ignorezero \
+                        $outdir/tmp/${base}_T2w_iso_biascorrected_calib-lin_reg2T1w.nii.gz \
+                        $outdir/histograms/${base}_T2w_iso_biascorrected_calib-lin_reg2T1w_histogram.csv -force
+                    fi
 
+                    if [ $flair -eq 1 ];then
+                        # Note: this is probably not a good calibration, since Ganzetti did not have a MNI-FLAIR 
+                        mrhistmatch \
+                        -mask_input $outdir/masks/${base}_eye_and_muscle.nii.gz \
+                        -mask_target $outdir/masks/mni_eye_and_muscle.nii.gz \
+                        linear \
+                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_reg2T1w.nii.gz \
+                        $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t2_tal_nlin_sym_09a.nii \
+                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-lin_reg2T1w.nii.gz -force
+
+                        mrhistogram -bin 100 -ignorezero \
+                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_reg2T1w.nii.gz \
+                        $outdir/histograms/${base}_FLAIR_iso_biascorrected_reg2T1w_histogram.csv -force
+                        mrhistogram -bin 100 -ignorezero \
+                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-lin_reg2T1w.nii.gz \
+                        $outdir/histograms/${base}_FLAIR_iso_biascorrected_calib-lin_reg2T1w_histogram.csv -force
+                    fi
+                    
                     # METHOD 2 - the NON-LINEAR histogram matching using non-brain tissue
                     echo "  performing nonlinear histogram matching"
                     # Warp the brain_mask and its inverse to subject space
@@ -706,32 +738,45 @@ for test_T1w in ${T1w[@]}; do
                     $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin.nii.gz \
                     $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin_histogram.csv -force
                     
+                    if [ $t2 -eq 1 ];then
+                        mrhistmatch \
+                        -mask_input $outdir/masks/${base}_MNI2subj_brainmask_mni_dilated_inverse.nii.gz \
+                        -mask_target $kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii \
+                        nonlinear \
+                        $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz \
+                        $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t2_tal_nlin_sym_09a.nii \
+                        $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin_reg2T1w.nii.gz -force
 
+                        mrhistogram -bin 100 -ignorezero  \
+                        $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin_reg2T1w.nii.gz \
+                        $outdir/histograms/${base}_T2w_iso_biascorrected_calib-nonlin_reg2T1w_histogram.csv -force
+                    fi
+                    
+                    if [ $flair -eq 1 ];then
+                        mrhistmatch \
+                        -mask_input $outdir/masks/${base}_MNI2subj_brainmask_mni_dilated_inverse.nii.gz \
+                        -mask_target $kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii \
+                        nonlinear \
+                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_reg2T1w.nii.gz \
+                        $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t2_tal_nlin_sym_09a.nii \
+                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin_reg2T1w.nii.gz -force
+
+                        mrhistogram -bin 100 -ignorezero  \
+                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin_reg2T1w.nii.gz \
+                        $outdir/histograms/${base}_FLAIR_iso_biascorrected_calib-nonlin_reg2T1w_histogram.csv -force
+                    fi
+
+                    exit
+                    
                     # Method 3 - Cappelle & Sunaert
                     echo "  performing second (Cappelle) nonlinear histogram matching"
                     mask1="$outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz"
                     mask2="$outdir/masks/${base}_T1w_iso_biascorrected_brain_inverted_mask.nii.gz"
                     mrcalc $mask1 0.1 -lt $mask2 -force
 
-                    reference_histo_mask="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template_brain_mask_inverse.nii.gz"
-                    reference_histo_image="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template.nii.gz"
-
-                    # do the scond NON-LINEAR histogram matching using non-brain tissue
-                    mrhistmatch \
-                    -mask_input $mask2 \
-                    -mask_target $reference_histo_mask \
-                    nonlinear \
-                    $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
-                    $reference_histo_image \
-                    $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz -force
-
-                    mrhistogram -bin 100 -ignorezero  \
-                    $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz \
-                    $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin2_histogram.csv -force
-
                     mask3="$outdir/masks/${base}_T1w_iso_biascorrected_brain_inverted_mask_nobackground.nii.gz"
                     mrcalc $mask1 0.1 -lt $background -sub 0.1 -gt $mask3 -force
-
+                    
                     reference_histo_mask="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template_brain_mask_inverse_nobackground.nii.gz"
                     reference_histo_image="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template.nii.gz"
 
@@ -747,6 +792,60 @@ for test_T1w in ${T1w[@]}; do
                     mrhistogram -bin 100 -ignorezero  \
                     $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2b.nii.gz \
                     $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin2b_histogram.csv -force
+                    
+                    if [ $t2 -eq 1 ];then
+                        td="T2w"
+                        # find the ventricles by thresholding the T2w
+                        max_T2w=$(mrstats $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz -output max)
+                        echo "  max signal of the T2w is $max_T2w"
+                        ventricles="$outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w_ventricules.nii.gz"
+                        mrcalc $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz $max_T2w 0.75 -mul -gt \
+                            $ventricles -force 
+                        skull_and_ventricules="$outdir/masks/${base}_T2w_iso_biascorrected_reg2T1w_skull_and_ventricules.nii.gz"
+                        mrcalc $mask2 $ventricles -add 0.1 -gt $skull_and_ventricules -force
+
+                        reference_histo_image="$kul_main_dir/atlasses/Local/Cappelle2021/${td}_template.nii.gz"                        
+                        reference_histo_mask_nobackground="$kul_main_dir/atlasses/Local/Cappelle2021/T2wFLAIR_template_skull_and_ventricles_nobackground_mask.nii.gz"
+                        # do the scond NON-LINEAR histogram matching using non-brain tissue
+                        mrhistmatch \
+                            -mask_input $skull_and_ventricules \
+                            -mask_target $reference_histo_mask_nobackground \
+                            nonlinear \
+                            $outdir/tmp/${base}_${td}_iso_biascorrected_reg2T1w.nii.gz \
+                            $reference_histo_image \
+                            $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2b_reg2T1w.nii.gz -force
+                        mrhistogram -bin 100 -ignorezero  \
+                            $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2b_reg2T1w.nii.gz \
+                            $outdir/histograms/${base}_${td}_iso_biascorrected_calib-nonlin2b_reg2T1w_histogram.csv -force
+                    fi
+                    
+                    if [ $flair -eq 1 ];then
+                        td="FLAIR"
+                        # find the ventricles by thresholding the T2w
+                        max_T2w=$(mrstats $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz -output max)
+                        echo "  max signal of the T2w is $max_T2w"
+                        ventricles="$outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w_ventricules.nii.gz"
+                        mrcalc $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz $max_T2w 0.75 -mul -gt \
+                            $ventricles -force 
+                        skull_and_ventricules="$outdir/masks/${base}_T2w_iso_biascorrected_reg2T1w_skull_and_ventricules.nii.gz"
+                        mrcalc $mask2 $ventricles -add 0.1 -gt $skull_and_ventricules -force
+
+                        reference_histo_image="$kul_main_dir/atlasses/Local/Cappelle2021/${td}_template.nii.gz"                        
+                        reference_histo_mask_nobackground="$kul_main_dir/atlasses/Local/Cappelle2021/T2wFLAIR_template_skull_and_ventricles_nobackground_mask.nii.gz"
+                        # do the scond NON-LINEAR histogram matching using non-brain tissue
+                        mrhistmatch \
+                            -mask_input $skull_and_ventricules \
+                            -mask_target $reference_histo_mask_nobackground \
+                            nonlinear \
+                            $outdir/tmp/${base}_${td}_iso_biascorrected_reg2T1w.nii.gz \
+                            $reference_histo_image \
+                            $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2b_reg2T1w.nii.gz -force
+                        mrhistogram -bin 100 -ignorezero  \
+                            $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2b_reg2T1w.nii.gz \
+                            $outdir/histograms/${base}_${td}_iso_biascorrected_calib-nonlin2b_reg2T1w_histogram.csv -force
+                    fi
+                    
+                    exit
                     
                     # Warp into MNI space too
                     echo "  warping results to MNI"
