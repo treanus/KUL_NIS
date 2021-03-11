@@ -385,10 +385,7 @@ else
     T1w=($(find $cwd/BIDS -type f -name "*T1w.nii.gz" | sort ))
 fi
 
-d=0
-t2=0
-flair=0
-mti=0
+
 for test_T1w in ${T1w[@]}; do
 
     base0=${test_T1w##*/};base=${base0%_T1w*}
@@ -397,13 +394,27 @@ for test_T1w in ${T1w[@]}; do
     outdir=$outputdir/$local_participant/$local_session
     check_done="$outdir/${base}.done"
     check_done2="$outdir/${base}_T1w.nii.gz"
-
+    d=0
+    t2=0
+    flair=0
+    mti=0
+    
     if [ ! -f $check_done ];then
 
         # write files for the VSC
         if [ $hpc -eq 1 ];then
-            vsc_cmd="KUL_T1T2FLAIRMTR_ratio.sh -p $local_participant -s $local_session -m -f 2"
-            echo $vsc_cmd >> VSC_commands.sh
+            
+            mkdir -p VSC
+            if [ ! -f VSC/VSC_commands.sh ];then
+                echo "#!/bin/bash -e" > VSC/VSC_commands.sh
+                echo "participant, session3" > VSC/pbs_data.csv
+            fi
+            vsc_participant=${local_participant##*sub-}
+            vsc_session=${local_session##*ses-}
+            vsc_cmd="KUL_T1T2FLAIRMTR_ratio_new.sh -p $vsc_participant -s $vsc_session -m -f 2 -d 3"
+            echo $vsc_cmd >> VSC/VSC_commands.sh
+            echo "${vsc_participant}, ${vsc_session}" >> VSC/pbs_data.csv
+
         else
         
             # Test whether T2 and/or FLAIR also exist
