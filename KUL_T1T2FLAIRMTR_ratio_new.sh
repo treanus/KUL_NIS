@@ -390,18 +390,31 @@ hpc_task=1
 
 for test_T1w in ${T1w[@]}; do
 
+    # defining the basename from the array elements
     base0=${test_T1w##*/};base=${base0%_T1w*}
     local_participant=${base%_ses*}
     local_session="ses-${base##*ses-}"
     outdir=$outputdir/$local_participant/$local_session
-    check_done="$outdir/${base}_part${$deel}.done"
-
+    check_done="$outdir/${base}.done"
+    # resetting found files    
     d=0
     t2=0
     flair=0
     mti=0
-    
+    # read the level of completed workflow
     if [ ! -f $check_done ];then
+        level_done=0
+    else
+        level_done=$(cat $check_done)
+        if [ -z $level_done ];then
+            echo "empty"
+            level_done=10
+        fi
+    fi
+    echo "level_done: $level_done"
+
+    # only execute if workflow level in not yet reached
+    if [ $level_done -lt $deel ];then
 
         # write files for the VSC
         if [ $hpc -eq 1 ];then
@@ -897,12 +910,12 @@ for test_T1w in ${T1w[@]}; do
                 #rm -fr *std.nii.gz *iso.nii.gz *ted.nii.gz *reg2T1w.nii.gz *eye.nii.gz *muscle.nii.gz *.csv *MTI* *MNI.nii.gz *verse.nii.gz *inv.nii.gz *brain.nii.gz
                 #cd ../..
 
-                touch $check_done
+                echo ${deel} > $check_done
 
-                echo " done"
+                echo "  done"
              
             else
-                echo " Nothing to do here"
+                echo "  Nothing to do here"
             fi
         fi 
 
