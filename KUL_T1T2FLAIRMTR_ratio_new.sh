@@ -385,6 +385,8 @@ else
     T1w=($(find $cwd/BIDS -type f -name "*T1w.nii.gz" | sort ))
 fi
 
+hpc_counter=0
+hpc_task=1
 
 for test_T1w in ${T1w[@]}; do
 
@@ -392,8 +394,8 @@ for test_T1w in ${T1w[@]}; do
     local_participant=${base%_ses*}
     local_session="ses-${base##*ses-}"
     outdir=$outputdir/$local_participant/$local_session
-    check_done="$outdir/${base}.done"
-    check_done2="$outdir/${base}_T1w.nii.gz"
+    check_done="$outdir/${base}_part${$deel}.done"
+
     d=0
     t2=0
     flair=0
@@ -407,13 +409,19 @@ for test_T1w in ${T1w[@]}; do
             mkdir -p VSC
             if [ ! -f VSC/VSC_commands.sh ];then
                 echo "#!/bin/bash -e" > VSC/VSC_commands.sh
-                echo "participant, session3" > VSC/pbs_data.csv
+                echo "participant, session" > VSC/pbs_data_${hpc_task}.csv
             fi
             vsc_participant=${local_participant##*sub-}
             vsc_session=${local_session##*ses-}
             vsc_cmd="KUL_T1T2FLAIRMTR_ratio_new.sh -p $vsc_participant -s $vsc_session -m -f 2 -d 3"
             echo $vsc_cmd >> VSC/VSC_commands.sh
-            echo "${vsc_participant}, ${vsc_session}" >> VSC/pbs_data.csv
+            echo "${vsc_participant},${vsc_session}" >> VSC/pbs_data_${hpc_task}.csv
+            
+            hpc_counter=$((hpc_counter+1))
+            if [ $hpc_counter -ge 34 ];then
+                hpc_task=$((hpc_task+1))
+                hpc_counter=0
+            fi
 
         else
         
