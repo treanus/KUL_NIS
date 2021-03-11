@@ -52,16 +52,17 @@ Optional arguments:
      -m:  also run MS lesion segmentation using Freesurfer7 SamSeg
      -f:  also run fastsurfer (1=full, 2=segmentation with CC & stats, 3=fast segmentation without CC)
      -d:  only perform part of the workflow
-            1 = bias-correction
-            2 = rigid registration of the T2w and/or FLAIR to the T1w
-            3 = spatially normalise (warp) the T1w to the MNI atlas
-            4 = run fastsufer (req option -f)
-            5 = run samseg (req option -m)
-            6 = hd-bet the images
-            7 = calibration
-            8 = compute the T1w/T2w and/or T1w/FLAIR ratio
-            9 = compute the MTR
-            10 = warp the results to MNI
+            levels:
+                1 = bias-correction
+                2 = rigid registration of the T2w and/or FLAIR to the T1w
+                3 = spatially normalise (warp) the T1w to the MNI atlas
+                4 = run fastsufer (req option -f)
+                5 = run samseg (req option -m)
+                6 = hd-bet the images
+                7 = calibration
+                8 = compute the T1w/T2w and/or T1w/FLAIR ratio
+                9 = compute the MTR
+                10 = warp the results to MNI
      -c:  do not run, but output files for the VSC HPC
      -v:  show output from commands
 
@@ -407,15 +408,16 @@ for test_T1w in ${T1w[@]}; do
     else
         level_done=$(cat $check_done)
         if [ -z $level_done ];then
-            echo "empty"
+            #echo "empty"
             level_done=10
         fi
     fi
-    echo "level_done: $level_done"
+    
 
     # only execute if workflow level in not yet reached
     if [ $level_done -lt $deel ];then
-
+        echo "  current level of processing done: $level_done"
+        
         # write files for the VSC
         if [ $hpc -eq 1 ];then
             
