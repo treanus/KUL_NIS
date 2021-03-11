@@ -417,7 +417,7 @@ for test_T1w in ${T1w[@]}; do
     # only execute if workflow level in not yet reached
     if [ $level_done -lt $deel ];then
         echo "  current level of processing done: $level_done"
-        
+
         # write files for the VSC
         if [ $hpc -eq 1 ];then
             
@@ -595,7 +595,7 @@ for test_T1w in ${T1w[@]}; do
                         max_T1w=$(mrstats $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz -output max)
                         echo "  thresholding background using 0.5% of max signal of the T1w - $max_T1w"
                         mrcalc $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz $max_T1w 0.005 -mul -lt \
-                            $background -force 
+                            $background -force -nthreads $ncpu
                     else
                         echo "  thresholding background already done"
                     fi
@@ -624,9 +624,9 @@ for test_T1w in ${T1w[@]}; do
 
                     # sum the masks
                     mrcalc $outdir/masks/${base}_eye.nii.gz $outdir/masks/${base}_tempmuscle.nii.gz -add \
-                    $outdir/masks/${base}_eye_and_muscle.nii.gz -force
+                    $outdir/masks/${base}_eye_and_muscle.nii.gz -nthreads $ncpu -force
                     mrcalc $kul_main_dir/atlasses/Ganzetti2014/eyemask.nii $kul_main_dir/atlasses/Ganzetti2014/tempmask.nii -add \
-                    $outdir/masks/mni_eye_and_muscle.nii.gz -force
+                    $outdir/masks/mni_eye_and_muscle.nii.gz -nthreads $ncpu -force
                     
                     # do the LINEAR histogram matching using eye/muscle tissue
                     mrhistmatch \
@@ -635,14 +635,14 @@ for test_T1w in ${T1w[@]}; do
                     linear \
                     $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
                     $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
-                    $outdir/tmp/${base}_T1w_iso_biascorrected_calib-lin.nii.gz -force
+                    $outdir/tmp/${base}_T1w_iso_biascorrected_calib-lin.nii.gz -nthreads $ncpu -force
 
                     mrhistogram -bin 100 -ignorezero \
                     $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
                     $outdir/histograms/${base}_T1w_iso_biascorrected_histogram.csv -force
                     mrhistogram -bin 100 -ignorezero \
                     $outdir/tmp/${base}_T1w_iso_biascorrected_calib-lin.nii.gz \
-                    $outdir/histograms/${base}_T1w_iso_biascorrected_calib-lin_histogram.csv -force
+                    $outdir/histograms/${base}_T1w_iso_biascorrected_calib-lin_histogram.csv -nthreads $ncpu -force
 
                     if [ $t2 -eq 1 ];then
                         mrhistmatch \
@@ -651,14 +651,14 @@ for test_T1w in ${T1w[@]}; do
                         linear \
                         $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz \
                         $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t2_tal_nlin_sym_09a.nii \
-                        $outdir/tmp/${base}_T2w_iso_biascorrected_calib-lin_reg2T1w.nii.gz -force
+                        $outdir/tmp/${base}_T2w_iso_biascorrected_calib-lin_reg2T1w.nii.gz -nthreads $ncpu -force
 
                         mrhistogram -bin 100 -ignorezero \
                         $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz \
                         $outdir/histograms/${base}_T2w_iso_biascorrected_reg2T1w_histogram.csv -force
                         mrhistogram -bin 100 -ignorezero \
                         $outdir/tmp/${base}_T2w_iso_biascorrected_calib-lin_reg2T1w.nii.gz \
-                        $outdir/histograms/${base}_T2w_iso_biascorrected_calib-lin_reg2T1w_histogram.csv -force
+                        $outdir/histograms/${base}_T2w_iso_biascorrected_calib-lin_reg2T1w_histogram.csv -nthreads $ncpu -force
                     fi
 
                     if [ $flair -eq 1 ];then
@@ -669,14 +669,14 @@ for test_T1w in ${T1w[@]}; do
                         linear \
                         $outdir/tmp/${base}_FLAIR_iso_biascorrected_reg2T1w.nii.gz \
                         $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t2_tal_nlin_sym_09a.nii \
-                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-lin_reg2T1w.nii.gz -force
+                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-lin_reg2T1w.nii.gz -nthreads $ncpu -force
 
                         mrhistogram -bin 100 -ignorezero \
                         $outdir/tmp/${base}_FLAIR_iso_biascorrected_reg2T1w.nii.gz \
                         $outdir/histograms/${base}_FLAIR_iso_biascorrected_reg2T1w_histogram.csv -force
                         mrhistogram -bin 100 -ignorezero \
                         $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-lin_reg2T1w.nii.gz \
-                        $outdir/histograms/${base}_FLAIR_iso_biascorrected_calib-lin_reg2T1w_histogram.csv -force
+                        $outdir/histograms/${base}_FLAIR_iso_biascorrected_calib-lin_reg2T1w_histogram.csv -nthreads $ncpu -force
                     fi
                     
                     # METHOD 2 - the NON-LINEAR histogram matching using non-brain tissue
@@ -695,11 +695,11 @@ for test_T1w in ${T1w[@]}; do
                     nonlinear \
                     $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
                     $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
-                    $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin.nii.gz -force
+                    $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin.nii.gz -nthreads $ncpu -force
 
                     mrhistogram -bin 100 -ignorezero  \
                     $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin.nii.gz \
-                    $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin_histogram.csv -force
+                    $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin_histogram.csv -nthreads $ncpu -force
                     
                     if [ $t2 -eq 1 ];then
                         mrhistmatch \
@@ -708,11 +708,11 @@ for test_T1w in ${T1w[@]}; do
                         nonlinear \
                         $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz \
                         $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t2_tal_nlin_sym_09a.nii \
-                        $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin_reg2T1w.nii.gz -force
+                        $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin_reg2T1w.nii.gz -nthreads $ncpu -force
 
                         mrhistogram -bin 100 -ignorezero  \
                         $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin_reg2T1w.nii.gz \
-                        $outdir/histograms/${base}_T2w_iso_biascorrected_calib-nonlin_reg2T1w_histogram.csv -force
+                        $outdir/histograms/${base}_T2w_iso_biascorrected_calib-nonlin_reg2T1w_histogram.csv -nthreads $ncpu -force
                     fi
                     
                     if [ $flair -eq 1 ];then
@@ -722,11 +722,11 @@ for test_T1w in ${T1w[@]}; do
                         nonlinear \
                         $outdir/tmp/${base}_FLAIR_iso_biascorrected_reg2T1w.nii.gz \
                         $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t2_tal_nlin_sym_09a.nii \
-                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin_reg2T1w.nii.gz -force
+                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin_reg2T1w.nii.gz -nthreads $ncpu -force
 
                         mrhistogram -bin 100 -ignorezero  \
                         $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin_reg2T1w.nii.gz \
-                        $outdir/histograms/${base}_FLAIR_iso_biascorrected_calib-nonlin_reg2T1w_histogram.csv -force
+                        $outdir/histograms/${base}_FLAIR_iso_biascorrected_calib-nonlin_reg2T1w_histogram.csv -nthreads $ncpu -force
                     fi
 
 
@@ -734,10 +734,10 @@ for test_T1w in ${T1w[@]}; do
                     echo "  performing second (Cappelle) nonlinear histogram matching"
                     mask1="$outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz"
                     mask2="$outdir/masks/${base}_T1w_iso_biascorrected_brain_inverted_mask.nii.gz"
-                    mrcalc $mask1 0.1 -lt $mask2 -force
+                    mrcalc $mask1 0.1 -lt $mask2 -nthreads $ncpu -force
 
                     mask3="$outdir/masks/${base}_T1w_iso_biascorrected_brain_inverted_mask_nobackground.nii.gz"
-                    mrcalc $mask1 0.1 -lt $background -sub 0.1 -gt $mask3 -force
+                    mrcalc $mask1 0.1 -lt $background -sub 0.1 -gt $mask3 -nthreads $ncpu -force
                     
                     reference_histo_mask="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template_brain_mask_inverse_nobackground.nii.gz"
                     reference_histo_image="$kul_main_dir/atlasses/Local/Cappelle2021/T1w_template.nii.gz"
@@ -749,11 +749,11 @@ for test_T1w in ${T1w[@]}; do
                     nonlinear \
                     $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
                     $reference_histo_image \
-                    $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz -force
+                    $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz -nthreads $ncpu -force
 
                     mrhistogram -bin 100 -ignorezero  \
                     $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz \
-                    $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin2_histogram.csv -force
+                    $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin2_histogram.csv -nthreads $ncpu -force
                     
                     if [ $t2 -eq 1 ];then
                         td="T2w"
@@ -762,9 +762,9 @@ for test_T1w in ${T1w[@]}; do
                         echo "  max signal of the T2w is $max_T2w"
                         ventricles="$outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w_ventricules.nii.gz"
                         mrcalc $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz $max_T2w 0.75 -mul -gt \
-                            $ventricles -force 
+                            $ventricles -nthreads $ncpu -force 
                         skull_and_ventricules="$outdir/masks/${base}_T2w_iso_biascorrected_reg2T1w_skull_and_ventricules.nii.gz"
-                        mrcalc $mask3 $ventricles -add 0.1 -gt $skull_and_ventricules -force
+                        mrcalc $mask3 $ventricles -add 0.1 -gt $skull_and_ventricules -nthreads $ncpu -force
 
                         reference_histo_image="$kul_main_dir/atlasses/Local/Cappelle2021/${td}_template.nii.gz"                        
                         reference_histo_mask_nobackground="$kul_main_dir/atlasses/Local/Cappelle2021/T2wFLAIR_template_skull_and_ventricles_nobackground_mask.nii.gz"
@@ -775,10 +775,10 @@ for test_T1w in ${T1w[@]}; do
                             nonlinear \
                             $outdir/tmp/${base}_${td}_iso_biascorrected_reg2T1w.nii.gz \
                             $reference_histo_image \
-                            $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w.nii.gz -force
+                            $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w.nii.gz -nthreads $ncpu -force
                         mrhistogram -bin 100 -ignorezero  \
                             $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w.nii.gz \
-                            $outdir/histograms/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w_histogram.csv -force
+                            $outdir/histograms/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w_histogram.csv -nthreads $ncpu -force
                     fi
                     
                     if [ $flair -eq 1 ];then
@@ -788,9 +788,9 @@ for test_T1w in ${T1w[@]}; do
                         echo "  max signal of the T2w is $max_T2w"
                         ventricles="$outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w_ventricules.nii.gz"
                         mrcalc $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz $max_T2w 0.75 -mul -gt \
-                            $ventricles -force 
+                            $ventricles -nthreads $ncpu -force 
                         skull_and_ventricules="$outdir/masks/${base}_T2w_iso_biascorrected_reg2T1w_skull_and_ventricules.nii.gz"
-                        mrcalc $mask3 $ventricles -add 0.1 -gt $skull_and_ventricules -force
+                        mrcalc $mask3 $ventricles -add 0.1 -gt $skull_and_ventricules -nthreads $ncpu -force
 
                         reference_histo_image="$kul_main_dir/atlasses/Local/Cappelle2021/${td}_template.nii.gz"                        
                         reference_histo_mask_nobackground="$kul_main_dir/atlasses/Local/Cappelle2021/T2wFLAIR_template_skull_and_ventricles_nobackground_mask.nii.gz"
@@ -801,10 +801,10 @@ for test_T1w in ${T1w[@]}; do
                             nonlinear \
                             $outdir/tmp/${base}_${td}_iso_biascorrected_reg2T1w.nii.gz \
                             $reference_histo_image \
-                            $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w.nii.gz -force
+                            $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w.nii.gz -nthreads $ncpu -force
                         mrhistogram -bin 100 -ignorezero  \
                             $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w.nii.gz \
-                            $outdir/histograms/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w_histogram.csv -force
+                            $outdir/histograms/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w_histogram.csv -nthreads $ncpu -force
                     fi
                     
                     # Last method of calibration
@@ -813,7 +813,7 @@ for test_T1w in ${T1w[@]}; do
                     mask_subj="$outdir/masks/${base}_brain_mask_without_lesions.nii.gz"
                     MSlesion_dilated="$outdir/masks/${base}_MSlesion_dilated.nii.gz"
                     maskfilter $MSlesion dilate $MSlesion_dilated -force
-                    mrcalc $mask1 $MSlesion_dilated -subtract $mask_subj -force
+                    mrcalc $mask1 $MSlesion_dilated -subtract $mask_subj -nthreads $ncpu -force
                     mask_target=$kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a_mask.nii
 
                     mrhistmatch \
@@ -822,11 +822,11 @@ for test_T1w in ${T1w[@]}; do
                     nonlinear \
                     $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
                     $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
-                    $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin3.nii.gz -force
+                    $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin3.nii.gz -nthreads $ncpu -force
 
                     mrhistogram -bin 100 -ignorezero  \
                     $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin3.nii.gz \
-                    $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin3_histogram.csv -force
+                    $outdir/histograms/${base}_T1w_iso_biascorrected_calib-nonlin3_histogram.csv -nthreads $ncpu -force
 
                     if [ $t2 -eq 1 ];then
                         mrhistmatch \
@@ -835,11 +835,11 @@ for test_T1w in ${T1w[@]}; do
                         nonlinear \
                         $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz \
                         $kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t2_tal_nlin_sym_09a.nii \
-                        $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -force
+                        $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -nthreads $ncpu -force
 
                         mrhistogram -bin 100 -ignorezero  \
                         $outdir/tmp/${base}_T2w_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz \
-                        $outdir/histograms/${base}_T2w_iso_biascorrected_calib-nonlin3_histogram.csv -force
+                        $outdir/histograms/${base}_T2w_iso_biascorrected_calib-nonlin3_histogram.csv -nthreads $ncpu -force
                     fi
 
                     if [ $flair -eq 1 ];then
@@ -849,11 +849,11 @@ for test_T1w in ${T1w[@]}; do
                         nonlinear \
                         $outdir/tmp/${base}_FLAIR_iso_biascorrected_reg2T1w.nii.gz \
                         $kul_main_dir/atlasses/Local/Cappelle2021/Winkler2009_GG-366-FLAIR_1.0mm_adapted.nii.gz \
-                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -force
+                        $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -nthreads $ncpu -force
 
                         mrhistogram -bin 100 -ignorezero  \
                         $outdir/tmp/${base}_FLAIR_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz \
-                        $outdir/histograms/${base}_FLAIR_iso_biascorrected_calib-nonlin3_histogram.csv -force
+                        $outdir/histograms/${base}_FLAIR_iso_biascorrected_calib-nonlin3_histogram.csv -nthreads $ncpu -force
                     fi
 
 
