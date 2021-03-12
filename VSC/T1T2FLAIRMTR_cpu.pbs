@@ -1,0 +1,18 @@
+#!/bin/bash -l
+
+#PBS -l nodes=1:ppn=36
+#PBS -A lp_dmri_for_dbs_of_drt_in_et
+#PBS -l walltime=00:59:00
+
+# avoid MRtrix writing to local /tmp
+export TMPDIR=$VSC_SCRATCH/tmp
+mkdir -p $TMPDIR
+
+# load the environment
+# this loads modules and sets conda env
+source $VSC_HOME/Env_T1T2FLAIRMTR_cpu.sh
+
+# Execute
+cd $VSC_SCRATCH/Sarah
+KUL_T1T2FLAIRMTR_ratio_new.sh -p ${participant} -s ${session} -d 3 -n 2 -v > $VSC_SCRATCH/Sarah/log_${participant}${session}.txt
+
