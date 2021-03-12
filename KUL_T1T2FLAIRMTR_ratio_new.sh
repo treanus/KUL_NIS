@@ -422,14 +422,14 @@ for test_T1w in ${T1w[@]}; do
         if [ $hpc -eq 1 ];then
             
             mkdir -p VSC
-            if [ ! -f VSC/VSC_commands.sh ];then
-                echo "#!/bin/bash -e" > VSC/VSC_commands.sh
+            if [ $hpc_counter -eq 0 ];then
+                #echo "#!/bin/bash -e" > VSC/VSC_commands.sh
                 echo "participant, session" > VSC/pbs_data_${hpc_task}.csv
             fi
             vsc_participant=${local_participant##*sub-}
             vsc_session=${local_session##*ses-}
-            vsc_cmd="KUL_T1T2FLAIRMTR_ratio_new.sh -p $vsc_participant -s $vsc_session -m -f 2 -d 3"
-            echo $vsc_cmd >> VSC/VSC_commands.sh
+            #vsc_cmd="KUL_T1T2FLAIRMTR_ratio_new.sh -p $vsc_participant -s $vsc_session -m -f 2 -d 3"
+            #echo $vsc_cmd >> VSC/VSC_commands.sh
             echo "${vsc_participant},${vsc_session}" >> VSC/pbs_data_${hpc_task}.csv
             
             hpc_counter=$((hpc_counter+1))
