@@ -191,6 +191,7 @@ function KUL_compute_stats {
     CSF_3rd="$cwd/$outdir/rois/${participant_and_session}_CSF_3rd.nii.gz"
     CSF_4th="$cwd/$outdir/rois/${participant_and_session}_CSF_4th.nii.gz"
     MSlesion="$cwd/$outdir/rois/${participant_and_session}_MSLesion.nii.gz"
+    mslesionpresent=$(mrstats -output max $MSlesion)
 
     echo " making VOIs"
     # do the computation of the masks
@@ -233,7 +234,11 @@ function KUL_compute_stats {
         CSF_lateral_rh_mtr=$(mrstats -mask $CSF_lateral_rh -output median $MTR -nthreads $ncpu)
         CSF_3rd_mtr=$(mrstats -mask $CSF_3rd -output median $MTR -nthreads $ncpu)
         CSF_4th_mtr=$(mrstats -mask $CSF_4th -output median $MTR -nthreads $ncpu)
-        MSlesion_mtr=$(mrstats -mask $MSlesion -output median $MTR -nthreads $ncpu)
+        if [ $mslesionpresent -eq 1 ]; then 
+            MSlesion_mtr=$(mrstats -mask $MSlesion -output median $MTR -nthreads $ncpu)
+        else
+            MSlesion_mtr="NA"
+        fi
     fi
 
     if [ -f $T1T2 ]; then
@@ -252,7 +257,11 @@ function KUL_compute_stats {
         CSF_lateral_rh_t1t2=$(mrstats -mask $CSF_lateral_rh -output median $T1T2 -nthreads $ncpu)
         CSF_3rd_t1t2=$(mrstats -mask $CSF_3rd -output median $T1T2 -nthreads $ncpu)
         CSF_4th_t1t2=$(mrstats -mask $CSF_4th -output median $T1T2 -nthreads $ncpu)
-        MSlesion_t1t2=$(mrstats -mask $MSlesion -output median $T1T2 -nthreads $ncpu)
+        if [ $mslesionpresent -eq 1 ]; then 
+            MSlesion_t1t2=$(mrstats -mask $MSlesion -output median $T1T2 -nthreads $ncpu)
+        else
+            MSlesion_t1t2="NA"
+        fi
     fi
 
     if [ -f $T1FLAIR ]; then
@@ -271,7 +280,11 @@ function KUL_compute_stats {
         CSF_lateral_rh_t1flair=$(mrstats -mask $CSF_lateral_rh -output median $T1FLAIR -nthreads $ncpu)
         CSF_3rd_t1flair=$(mrstats -mask $CSF_3rd -output median $T1FLAIR -nthreads $ncpu)
         CSF_4th_t1flair=$(mrstats -mask $CSF_4th -output median $T1FLAIR -nthreads $ncpu)
-        MSlesion_t1flair=$(mrstats -mask $MSlesion -output median $T1FLAIR -nthreads $ncpu)
+        if [ $mslesionpresent -eq 1 ]; then 
+            MSlesion_t1flair=$(mrstats -mask $MSlesion -output median $T1FLAIR -nthreads $ncpu)
+        else
+            MSlesion_t1flair="NA"
+        fi
     fi
 
     # read some volumes from fastsurfer
