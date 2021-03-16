@@ -402,7 +402,7 @@ for test_T1w in ${T1w_all[@]}; do
     local_session="ses-${base##*ses-}"
     outdir=$outputdir/$local_participant/$local_session
     mkdir -p $outdir/stats
-    check_done="$outdir/stats/${base}_stats.done"
+    check_done="$outdir/stats/${base}_${type}_stats.done"
 
     if [ ! -f $check_done ];then
 
