@@ -39,6 +39,7 @@ Optional arguments:
      -a:  automatic mode (just work on all images in the T1T2FLAIRMTR folder)
      -t:  type (1=nocalib, 2=lincalib, 3=nonlincalib, 4=nonlincalib2)
      -n:  number of threads to use
+     -g:  do not compute, just aggregate all csv files.
      -v:  show output from commands
 
 
@@ -56,6 +57,7 @@ silent=1 # default if option -v is not given
 outputdir="T1T2FLAIRMTR_ratio"
 type_sel=1;type=""
 ncpu=15
+group=0 
 
 # Set required options
 p_flag=0
@@ -66,11 +68,12 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:t:av" OPT; do
+	while getopts "p:s:n:t:agv" OPT; do
 
 		case $OPT in
 		a) #automatic mode
 			auto=1
+            p_flag=1
 		;;
 		p) #participant
 			participant=$OPTARG
@@ -87,6 +90,10 @@ else
 		;;
 		v) #verbose
 			silent=0
+		;;
+        g) #group
+			group=1
+            p_flag=1
 		;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -107,7 +114,7 @@ else
 fi
 
 # check for required options
-if [ $p_flag -eq 0 ] ; then
+if [ $p_flag -eq 0 ]; then
 	echo
 	echo "Option -p is required: give the BIDS name of the participant." >&2
 	echo
@@ -118,6 +125,7 @@ fi
 if [ $silent -eq 1 ] ; then
 	export MRTRIX_QUIET=1
 fi
+
 
 # log 
 d=$(date "+%Y-%m-%d_%H-%M-%S")
@@ -396,6 +404,13 @@ elif  [ $type_sel -eq 5 ]; then
     type="calib-nonlin3"
 else
     echo "Error: wrong type"
+    exit
+fi
+
+if [ $group -eq 1 ]; then
+    echo "wrinting group results in ALL_${type}.csv"
+    cat T1T2FLAIRMTR_ratio/sub-P*/ses-*/stats/sub-*_ses-*_${type}_results.csv | sort | head -n 1 > ALL_${type}.csv
+    cat T1T2FLAIRMTR_ratio/sub-P*/ses-*/stats/sub-*_ses-*_${type}_results.csv | sort | uniq -u >> ALL_${type}.csv
     exit
 fi
 
