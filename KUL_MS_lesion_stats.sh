@@ -58,7 +58,7 @@ type_sel=1;type=""
 ncpu=15
 
 # Set required options
-#p_flag=0
+p_flag=0
 
 if [ "$#" -lt 1 ]; then
 	Usage >&2
@@ -74,6 +74,7 @@ else
 		;;
 		p) #participant
 			participant=$OPTARG
+            p_flag=1
 		;;
         s) #session
 			session=$OPTARG
@@ -106,18 +107,21 @@ else
 fi
 
 # check for required options
-#if [ $p_flag -eq 0 ] ; then
-#	echo
-#	echo "Option -p is required: give the BIDS name of the participant." >&2
-#	echo
-#	exit 2
-#fi
-
+if [ $p_flag -eq 0 ] ; then
+	echo
+	echo "Option -p is required: give the BIDS name of the participant." >&2
+	echo
+	exit 2
+fi
 
 # verbose or not?
 if [ $silent -eq 1 ] ; then
 	export MRTRIX_QUIET=1
 fi
+
+# log 
+d=$(date "+%Y-%m-%d_%H-%M-%S")
+log=log/log_${d}.txt
 
 # --- FUNCTIONS ---
 function KUL_create_results_file {
@@ -402,12 +406,13 @@ for test_T1w in ${T1w_all[@]}; do
     local_session="ses-${base##*ses-}"
     outdir=$outputdir/$local_participant/$local_session
     mkdir -p $outdir/stats
+    mkdir -p $outputdir/log
     check_done="$outdir/stats/${base}_${type}_stats.done"
 
     if [ ! -f $check_done ];then
 
         participant_and_session=$base
-        echo "Processing $participant_and_session"
+        kul_e2cl "Processing $participant_and_session" ${outputdir}/${log}
 
         my_results_file="${participant_and_session}_${type}_results.csv"
         KUL_create_results_file
