@@ -269,11 +269,13 @@ function KUL_computeratio {
             $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin_reg2T1w.nii.gz -divide \
             $outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz -multiply \
             $outdir/${base}_ratio-T1${td}_calib-nonlin.nii.gz -nthreads $ncpu -force
-        mrcalc \
-            $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz \
-            $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w.nii.gz -divide \
-            $outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz -multiply \
-            $outdir/${base}_ratio-T1${td}_calib-nonlin2.nii.gz -nthreads $ncpu -force
+        if [ $t2 -eq 1 ]; then #need the T2w to calculate the ventricles
+            mrcalc \
+                $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin2.nii.gz \
+                $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w.nii.gz -divide \
+                $outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz -multiply \
+                $outdir/${base}_ratio-T1${td}_calib-nonlin2.nii.gz -nthreads $ncpu -force
+        fi
         mrcalc \
             $outdir/tmp/${base}_T1w_iso_biascorrected_calib-nonlin3.nii.gz \
             $outdir/tmp/${base}_${td}_iso_biascorrected_calib-nonlin3_reg2T1w.nii.gz -divide \
@@ -305,9 +307,11 @@ function KUL_apply_warp2mni {
         input="$outdir/${base}_ratio-T1${td}_calib-nonlin.nii.gz"
         output="$outdir/${base}_space-MNI_ratio-T1${td}_calib-nonlin.nii.gz"
         KUL_antsApply_Transform_MNI
-        input="$outdir/${base}_ratio-T1${td}_calib-nonlin2.nii.gz"
-        output="$outdir/${base}_space-MNI_ratio-T1${td}_calib-nonlin2.nii.gz"
-        KUL_antsApply_Transform_MNI
+        if [ $t2 -eq 1 ]; then
+            input="$outdir/${base}_ratio-T1${td}_calib-nonlin2.nii.gz"
+            output="$outdir/${base}_space-MNI_ratio-T1${td}_calib-nonlin2.nii.gz"
+            KUL_antsApply_Transform_MNI
+        fi
         input="$outdir/${base}_ratio-T1${td}_calib-nonlin3.nii.gz"
         output="$outdir/${base}_space-MNI_ratio-T1${td}_calib-nonlin3.nii.gz"
         KUL_antsApply_Transform_MNI
@@ -781,7 +785,7 @@ for test_T1w in ${T1w[@]}; do
                             $outdir/histograms/${base}_${td}_iso_biascorrected_calib-nonlin2_reg2T1w_histogram.csv -nthreads $ncpu -force
                     fi
                     
-                    if [ $flair -eq 1 ];then
+                    if [ $flair -eq 1 ] && [ $t2 -eq 1 ];then
                         td="FLAIR"
                         # find the ventricles by thresholding the T2w
                         max_T2w=$(mrstats $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz -output max)
