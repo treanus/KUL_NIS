@@ -58,6 +58,7 @@ outputdir="T1T2FLAIRMTR_ratio"
 type_sel=1;type=""
 ncpu=15
 group=0 
+rev=""
 
 # Set required options
 p_flag=0
@@ -68,7 +69,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:t:agv" OPT; do
+	while getopts "p:s:n:t:argv" OPT; do
 
 		case $OPT in
 		a) #automatic mode
@@ -87,6 +88,9 @@ else
 		;;
         n) #ncpu
 			ncpu=$OPTARG
+		;;
+        r) #reverse (start auto mode from the back)
+			rev="-r"
 		;;
 		v) #verbose
 			silent=0
@@ -192,6 +196,7 @@ function KUL_compute_stats {
     CSF_4th="$cwd/$outdir/rois/${participant_and_session}_CSF_4th.nii.gz"
     MSlesion="$cwd/$outdir/rois/${participant_and_session}_MSLesion.nii.gz"
     mslesionpresent=$(mrstats -output max $MSlesion)
+    echo "mslesionpresent: $mslesionpresent"
 
     echo " making VOIs"
     # do the computation of the masks
@@ -396,7 +401,7 @@ if [ $auto -eq 0 ]; then
     datadir="$cwd/BIDS/sub-${participant}/${fullsession1}anat"
     T1w_all=("$datadir/sub-${participant}_${fullsession2}T1w.nii.gz")
 else
-    T1w_all=($(find BIDS -type f -name "*T1w.nii.gz" | sort ))
+    T1w_all=($(find BIDS -type f -name "*T1w.nii.gz" | sort $rev ))
 fi
 
 #echo $session
