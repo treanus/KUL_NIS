@@ -9,7 +9,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 # @ Ahmed Radwan - KUL - ahmed.radwan@kuleuven.be
 #
-v="v0.7 - dd 23/12/2020"
+v="v0.8 - dd 19/03/2021"
 
 # Notes
 #  - NOW USES https://github.com/UNFmontreal/Dcm2Bids
@@ -173,8 +173,8 @@ function kul_dcmtags {
 
     # Now we need to determine what vendor it is.
     #   Philips needs all the following calculations
-    #   Siemens (only recent versions?) not
-    #   GE most recent version don't need it either?
+    #   Siemens works out of the box
+    #   GE most recent version also seem to work fine
 
     #echo $manufacturer
     if [ "$manufacturer" = "SIEMENS" ]; then
