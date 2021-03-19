@@ -4,7 +4,7 @@
 
 # Bash shell script to convert dicoms to bids format
 #
-# Requires dcm2bids (jooh fork), dcm2niix, Mrtrix3
+# Requires dcm2bids, dcm2niix, Mrtrix3
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 # @ Ahmed Radwan - KUL - ahmed.radwan@kuleuven.be
