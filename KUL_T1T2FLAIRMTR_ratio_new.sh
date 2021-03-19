@@ -29,7 +29,7 @@ function Usage {
 
 cat <<USAGE
 
-`basename $0` computes a T1/T2 and a T1/FLAIR ratio image.
+`basename $0` computes a T1/T2, T1/FLAIR and MTC (magnetisation transfer contrast) ratio, using BIDS organised data.
 
 Usage:
 

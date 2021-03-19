@@ -6,7 +6,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 09/11/2018 - alpha version
-v="v0.2 - dd 04/01/2019"
+v="v1.0 - dd 19/03/2021"
 
 # To Do
 #  - register dwi to T1 with ants-syn
@@ -50,13 +50,28 @@ Optional arguments:
 
 	 -d:  dwiprep options: can be dhollander, tax and/or tournier (default = dhollander) e.g. "tax dhollander"
 	 -s:  session (BIDS session)
-	 -n:  number of cpu for parallelisation
+	 -n:  number of cpu for parallelisation (default 6)
 	 -b:  use Synb0-DISCO instead of topup (requires docker)
 	 -f:  specify that an fmap (reverse phase image) exists in the bids folder for topup
 	 -t:  options to pass to topup
-	 -e:  options to pass to eddy
+	 -e:  options to pass to eddy (default "--slm=linear --repol")
 	 -r:  use reverse phase data only for topup and not for further processing
 	 -v:  show output from mrtrix commands
+
+Documentation:
+
+	This script preprocesses dMRI data using MRtrix3.
+	It uses input data organised in the BIDS format.
+	It perfoms the following:
+		1/ contactenation of different dMRI datasets accounting for differential intensity scaling using dwicat
+		2/ dwidenoise
+		3/ mrdegibs
+		4/ dwifslpreproc, either using topup or synb0-disco
+		5/ dwibiascorrect
+		6/ upsampling to an isotropic resolution of 1.3 mm 
+		7/ creation of dwi_mask
+		8/ response estimation
+		9: outputs an ADC, FA en DEC image in the for quality assurance purpose
 
 
 USAGE
@@ -307,7 +322,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 			#which mrhistmatch
 			ls ${raw}/dwi_p?.mif
 			#sleep 5
-			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif -nocleanup 
+			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif #-nocleanup 
 
 		fi
 
