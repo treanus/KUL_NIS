@@ -1,58 +1,56 @@
 # KUL_neuroimaging_tools
-Tools to analyse (resting/task-based) fMRI, diffusion & structural MRI data
+We provide tools to analyse (resting/task-based) fMRI, diffusion & structural MRI data.
+Pipelines use many open-source packages.
+
+It mainly provides automated pipelines to
+
+1/ convert dicom files to the BIDS format
+        - for Siemens, GE and Philips dicom data
+        - for Philips data it includes basic computation of slice-timing and EES/ERT in BIDS format
+
+2/ perform mriqc on structural and functional data
+
+3/ perform fmriprep on structural and functional data
+
+4/ perform freesurfer on the structural data organised in the BIDS format
+
+5/ perform fastsurfer as an alternative to freesurfer (again in BIDS format)
+
+6/ perform MRtix3 processing on dMRI data with our own developed 'dwiprep' pipeline (using BIDS input)
+
+7/ perform qsiprep processing on dMRI data
+
+8/ perform Virtual Brain Grafting to run freesurfer/fastsurfer on brains with large lesions, such as tumours or CVA lesions
+        see: https://github.com/KUL-Radneuron/KUL_VBG
+
+9/ perform MTC (magnetisation transfer contrast or ratio), T1w/T2w and T1/FLAIR ratio computation
+        - using calibration
+        - additionally compute MS lesion load using samseg
+
+10/ perform automated fiber tractography using a combination of freesurfer/fastsurfer, KUL_VBG, and ifod2 MRtrix
+
+11/ run AI tools such as HD-BET and HD-GLIO for automated brain extraction and tumour segmentation
+
+12/ provide an automated pipeline to analyse clincal fMRI/dMRI data using:
+        - GLM based fMRI SPM analysis
+        - Melodic based ICA analysis
+        - brain extraction using HD-BET
+        - tumour delinaetion using HD-GLIO
+        - brain parcellation using freesurfer/fastsurfer
+        - automated tractography of all major tracts (own pipeline)
+
+
+
+Depencies:
+        Runs on linux or Osx/MacOs (the latter with some limitations).
+        Needs an NVidia GPU (cuda) for some tools.
+                - see https://github.com/treanus/KUL_Linux_Installation
+
+
 
 Project PI's: Stefan Sunaert
-
 Contributors: A. Radwan
 
-Requires Mrtrix3, FSL, ants, dcm2niix, dcm2bids (jooh fork), docker, fmriprep and mriqc
+Requires Mrtrix3, FSL, ants, dcm2niix, docker, fmriprep and mriqc
 
 @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
-
-v0.2a - dd 12/12/2018 - pre beta version
-
-These tools are only intended for MRI processing at Stefan's lab
-
-They will procces an entire study (multiple subjects) with structural, functional and diffusion data:
-
-        - convert dicom files to BIDS format
-        - perform mriqc on structural and functional data
-        - perform fmriprep on structural and functional data
-        - perform freesurfer on the structural data (only T1w for now) 
-        - perform mrtix3 processing on dMRI data
-        - optionally:
-            - perform combined structural and dMRI data analysis (depends on fmriprep, freesurfer and mrtrix3 above)
-            - perfrom dbsdrt (automated tractography of the dentato-rubro-thalamic tract) on dMRI + structural data (depends on all above)
- 
- Requirements:
- 
-        A correct installation of your mac (for now, maybe later also a hpc) at the lab
-            - including:
-                - dcm2niix (in KUL_apps)
-                - dcm2bids (jooh fork, using pip)
-                - docker
-                - freesurfer (in KUL_apps)
-                - mrtrix (in KUL_apps)  
-                - last but not least, a correct installation of up-to-date KUL_NeuroImaging_Tools (in KUL_apps)
-                - correct setup of your .bashrc and .bash_profile
- 
- It uses a major config file, e.g. "study_config/subjects_and_options.csv" in which one informs the tools about:
- 
-        What and how (options) to perform:
-                - mriqc (yes/no) 
-                    (no options implemented yet)
-                - fmriprep (yes/no), and specifies options:
-                    all fmriprep options may be given,
-                    e.g.:
-                        --anat-only (to only process structural)
-                        --longitudinal (to process longitudinal data)
-                        --ignore fieldmaps
-                - freesurfer (yes/no) 
-                    (no options implemented yet)
-                - KUL_dwiprep processing, i.e. a full mrtrix processing pipeline (yes/no)
-                    options may be e.g.:
-                        --slm=linear --repol (to provide to eddy)
-                - KUL_dwiprep_anat processing (yes/no) 
-                    (no options implemented yet)
-                - KUL_dwiprep_dbsdrt processing (yes/no)
-                        option nods e.g. 4000
