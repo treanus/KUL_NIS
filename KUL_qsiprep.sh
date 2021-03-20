@@ -97,8 +97,10 @@ if [ $p_flag -eq 0 ] ; then
 	exit 2
 fi
 
+#echo $participant
+
 qsi_data="${cwd}/BIDS"
-qsi_scratch="${cwd}/${participant}_qsiprep_work"
+qsi_scratch="${cwd}/qsiprep_work_${participant}"
 qsi_out="${cwd}/qsiprep"
 
 docker run --rm -it \
@@ -106,12 +108,14 @@ docker run --rm -it \
     -v $qsi_data:/data:ro \
     -v $qsi_out:/out \
     -v $qsi_scratch:/scratch \
+    --gpus all \
     pennbbl/qsiprep:0.12.2 \
     /data /out participant \
     -w /scratch \
-    --participant_label $participant \
-    --output-resolution 1.2 \
-    --nthreads $ncpu \
-    --omp-nthreads $ncpu
+    --output-resolution 1.2 
 
-    
+
+    #--nthreads $ncpu \
+    #--omp-nthreads $ncpu
+
+  #  --participant_label "$participant" \

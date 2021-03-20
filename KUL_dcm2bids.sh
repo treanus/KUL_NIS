@@ -4,14 +4,15 @@
 
 # Bash shell script to convert dicoms to bids format
 #
-# Requires dcm2bids (jooh fork), dcm2niix, Mrtrix3
+# Requires dcm2bids, dcm2niix, Mrtrix3
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 # @ Ahmed Radwan - KUL - ahmed.radwan@kuleuven.be
 #
-v="v0.4 - dd 12/03/2020"
+v="v0.8 - dd 19/03/2021"
 
 # Notes
+#  - NOW USES https://github.com/UNFmontreal/Dcm2Bids
 #  - works for GE/Siemens/Philips
 #  - wrap around for multiple subjects: use KUL_multisubjects_dcm2bids
 
@@ -45,30 +46,49 @@ Usage:
   Depends on a config file that defines parameters with sequence information, e.g.
 
   For Philips dicom we need to manually specify the mb and pe_dir:
-  Identifier,search-string,fmritask/contrastT1w,mb,pe_dir
-  T1w,MPRAGE
-  T1w,3DTFE_POST,1
-  FLAIR,FLAIR
-  func,rsfMRI,rest,8,j
-  func,tb_fMRI,nback,2,j
-  func,tb_fMRI,hands,2,j
-  dwi,part1,-,2,j
-  dwi,part2,-,2,j-
-  sbref,MB2_sref,nback hands,1,j
+  Identifier,search-string,fmritask/contrastT1w,mb,pe_dir,acq_label
+    T1w,T1_PRE
+    cT1w,T1_Post
+    FLAIR,3D_FLAIR
+    T2w,3D_T2
+    SWI,SWI
+    MTI,mtc_2dyn
+    func,rsfMRI_MB6,rest,6,j,singleTE
+    sbref,rsfMRI_SBREF,rest,1,j,singleTE
+    func,MB_mTE,rest,4,j,multiTE
+    sbref,mTE_SBREF,rest,4,j,multiTE
+    func,MB2_hand,HAND,2,j
+    func,MB2_lip,LIP,2,j
+    func,MB2_nback,nback,2,j
+    sbref,MB2_SBREF,HAND nback,1,j
+    dwi,p1_b1200,-,3,j-,b1200
+    dwi,p2_b0,-,3,j-,b0
+    dwi,p3_b2500,-,3,j-,b2500
+    dwi,p4_b2500,-,3,j,rev
 
-  explains that the T1w scan should be found by the search string "MPRAGE"
-  func by rsfMRI, and has multiband_factor 8, and pe_dir = j
+  explains that the T1w scan should be found by the search string "T1_PRE"
+  func by rsfMRI, and has multiband_factor 6, and pe_dir = j
   the sbref will be used for the tb_fMRI for both tasks (hands and nback)
   
   For Siemens dicom it can be as simple as:
-  T1w,MPRAGE
-  FLAIR,FLAIR
-  func,rsfMRI,rest,-,-
-  func,tb_fMRI,nback,-,-
-  func,tb_fMRI,hands,-,-
-  dwi,part1,-,-,-
-  dwi,part2,-,-,-
-  sbref,MB2_sref,nback hands,-,-
+    T1w,T1_PRE
+    cT1w,T1_Post
+    FLAIR,3D_FLAIR
+    T2w,3D_T2
+    SWI,SWI
+    MTI,mtc_2dyn
+    func,rsfMRI_MB6,rest,-,-,singleTE
+    sbref,rsfMRI_SBREF,rest,-,-,singleTE
+    func,MB_mTE,rest,-,-,multiTE
+    sbref,mTE_SBREF,rest,-,-,multiTE
+    func,MB2_hand,HAND,-,-
+    func,MB2_lip,LIP,-,-
+    func,MB2_nback,nback,-,-
+    sbref,MB2_SBREF,HAND nback,-,-
+    dwi,p1_b1200,-,-,-,b1200
+    dwi,p2_b0,-,-,-,b0
+    dwi,p3_b2500,-,-,-,b2500
+    dwi,p4_b2500,-,-,-,rev
 
 Example:
 
@@ -86,6 +106,7 @@ Optional arguments:
      -s:  session (for longitudinal study with multiple timepoints)
      -t:  temporary directory (default = /tmp)
      -e:  copy task-*_events.tsv from config to BIDS dir
+     -a:  further anonymise the subject by using pydeface (takes much longer)
      -v:  verbose 
 
 USAGE
@@ -94,19 +115,39 @@ USAGE
 }
 
 # check if jsontool is installed and install it if not
-
 if [[ $(which jsontool) ]]; then
 
-    echo "jsontool already installed, good" $log
+    echo "  jsontool already installed, good" $log
 
 else
 
-    echo "jsontool not installed, installing it with pip using pip install jsontool" $log
+    echo "  jsontool not installed, installing it with pip using pip install jsontool" $log
     pip install jsontool
 
 fi
+# check if pydeface is installed and install it if not
+if [[ $(which pydeface) ]]; then
 
+    echo "  pydeface already installed, good" $log
 
+else
+
+    echo "  pydeface not installed, installing it with pip using pip install jsontool" $log
+    pip install pydeface
+
+fi
+# check if the correct dcm2bids is installed and install it if not
+if [[ $(which dcm2bids_scaffold) ]]; then
+
+    echo "  dcm2bids already installed, good" $log
+
+else
+
+    echo "  dcm2bids not installed, installing it with pip using pip install dcm2bids" $log
+    pip uninstall Dcm2Bids
+    pip install dcm2bids
+
+fi
 
 # --- function kul_dcmtags (for reading specific parameters from dicom header & calculating missing BIDS parameters) ---
 function kul_dcmtags {
@@ -132,8 +173,8 @@ function kul_dcmtags {
 
     # Now we need to determine what vendor it is.
     #   Philips needs all the following calculations
-    #   Siemens (only recent versions?) not
-    #   GE most recent version don't need it either?
+    #   Siemens works out of the box
+    #   GE most recent version also seem to work fine
 
     #echo $manufacturer
     if [ "$manufacturer" = "SIEMENS" ]; then
@@ -368,6 +409,8 @@ bids_flag=0
 tmp_flag=0
 events_flag=0
 n_sbref_tasks=0
+silent=1
+anon=0
 
 if [ "$#" -lt 4 ]; then
     Usage >&2
@@ -375,7 +418,7 @@ if [ "$#" -lt 4 ]; then
 
 else
 
-    while getopts "c:d:p:o:s:t:veh" OPT; do
+    while getopts "c:d:p:o:s:t:aveh" OPT; do
 
         case $OPT in
         d) #dicom_zip_file
@@ -397,6 +440,9 @@ else
         s) #session
             sess_flag=1
             sess=$OPTARG
+        ;;
+        a) #pydeface
+            anon=1
         ;;
         v) #verbose
             silent=0
@@ -571,13 +617,13 @@ wait
 
 declare -a sub_bids
 
-while IFS=, read identifier search_string task mb pe_dir; do
+while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
     bs=$(( $bs + 1))
 
  if [[ ! ${identifier} == \#* ]]; then
 
-    if [[ ${identifier} == "T1w" ]] && [[ ${task} == "" ]]; then 
+    if [[ ${identifier} == "T1w" ]]; then 
         
         kul_find_relevant_dicom_file
 
@@ -586,8 +632,8 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_T1='{"dataType": "anat", "suffix": "T1w", "criteria": { "in": 
-            { "SeriesDescription": "'${search_string}'", "ImageType": "ORIGINAL"}}}'
+            sub_bids_T1='{"dataType": "anat", "modalityLabel": "T1w", "criteria": {  
+             "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
 
@@ -595,7 +641,7 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
     fi
 
-    if [[ ${identifier} == "cT1w" ]] && [[ ! ${task} == "" ]]; then 
+    if [[ ${identifier} == "cT1w" ]]; then 
         
         kul_find_relevant_dicom_file
 
@@ -604,9 +650,10 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_T1='{"dataType": "anat", "suffix": "T1w", "criteria": { "in": 
-            { "SeriesDescription": "'${search_string}'", "ImageType": "ORIGINAL"}},
-            "customHeader": {"KUL_dcm2bids": "yes","TaskName": "'${task}'"
+            sub_bids_T1='{"dataType": "anat", "modalityLabel": "T1w", "criteria": {  
+             "SeriesDescription": "*'${search_string}'*"},
+            "customLabels": "ce-gadolinium",
+            "sidecarChanges": {"KUL_dcm2bids": "yes","ContrastBolusIngredient": "gadolinium"}
             }'
 
             sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
@@ -624,8 +671,8 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_T2='{"dataType": "anat", "suffix": "T2w", "criteria": { "in": 
-            { "SeriesDescription": "'${search_string}'", "ImageType": "ORIGINAL"}}}'
+            sub_bids_T2='{"dataType": "anat", "modalityLabel": "T2w", "criteria": { 
+             "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_T2} | python -m json.tool)
 
@@ -642,8 +689,8 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_PD='{"dataType": "anat", "suffix": "PD", "criteria": { "in": 
-            { "SeriesDescription": "'${search_string}'", "ImageType": "ORIGINAL"}}}'
+            sub_bids_PD='{"dataType": "anat", "modalityLabel": "PD", "criteria": {  
+             "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_PD} | python -m json.tool)
 
@@ -651,6 +698,42 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
     fi
 
+    if [[ ${identifier} == "SWI" ]]; then 
+        
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids_SWI='{"dataType": "anat", "modalityLabel": "SWI", "criteria": {  
+             "SeriesDescription": "*'${search_string}'*"}}'
+
+            sub_bids_[$bs]=$(echo ${sub_bids_SWI} | python -m json.tool)
+
+        fi
+
+    fi
+
+    if [[ ${identifier} == "MTI" ]]; then 
+        
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids_SWI='{"dataType": "anat", "modalityLabel": "MTI", "criteria": {  
+             "SeriesDescription": "*'${search_string}'*","ImageType": [
+                "ORIGINAL","PRIMARY","M","FFE","M","FFE"]}}'
+
+            sub_bids_[$bs]=$(echo ${sub_bids_SWI} | python -m json.tool)
+
+        fi
+
+    fi
 
     if [[ ${identifier} == "FLAIR" ]]; then 
         
@@ -661,8 +744,8 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_FL='{"dataType": "anat", "suffix": "FLAIR", "criteria": { "in": 
-            { "SeriesDescription": "'${search_string}'", "ImageType": "ORIGINAL"}}}'
+            sub_bids_FL='{"dataType": "anat", "modalityLabel": "FLAIR", "criteria": { 
+             "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_FL} | python -m json.tool)
 
@@ -679,11 +762,11 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_fm='{"dataType": "fmap","suffix": "magnitude","criteria": 
-            {"in":{"SeriesDescription": "'${search_string}'","ImageType": "ORIGINAL"},
-            "equal": {"EchoNumber": 1}},{"dataType": "fmap","suffix": "fieldmap",
-            "criteria": {"in": {"SeriesDescription": "'${search_string}'","ImageType":
-            "ORIGINAL"},"equal": {"EchoNumber": 2}},"customHeader":
+            sub_bids_fm='{"dataType": "fmap","modalityLabel": "magnitude","criteria": 
+            {{"SeriesDescription": "'${search_string}'","ImageType": "ORIGINAL"},
+            "equal": {"EchoNumber": 1}},{"dataType": "fmap","modalityLabel": "fieldmap",
+            "criteria": {{"SeriesDescription": "'${search_string}'","ImageType":
+            "ORIGINAL"},"equal": {"EchoNumber": 2}},"sidecarChanges":
             {"Units": "Hz","IntendedFor": "##REPLACE_ME_INTENDED_FOR##"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_fm} | python -m json.tool)
@@ -703,12 +786,23 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_fu1='{"dataType": "func","suffix": 
-            "bold","criteria": {"in": {"SeriesDescription": 
-            "'${search_string}'","ImageType": "ORIGINAL"}}, 
-            "customHeader": {"KUL_dcm2bids": "yes","TaskName": "'${task}'"'
+            # remove any whitespaces
+            task_nospace="$(echo -e "${task}" | tr -d '[:space:]')"
 
-            # for siemens (& ge?) ess/trt is not necessary as CustomHeader
+            sub_bids_fu1='{"dataType": "func","modalityLabel": 
+            "bold","criteria": {"SeriesDescription": "*'${search_string}'*"},
+            "customLabels": "task-'${task_nospace}''
+
+            # add an acq_label if any
+            if [ "$acq_label" = "" ];then
+                sub_bids_fu1b='"',
+            else
+                sub_bids_fu1b='_acq-'${acq_label}'",'
+            fi
+
+            sub_bids_fu1c='"sidecarChanges": {"KUL_dcm2bids": "yes","TaskName": "'${task}'"'
+
+            # for siemens (& ge?) ess/trt is not necessary as sidecarChanges
             # also not for philips, when it cannot be calculated
             #echo "ess_trt_provided_by_vendor: $ees_trt_provided_by_vendor"
             #echo "ees_sec: $ees_sec"
@@ -732,7 +826,7 @@ while IFS=, read identifier search_string task mb pe_dir; do
                     
             fi        
                     
-            # for siemens (& ge?) slicetiming is not necessary as CustomHeader
+            # for siemens (& ge?) slicetiming is not necessary as sidecarChanges
             # also not for philips, when it cannot be calculated
             #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
             #echo "slice_time: $slice_time"
@@ -755,7 +849,7 @@ while IFS=, read identifier search_string task mb pe_dir; do
 
             fi
 
-            sub_bids_[$bs]=$(echo ${sub_bids_fu1}${sub_bids_fu2}${sub_bids_fu3} | python -m json.tool)
+            sub_bids_[$bs]=$(echo ${sub_bids_fu1}${sub_bids_fu1b}${sub_bids_fu1c}${sub_bids_fu2}${sub_bids_fu3} | python -m json.tool)
 
         fi
 
@@ -775,13 +869,21 @@ while IFS=, read identifier search_string task mb pe_dir; do
             sbref_tasks=($task)
             n_sbref_tasks=${#sbref_tasks[@]}
             sbref_task1=${sbref_tasks[0]}
+            #echo $sbref_task1
 
-            sub_bids_fu1='{"dataType": "func","suffix": 
-            "sbref","criteria": {"in": {"SeriesDescription": 
-            "'${search_string}'","ImageType": "ORIGINAL"}}, 
-            "customHeader": {"KUL_dcm2bids": "yes","TaskName": "'${sbref_task1}'"'
+            sub_bids_sb1='{"dataType": "func","modalityLabel": 
+            "sbref","criteria": {"SeriesDescription": "*'${search_string}'*"}, 
+            "customLabels": "task-'${sbref_task1}''
+            
+            if [ "$acq_label" = "" ];then
+                sub_bids_sb1b='"',
+            else
+                sub_bids_sb1b='_acq-'${acq_label}'",'
+            fi
+            
+            sub_bids_sb1c='"sidecarChanges": {"KUL_dcm2bids": "yes","TaskName": "'${sbref_task1}'"'
 
-            # for siemens (& ge?) ess/trt is not necessary as CustomHeader
+            # for siemens (& ge?) ess/trt is not necessary as sidecarChanges
             # also not for philips, when it cannot be calculated
             #echo "ess_trt_provided_by_vendor: $ees_trt_provided_by_vendor"
             #echo "ees_sec: $ees_sec"
@@ -793,19 +895,19 @@ while IFS=, read identifier search_string task mb pe_dir; do
                     kul_e2cl "   It's NOT original dicom data (anonymised?): ees/trt could not be calculated" $log
                 fi
             
-                sub_bids_fu2=""
+                sub_bids_sb2=""
 
             else
 
                 kul_e2cl "   It's a PHILIPS, ees/trt are were calculated" $log
 
-                sub_bids_fu2=',"EffectiveEchoSpacing": '${ees_sec}',"TotalReadoutTime":
+                sub_bids_sb2=',"EffectiveEchoSpacing": '${ees_sec}',"TotalReadoutTime":
                 '${trt_sec}',"MultibandAccelerationFactor": '${mb}',"PhaseEncodingDirection": "'${pe_dir}'"'
                 
                     
             fi        
                     
-            # for siemens (& ge?) slicetiming is not necessary as CustomHeader
+            # for siemens (& ge?) slicetiming is not necessary as sidecarChanges
             # also not for philips, when it cannot be calculated
             #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
             #echo "slice_time: $slice_time"
@@ -817,18 +919,18 @@ while IFS=, read identifier search_string task mb pe_dir; do
                     kul_e2cl "   It's NOT original dicom data (anonymised?): slicetiming could not be calculated" $log
                 fi
 
-                sub_bids_fu3='}}'
+                sub_bids_sb3='}}'
 
             else
 
                 kul_e2cl "   It's a PHILIPS, slicetiming was calculated" $log
 
-                sub_bids_fu3=',"SliceTiming": '${slice_time}'}}'
+                sub_bids_sb3=',"SliceTiming": '${slice_time}'}}'
             
 
             fi
 
-            sub_bids_[$bs]=$(echo ${sub_bids_fu1}${sub_bids_fu2}${sub_bids_fu3} | python -m json.tool)
+            sub_bids_[$bs]=$(echo ${sub_bids_sb1}${sub_bids_sb1b}${sub_bids_sb1c}${sub_bids_sb2}${sub_bids_sb3} | python -m json.tool)
 
         fi
 
@@ -843,12 +945,21 @@ while IFS=, read identifier search_string task mb pe_dir; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_dw1='{"dataType": "dwi","suffix": "dwi","criteria": {"in": 
-            {"SeriesDescription": "'${search_string}'","ImageType": "ORIGINAL"}}, 
-            "customHeader": {"KUL_dcm2bids": "yes"'
+            sub_bids_dw1='{"dataType": "dwi","modalityLabel": "dwi",
+            "criteria": {"SeriesDescription": "*'${search_string}'*"},'
+
+
+            if [ "$acq_label" = "" ];then
+                sub_bids_dw1b=""
+            else
+                sub_bids_dw1b='"customLabels": "acq-'${acq_label}'",'
+            fi
+
+
+            sub_bids_dw1c='"sidecarChanges": {"KUL_dcm2bids": "yes"'
             
 
-            # for siemens (& ge?) ess/trt is not necessary as CustomHeader
+            # for siemens (& ge?) ess/trt is not necessary as sidecarChanges
             # also not for philips, when it cannot be calculated
             #echo "ees_trt_provided_by_vendor: $ees_trt_provided_by_vendor"
             #echo "ees_sec: $ees_sec"
@@ -871,7 +982,7 @@ while IFS=, read identifier search_string task mb pe_dir; do
                     
             fi
                     
-            # for siemens (& ge?) slicetiming is not necessary as CustomHeader
+            # for siemens (& ge?) slicetiming is not necessary as sidecarChanges
             # also not for philips, when it cannot be calculated
             #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
             #echo "slice_time: $slice_time"
@@ -893,8 +1004,8 @@ while IFS=, read identifier search_string task mb pe_dir; do
             
 
             fi
-            
-            sub_bids_[$bs]=$(echo ${sub_bids_dw1}${sub_bids_dw2}${sub_bids_dw3} | python -m json.tool)
+
+            sub_bids_[$bs]=$(echo ${sub_bids_dw1}${sub_bids_dw1b}${sub_bids_dw1c}${sub_bids_dw2}${sub_bids_dw3} | python -m json.tool)
 
         fi
 
@@ -928,18 +1039,32 @@ for bf in ${!sub_bids_[@]}; do
 
 done
 
-# echo ${bids_conf} >> ${bids_config_json_file}
-
-#echo "{\"descriptions\":[ ${bids_conf} ] }"
-
-bids_conf_str="{\"descriptions\":[ ${bids_conf} ] }"
-
-echo ${bids_conf_str} >> ${bids_config_json_file}
+# WRITE THE .JSON FILE USED BY dcm2bids
+# Note: we also set dcm2niix options here and set pydeface
+json_anon=""
+if [ $anon -eq 1 ]; then
+    $json_anon='"defaceTpl": "pydeface --outfile {dstFile} {srcFile}",'
+fi
+bids_conf_str="{${json_anon}
+ \"dcm2niixOptions\": \"-b y -ba y -z y -i y -f '%3s_%f_%p_%t'\",
+ \"descriptions\":[ ${bids_conf} ] }"
+#echo ${bids_conf_str}
+echo ${bids_conf_str} | python -m json.tool > ${bids_config_json_file}
 
 
 # MAIN HERE - WE RUN dcm2bids - HERE
 # invoke dcm2bids
 kul_e2cl "  Calling dcm2bids... (for the output see $dcm2niix_log_file)" $log
+if [ ! -d BIDS ];then
+    mkdir -p BIDS
+    cd BIDS
+    dcm2bids_scaffold
+    echo "tmp_dcm2bids/*" > .bidsignore
+    echo "*/anat/*SWI*" >> .bidsignore
+    echo "*/anat/*MTI*" >> .bidsignore
+    cd ..
+fi
+
 if [ $sess_flag -eq 1 ]; then
     dcm2bids_session=" -s ${sess} "
 else
@@ -950,8 +1075,7 @@ dcm2bids  -d "${tmp}" -p $subj $dcm2bids_session -c $bids_config_json_file \
     -o $bids_output -l DEBUG --clobber > $dcm2niix_log_file
 
 
-
-
+# Multi Echo func needs extra work. dcm2bids does not convert these correctly. "run" needs to be "echo"
 
 if [[ ${sess} = "" ]] ; then 
     ses_long=""
@@ -962,30 +1086,31 @@ fi
 me_file=($(grep EchoNumber ${bids_output}/sub-${subj}${ses_long}/func/*.json 2> /dev/null | awk -F ':' '{print $1}'))
 me_echo=($(grep EchoNumber ${bids_output}/sub-${subj}${ses_long}/func/*.json 2> /dev/null | awk -F ':' '{print $3}' | cut -c 2 )) 
 
-    if [[ ${me_file} = "" ]] ; then 
+if [[ ${me_file} = "" ]] ; then 
 
-        echo " No Multiecho fMRI data found "
+    echo " No Multiecho fMRI data found "
 
-    else
+else
 
-        echo " Multiecho fMRI data found "
-        n_multi_echo=${#me_echo[@]}
+    echo " Multiecho fMRI data found "
 
-        for echo_number in $(seq 0 $(($n_multi_echo-1)) ) ; do 
+    n_multi_echo=${#me_echo[@]}
 
-            me_file_before_run=$(echo ${me_file[$echo_number]} | awk -F '_run-' '{print $1}')
-            me_file_after_run=$(echo ${me_file[$echo_number]} | awk -F '_run-' '{print $2}')
-            me_file_after_run=${me_file_after_run:2}
-            cmd_json="mv ${me_file[$echo_number]} ${me_file_before_run}_echo-${me_echo[$echo_number]}${me_file_after_run}"
-            cmd_nii=$(echo $cmd_json | perl -p -e 's/json/nii.gz/g')
+    for echo_number in $(seq 0 $(($n_multi_echo-1)) ) ; do 
 
-            eval $cmd_json
-            eval $cmd_nii
+        me_file_before_run=$(echo ${me_file[$echo_number]} | awk -F '_run-' '{print $1}')
+        me_file_after_run=$(echo ${me_file[$echo_number]} | awk -F '_run-' '{print $2}')
+        me_file_after_run=${me_file_after_run:2}
+        cmd_json="mv ${me_file[$echo_number]} ${me_file_before_run}_echo-${me_echo[$echo_number]}${me_file_after_run}"
+        cmd_nii=$(echo $cmd_json | perl -p -e 's/json/nii.gz/g')
 
-        done
+        eval $cmd_json
+        eval $cmd_nii
+
+    done
 
 
-    fi
+fi
 
 
 # Update the Intended For of the fmaps
@@ -1075,5 +1200,9 @@ eval ${cleanup}
 echo "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
 sed -i.bck 's/"Funding": ""/"Funding": [""]/' ${bids_output}/dataset_description.json
 rm ${bids_output}/dataset_description.json.bck
+
+# Run BIDS validation
+docker run -ti --rm -v ${cwd}/${bids_output}:/data:ro bids/validator /data
+
 
 kul_e2cl "Finished $script" $log
