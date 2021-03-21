@@ -35,8 +35,7 @@ Required arguments:
 Optional arguments:
      
      -m:  hmc_model (1=none,2=eddy,3=3dSHORE; default:2)
-
-	 -g:  use gpu (does not work an MacOs)
+     -g:  use gpu (does not work an MacOs)
      -n:  number of cpu to use (default 15)
      -v:  show output from commands
 
@@ -112,7 +111,7 @@ fi
 
 qsi_data="${cwd}/BIDS"
 qsi_scratch="${cwd}/qsiprep_work_${participant}"
-qsi_out="${cwd}/qsiprep"
+qsi_out="${cwd}"
 
 if [ $hmc -eq 1 ]; then
     hmc_type="none"
@@ -147,5 +146,3 @@ docker run --rm -it \
 
     #--nthreads $ncpu \
     #--omp-nthreads $ncpu
-
-  #  
