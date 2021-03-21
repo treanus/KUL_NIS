@@ -33,7 +33,8 @@ Required arguments:
      -p:  participant name
 
 Optional arguments:
-
+     
+     -m:  hmc_model (1=none,2=eddy,3=3dSHORE; default:2)
      -n:  number of cpu to use (default 15)
      -v:  show output from commands
 
@@ -48,6 +49,7 @@ USAGE
 # Set defaults
 silent=1 # default if option -v is not given
 ncpu=15
+hmc=2
 
 # Set required options
 p_flag=0
@@ -58,12 +60,15 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:n:v" OPT; do
+	while getopts "p:n:m:v" OPT; do
 
 		case $OPT in
 		p) #participant
 			participant=$OPTARG
             p_flag=1
+		;;
+        m) #hmc
+			hmc=$OPTARG
 		;;
         n) #ncpu
 			ncpu=$OPTARG
@@ -103,6 +108,17 @@ qsi_data="${cwd}/BIDS"
 qsi_scratch="${cwd}/qsiprep_work_${participant}"
 qsi_out="${cwd}/qsiprep"
 
+if [ $hmc -eq 1 ]; then
+    hmc_type="none"
+elif [ $hmc -eq 2 ]; then
+    hmc_type="eddy"
+elif [ $hmc -eq 3 ]; then
+    hmc_type="3dSHORE"
+else
+    echo "Wrong hmc type; exitting"
+    exit
+fi
+
 docker run --rm -it \
     -v $FS_LICENSE:/opt/freesurfer/license.txt:ro \
     -v $qsi_data:/data:ro \
@@ -112,10 +128,12 @@ docker run --rm -it \
     pennbbl/qsiprep:0.12.2 \
     /data /out participant \
     -w /scratch \
-    --output-resolution 1.2 
+    --output-resolution 1.2 \
+    --hmc_model $hmc_type
+    --participant_label $participant
 
 
     #--nthreads $ncpu \
     #--omp-nthreads $ncpu
 
-  #  --participant_label "$participant" \
+  #  
