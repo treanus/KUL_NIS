@@ -34,6 +34,7 @@ Required arguments:
 
 Optional arguments:
 
+	 -g:  use gpu (does not work an MacOs)
      -n:  number of cpu to use (default 15)
      -v:  show output from commands
 
@@ -48,6 +49,7 @@ USAGE
 # Set defaults
 silent=1 # default if option -v is not given
 ncpu=15
+gpu=0
 
 # Set required options
 p_flag=0
@@ -58,7 +60,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:n:v" OPT; do
+	while getopts "p:n:gv" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -67,6 +69,9 @@ else
 		;;
         n) #ncpu
 			ncpu=$OPTARG
+		;;
+		g) #verbose
+			gpu=1
 		;;
         v) #verbose
 			silent=0
@@ -103,12 +108,18 @@ qsi_data="${cwd}/BIDS"
 qsi_scratch="${cwd}/qsiprep_work_${participant}"
 qsi_out="${cwd}/qsiprep"
 
+if [ $gpu -eq 1 ]; then
+	gpu_cmd="--gpus all"
+else
+	gpu_cmd=""
+fi
+
 docker run --rm -it \
     -v $FS_LICENSE:/opt/freesurfer/license.txt:ro \
     -v $qsi_data:/data:ro \
     -v $qsi_out:/out \
     -v $qsi_scratch:/scratch \
-    --gpus all \
+    $gpu_cmd \
     pennbbl/qsiprep:0.12.2 \
     /data /out participant \
     -w /scratch \
