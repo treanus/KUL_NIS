@@ -140,9 +140,10 @@ docker run --rm -it \
     /data /out participant \
     -w /scratch \
     --output-resolution 1.2 \
-    --hmc_model $hmc_type
-    --participant_label $participant
-
+    --hmc_model $hmc_type \
+    --participant_label $participant \
+	--force-syn
+	--recon_spec mrtrix_msmt_csd
 
     #--nthreads $ncpu \
     #--omp-nthreads $ncpu
