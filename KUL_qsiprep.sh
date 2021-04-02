@@ -33,8 +33,9 @@ Required arguments:
      -p:  participant name
 
 Optional arguments:
-
-	 -g:  use gpu (does not work an MacOs)
+     
+     -m:  hmc_model (1=none,2=eddy,3=3dSHORE; default:2)
+     -g:  use gpu (does not work an MacOs)
      -n:  number of cpu to use (default 15)
      -v:  show output from commands
 
@@ -49,6 +50,7 @@ USAGE
 # Set defaults
 silent=1 # default if option -v is not given
 ncpu=15
+hmc=2
 gpu=0
 
 # Set required options
@@ -60,12 +62,15 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:n:gv" OPT; do
+	while getopts "p:n:m:gv" OPT; do
 
 		case $OPT in
 		p) #participant
 			participant=$OPTARG
             p_flag=1
+		;;
+        m) #hmc
+			hmc=$OPTARG
 		;;
         n) #ncpu
 			ncpu=$OPTARG
@@ -106,7 +111,18 @@ fi
 
 qsi_data="${cwd}/BIDS"
 qsi_scratch="${cwd}/qsiprep_work_${participant}"
-qsi_out="${cwd}/qsiprep"
+qsi_out="${cwd}"
+
+if [ $hmc -eq 1 ]; then
+    hmc_type="none"
+elif [ $hmc -eq 2 ]; then
+    hmc_type="eddy"
+elif [ $hmc -eq 3 ]; then
+    hmc_type="3dSHORE"
+else
+    echo "Wrong hmc type; exitting"
+    exit
+fi
 
 if [ $gpu -eq 1 ]; then
 	gpu_cmd="--gpus all"
@@ -123,10 +139,11 @@ docker run --rm -it \
     pennbbl/qsiprep:0.12.2 \
     /data /out participant \
     -w /scratch \
-    --output-resolution 1.2 
-
+    --output-resolution 1.2 \
+    --hmc_model $hmc_type \
+    --participant_label $participant \
+	--force-syn
+	--recon_spec mrtrix_msmt_csd
 
     #--nthreads $ncpu \
     #--omp-nthreads $ncpu
-
-  #  --participant_label "$participant" \
