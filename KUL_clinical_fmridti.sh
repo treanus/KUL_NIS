@@ -429,7 +429,7 @@ function KUL_run_msbp {
          --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
          --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
          --multiproc_number_of_cores $ncpu $str_silent"
-        #echo $my_cmd
+        echo $my_cmd
         eval $my_cmd
         
         touch KUL_LOG/sub-${participant}_MSBP.done
@@ -594,8 +594,8 @@ wait
 
 # STEP 5 - run SPM/melodic/msbp
 KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
-KUL_compute_SPM &  
-KUL_compute_melodic &
+#KUL_compute_SPM &  
+#KUL_compute_melodic &
 KUL_run_msbp &
 
 wait 

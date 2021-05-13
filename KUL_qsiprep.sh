@@ -130,20 +130,24 @@ else
 	gpu_cmd=""
 fi
 
+version="0.12.2"
+version="latest"
+
 docker run --rm -it \
     -v $FS_LICENSE:/opt/freesurfer/license.txt:ro \
     -v $qsi_data:/data:ro \
     -v $qsi_out:/out \
     -v $qsi_scratch:/scratch \
     $gpu_cmd \
-    pennbbl/qsiprep:0.12.2 \
+    pennbbl/qsiprep:$version \
     /data /out participant \
     -w /scratch \
     --output-resolution 1.2 \
     --hmc_model $hmc_type \
     --participant_label $participant \
-	--force-syn
-	--recon_spec mrtrix_msmt_csd
+	--force-syn \
+	--recon_spec mrtrix_multishell_msmt_noACT
 
+	#	--write_graph \
     #--nthreads $ncpu \
     #--omp-nthreads $ncpu
