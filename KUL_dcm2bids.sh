@@ -486,7 +486,7 @@ fi
 
 if [ $subj_flag -eq 0 ] ; then 
     echo 
-    echo "Option -s is required: give the anonymised name of a subject this will create a directory subject_preproc with results." >&2
+    echo "Option -p is required: give the anonymised name of a subject this will create a directory subject_preproc with results." >&2
     echo
     exit 2 
 fi 
