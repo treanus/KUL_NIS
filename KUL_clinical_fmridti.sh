@@ -626,9 +626,6 @@ fi
 # WAIT FOR ALL TO FINISH
 wait
 
-exit
-
-
 # STEP 5 - run SPM/melodic/msbp
 KUL_run_msbp &
 KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
