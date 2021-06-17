@@ -187,7 +187,7 @@ function KUL_run_fmriprep {
         cp study_config/run_fmriprep.txt KUL_LOG/sub-${participant}_run_fmriprep.txt
         sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_fmriprep.txt
         rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
-        if [ $n_fmri -gt 0 ]; then
+        if [ $n_fMRI -gt 0 ]; then
             fmriprep_options="--fs-no-reconall --use-aroma --use-syn-sdc "
         else
             fmriprep_options="--fs-no-reconall --anat-only "
@@ -491,9 +491,13 @@ function KUL_run_FWT {
      -n $ncpu $str_silent"
     eval $my_cmd
 
-    ln -s $kulderivativesdir/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
-    ln -s $kulderivativesdir/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*filt3_BT_iFOD2.tck $globalresultsdir/Tracto/
-    pdfunite $kulderivativesdir/FWT/sub-${participant}/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
+    ls -l $kulderivativesdir/KUL_compute/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz
+    echo $globalresultsdir/Tracto/
+    ls -l $globalresultsdir/Tracto/
+    
+    ln -s $kulderivativesdir/KUL_compute/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
+    ln -s $kulderivativesdir/KUL_compute/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*filt3_BT_iFOD2.tck $globalresultsdir/Tracto/
+    pdfunite $kulderivativesdir/KUL_compute/FWT/sub-${participant}/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
  }
 
 function KUL_compute_melodic {
@@ -629,7 +633,7 @@ wait
 # STEP 5 - run SPM/melodic/msbp
 KUL_run_msbp &
 KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
-if [ $n_fmri -gt 0 ];then
+if [ $n_fMRI -gt 0 ];then
     KUL_compute_SPM &  
     KUL_compute_melodic &
 fi
