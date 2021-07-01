@@ -449,7 +449,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     
     export SUBJECTS_DIR
 
-    echo $notify_file
+    #echo $notify_file
 
     local task_freesurfer_cmd=$(echo "recon-all -subject $fs_BIDS_participant $freesurfer_invol \
         $fs_use_flair $fs_hippoT1T2 $fs_options_direct -all -openmp $ncpu_freesurfer \
@@ -1113,7 +1113,7 @@ if [ $expert -eq 1 ]; then
 
             #done
 
-            kul_e2cl " waiting for processes [${waitforpids[@]}] for subject(s) $fmriprep_participants to finish before continuing with further processing... (this can take hours!)... " $log
+            kul_e2cl "  waiting for fmriprep processes [${waitforpids[@]}] for subject(s) $fmriprep_participants to finish before continuing with further processing... (this can take hours!)... " $log
             WaitForTaskCompletion 
 
             kul_e2cl " processes [${waitforpids[@]}] for subject(s) $fmriprep_participants have finished" $log
@@ -1218,19 +1218,16 @@ if [ $expert -eq 1 ]; then
         do_dwiprep=0
     fi 
     kul_echo "  do_dwiprep: $do_dwiprep"
-    
+
     if [ $do_dwiprep -eq 1 ]; then
 
         dwiprep_options=$(grep dwiprep_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
         dwipreproc_options=$dwiprep_options
         
-        synbzero_disco_instead_of_topup=0
         synbzero_disco_instead_of_topup=$(grep synbzero_disco_instead_of_topup $conf | grep -v \# | sed 's/[^0-9]//g')
 
-        rev_phase_for_topup_only=0
         rev_phase_for_topup_only=$(grep rev_phase_for_topup_only $conf | grep -v \# | sed 's/[^0-9]//g')
 
-        topup_fmap_present_in_bids=0
         topup_fmap_present_in_bids=$(grep topup_fmap_present_in_bids $conf | grep -v \# | sed 's/[^0-9]//g')
 
         topup_options=$(grep topup_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')

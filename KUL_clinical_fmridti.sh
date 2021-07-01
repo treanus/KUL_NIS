@@ -196,6 +196,8 @@ function KUL_run_fmriprep {
         rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
         KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_fmriprep.txt 
         rm -fr fmriprep_work_${participant}
+        cp -f fmriprep/sub-$participant/anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/Anat/T1w.nii.gz
+        gunzip -f $globalresultsdir/Anat/T1w.nii.gz
     else
         echo "fmriprep already done"
     fi
@@ -269,7 +271,7 @@ function KUL_compute_SPM_matlab {
 
 function KUL_compute_SPM {
     #  setup variables
-    computedir="$kulderivativesdir/SPM/sub-$participant"
+    computedir="$kulderivativesdir/sub-$participant/SPM"
     fmridatadir="$computedir/fmridata"
     scriptsdir="$computedir/scripts"
     fmriprepdir="fmriprep/sub-$participant/func"
@@ -284,8 +286,8 @@ function KUL_compute_SPM {
     mkdir -p $computedir/RESULTS/MNI
 
     # Provide the anatomy
-    cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/Anat/T1w.nii.gz
-    gunzip -f $globalresultsdir/Anat/T1w.nii.gz
+    #cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/Anat/T1w.nii.gz
+    #gunzip -f $globalresultsdir/Anat/T1w.nii.gz
 
     if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
         echo "Preparing for SPM"
@@ -475,7 +477,7 @@ function KUL_run_FWT {
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
      -c $cwd/study_config/${config} \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-     -o $kulderivativesdir/FWT/sub-${participant} \
+     -o $kulderivativesdir/sub-${participant}/FWT \
      -n $ncpu $str_silent"
     eval $my_cmd
 
@@ -485,24 +487,20 @@ function KUL_run_FWT {
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
      -c $cwd/study_config/${config} \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-     -o $kulderivativesdir/FWT/sub-${participant} \
+     -o $kulderivativesdir/sub-${participant}/FWT \
      -T 1 -a iFOD2 \
      -Q -S \
      -n $ncpu $str_silent"
     eval $my_cmd
 
-    ls -l $kulderivativesdir/KUL_compute/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz
-    echo $globalresultsdir/Tracto/
-    ls -l $globalresultsdir/Tracto/
-    
-    ln -s $kulderivativesdir/KUL_compute/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
-    ln -s $kulderivativesdir/KUL_compute/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*filt3_BT_iFOD2.tck $globalresultsdir/Tracto/
-    pdfunite $kulderivativesdir/KUL_compute/FWT/sub-${participant}/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
+    ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
+    ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*filt3_BT_iFOD2.tck $globalresultsdir/Tracto/
+    pdfunite $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
  }
 
 function KUL_compute_melodic {
 # run FSL Melodic
-computedir="$kulderivativesdir/FSL/melodic/sub-$participant"
+computedir="$kulderivativesdir/sub-$participant/FSL_melodic"
 fmridatadir="$computedir/fmridata"
 scriptsdir="$computedir/scripts"
 fmriprepdir="fmriprep/sub-$participant/func"
