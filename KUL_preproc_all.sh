@@ -1688,6 +1688,14 @@ fi
 
 # ----------- STEP 3 - Compute mriqc group summary ---
 
+
+if [ $exit_after -eq 2 ]; then
+
+    kul_e2cl "  we exit here, you will need to do further processing with another config_file... " $log
+    exit 0
+
+fi
+
 kul_e2cl "Performing mriqc group summary" $log
 
 # check if already performed group mriqc
