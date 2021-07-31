@@ -415,20 +415,12 @@ function KUL_run_VBG {
             echo "Starting KUL_VBG"
             mkdir -p ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
             mkdir -p ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG
-            
-            #KUL_VBG.sh -p ${participant} \
-            #    -l $globalresultsdir/Anat/lesion.nii \
-            #   -o BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-            #    -m BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-            #    -z T1 -b -B 1 -t -F -n $ncpu -v
-
-            #KUL_VBG.sh -p ${participant} \
-            #    -l $globalresultsdir/Anat/lesion.nii \
-            #    -z T1 -b -B 1 -t -F -n $ncpu -v    
 
             # dev version 19/05/2021
             KUL_VBG.sh -S ${participant} \
                 -l $globalresultsdir/Anat/lesion.nii \
+                -o BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
+                -m BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -z T1 -b -B 1 -t -P 1 -n $ncpu -v          
 
             #cp -r ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}/* \
