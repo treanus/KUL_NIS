@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 # set -x
 
@@ -28,7 +28,6 @@ kul_main_dir=`dirname "$0"`
 script=`basename "$0"`
 source "${kul_main_dir}/KUL_main_functions.sh"
 cwd=$(pwd)
-# set -x
 
 # BEGIN LOCAL FUNCTIONS --------------
 
@@ -46,13 +45,15 @@ Usage:
   Depends on a config file that defines parameters with sequence information, e.g.
 
   For Philips dicom we need to manually specify the mb and pe_dir:
-  Identifier,search-string,fmritask/contrastT1w,mb,pe_dir,acq_label
+    # Identifier,search-string,fmritask/inteded_for,mb,pe_dir,acq_label
+    # Structural scans
     T1w,T1_PRE
     cT1w,T1_Post
     FLAIR,3D_FLAIR
     T2w,3D_T2
     SWI,SWI
     MTI,mtc_2dyn
+    # functional scans
     func,rsfMRI_MB6,rest,6,j,singleTE
     sbref,rsfMRI_SBREF,rest,1,j,singleTE
     func,MB_mTE,rest,4,j,multiTE
@@ -61,22 +62,29 @@ Usage:
     func,MB2_lip,LIP,2,j
     func,MB2_nback,nback,2,j
     sbref,MB2_SBREF,HAND nback,1,j
+    # fmap: 'task' is now 'IntendedFor' (the func images/tasks that the B0_map is used for SDC)
+    fmap,B0_map,[HAND LIP nback]
+    # dMRI
     dwi,p1_b1200,-,3,j-,b1200
     dwi,p2_b0,-,3,j-,b0
     dwi,p3_b2500,-,3,j-,b2500
     dwi,p4_b2500,-,3,j,rev
+    # ASL support is very limited (not BIDS compliant for now)
+    # Indentifier, search-string 
+    ASL,pCASL
 
   explains that the T1w scan should be found by the search string "T1_PRE"
   func by rsfMRI, and has multiband_factor 6, and pe_dir = j
   the sbref will be used for the tb_fMRI for both tasks (hands and nback)
   
-  For Siemens dicom it can be as simple as:
+  For Siemens and GE dicom it can be as simple as:
+    # Identifier,search-string,fmritask/inteded_for,mb,pe_dir,acq_label
+    # Structural scans
     T1w,T1_PRE
     cT1w,T1_Post
     FLAIR,3D_FLAIR
     T2w,3D_T2
-    SWI,SWI
-    MTI,mtc_2dyn
+    # functional scans
     func,rsfMRI_MB6,rest,-,-,singleTE
     sbref,rsfMRI_SBREF,rest,-,-,singleTE
     func,MB_mTE,rest,-,-,multiTE
@@ -85,11 +93,13 @@ Usage:
     func,MB2_lip,LIP,-,-
     func,MB2_nback,nback,-,-
     sbref,MB2_SBREF,HAND nback,-,-
+    # dMRI
     dwi,p1_b1200,-,-,-,b1200
     dwi,p2_b0,-,-,-,b0
     dwi,p3_b2500,-,-,-,b2500
     dwi,p4_b2500,-,-,-,rev
-
+    # fmap, SWI, MTC and ASL have not been tested on Siemens or GE
+    
 Example:
 
   `basename $0` -p pat001 -d pat001.zip -c definitions_of_sequences.txt -o BIDS
@@ -587,6 +597,16 @@ fi
 # dump the dicom tags of all dicoms in a file
 kul_e2cl "  brute force extraction of some relevant dicom tags of all dicom files of subject $subj into file $dump_file" $log
 
+# check if a DICOMIR file exists and archive it (we do a brute force extraction and don't need the DICOMDIR file)
+test_DICOMDIR=($(find -L ${tmp} -type f -name "DICOMDIR" ))
+#echo "DICOMDIR = $test_DICOMDIR"
+if [[ $test_DICOMDIR == "" ]]; then
+    echo "  OK there is no DICOMDIR"
+else
+    gzip $test_DICOMDIR
+fi
+
+# Do the bruce force extract
 echo hello > $dump_file
 
 task(){
@@ -594,20 +614,14 @@ task(){
     echo "$dcm_file" $dcm1 >> $dump_file
 }
 
-N=4
 (
 find -L ${tmp} -type f | 
 while IFS= read -r dcm_file; do
-    
-    ((i=i%N)); ((i++==0)) && wait
-    task &
-
+    task 
 done
 )
 
-
 kul_e2cl "    done reading dicom tags of $dcm" $log
-wait
 
 
 # create empty bids description
@@ -620,6 +634,7 @@ declare -a sub_bids
 while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
     bs=$(( $bs + 1))
+
 
  if [[ ! ${identifier} == \#* ]]; then
 
@@ -683,6 +698,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
     if [[ ${identifier} == "PD" ]]; then 
         
         kul_find_relevant_dicom_file
+The complete ASL
 
         if [ $seq_found -eq 1 ]; then
 
@@ -735,6 +751,28 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
     fi
 
+    if [[ ${identifier} == "ASL" ]]; then 
+        
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids_SWI='{"dataType": "perf", "modalityLabel": "asl", 
+                "criteria": {  
+                    "SeriesDescription": "*'${search_string}'*",
+                    "ImageType": [
+                        "ORIGINAL","PRIMARY","PERFUSION","NONE","REAL"
+                    ]}}'
+
+            sub_bids_[$bs]=$(echo ${sub_bids_SWI} | python -m json.tool)
+
+        fi
+
+    fi
+
     if [[ ${identifier} == "FLAIR" ]]; then 
         
         kul_find_relevant_dicom_file
@@ -761,18 +799,44 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
+            
+            sub_bids_fm1='
+            {
+                "dataType": "fmap",
+                "modalityLabel": "magnitude",
+                "criteria": 
+                    {
+                    "SeriesDescription": "*'${search_string}'*",
+                    "EchoNumber": 1
+                    }
+            }'
+            
+            #echo $sub_bids_fm1
+            sub_bids_fm1a=$(echo ${sub_bids_fm1} | python -m json.tool)
+            
+            sub_bids_fm2='
+            {
+                "dataType": "fmap",
+                "modalityLabel": "fieldmap",
+                "criteria": 
+                    {
+                    "SeriesDescription": "'*${search_string}'*",
+                    "EchoNumber": 2
+                    },
+                "sidecarChanges":
+                {"Units": "Hz","IntendedFor": "##REPLACE_ME_INTENDED_FOR##"}
+            }'
+            
+            #echo $sub_bids_fm2
+            sub_bids_fm2a=$(echo ${sub_bids_fm2} | python -m json.tool)
 
-            sub_bids_fm='{"dataType": "fmap","modalityLabel": "magnitude","criteria": 
-            {{"SeriesDescription": "'${search_string}'","ImageType": "ORIGINAL"},
-            "equal": {"EchoNumber": 1}},{"dataType": "fmap","modalityLabel": "fieldmap",
-            "criteria": {{"SeriesDescription": "'${search_string}'","ImageType":
-            "ORIGINAL"},"equal": {"EchoNumber": 2}},"sidecarChanges":
-            {"Units": "Hz","IntendedFor": "##REPLACE_ME_INTENDED_FOR##"}}'
+            sub_bids_[$bs]="${sub_bids_fm1a},${sub_bids_fm2a}"
 
-            sub_bids_[$bs]=$(echo ${sub_bids_fm} | python -m json.tool)
-        
+            echo $sub_bids_[$bs]
+
             fmap_task=$task
-        
+            intended_tasks_array=($task)
+
         fi     
 
     fi
@@ -1062,6 +1126,7 @@ if [ ! -d BIDS ];then
     echo "tmp_dcm2bids/*" > .bidsignore
     echo "*/anat/*SWI*" >> .bidsignore
     echo "*/anat/*MTI*" >> .bidsignore
+    echo "*/perf/*asl*" >> .bidsignore
     cd ..
 fi
 
@@ -1121,10 +1186,10 @@ fi
 if [[ ${fmap_task} ]] ; then 
 
     for intended_task in "${intended_tasks_array[@]}"; do
-        echo $intended_task
-        echo $cwd
+        #echo $intended_task
+        #echo $cwd
         search_runs_of_task=($(find ${cwd}/${bids_output}/sub-${subj}/func -type f | grep task-${intended_task} | grep nii.gz))
-        echo ${search_runs_of_task[@]}
+        #echo ${search_runs_of_task[@]}
 
         n_runs=${#search_runs_of_task[@]}
         echo "  we found $n_runs of task $intended_task"
