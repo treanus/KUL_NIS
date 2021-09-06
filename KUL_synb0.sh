@@ -4,7 +4,7 @@
 # Requires docker
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
-# 19/03/2021
+# 06/09/2021
 version="0.1"
 
 kul_main_dir=`dirname "$0"`
@@ -18,7 +18,7 @@ function Usage {
 
 cat <<USAGE
 
-`basename $0` runs qsiprep tuned for KUL/UZLeuven data
+`basename $0` runs synb0 tuned for KUL/UZLeuven data
 
 Usage:
 
@@ -35,10 +35,6 @@ Required arguments:
 Optional arguments:
      
      -s:  session
-	 -w:  workflow (1=mrtrix_connectome, 2=qsiprep; default:1) 
-     -t:  susceptibility correction model (1=synb0, 2=topup j, 3=topup j-; 4=none default:1)
-     -m:  hmc_model when using qsiprep workflow (1=none,2=eddy,3=3dSHORE; default:2)
-     -g:  use gpu (does not work an MacOs)
      -n:  number of cpu to use (default 15)
      -v:  show output from commands
 
@@ -53,11 +49,8 @@ USAGE
 # Set defaults
 silent=1 # default if option -v is not given
 ncpu=15
-hmc=2
-gpu=0
-sdc=1
-wfl=1
 session=""
+sdc=1
 
 # Set required options
 p_flag=0
@@ -68,7 +61,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "w:p:s:n:m:t:gv" OPT; do
+	while getopts "p:s:anv" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -78,20 +71,12 @@ else
 		s) #session
 			session=$OPTARG
 		;;
-        w) #workflow
-			wfl=$OPTARG
-		;;
-		m) #hmc
-			hmc=$OPTARG
-		;;
-		t) #sdc
-			sdc=$OPTARG
+		n) #do all
+			all=1
+			p_flag=1
 		;;
         n) #ncpu
 			ncpu=$OPTARG
-		;;
-		g) #gpu
-			gpu=1
 		;;
         v) #verbose
 			silent=0
@@ -117,108 +102,27 @@ fi
 # check for required options
 if [ $p_flag -eq 0 ] ; then
 	echo
-	echo "Option -p is required: give the BIDS name of the participant." >&2
+	echo "Option -p (or -a) is required: give the BIDS name of the participant." >&2
 	echo
 	exit 2
 fi
-
-if [ $hmc -eq 1 ]; then
-    hmc_type="none"
-elif [ $hmc -eq 2 ]; then
-    hmc_type="eddy"
-elif [ $hmc -eq 3 ]; then
-    hmc_type="3dSHORE"
-else
-    echo "Wrong hmc type; exitting"
-    exit
-fi
-
-if [ $sdc -eq 1 ]; then
-    sdc_type="synb0"
-	dir_epi="PA"
-elif [ $sdc -eq 2 ]; then
-    sdc_type="topup j"
-	topup_pe_dir="j"
-	dir_epi="PA"
-elif [ $sdc -eq 3 ]; then
-    sdc_type="topup j-"
-	topup_pe_dir="j-"
-	dir_epi="AP"	
-elif [ $sdc -eq 4 ]; then
-    sdc_type="none"
-else
-    echo "Wrong sdc type; exitting"
-    exit
-fi
-
-# set the version of qsiprep
-version="0.13.1"
-version="latest"
 
 # ----  MAIN  ------------------------
 
 #echo $participant
 if [ -z $session ];then
-	sessuf=""
+	sessuf1=""
+	sessuf2=""
 else
-	sessuf="/ses-"
+	sessuf1="/ses-${session}"
+	sessuf2="_ses-${session}"
+
 fi
-bids_subj=BIDS/sub-${participant}${sessuf}${session}
+bids_subj=BIDS/sub-${participant}${sessuf1}
 echo $bids_subj
 
-qsi_data="${cwd}/BIDS"
-qsi_scratch="${cwd}/qsiprep_work_${participant}"
-
-
-if [ $gpu -eq 1 ]; then
-	gpu_cmd1="--gpus all"
-	gpu_cmd2="--eddy-config /data/derivatives/eddy_params.json"
-	eddy_config_settings="{
-  	\"flm\": \"linear\",
-	\"slm\": \"linear\",
-	\"fep\": false,
-	\"interp\": \"spline\",
-	\"nvoxhp\": 1000,
-	\"fudge_factor\": 10,
-	\"dont_sep_offs_move\": false,
-	\"dont_peas\": false,
-	\"niter\": 5,
-	\"method\": \"jac\",
-	\"repol\": true,
-	\"num_threads\": 1,
-	\"is_shelled\": true,
-	\"use_cuda\": true,
-	\"cnr_maps\": true,
-	\"residuals\": false,
-	\"output_type\": \"NIFTI_GZ\",
-	\"args\": \"\"
-	}"
-	echo $eddy_config_settings > $qsi_data/derivatives/eddy_params.json
-else
-	gpu_cmd1=""
-	gpu_cmd2="--eddy-config /data/derivatives/eddy_params.json"
-	eddy_config_settings="{
-  	\"flm\": \"linear\",
-	\"slm\": \"linear\",
-	\"fep\": false,
-	\"interp\": \"spline\",
-	\"nvoxhp\": 1000,
-	\"fudge_factor\": 10,
-	\"dont_sep_offs_move\": false,
-	\"dont_peas\": false,
-	\"niter\": 5,
-	\"method\": \"jac\",
-	\"repol\": true,
-	\"num_threads\": $ncpu,
-	\"is_shelled\": true,
-	\"use_cuda\": false,
-	\"cnr_maps\": true,
-	\"residuals\": false,
-	\"output_type\": \"NIFTI_GZ\",
-	\"args\": \"\"
-	}"
-	echo $eddy_config_settings > $qsi_data/derivatives/eddy_params.json
-fi
+#qsi_data="${cwd}/BIDS"
+#qsi_scratch="${cwd}/qsiprep_work_${participant}"
 
 # run synb0
 # prepare for Synb0-disco
@@ -226,7 +130,7 @@ if [ $sdc -eq 1 ]; then
 
 	synb0_scratch="${cwd}/synb0_work_${bids_subj}"
 	bids_dmri_found=($(find $cwd/$bids_subj/dwi -type f -name "*dwi.nii.gz")) 
-	number_of_bids_fmri_found=${#bids_dmri_found[@]}
+	number_of_bids_dmri_found=${#bids_dmri_found[@]}
 
 	test_file=$synb0_scratch/OUTPUTS/b0_u.nii.gz
 
@@ -287,65 +191,30 @@ if [ $sdc -eq 1 ]; then
 		echo $cmd
 		eval $cmd
 
-		synb0out=2
 
-		if [ -z $session ];then
-			sessuf2=""
-		else
-			sessuf2="_ses-${session}"
-		fi
-
-		if [ $synb0out -eq 1 ];then 
-			# make a json
-			json_file=${synb0_scratch}/sub-${participant}_fieldmap.json
-			echo "{" > $json_file
-			echo "\"Units\": \"Hz\"," >> $json_file
-			echo "\"IntendedFor\": [" >> $json_file
-			for i in `seq 0 $(($number_of_bids_fmri_found-1))`; do
-				if [ $i -eq $(($number_of_bids_fmri_found-1)) ];then
-					comma=""
-				else
-					comma=", "
-				fi
-				echo "\"${bids_dmri_found[i]#*$participant/}\"$comma" >> $json_file
-			done
-			echo "]" >> $json_file
-			echo "}" >> $json_file
+		# make a json
+		json_file=${synb0_scratch}/sub-${participant}${sessuf2}_dir-${dir_epi}_epi.json
+		echo "{" > $json_file
+		echo "\"PhaseEncodingDirection\": \"j\"," >> $json_file
+		echo "\"TotalReadoutTime\": 0.000," >> $json_file
+		echo "\"IntendedFor\": [" >> $json_file
+		for i in `seq 0 $(($number_of_bids_dmri_found-1))`; do
+			if [ $i -eq $(($number_of_bids_dmri_found-1)) ];then
+				comma=""
+			else
+				comma=", "
+			fi
+			echo "\"${bids_dmri_found[i]#*$participant/}\"$comma" >> $json_file
+		done
+		echo "]" >> $json_file
+		echo "}" >> $json_file
 
 
-			# add these to the BIDS
-			mkdir -p $qsi_data/sub-${participant}/fmap
-			cp $json_file $qsi_data/sub-${participant}/fmap
-			cp $synb0_scratch/OUTPUTS/topup_fieldcoef.nii.gz $qsi_data/sub-${participant}/fmap/sub-${participant}_fieldmap.nii.gz
-		
-		else
+		# add these to the BIDS
+		mkdir -p ${cwd}/${bids_subj}/fmap
+		cp $json_file ${cwd}/${bids_subj}/fmap
+		cp $synb0_scratch/OUTPUTS/b0_u.nii.gz ${cwd}/${bids_subj}/fmap/sub-${participant}${sessuf2}_dir-${dir_epi}_epi.nii.gz
 
-			# make a json
-
-			sessuf2="ses-$session"
-			json_file=${synb0_scratch}/sub-${participant}${sessuf2}_dir-${dir_epi}_epi.json
-			echo "{" > $json_file
-			echo "\"PhaseEncodingDirection\": \"j\"," >> $json_file
-			echo "\"TotalReadoutTime\": 0.000," >> $json_file
-			echo "\"IntendedFor\": [" >> $json_file
-			for i in `seq 0 $(($number_of_bids_fmri_found-1))`; do
-				if [ $i -eq $(($number_of_bids_fmri_found-1)) ];then
-					comma=""
-				else
-					comma=", "
-				fi
-				echo "\"${bids_dmri_found[i]#*$participant/}\"$comma" >> $json_file
-			done
-			echo "]" >> $json_file
-			echo "}" >> $json_file
-
-
-			# add these to the BIDS
-			mkdir -p ${cwd}/${bids_subj}/fmap
-			cp $json_file ${cwd}/${bids_subj}/fmap
-			cp $synb0_scratch/OUTPUTS/b0_u.nii.gz ${cwd}/${bids_subj}/fmap/sub-${participant}${sessuf2}_dir-${dir_epi}_epi.nii.gz
-
-		fi
 	
 	fi
 
@@ -432,53 +301,6 @@ elif [ $sdc -eq 4 ]; then
 fi
 
 
-if [ $wfl -eq 1 ]; then
-	
-	outputdir="$cwd/MRtrix3_connectome"
-	scratchdir="$cwd/MRtrix3_connectome_sub-${participant}"
 
-	test_file="$cwd/MRtrix3_connectome/MRtrix3_connectome-preproc/sub-${participant}/dwi/sub-${participant}_desc-preproc_dwi.nii.gz"
-	
-	if [ ! -f $test_file ];then
-		my_cmd="docker run -i --rm \
-			-v $cwd/BIDS:/bids_dataset \
-			-v $outputdir:/output \
-			$gpu_cmd1 \
-			bids/mrtrix3_connectome \
-			/bids_dataset /output preproc --participant_label $participant \
-			--output_verbosity 4 \
-			--template_reg ants "
-	else
-		my_cmd="echo Already preprocessed"
-	fi
-
-elif [ $wfl -eq 2 ]; then
-
-	outputdir="$cwd/qsiprep"
-
-	my_cmd="docker run --rm -it \
-		-v $FS_LICENSE:/opt/freesurfer/license.txt:ro \
-		-v $qsi_data:/data:ro \
-		-v $qsi_out:/out \
-		-v $qsi_scratch:/scratch \
-		$gpu_cmd1 \
-		pennbbl/qsiprep:$version \
-		/data /out participant \
-		-w /scratch \
-		--run-uuid $(id -u) \
-		--acquisition_type main \
-		--output-resolution 1.2 \
-		--hmc_model $hmc_type \
-		$gpu_cmd2 \
-		--prefer-dedicated-fmaps \
-		--participant_label $participant \
-		--recon_spec mrtrix_multishell_msmt_noACT "
-fi
-
-echo $my_cmd
-
-mkdir -p $outputdir
-
-eval $my_cmd
 
 
