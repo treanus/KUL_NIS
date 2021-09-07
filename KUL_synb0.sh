@@ -26,7 +26,7 @@ Usage:
 
 Example:
 
-  `basename $0` -p JohnDoe 
+  `basename $0` -p JohnDoe -s precovid -n 6
 
 Required arguments:
 
@@ -51,6 +51,7 @@ silent=1 # default if option -v is not given
 ncpu=15
 session=""
 sdc=1
+dir_epi="PA"
 
 # Set required options
 p_flag=0
@@ -186,9 +187,9 @@ if [ $sdc -eq 1 ]; then
 			-v $synb0_scratch/OUTPUTS:/OUTPUTS/ \
 			-v $FS_LICENSE:/extra/freesurfer/license.txt \
 			--user $(id -u):$(id -g) \
-			hansencb/synb0 \
-			--notopup"
-		echo $cmd
+			hansencb/synb0" #\
+			#--notopup"
+		echo "  we run synb0 using command: $cmd"
 		eval $cmd
 
 
@@ -197,7 +198,8 @@ if [ $sdc -eq 1 ]; then
 		echo "{" > $json_file
 		echo "\"PhaseEncodingDirection\": \"j\"," >> $json_file
 		echo "\"TotalReadoutTime\": 0.000," >> $json_file
-		echo "\"IntendedFor\": [" >> $json_file
+		# need to reprogram this, so that there is a synthetic synb0 in fmap for each dwi-dataset 
+		echo "\"IntendedFor\": " >> $json_file
 		for i in `seq 0 $(($number_of_bids_dmri_found-1))`; do
 			if [ $i -eq $(($number_of_bids_dmri_found-1)) ];then
 				comma=""
@@ -206,7 +208,7 @@ if [ $sdc -eq 1 ]; then
 			fi
 			echo "\"${bids_dmri_found[i]#*$participant/}\"$comma" >> $json_file
 		done
-		echo "]" >> $json_file
+		#echo "]" >> $json_file
 		echo "}" >> $json_file
 
 
