@@ -74,7 +74,7 @@ else
 			participant=$OPTARG
             p_flag=1
 		;;
-		p) #level
+		l) #level
 			level=$OPTARG
             l_flag=1
 		;;
@@ -131,7 +131,7 @@ if [ -z $session ];then
 	mrtrix_session_label=""
 else
 	sessuf="/ses-"
-	mrtrix_session_label=" -session_label $session "
+	mrtrix_session_label=" --session_label $session "
 fi
 bids_subj=BIDS/sub-${participant}${sessuf}${session}
 echo $bids_subj
@@ -146,12 +146,11 @@ else
 	gpu_cmd1=""
 fi
 
+outputdir="$cwd/MRtrix3_connectome"
+scratchdir="$cwd/MRtrix3_connectome_sub-${participant}"
 
 if [ $level -eq 1 ]; then
 	
-	outputdir="$cwd/MRtrix3_connectome"
-	scratchdir="$cwd/MRtrix3_connectome_sub-${participant}"
-
 	test_file="$cwd/MRtrix3_connectome/MRtrix3_connectome-preproc/sub-${participant}/dwi/sub-${participant}_desc-preproc_dwi.nii.gz"
 	
 	if [ ! -f $test_file ];then
@@ -171,7 +170,6 @@ if [ $level -eq 1 ]; then
 
 elif [ $level -eq 2 ]; then
 
-	outputdir="$cwd/qsiprep"
 
 	my_cmd="docker run -i --rm \
 			-v $cwd/BIDS:/bids_dataset \
@@ -183,11 +181,10 @@ elif [ $level -eq 2 ]; then
 			$mrtrix_session_label \
 			--output_verbosity 4 \
 			--template_reg ants \
+			--parcellation yeo17mni
 			--n_cpus $ncpu"
 
 elif [ $level -eq 2 ]; then
-
-	outputdir="$cwd/qsiprep"
 
 	my_cmd="docker run -i --rm \
 			-v $cwd/BIDS:/bids_dataset \

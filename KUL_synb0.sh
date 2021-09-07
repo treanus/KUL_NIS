@@ -220,6 +220,9 @@ if [ $sdc -eq 1 ]; then
 		#mrconvert $synb0_scratch/dwi_p1_b0s.mif -coord 3 0 ${cwd}/${bids_subj}/fmap/sub-${participant}${sessuf2}_dir-AP_epi.nii.gz \
 		#	-strides -1,+2,+3,+4  -json_export ${cwd}/${bids_subj}/fmap/sub-${participant}${sessuf2}_dir-AP_epi.json
 	
+		mkdir -p ${cwd}/${bids_subj}/topup
+		cp $synb0_scratch/OUTPUTS/topup* ${cwd}/${bids_subj}/topup/
+		
 	fi
 
 
