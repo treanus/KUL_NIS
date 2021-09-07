@@ -213,12 +213,12 @@ if [ $sdc -eq 1 ]; then
 
 
 		# add these to the BIDS
-		mkdir -p ${cwd}/${bids_subj}/fmap
-		cp $json_file ${cwd}/${bids_subj}/fmap
-		cp $synb0_scratch/OUTPUTS/b0_u.nii.gz ${cwd}/${bids_subj}/fmap/sub-${participant}${sessuf2}_dir-${dir_epi}_epi.nii.gz
+		#mkdir -p ${cwd}/${bids_subj}/fmap
+		#cp $json_file ${cwd}/${bids_subj}/fmap
+		#cp $synb0_scratch/OUTPUTS/b0_u.nii.gz ${cwd}/${bids_subj}/fmap/sub-${participant}${sessuf2}_dir-${dir_epi}_epi.nii.gz
 
-		mrconvert $synb0_scratch/dwi_p1_b0s.mif -coord 3 0 ${cwd}/${bids_subj}/fmap/sub-${participant}${sessuf2}_dir-AP_epi.nii.gz \
-			-strides -1,+2,+3,+4  -export_json ${cwd}/${bids_subj}/fmap/sub-${participant}${sessuf2}_dir-AP_epi.json
+		#mrconvert $synb0_scratch/dwi_p1_b0s.mif -coord 3 0 ${cwd}/${bids_subj}/fmap/sub-${participant}${sessuf2}_dir-AP_epi.nii.gz \
+		#	-strides -1,+2,+3,+4  -json_export ${cwd}/${bids_subj}/fmap/sub-${participant}${sessuf2}_dir-AP_epi.json
 	
 	fi
 
