@@ -663,6 +663,52 @@ fi
 
 }
 
+
+# A function to start KUL_synb0 processing (in parallel)
+function task_KUL_synb0 {
+
+# check if already performed KUL_synb0
+synb0_file_to_check=synb0/sub-${BIDS_participant}/synb0_is_done.log
+
+if [ ! -f  $synb0_file_to_check ]; then
+
+    synb0_log=${preproc}/log/synb0/synb0_${BIDS_participant}.txt
+    mkdir -p ${preproc}/log/synb0
+
+    kul_e2cl " started (in parallel) KUL_synb0 on participant ${BIDS_participant}... (using $ncpu_synb0 cores, logging to $synb0_log)" ${log}
+
+    if [ "$cleanup_synb0" -eq 1 ]; then
+        extra_options_synb0=" -c "
+    fi
+
+    local task_synb0_cmd=$(echo "KUL_synb0.sh -p ${BIDS_participant} $extra_options_synb0 -n $ncpu_synb0 -v \
+    > $synb0_log 2>&1 ")
+
+    kul_echo "   using cmd: $task_synb0_cmd"
+    
+    if [ $make_pbs_files_instead_of_running -eq 0 ]; then
+        # Now we start the parallel job
+        eval $task_synb0_cmd &
+        synb0_pid="$!"
+        kul_echo " KUL_synb0 pid is $synb0_pid"
+        sleep 2
+    else
+        
+        echo "not yet implemented"
+        # still to do
+
+    fi
+
+else
+
+    synb0_pid=-1
+    kul_echo " KUL_dwiprep of participant $BIDS_participant already done, skipping..."
+        
+fi
+
+}
+
+
 function WaitForTaskCompletion {
     local pidsArray=${waitforpids[@]} # pids to wait for, separated by semi-colon
     local procsArray=${waitforprocs[@]} # name of procs to wait for, separated by semi-colon     
@@ -813,7 +859,7 @@ elif [ ! -f $conf ] ; then
     echo 
     echo "The config file $conf does not exist"
     echo
-    exit 2
+    exit
 fi 
 
 # ----------- MAIN ----------------------------------------------------------------------------------
@@ -855,7 +901,7 @@ ncpu_freesurfer=$(((($ncpu/$load_freesurfer))+1))
 # set number of cores for task KUL_dwiprep
 load_dwiprep=2
 ncpu_dwiprep=$(((($ncpu/$load_dwiprep))+1))
-
+ncpu_synb0=1
 
 # Ask if docker needs to be reset
 if [ $docker_reset_flag -eq 1 ];then
@@ -979,7 +1025,7 @@ if [ $expert -eq 1 ]; then
                 task_number=$((task_number+1))
                 task_counter=1
             fi
-            task_counter=$((task_counter+1))    
+            task_counter=$((task_counter+1))
 
             BIDS_participant=$mriqc_participants
             mriqc_pid=-1
@@ -1295,6 +1341,80 @@ if [ $expert -eq 1 ]; then
             WaitForTaskCompletion 
 
             kul_e2cl " dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
+       
+        done
+       
+    fi
+
+    #check synb0 and options
+    do_synb0=$(grep do_synb0: $conf | grep -v \# | sed 's/[^0-9]//g')
+    if [ -z "$do_synb0" ]; then
+        do_synb0=0
+    fi 
+    kul_echo "  do_synb0: $do_synb0"
+
+    if [ $do_synb0 -eq 1 ]; then
+
+        synb0_cleanup=$(grep synb0_cleanup $conf | grep -v \# | sed 's/[^0-9]//g')
+        cleanup_synb0=$(($synb0_cleanup))
+
+        synb0_ncpu=$(grep synb0_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        ncpu_synb0=$(($synb0_ncpu))
+
+        #get bids_participants
+        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+        n_subj=${#BIDS_subjects[@]}
+            
+        synb0_simultaneous=$(grep synb0_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
+
+        kul_echo "  synb0_cleanup: $cleanup_synb0"
+        kul_echo "  synb0_ncpu: $ncpu_synb0"
+        kul_echo "  BIDS_participants: ${BIDS_subjects[@]}"
+        kul_echo "  number of BIDS_participants: $n_subj"
+        kul_echo "  synb0_simultaneous: $synb0_simultaneous"
+
+        # check if already performed synb0
+        todo_bids_participants=()
+        already_done=()
+
+        for i_bids_participant in $(seq 0 $(($n_subj-1))); do
+
+            synb0_file_to_check=${cwd}/synb0/sub-${BIDS_subjects[$i_bids_participant]}/synb0_is_done.log
+
+            #echo $synb0_file_to_check
+            if [ ! -f $synb0_file_to_check ]; then
+                todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})           
+            else
+                already_done+=(${BIDS_subjects[$i_bids_participant]})         
+            fi
+        done
+
+        kul_echo "  synb0 was already done for participant(s) ${already_done[@]}"
+        
+        # submit the jobs (and split them in chucks)
+        n_subj_todo=${#todo_bids_participants[@]}
+
+        for i_bids_participant in $(seq 0 $synb0_simultaneous $(($n_subj_todo-1))); do
+
+            fs_participants=${todo_bids_participants[@]:$i_bids_participant:$synb0_simultaneous}
+            kul_echo "  going to start synb0 with $synb0_simultaneous participants simultaneously, notably $fs_participants"
+
+            synb0_pid=-1
+            waitforprocs=()
+            waitforpids=()
+
+            for BIDS_participant in $fs_participants; do
+                task_KUL_synb0
+                if [ $synb0p_pid -gt 0 ]; then
+                    waitforprocs+=("synb0")
+                    waitforpids+=($synb0_pid)
+                fi
+            done 
+
+            kul_e2cl "  waiting for synb0 processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
+            WaitForTaskCompletion 
+
+            kul_e2cl " synb0 processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
        
         done
        

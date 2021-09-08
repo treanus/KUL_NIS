@@ -9,7 +9,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 # @ Ahmed Radwan - KUL - ahmed.radwan@kuleuven.be
 #
-v="v0.8 - dd 19/03/2021"
+v="v0.8 - dd 08/09/2020"
 
 # Notes
 #  - NOW USES https://github.com/UNFmontreal/Dcm2Bids
@@ -268,6 +268,12 @@ function kul_dcmtags {
     #end     
 
     multiband_factor=$mb
+
+    # if mb is not found in the config file or is set to 0
+    # simply set it to 1 and run
+    if [[ -z ${multiband_factor} ]] || [[ ${multiband_factor} == 0 ]]; then
+        multiband_factor=1
+    fi
     
 
     tags_are_present=1
@@ -303,18 +309,254 @@ function kul_dcmtags {
 
             #single_slice_time (in seconds)
             local single_slice_time=$(echo $repetion_time_msec $number_of_slices $multiband_factor | awk '{print $1 / ($2 / $3) / 1000}')
-
     
             # number of excitations given multiband
+            # e = n. of excitations/slices per band
             local e=$(echo $number_of_slices $multiband_factor | awk '{print ($1 / $2) -1 }')
+            local spb=$((${e}+1));
+            echo $e
+            echo $spb
+
+            echo "${slice_scan_order}"
         
+            # here we need to adapt to account for different slice orders
+            # e.g. 
+            if [[ "${slice_scan_order}" == "rev. central" ]]; then
+                # this is a bit different from interleaved... namely we split it into 2 gps
+                # lower group is regular ascending and second group is regular descending
+                half_e=$(echo "scale=2;(${spb}/2)" | bc | awk '{print int($1+0.5)}')
+                
+                for (( zc=0; zc<${half_e}; zc++ )); do 
+                    sl1=$(echo $zc $single_slice_time | awk '{print $1 * $2}')
+                    if [[ -z ${slit1} ]]; then 
+                        slit1="${sl1}"
+                    else
+                        slit1="${slit1}, ${sl1}"
+                    fi
+                done
 
-            slit=0
+                for (( zx=${e}; zx>=${half_e}; zx-- )); do 
+                    sl2=$(echo $zx $single_slice_time | awk '{print $1 * $2}')
+                    if [[ -z ${slit2} ]]; then 
+                        slit2="${sl2}"
+                    else
+                        slit2="${slit2}, ${sl2}"
+                    fi
+                done
 
-            for (( c=1; c<=$e; c++ )); do 
-                sl=$(echo $c $single_slice_time | awk '{print $1 * $2}')
-                slit="$slit, $sl"
-            done
+                slit="${slit1}, ${slit2}"
+                echo "${slit}"
+
+                for iz in ${!tmp_order[@]}; do
+                    sl=$(echo $((${tmp_order[$iz]})) ${single_slice_time} | awk '{print $1 * $2}');
+                    echo ${sl}
+                    if [[ -z ${slit} ]]; then 
+                        slit="${sl}"
+                        echo ${slit}
+                    else
+                        slit="${slit}, ${sl}"
+                        echo ${slit}
+                    fi
+                done
+                
+                # interleaved is ready!
+            elif [[ "${slice_scan_order}" == "interleaved" ]]; then
+                
+                declare -a tmp_order
+                step=$(echo "sqrt(${spb})" | bc)
+                unset tmp_order curr bh ik slgp; 
+                slgp=0; 
+                declare -a tmp_order; 
+                tmp_order[0]=0;
+                for ik in $(seq 1 ${e}); do 
+                    bh=$((${ik}-1)); 
+                    curr=$((${tmp_order[$bh]}+${step})); 
+                    if [[ ${curr} -gt ${e} ]]; then 
+                        ((slgp++)); 
+                        curr=${slgp}; 
+                    fi; 
+                    tmp_order[$ik]=${curr}; 
+                    
+                done; 
+
+                for iz in ${!tmp_order[@]}; do
+                    sl=$(echo $((${tmp_order[$iz]})) ${single_slice_time} | awk '{print $1 * $2}');
+                    echo ${sl}
+                    if [[ -z ${slit} ]]; then 
+                        slit="${sl}"
+                        echo ${slit}
+                    else
+                        slit="${slit}, ${sl}"
+                        echo ${slit}
+                    fi
+                done
+                
+            elif [[ "${slice_scan_order}" == "FH" ]]; then
+
+                for (( c=0; c<=$e; c++ )); do 
+                    sl=$(echo $c $single_slice_time | awk '{print $1 * $2}')
+                    if [[ -z ${slit} ]]; then 
+                        slit="${sl}"
+                    else
+                        slit="${slit}, ${sl}"
+                    fi
+                done
+
+            elif [[ "${slice_scan_order}" == "HF" ]]; then
+
+                for (( c=${e}; c>=0; c-- )); do 
+                    sl=$(echo $c $single_slice_time | awk '{print $1 * $2}')
+                    if [[ -z ${slit} ]]; then 
+                        slit="${sl}"
+                    else
+                        slit="${slit}, ${sl}"
+                    fi
+                done
+
+            elif [[ "${slice_scan_order}" == "default" ]]; then
+
+                echo ${slice_scan_order}
+                a=$((${spb} %2));
+                echo ${a}
+                # this is still untested
+                if [[ "${spb}" -le 6 ]]; then
+                    step=2;
+                    hlpp=$(($((${e}+1))/${step}));
+                    lpsl=0;
+                    lpal=${lpsl};
+                    hpsl=${e};
+                    hpal=${hpsl};
+                    order=0;
+
+                    for ii in $(seq 0 1 ${spb}); do
+                        if [[ ${lpal} -lt $((${hlpp}-1)) ]]; then
+                            tmp_order[${order}]=${lpal};
+                            lpal=$((${lpal}+${step}));
+                            ((order++))
+                        elif [[ ${hpal} -ge $((${hlpp}-1)) ]]; then
+                            tmp_order[${order}]=${hpal};
+                            hpal=$((${hpal}-${step}));
+                            ((order++))
+                        else
+                            lpal=$((${lpsl}+1))
+                            hpal=$((${hpsl}-1))
+                        fi
+                    done
+
+                    # We will not add a 1 as done in the matlab version but we iterate over spb not e also
+                    for iz in ${!tmp_order[@]}; do
+                        sl=$(echo $((${tmp_order[$iz]})) ${single_slice_time} | awk '{print $1 * $2}');
+                        if [[ -z ${slit} ]]; then 
+                            slit="${sl}"
+                        else
+                            slit="${slit}, ${sl}"
+                        fi
+                    done
+
+                # this is still untested
+                elif [[ "${spb}" == 8 ]]; then
+                    declare -a tmp_order
+                    step=$(echo "sqrt(${spb})" | bc)
+                    echo "step is ${step}"
+                    unset tmp_order curr bh ik slgp; 
+                    slgp=0; 
+                    declare -a tmp_order; 
+                    tmp_order[0]=0;
+                    echo ${tmp_order[@]}; 
+                    for ik in $(seq 1 ${e}); do 
+                        echo " ik is ${ik}"; 
+                        bh=$((${ik}-1)); 
+                        echo "bh is ${bh}"; 
+                        curr=$((${tmp_order[$bh]}+${step})); 
+                        echo "tmp_order of bh is ${tmp_order[$bh]}; 
+                        echo "initially tmp_order of ik is ${tmp_order[$ik]}; 
+                        echo "step is ${step}"; 
+                        if [[ ${curr} -gt ${e} ]]; then 
+                            echo "slgp is ${slgp}"; 
+                            ((slgp++)); 
+                            echo "inceremented slgp is ${slgp}"; 
+                            curr=${slgp}; 
+                            echo "now curr = ${slgp}"; 
+                        fi; 
+                        tmp_order[$ik]=${curr}; 
+                        echo "tmp_order of ik is ${tmp_order[$ik]}"; 
+                    done; 
+                    echo ${tmp_order[@]}
+
+                    for iz in ${!tmp_order[@]}; do
+                        sl=$(echo $((${tmp_order[$iz]})) ${single_slice_time} | awk '{print $1 * $2}');
+                        if [[ -z ${slit} ]]; then 
+                            slit="${sl}"
+                        else
+                            slit="${slit}, ${sl}"
+                        fi
+                    done
+
+                else
+
+                    # if we have an odd no. of slices per band
+                    if [[ ${a} == 1 ]]; then
+                        
+                        for zc in $(seq 0 2 ${e} ); do 
+                            sl1=$(echo $zc $single_slice_time | awk '{print $1 * $2}')
+                            if [[ -z ${slit1} ]]; then 
+                                slit1="${sl1}"
+                            else
+                                slit1="${slit1}, ${sl1}"
+                            fi
+                        done
+
+                        for zx in $(seq 1 2 ${e} ); do 
+                            sl2=$(echo $zx $single_slice_time | awk '{print $1 * $2}')
+                            if [[ -z ${slit2} ]]; then 
+                                slit2="${sl2}"
+                            else
+                                slit2="${slit2}, ${sl2}"
+                            fi
+                        done
+
+                        slit="${slit1}, ${slit2}"
+                        echo "${slit}"
+                    
+                    # if we have an odd no. of slices per band
+                    elif [[ ${a} == 0 ]]; then
+                        step=2;
+                        hlpp=$(($((${e}+1))/${step}));
+                        lpsl=0;
+                        lpal=${lpsl};
+                        hpsl=${e};
+                        hpal=${hpsl};
+                        order=0;
+
+                        for ii in $(seq 0 1 ${spb}); do
+                            if [[ ${lpal} -lt $((${hlpp}-1)) ]]; then
+                                tmp_order[${order}]=${lpal};
+                                lpal=$((${lpal}+${step}));
+                                ((order++))
+                            elif [[ ${hpal} -ge $((${hlpp}-1)) ]]; then
+                                tmp_order[${order}]=${hpal};
+                                hpal=$((${hpal}-${step}));
+                                ((order++))
+                            else
+                                lpal=$((${lpsl}+1))
+                                hpal=$((${hpsl}-1))
+                            fi
+                        done
+
+                        # We will not add a 1 as done in the matlab version but we iterate over spb not e also
+                        for iz in ${!tmp_order[@]}; do
+                            sl=$(echo $((${tmp_order[$iz]})) ${single_slice_time} | awk '{print $1 * $2}');
+                            if [[ -z ${slit} ]]; then 
+                                slit="${sl}"
+                            else
+                                slit="${slit}, ${sl}"
+                            fi
+                        done
+
+                    fi
+                fi
+
+            fi
 
             slit2=$slit
     
