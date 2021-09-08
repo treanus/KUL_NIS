@@ -122,8 +122,6 @@ fi
 bids_subj=BIDS/sub-${participant}${sessuf1}
 echo $bids_subj
 
-#qsi_data="${cwd}/BIDS"
-#qsi_scratch="${cwd}/qsiprep_work_${participant}"
 
 # run synb0
 # prepare for Synb0-disco
@@ -133,7 +131,7 @@ if [ $sdc -eq 1 ]; then
 	bids_dmri_found=($(find $cwd/$bids_subj/dwi -type f -name "*dwi.nii.gz")) 
 	number_of_bids_dmri_found=${#bids_dmri_found[@]}
 
-	test_file=$synb0_scratch/OUTPUTS/b0_u.nii.gz
+	test_file=$synb0_scratch/OUTPUTS/topup_fieldcoef.nii.gz
 
 	if [ ! -f $test_file ];then
 
@@ -220,8 +218,13 @@ if [ $sdc -eq 1 ]; then
 		#mrconvert $synb0_scratch/dwi_p1_b0s.mif -coord 3 0 ${cwd}/${bids_subj}/fmap/sub-${participant}${sessuf2}_dir-AP_epi.nii.gz \
 		#	-strides -1,+2,+3,+4  -json_export ${cwd}/${bids_subj}/fmap/sub-${participant}${sessuf2}_dir-AP_epi.json
 	
-		mkdir -p ${cwd}/${bids_subj}/topup
-		cp $synb0_scratch/OUTPUTS/topup* ${cwd}/${bids_subj}/topup/
+		mkdir -p ${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup
+		cp $synb0_scratch/OUTPUTS/topup_fieldcoef.nii.gz \
+			${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup/topup_fieldcoef.nii.gz
+			#${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup/sub-${participant}${sessuf2}_topup_fieldcoef.nii.gz
+		cp $synb0_scratch/OUTPUTS/topup_movpar.txt \
+			${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup/topup_movpar.txt
+			#${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup/sub-${participant}${sessuf2}_topup_movpar.txt
 		
 	fi
 
@@ -306,8 +309,3 @@ elif [ $sdc -eq 4 ]; then
 	echo "Not doing any SDC"
 
 fi
-
-
-
-
-
