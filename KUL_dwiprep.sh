@@ -320,23 +320,13 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 			#dwicat -version
 			#which dwicat
 			#which mrhistmatch
-			ls ${raw}/dwi_p?.mif
-			#sleep 5
-			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif #-nocleanup 
+			#ls ${raw}/dwi_p?.mif
+			sleep 5
+			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif # -nocleanup 
 
 		fi
 
 
-	fi
-
-	if [ $rev_only_topup -eq 1 ]; then
-
-		dwiextract ${preproc}/dwi_orig.mif -pe 0,-1,0 ${preproc}/dwi_orig_norev.mif
-		dwi_orig=dwi_orig_norev.mif
-
-	else
-
-		dwi_orig=dwi_orig.mif
 	fi
 
 else
@@ -345,6 +335,18 @@ else
 
 fi
 
+
+
+if [ $rev_only_topup -eq 1 ]; then
+
+	dwiextract ${preproc}/dwi_orig.mif -pe 0,-1,0 ${preproc}/dwi_orig_norev.mif -force
+	dwi_orig=dwi_orig_norev.mif
+
+else
+
+	dwi_orig=dwi_orig.mif
+
+fi
 
 # STEP 2 - DWI Preprocessing ---------------------------------------------
 

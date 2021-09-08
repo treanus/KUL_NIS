@@ -36,7 +36,8 @@ Optional arguments:
 
      -t:  processing type
         type 1: (DEFAULT) do hd-glio and vbg (tumor with T1w, cT1w, T2w and FLAIR)
-        type 2: do vbg with manual mask (tumor but missing one of T1w, cT1w, T2w and FLAIR)
+        type 2: do vbg with manual mask (tumor but missing one of T1w, cT1w, T2w and FLAIR; 
+                    put lesion.nii in RESULTS/sub-{participant}/Anat)
         type 3: don't run hd-glio nor vbg (cavernoma, epilepsy, etc... cT1w)
      -d:  dicom zip file (or directory)
      -c:  make a backup and cleanup 
@@ -166,14 +167,37 @@ function KUL_convert2bids {
         echo "BIDS conversion already done"
     fi
 }
+function KUL_check_data {
+    # check the BIDS
+    find_fmri=($(find ${cwd}/BIDS/sub-${participant} -name "*_bold.nii.gz"))
+    n_fMRI=${#find_fmri[@]}
+    if [ $n_fMRI -eq 0 ]; then
+        echo " WARNING: no fMRI data"
+    fi
+
+    find_dwi=($(find ${cwd}/BIDS/sub-${participant} -name "*_dwi.nii.gz"))
+    n_dwi=${#find_dwi[@]}
+    if [ $n_dwi -eq 0 ]; then
+        echo " WARNING: no dwi data"
+    fi
+}
 
 function KUL_run_fmriprep {
     if [ ! -f fmriprep/sub-${participant}.html ]; then
         cp study_config/run_fmriprep.txt KUL_LOG/sub-${participant}_run_fmriprep.txt
         sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_fmriprep.txt
         rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
+        if [ $n_fMRI -gt 0 ]; then
+            fmriprep_options="--fs-no-reconall --use-aroma --use-syn-sdc "
+        else
+            fmriprep_options="--fs-no-reconall --anat-only "
+        fi
+        sed -i.bck "s/fmriprep_options: /fmriprep_options: ${fmriprep_options}/" KUL_LOG/sub-${participant}_run_fmriprep.txt
+        rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
         KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_fmriprep.txt 
         rm -fr fmriprep_work_${participant}
+        cp -f fmriprep/sub-$participant/anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/Anat/T1w.nii.gz
+        gunzip -f $globalresultsdir/Anat/T1w.nii.gz
     else
         echo "fmriprep already done"
     fi
@@ -247,7 +271,7 @@ function KUL_compute_SPM_matlab {
 
 function KUL_compute_SPM {
     #  setup variables
-    computedir="$kulderivativesdir/SPM/sub-$participant"
+    computedir="$kulderivativesdir/sub-$participant/SPM"
     fmridatadir="$computedir/fmridata"
     scriptsdir="$computedir/scripts"
     fmriprepdir="fmriprep/sub-$participant/func"
@@ -262,8 +286,8 @@ function KUL_compute_SPM {
     mkdir -p $computedir/RESULTS/MNI
 
     # Provide the anatomy
-    cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/Anat/T1w.nii.gz
-    gunzip -f $globalresultsdir/Anat/T1w.nii.gz
+    #cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/Anat/T1w.nii.gz
+    #gunzip -f $globalresultsdir/Anat/T1w.nii.gz
 
     if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
         echo "Preparing for SPM"
@@ -391,19 +415,16 @@ function KUL_run_VBG {
             echo "Starting KUL_VBG"
             mkdir -p ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
             mkdir -p ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG
-            
-            #KUL_VBG.sh -p ${participant} \
-            #    -l $globalresultsdir/Anat/lesion.nii \
-            #   -o BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-            #    -m BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-            #    -z T1 -b -B 1 -t -F -n $ncpu -v
 
-            KUL_VBG.sh -p ${participant} \
+            # dev version 19/05/2021
+            KUL_VBG.sh -S ${participant} \
                 -l $globalresultsdir/Anat/lesion.nii \
-                -z T1 -b -B 1 -t -F -n $ncpu -v     
-                       
+                -o BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
+                -m BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
+                -z T1 -b -B 1 -t -P 1 -n $ncpu -v          
+
             #cp -r ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}/* \
-                BIDS/derivatives/freesurfer/sub-${participant}
+            #    BIDS/derivatives/freesurfer/sub-${participant}
             #rm -fr ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}
             #ln -s ${cwd}/lesion_wf/output_LWF/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/ freesurfer
             echo "done" > BIDS/derivatives/freesurfer/sub-${participant}_freesurfer_is.done
@@ -448,7 +469,7 @@ function KUL_run_FWT {
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
      -c $cwd/study_config/${config} \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-     -o $kulderivativesdir/FWT/sub-${participant} \
+     -o $kulderivativesdir/sub-${participant}/FWT \
      -n $ncpu $str_silent"
     eval $my_cmd
 
@@ -458,20 +479,20 @@ function KUL_run_FWT {
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
      -c $cwd/study_config/${config} \
      -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-     -o $kulderivativesdir/FWT/sub-${participant} \
+     -o $kulderivativesdir/sub-${participant}/FWT \
      -T 1 -a iFOD2 \
      -Q -S \
      -n $ncpu $str_silent"
     eval $my_cmd
 
-    ln -s $kulderivativesdir/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
-    ln -s $kulderivativesdir/FWT/sub-${participant}/sub-${participant}_TCKs_output/*/*filt3_BT_iFOD2.tck $globalresultsdir/Tracto/
-    pdfunite $kulderivativesdir/FWT/sub-${participant}/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
+    ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
+    ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*filt3_BT_iFOD2.tck $globalresultsdir/Tracto/
+    pdfunite $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
  }
 
 function KUL_compute_melodic {
 # run FSL Melodic
-computedir="$kulderivativesdir/FSL/melodic/sub-$participant"
+computedir="$kulderivativesdir/sub-$participant/FSL_melodic"
 fmridatadir="$computedir/fmridata"
 scriptsdir="$computedir/scripts"
 fmriprepdir="fmriprep/sub-$participant/func"
@@ -571,11 +592,18 @@ if [ ! -f KUL_LOG/sub-${participant}_1_bidscheck.done ]; then
     else
         touch KUL_LOG/sub-${participant}_1_bidscheck.done
     fi
-fi 
+fi
+
+# Check if fMRI and/or dwi data are present
+KUL_check_data
+
 
 # STEP 2 - run fmriprep/dwiprep and continue
 KUL_run_fmriprep &
-KUL_run_dwiprep &
+if [ $n_dwi -gt 0 ];then
+    KUL_run_dwiprep &
+fi
+
 
 # STEP 3 - run HD-GLIO-AUTO
 if [ $hdglio -eq 1 ];then
@@ -593,14 +621,18 @@ fi
 wait
 
 # STEP 5 - run SPM/melodic/msbp
-KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
-KUL_compute_SPM &  
-KUL_compute_melodic &
 KUL_run_msbp &
+KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
+if [ $n_fMRI -gt 0 ];then
+    KUL_compute_SPM &  
+    KUL_compute_melodic &
+fi
 
 wait 
 
-KUL_run_FWT
+# STEP 6 - run Fun With Tracts
+if [ $n_dwi -gt 0 ];then
+    KUL_run_FWT
+fi
 
 echo "Finished"
-
