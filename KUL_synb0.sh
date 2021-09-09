@@ -1,5 +1,5 @@
 #!/bin/bash -e
-# Bash shell script to run qsiprep or mrtrix_connectome
+# Bash shell script to run synb0 from BIDS and store the output of topup in the BIDS derivatives
 #
 # Requires docker
 #
@@ -35,7 +35,7 @@ Required arguments:
 Optional arguments:
      
      -s:  session
-	 -c:  cleanup the topup_fieldmap (remove signal in air anterior from eyes)
+	 -c:  cleanup the topup_fieldmap (remove signal in air anterior from eyes) in development
      -n:  number of cpu to use (default 15)
      -v:  show output from commands
 
@@ -132,6 +132,7 @@ num_sessions=${#search_sessions[@]}
 echo "  Number of BIDS sessions: $num_sessions"
 echo "    notably: ${search_sessions[@]}"
 
+
 # ---- BIG LOOP for processing each session
 for i in `seq 0 $(($num_sessions-1))`; do
 
@@ -139,18 +140,21 @@ for i in `seq 0 $(($num_sessions-1))`; do
 	long_bids_subj=${search_sessions[$i]}
 	bids_subj=${long_bids_subj%dwi}
 	#echo $bids_subj
-	#echo $participant
 
-	if [ -z $session ];then
+	if [[ $bids_subj == *"ses-"* ]];then
+		ses=${bids_subj#*ses-}
+		ses=${ses%*/}
+		sessuf1="/ses-${ses}"
+		sessuf2="_ses-${ses}"
+	else
+		ses=""
 		sessuf1=""
 		sessuf2=""
-	else
-		sessuf1="/ses-${session}"
-		sessuf2="_ses-${session}"
-
 	fi
-
-	#echo $bids_subj
+	#echo $ses
+	#echo $sessuf1
+	#echo $sessuf2
+	
 
 	# run synb0
 	# prepare for Synb0-disco
@@ -238,7 +242,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 			#echo "]" >> $json_file
 			echo "}" >> $json_file
 
-
+		else
 			# add these to the BIDS derivatives		
 			mkdir -p ${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup
 			if [ $cleanup -eq 1 ];then
@@ -255,7 +259,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 				${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup/topup_movpar.txt
 				#${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup/sub-${participant}${sessuf2}_topup_movpar.txt
 		
-		else
+		#else
 
 			echo "  $bids_subj already done"
 

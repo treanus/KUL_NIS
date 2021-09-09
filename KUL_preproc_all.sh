@@ -1379,9 +1379,10 @@ if [ $expert -eq 1 ]; then
 
         for i_bids_participant in $(seq 0 $(($n_subj-1))); do
 
-            synb0_file_to_check=${cwd}/synb0/sub-${BIDS_subjects[$i_bids_participant]}/synb0_is_done.log
+            synb0_file_to_check=${cwd}/BIDS/derivatives/synb0/sub-${BIDS_subjects[$i_bids_participant]}/synb0_is_done.log
 
             #echo $synb0_file_to_check
+
             if [ ! -f $synb0_file_to_check ]; then
                 todo_bids_participants+=(${BIDS_subjects[$i_bids_participant]})           
             else
@@ -1405,7 +1406,7 @@ if [ $expert -eq 1 ]; then
 
             for BIDS_participant in $fs_participants; do
                 task_KUL_synb0
-                if [ $synb0p_pid -gt 0 ]; then
+                if [ $synb0_pid -gt 0 ]; then
                     waitforprocs+=("synb0")
                     waitforpids+=($synb0_pid)
                 fi
