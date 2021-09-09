@@ -32,12 +32,12 @@ Example:
 
 Required arguments:
 
-	 -l:  level (1=preproc, 2=participant, 3=group) 
+     -l:  level (1=preproc, 2=participant, 3=group) 
 
 Optional arguments:
      
      -p:  participant name
-	 -s:  session
+     -s:  session
      -g:  use gpu (does not work an MacOs)
      -n:  number of cpu to use (default 15)
      -v:  show output from commands
@@ -158,10 +158,11 @@ if [ $level -eq 1 ]; then
 			-v $cwd/BIDS:/bids_dataset \
 			-v $outputdir:/output \
 			$gpu_cmd1 \
-			bids/mrtrix3_connectome \
+			treanus/mrtrix3_connectome \
 			/bids_dataset /output preproc \
 			--participant_label $participant \
 			$mrtrix_session_label \
+			--topup_prefix synb0 \
 			--output_verbosity 4 \
 			--n_cpus $ncpu"
 	else
@@ -181,7 +182,7 @@ elif [ $level -eq 2 ]; then
 			$mrtrix_session_label \
 			--output_verbosity 4 \
 			--template_reg ants \
-			--parcellation yeo17mni
+			--parcellation desikan
 			--n_cpus $ncpu"
 
 elif [ $level -eq 2 ]; then

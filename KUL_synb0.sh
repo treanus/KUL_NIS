@@ -141,15 +141,15 @@ for i in `seq 0 $(($num_sessions-1))`; do
 	bids_subj=${long_bids_subj%dwi}
 	#echo $bids_subj
 
-	if [ $num_sessions -eq 1 ];then
-		ses=""
-		sessuf1=""
-		sessuf2=""
-	else
+	if [[ $bids_subj == *"ses-"* ]];then
 		ses=${bids_subj#*ses-}
 		ses=${ses%*/}
 		sessuf1="/ses-${ses}"
 		sessuf2="_ses-${ses}"
+	else
+		ses=""
+		sessuf1=""
+		sessuf2=""
 	fi
 	#echo $ses
 	#echo $sessuf1
@@ -242,7 +242,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 			#echo "]" >> $json_file
 			echo "}" >> $json_file
 
-
+		else
 			# add these to the BIDS derivatives		
 			mkdir -p ${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup
 			if [ $cleanup -eq 1 ];then
@@ -259,7 +259,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 				${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup/topup_movpar.txt
 				#${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup/sub-${participant}${sessuf2}_topup_movpar.txt
 		
-		else
+		#else
 
 			echo "  $bids_subj already done"
 
