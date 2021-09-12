@@ -136,10 +136,6 @@ fi
 bids_subj=BIDS/sub-${participant}${sessuf}${session}
 echo $bids_subj
 
-qsi_data="${cwd}/BIDS"
-qsi_scratch="${cwd}/qsiprep_work_${participant}"
-
-
 if [ $gpu -eq 1 ]; then
 	gpu_cmd1="--gpus all"
 else
