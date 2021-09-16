@@ -71,7 +71,7 @@ else
 
 		case $OPT in
 		p) #participant
-			participant=$OPTARG
+			participant="$OPTARG"
             p_flag=1
 		;;
 		l) #level
@@ -131,10 +131,8 @@ if [ -z $session ];then
 	mrtrix_session_label=""
 else
 	sessuf="/ses-"
-	mrtrix_session_label=" --session_label $session "
+	mrtrix_session_label=" --session_label "$session" "
 fi
-bids_subj=BIDS/sub-${participant}${sessuf}${session}
-echo $bids_subj
 
 if [ $gpu -eq 1 ]; then
 	gpu_cmd1="--gpus all"
@@ -156,7 +154,7 @@ if [ $level -eq 1 ]; then
 			$gpu_cmd1 \
 			treanus/mrtrix3_connectome \
 			/bids_dataset /output preproc \
-			--participant_label $participant \
+			--participant_label "$participant" \
 			$mrtrix_session_label \
 			--topup_prefix synb0 \
 			--output_verbosity 4 \
@@ -174,14 +172,14 @@ elif [ $level -eq 2 ]; then
 			$gpu_cmd1 \
 			bids/mrtrix3_connectome \
 			/bids_dataset /output participant \
-			--participant_label $participant \
+			--participant_label "$participant" \
 			$mrtrix_session_label \
-			--output_verbosity 4 \
+			--output_verbosity 2 \
 			--template_reg ants \
 			--parcellation desikan
 			--n_cpus $ncpu"
 
-elif [ $level -eq 2 ]; then
+elif [ $level -eq 3 ]; then
 
 	my_cmd="docker run -i --rm \
 			-v $cwd/BIDS:/bids_dataset \
@@ -189,7 +187,6 @@ elif [ $level -eq 2 ]; then
 			$gpu_cmd1 \
 			bids/mrtrix3_connectome \
 			/bids_dataset /output group \
-			--participant_label $participant \
 			$mrtrix_session_label \
 			--output_verbosity 4 \
 			--n_cpus $ncpu"
