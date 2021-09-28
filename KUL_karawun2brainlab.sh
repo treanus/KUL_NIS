@@ -131,8 +131,8 @@ if test -n "$(find 16bit_Anat -maxdepth 1 -name '*anat.img' -print -quit)"; then
 else
     exist_T1=0
     echo ""
-    echo "Warning: No *anat.img found in folder 16bit_Anat)"
-    #exit
+    echo "Error: No *anat.img found in folder 16bit_Anat)"
+    exit
 fi
 
 # Prepare the nii files for the tracts

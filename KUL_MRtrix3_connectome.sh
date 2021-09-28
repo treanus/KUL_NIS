@@ -174,7 +174,7 @@ elif [ $level -eq 2 ]; then
 			/bids_dataset /output participant \
 			--participant_label "$participant" \
 			$mrtrix_session_label \
-			--output_verbosity 2 \
+			--output_verbosity 4 \
 			--template_reg ants \
 			--parcellation desikan
 			--n_cpus $ncpu"

@@ -35,7 +35,7 @@ Required arguments:
 Optional arguments:
      
      -s:  session
-	 -c:  cleanup the topup_fieldmap (remove signal in air anterior from eyes) in development
+     -c:  cleanup the topup_fieldmap (remove signal in air anterior from eyes) in development
      -n:  number of cpu to use (default 15)
      -v:  show output from commands
 

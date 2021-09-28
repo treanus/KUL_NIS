@@ -128,10 +128,11 @@ def execute(): #pylint: disable=unused-variable
   # prepare for new 3.1 version
   mrtrix_path = os.environ.get('PYTHONPATH', '')
   test_mrtrix_path = os.path.join(mrtrix_path, '../','bin','notfound')
-  if not os.path.isfile(test_mrtrix_path):
+  if os.path.isfile(test_mrtrix_path):
     kul_mrtrix_new = 1
   else:
     kul_mrtrix_new = 0
+  #app.console('kul_mrtrix_new:' + str(kul_mrtrix_new))
 
   # Export the gradient table to the path requested by the user if necessary
   grad_export_option = app.read_dwgrad_export_options()
