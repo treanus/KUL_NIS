@@ -851,7 +851,9 @@ def execute(): #pylint: disable=unused-variable
         
         # for now let's use the standard (non-topup & non-disco) brain mask
         if kul_mrtrix_new == 1:
-          run.command('dwi2mask hdbet ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+          #run.command('dwi2mask hdbet ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+          run.command('dwi2mask hdbet ' + dwi_path + ' kul_bet.mif')
+          run.command('maskfilter kul_bet.mif dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
         else:
           run.command('dwi2mask ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
         
