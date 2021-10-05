@@ -54,6 +54,7 @@ USAGE
 #
 # Set defaults
 silent=1 # default if option -v is not given
+ants_verbose=1
 ncpu=15
 bc=0 
 type=1
@@ -115,10 +116,11 @@ if [ $p_flag -eq 0 ] ; then
 	exit 2
 fi
 
-# MRTRIX verbose or not?
+# MRTRIX and others verbose or not?
 if [ $silent -eq 1 ] ; then
 	export MRTRIX_QUIET=1
     str_silent=" > /dev/null 2>&1" 
+    ants_verbose=0
 fi
 
 if [ $type -eq 1 ]; then
@@ -167,7 +169,31 @@ function KUL_convert2bids {
         echo "BIDS conversion already done"
     fi
 }
+
 function KUL_check_data {
+    
+    mkdir -p $globalresultsdir
+
+    bidsdir="BIDS/sub-$participant"
+    T1w=($(find $bidsdir -name "*T1w.nii.gz" ! -name "*gadolinium*" -type f ))
+    nT1w=${#T1w[@]}
+    echo "number of non-contrast T1w: $nT1w"
+    cT1w=($(find $bidsdir -name "*T1w.nii.gz" -name "*gadolinium*" -type f ))
+    ncT1w=${#cT1w[@]}
+    echo "number of contrast enhanced T1w: $ncT1w"
+    FLAIR=($(find $bidsdir -name "*FLAIR.nii.gz" -type f ))
+    nFLAIR=${#FLAIR[@]}
+    echo "number of FLAIR: $nFLAIR"
+    T2w=($(find $bidsdir -name "*T2w.nii.gz" -type f ))
+    nT2w=${#T2w[@]}
+    echo "number of T2w: $nT2w"
+    SWI=($(find $bidsdir -name "*run-01_SWI.nii.gz" -type f ))
+    nSWI=${#SWI[@]}
+    SWIp=($(find $bidsdir -name "*run-02_SWI.nii.gz" -type f ))
+    nSWIp=${#SWIp[@]}
+    echo "number of SWI magnitude: $nSWI"
+    echo "number of SWI phase: $nSWIp"
+
     # check the BIDS
     find_fmri=($(find ${cwd}/BIDS/sub-${participant} -name "*_bold.nii.gz"))
     n_fMRI=${#find_fmri[@]}
@@ -180,6 +206,22 @@ function KUL_check_data {
     if [ $n_dwi -eq 0 ]; then
         echo " WARNING: no dwi data"
     fi
+
+}
+
+function KUL_rigid_register {
+    warp_field="${registeroutputdir}/${source_mri_label}_reg2_T1w"
+    output_mri="${globalresultsdir}/Anat/${source_mri_label}_reg2_T1w.nii.gz"
+    echo " rigidly registering $source_mri to $target_mri"
+    antsRegistration --verbose $ants_verbose --dimensionality 3 \
+    --output [$warp_field,$output_mri] \
+    --interpolation BSpline \
+    --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
+    --initial-moving-transform [$target_mri,$source_mri,1] \
+    --transform Rigid[0.1] \
+    --metric MI[$target_mri,$source_mri,1,32,Regular,0.25] \
+    --convergence [1000x500x250x100,1e-6,10] \
+    --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
 }
 
 function KUL_run_fmriprep {
@@ -326,21 +368,6 @@ function KUL_compute_SPM {
 }
 
 function KUL_segment_tumor {
-    bidsdir="BIDS/sub-$participant"
-    T1w=($(find $bidsdir -name "*T1w.nii.gz" ! -name "*gadolinium*" -type f ))
-    nT1w=${#T1w[@]}
-    echo "number of non-contrast T1w: $nT1w"
-    cT1w=($(find $bidsdir -name "*T1w.nii.gz" -name "*gadolinium*" -type f ))
-    ncT1w=${#cT1w[@]}
-    echo "number of contrast enhanced T1w: $ncT1w"
-    FLAIR=($(find $bidsdir -name "*FLAIR.nii.gz" -type f ))
-    nFLAIR=${#FLAIR[@]}
-    echo "number of FLAIR: $nFLAIR"
-    T2w=($(find $bidsdir -name "*T2w.nii.gz" -type f ))
-    nT2w=${#T2w[@]}
-    echo "number of T2w: $nT2w"
-
-    mkdir -p $globalresultsdir
     
     # this will segment the lesion automatically
     hdglioinputdir="$kulderivativesdir/sub-${participant}/hdglio/input"
@@ -570,6 +597,47 @@ else
 fi
 }
 
+
+function KUL_register_anatomical_images {
+
+    if [ ! -f KUL_LOG/sub-${participant}_anat_reg.done ]; then 
+        target_mri=$T1w
+        registeroutputdir="$kulderivativesdir/sub-${participant}/antsregister"
+        mkdir -p $registeroutputdir
+
+        if [ $ncT1w -gt 0 ];then
+            source_mri_label="cT1w"
+            source_mri=$cT1w
+            KUL_rigid_register
+        fi
+        if [ $nT2w -gt 0 ];then
+            source_mri_label="T2w"
+            source_mri=$T2w
+            KUL_rigid_register
+        fi
+        if [ $nFLAIR -gt 0 ];then
+            source_mri_label="FLAIR"
+            source_mri=$FLAIR
+            KUL_rigid_register
+        fi
+        if [ $nSWI -gt 0 ];then
+            source_mri_label="SWI"
+            source_mri=$SWI
+            KUL_rigid_register
+
+            input=$SWIp
+            transform="${registeroutputdir}/${source_mri_label}_reg2_T1w0GenericAffine.mat"
+            output="${globalresultsdir}/Anat/${source_mri_label}_phase_reg2_T1w.nii.gz"
+            reference=$target_mri
+            KUL_antsApply_Transform
+        fi
+        touch KUL_LOG/sub-${participant}_anat_reg.done
+    else 
+        echo "Anatomical registration already done"
+    fi
+}
+
+
 # --- MAIN ---
 kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute
 mkdir -p $kulderivativesdir
@@ -610,12 +678,18 @@ if [ $hdglio -eq 1 ];then
     KUL_segment_tumor
 fi
 
+
+# STEP 3B - regsiter all anatomical other data to the T1w without contrast
+KUL_register_anatomical_images &
+
+
 # STEP 4 - run VBG+freesurfer or freesurfer only
 if [ $vbg -eq 1 ];then
     KUL_run_VBG &
 else
     KUL_run_freesurfer &
 fi
+
 
 # WAIT FOR ALL TO FINISH
 wait
