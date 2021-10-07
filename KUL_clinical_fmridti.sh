@@ -418,7 +418,7 @@ function KUL_segment_tumor {
                     # change back
                     cd $cwd
                 else
-                    echo "Running HD-GLIO-AUTO using docker"
+                    echo "  running HD-GLIO-AUTO using docker"
                     docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
                      --mount type=bind,source=$hdgliooutputdir,target=/output \
                     jenspetersen/hd-glio-auto
@@ -672,6 +672,8 @@ if [ $n_dwi -gt 0 ];then
     KUL_run_dwiprep &
 fi
 
+# don't run too many AI tools (hd-bet and HD-GLIO-AUTO) simultaneously on a 6GB GPU - wait a bit...
+sleep 600
 
 # STEP 3 - run HD-GLIO-AUTO
 if [ $hdglio -eq 1 ];then
