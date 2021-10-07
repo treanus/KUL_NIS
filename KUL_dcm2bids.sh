@@ -314,10 +314,9 @@ function kul_dcmtags {
             # e = n. of excitations/slices per band
             local e=$(echo $number_of_slices $multiband_factor | awk '{print ($1 / $2) -1 }')
             local spb=$((${e}+1));
-            echo $e
-            echo $spb
-
-            echo "${slice_scan_order}"
+            #echo $e
+            #echo $spb
+            #echo "${slice_scan_order}"
         
             # here we need to adapt to account for different slice orders
             # e.g. 
