@@ -164,7 +164,7 @@ function KUL_antsApply_Transform {
 function KUL_convert2bids {
     # convert the DICOM to BIDS
     if [ ! -d "BIDS/sub-${participant}" ];then
-        KUL_dcm2bids_new.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e
+        KUL_dcm2bids.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e
     else
         echo "BIDS conversion already done"
     fi
