@@ -449,7 +449,7 @@ function KUL_run_VBG {
                 -l $globalresultsdir/Anat/lesion.nii \
                 -o BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -m BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-                -z T1 -b -B 1 -t -P 1 -n $ncpu -v          
+                -z T1 -b -B 1 -t -P 3 -n $ncpu -v          
 
             #cp -r ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}/* \
             #    BIDS/derivatives/freesurfer/sub-${participant}
@@ -673,8 +673,10 @@ if [ $n_dwi -gt 0 ];then
     KUL_run_dwiprep &
 fi
 
-# don't run too many AI tools (hd-bet and HD-GLIO-AUTO) simultaneously on a 6GB GPU - wait a bit...
-sleep 600
+# don't run too many AI tools (hd-bet on dwi and HD-GLIO-AUTO on structural) simultaneously on a 6GB GPU - wait a bit...
+if [ ! -f dwiprep/sub-${participant}/dwiprep_is_done.log ]; then
+    sleep 600
+fi
 
 # STEP 3 - run HD-GLIO-AUTO
 if [ $hdglio -eq 1 ];then
