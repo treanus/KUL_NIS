@@ -346,6 +346,7 @@ fi
 
 if [ $rev_only_topup -eq 1 ]; then
 
+	# need to update the code to check for the -pe dir.
 	dwiextract ${preproc}/dwi_orig.mif -pe 0,-1,0 ${preproc}/dwi_orig_norev.mif -force
 	dwi_orig=dwi_orig_norev.mif
 

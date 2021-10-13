@@ -179,7 +179,6 @@ function KUL_check_data {
     T1w=($(find $bidsdir -name "*T1w.nii.gz" ! -name "*gadolinium*" -type f ))
     nT1w=${#T1w[@]}
     echo "number of non-contrast T1w: $nT1w"
-    cT1w=($(find $bidsdir -name "*T1w.nii.gz" -name "*gadolinium*" -type f ))
     ncT1w=${#cT1w[@]}
     echo "number of contrast enhanced T1w: $ncT1w"
     FLAIR=($(find $bidsdir -name "*FLAIR.nii.gz" -type f ))
@@ -447,8 +446,8 @@ function KUL_run_VBG {
             # dev version 19/05/2021
             KUL_VBG.sh -S ${participant} \
                 -l $globalresultsdir/Anat/lesion.nii \
-                -o BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-                -m BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
+                -o ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
+                -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -z T1 -b -B 1 -t -P 3 -n $ncpu -v          
 
             #cp -r ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}/* \
@@ -663,9 +662,9 @@ if [ ! -f KUL_LOG/sub-${participant}_1_bidscheck.done ]; then
     fi
 fi
 
+
 # Check if fMRI and/or dwi data are present
 KUL_check_data
-
 
 # STEP 2 - run fmriprep/dwiprep and continue
 KUL_run_fmriprep &
@@ -698,6 +697,8 @@ fi
 
 # WAIT FOR ALL TO FINISH
 wait
+
+exit
 
 # STEP 5 - run SPM/melodic/msbp
 KUL_run_msbp &
