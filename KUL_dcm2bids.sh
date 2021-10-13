@@ -158,6 +158,17 @@ else
     pip install dcm2bids
 
 fi
+# check if jq is installed and install it if not
+if [[ $(which jq) ]]; then
+
+    echo "  jq already installed, good" $log
+
+else
+
+    echo "  jq not installed, installing it with your help..." $log
+    sudo apt install jq
+
+fi
 
 # --- function kul_dcmtags (for reading specific parameters from dicom header & calculating missing BIDS parameters) ---
 function kul_dcmtags {
@@ -1504,9 +1515,17 @@ eval ${cleanup}
 
 
 # Fix BIDS validation
+# fix the README
 echo "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
-sed -i.bck 's/"Funding": ""/"Funding": [""]/' ${bids_output}/dataset_description.json
-rm ${bids_output}/dataset_description.json.bck
+# fix Funding
+jq '.Funding = [""]' BIDS/dataset_description.json > tmp.json && mv tmp.json BIDS/dataset_description.json
+# fix Authors field
+jq '.Authors = ["Author One","Author Two"]' BIDS/dataset_description.json > tmp.json && mv tmp.json BIDS/dataset_description.json
+
+# Also fix the participants.json
+jq '. + { "age": {"LongName": "Age of the participant"} }' BIDS/participants.json > tmp.json && mv tmp.json BIDS/participants.json
+jq '. + { "sex": {"LongName": "Gender of the participant"} }' BIDS/participants.json > tmp.json && mv tmp.json BIDS/participants.json
+jq '. + { "group": {"LongName": "Group of the participant"} }' BIDS/participants.json > tmp.json && mv tmp.json BIDS/participants.json
 
 # Run BIDS validation
 docker run -ti --rm -v ${cwd}/${bids_output}:/data:ro bids/validator /data
