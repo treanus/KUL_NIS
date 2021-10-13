@@ -1360,7 +1360,7 @@ echo ${bids_conf_str} | python -m json.tool > ${bids_config_json_file}
 # MAIN HERE - WE RUN dcm2bids - HERE
 # invoke dcm2bids
 kul_e2cl "  Calling dcm2bids... (for the output see $dcm2niix_log_file)" $log
-if [ ! -d BIDS ];then
+if [ ! -d BIDS/.bidsignore ];then
     mkdir -p BIDS
     cd BIDS
     dcm2bids_scaffold
@@ -1501,6 +1501,7 @@ fi
 cleanup="rm -fr ${tmp}"
 echo ${cleanup}
 eval ${cleanup}
+
 
 # Fix BIDS validation
 echo "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
