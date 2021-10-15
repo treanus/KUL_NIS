@@ -213,7 +213,7 @@ function KUL_rigid_register {
     warp_field="${registeroutputdir}/${source_mri_label}_reg2_T1w"
     output_mri="${globalresultsdir}/Anat/${source_mri_label}_reg2_T1w.nii.gz"
     echo " rigidly registering $source_mri to $target_mri"
-    antsRegistration --verbose $ants_verbose --dimensionality 3 \
+    my_cmd="antsRegistration --verbose $ants_verbose --dimensionality 3 \
     --output [$warp_field,$output_mri] \
     --interpolation BSpline \
     --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
@@ -221,7 +221,8 @@ function KUL_rigid_register {
     --transform Rigid[0.1] \
     --metric MI[$target_mri,$source_mri,1,32,Regular,0.25] \
     --convergence [1000x500x250x100,1e-6,10] \
-    --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
+    --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox $str_silent"
+    eval $my_cmd
 }
 
 function KUL_run_fmriprep {
@@ -698,7 +699,6 @@ fi
 # WAIT FOR ALL TO FINISH
 wait
 
-exit
 
 # STEP 5 - run SPM/melodic/msbp
 KUL_run_msbp &

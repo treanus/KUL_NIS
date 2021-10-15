@@ -142,6 +142,16 @@ log=log/log_${d}.txt
 
 # --- MAIN ----------------
 
+# Check mrtrix3 version
+if ! type "dwicat" > /dev/null; then
+	mrtrix3new=0
+elif type "notfound" > /dev/null; then
+	mrtrix3new=2
+else
+	mrtrix3new=1
+fi
+
+
 bids_subj=BIDS/sub-${subj}
 
 # Either a session is given on the command line
@@ -293,8 +303,11 @@ if [ ! -f dwi_preproced_reg2T1w_mask.nii.gz ]; then
 
     # create mask of the dwi data (that is registered to the T1w)
     kul_e2cl "    creating mask of the dwi_preproces_reg2T1w data..." ${log}
-    dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
-
+    if [ $mrtrix3new -eq 2 ]; then
+        dwi2mask hdbet dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
+    else
+        dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
+    fi
 fi
 
 # DO QA ---------------------------------------------
