@@ -7,7 +7,7 @@
 # 07/12/2020
 version="0.1"
 
-participant=sub-Marinissen
+participant=sub-Renders
 
 mkdir -p Karawun/${participant}/labels
 mkdir -p Karawun/${participant}/tck
