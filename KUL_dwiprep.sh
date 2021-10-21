@@ -79,6 +79,7 @@ USAGE
 	exit 1
 }
 
+set +x
 
 # CHECK COMMAND LINE OPTIONS -------------
 #
@@ -190,10 +191,11 @@ log=log/log_${d}.txt
 # Check mrtrix3 version
 if ! type "dwicat" > /dev/null; then
 	mrtrix3new=0
+elif type "notfound" > /dev/null; then
+	mrtrix3new=2
 else
 	mrtrix3new=1
 fi
-
 
 bids_subj=BIDS/sub-${subj}
 
@@ -300,7 +302,12 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 			dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
 
 			# read the median b0 values
-			scale[dwi_i]=$(mrstats ${raw}/b0s_p${dwi_i}.mif -mask `dwi2mask ${raw}/dwi_p${dwi_i}.mif - -quiet` -output median)
+			if [ $mrtrix3new -eq 2 ]; then
+				dwi2mask hdbet ${raw}/dwi_p${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif 
+				scale[dwi_i]=$(mrstats ${raw}/b0s_p${dwi_i}.mif -mask ${raw}/dwi_p${dwi_i}_mask.mif -output median)
+			else
+				scale[dwi_i]=$(mrstats ${raw}/b0s_p${dwi_i}.mif -mask `dwi2mask ${raw}/dwi_p${dwi_i}.mif - -quiet` -output median)
+			fi
 			kul_e2cl "   dataset p${dwi_i} has ${scale[dwi_i]} as mean b0 intensity" ${preproc}/${log}
 
 			#echo "scaling ${raw}/dwi_p${dwi_i}_scaled.mif"
@@ -339,6 +346,7 @@ fi
 
 if [ $rev_only_topup -eq 1 ]; then
 
+	# need to update the code to check for the -pe dir.
 	dwiextract ${preproc}/dwi_orig.mif -pe 0,-1,0 ${preproc}/dwi_orig_norev.mif -force
 	dwi_orig=dwi_orig_norev.mif
 
@@ -520,11 +528,11 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 		else
 			if [ $synb0 -eq 0 ]; then
 				if [ $fmap -eq 0 ]; then
-					dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
+					kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
 						-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 				else
 					mrcat raw/b0s_pe*.mif raw/dwi_reverse_phase.mif raw/se_epi_for_topup.mif -force
-					dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
+					kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
 						-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 				fi
 			else
@@ -553,12 +561,12 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
 			if [ $rev_only_topup -eq 0 ]; then
 
-				dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
+				kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
 				-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 
 			else
 
-				dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_pair \
+				kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_pair \
 				-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 			fi
 
@@ -639,7 +647,11 @@ if [ ! -f dwi_preproced.mif ]; then
 
 	# create mask of the dwi data
 	kul_e2cl "    creating mask of the dwi data..." ${log}
-	dwi2mask dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+	if [ $mrtrix3new -eq 2 ]; then
+		dwi2mask hdbet dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+	else
+		dwi2mask dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+	fi
 
 	# create mean b0 of the dwi data
 	kul_e2cl "    creating mean b0 of the dwi data ..." ${log}

@@ -123,8 +123,8 @@ if test -n "$(find 16bit_Elements -maxdepth 1 -name '*rBO.img' -print -quit)"; t
 else
     exist_B0=0
     echo ""
-    echo "Error: No B0.img in folder 16bit_Elements"
-    exit
+    echo "Warning: No B0.img in folder 16bit_Elements"
+    #exit
 fi
 if test -n "$(find 16bit_Anat -maxdepth 1 -name '*anat.img' -print -quit)"; then
     exist_T1=1

@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 
 # set -x
 
@@ -158,6 +158,17 @@ else
     pip install dcm2bids
 
 fi
+# check if jq is installed and install it if not
+if [[ $(which jq) ]]; then
+
+    echo "  jq already installed, good" $log
+
+else
+
+    echo "  jq not installed, installing it with your help..." $log
+    sudo apt install jq
+
+fi
 
 # --- function kul_dcmtags (for reading specific parameters from dicom header & calculating missing BIDS parameters) ---
 function kul_dcmtags {
@@ -314,10 +325,9 @@ function kul_dcmtags {
             # e = n. of excitations/slices per band
             local e=$(echo $number_of_slices $multiband_factor | awk '{print ($1 / $2) -1 }')
             local spb=$((${e}+1));
-            echo $e
-            echo $spb
-
-            echo "${slice_scan_order}"
+            #echo $e
+            #echo $spb
+            #echo "${slice_scan_order}"
         
             # here we need to adapt to account for different slice orders
             # e.g. 
@@ -1361,7 +1371,7 @@ echo ${bids_conf_str} | python -m json.tool > ${bids_config_json_file}
 # MAIN HERE - WE RUN dcm2bids - HERE
 # invoke dcm2bids
 kul_e2cl "  Calling dcm2bids... (for the output see $dcm2niix_log_file)" $log
-if [ ! -d BIDS ];then
+if [ ! -d BIDS/.bidsignore ];then
     mkdir -p BIDS
     cd BIDS
     dcm2bids_scaffold
@@ -1503,10 +1513,19 @@ cleanup="rm -fr ${tmp}"
 echo ${cleanup}
 eval ${cleanup}
 
+
 # Fix BIDS validation
+# fix the README
 echo "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
-sed -i.bck 's/"Funding": ""/"Funding": [""]/' ${bids_output}/dataset_description.json
-rm ${bids_output}/dataset_description.json.bck
+# fix Funding
+jq '.Funding = [""]' BIDS/dataset_description.json > tmp.json && mv tmp.json BIDS/dataset_description.json
+# fix Authors field
+jq '.Authors = ["Author One","Author Two"]' BIDS/dataset_description.json > tmp.json && mv tmp.json BIDS/dataset_description.json
+
+# Also fix the participants.json
+jq '. + { "age": {"LongName": "Age of the participant"} }' BIDS/participants.json > tmp.json && mv tmp.json BIDS/participants.json
+jq '. + { "sex": {"LongName": "Gender of the participant"} }' BIDS/participants.json > tmp.json && mv tmp.json BIDS/participants.json
+jq '. + { "group": {"LongName": "Group of the participant"} }' BIDS/participants.json > tmp.json && mv tmp.json BIDS/participants.json
 
 # Run BIDS validation
 docker run -ti --rm -v ${cwd}/${bids_output}:/data:ro bids/validator /data

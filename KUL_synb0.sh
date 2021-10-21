@@ -35,7 +35,7 @@ Required arguments:
 Optional arguments:
      
      -s:  session
-	 -c:  cleanup the topup_fieldmap (remove signal in air anterior from eyes) in development
+     -c:  cleanup the topup_fieldmap (remove signal in air anterior from eyes) in development
      -n:  number of cpu to use (default 15)
      -v:  show output from commands
 
@@ -186,7 +186,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 			Synb0_T1=${bids_T1_found[0]}
 			echo "The used T1 for synb0-disco is $Synb0_T1"
 
-			cp $Synb0_T1 $synb0_scratch/INPUTS/T1.nii.gz
+			cp $Synb0_T1 $synb0_scratch/INPUTS/T1_full.nii.gz
 
 
 			# extract the B0
@@ -205,6 +205,17 @@ for i in `seq 0 $(($num_sessions-1))`; do
 			dwiextract -quiet -bzero $synb0_scratch/dwi_p1.mif $synb0_scratch/dwi_p1_b0s.mif -force
 			mrconvert $synb0_scratch/dwi_p1_b0s.mif -coord 3 0 $synb0_scratch/INPUTS/b0.nii.gz -strides -1,+2,+3,+4 -export_pe_table $synb0_scratch/topup_datain.txt
 
+
+			# adjust the FOV of the T1 to match the b0
+			mrgrid $synb0_scratch/INPUTS/b0.nii.gz regrid $synb0_scratch/INPUTS/b0_as_T1.nii.gz \
+				-template $synb0_scratch/INPUTS/T1_full.nii.gz
+			mrgrid -mask $synb0_scratch/INPUTS/b0_as_T1.nii.gz $synb0_scratch/INPUTS/T1_full.nii.gz crop \
+				$synb0_scratch/INPUTS/T1_crop.nii.gz
+			mrgrid $synb0_scratch/INPUTS/T1_crop.nii.gz crop -axis 1 10,10 $synb0_scratch/INPUTS/T1.nii.gz
+			rm $synb0_scratch/INPUTS/T1_crop.nii.gz
+			rm $synb0_scratch/INPUTS/T1_full.nii.gz
+			rm $synb0_scratch/INPUTS/b0_as_T1.nii.gz
+		
 
 			# read topup_datain.txt and add line
 			topup_data=($(cat $synb0_scratch/topup_datain.txt))
@@ -242,7 +253,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 			#echo "]" >> $json_file
 			echo "}" >> $json_file
 
-		else
+
 			# add these to the BIDS derivatives		
 			mkdir -p ${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup
 			if [ $cleanup -eq 1 ];then
@@ -259,7 +270,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 				${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup/topup_movpar.txt
 				#${cwd}/BIDS/derivatives/synb0/sub-${participant}${sessuf1}/topup/sub-${participant}${sessuf2}_topup_movpar.txt
 		
-		#else
+		else
 
 			echo "  $bids_subj already done"
 

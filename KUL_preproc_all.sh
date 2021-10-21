@@ -346,10 +346,7 @@ if [ ! -f  $freesurfer_file_to_check ]; then
     kul_e2cl " started (in parallel) freesurfer recon-all on participant ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
     
     # search if any sessions exist
-    search_sessions=($(find BIDS/sub-${BIDS_participant} -type f | grep T1w.nii.gz))
-    
-    # ####### CHANGE BACK!!!!!
-    #search_sessions=($(find BIDS/sub-${BIDS_participant} -type f | grep ses-1 | grep T1w.nii.gz))
+    search_sessions=($(find BIDS/sub-${BIDS_participant} -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
     
     num_sessions=${#search_sessions[@]}
     

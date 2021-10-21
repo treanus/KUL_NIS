@@ -54,6 +54,7 @@ USAGE
 #
 # Set defaults
 silent=1 # default if option -v is not given
+ants_verbose=1
 ncpu=15
 bc=0 
 type=1
@@ -115,10 +116,11 @@ if [ $p_flag -eq 0 ] ; then
 	exit 2
 fi
 
-# MRTRIX verbose or not?
+# MRTRIX and others verbose or not?
 if [ $silent -eq 1 ] ; then
 	export MRTRIX_QUIET=1
     str_silent=" > /dev/null 2>&1" 
+    ants_verbose=0
 fi
 
 if [ $type -eq 1 ]; then
@@ -140,9 +142,27 @@ if [ $bc -eq 1 ]; then
     bck_derivatives_KUL_VBG="./BIDS/derivatives/KUL_VBG/sub-${participant}"
     bck_derivatives_KUL_compute="./BIDS/derivatives/KUL_compute/sub-${participant}"
     bck_derivatives_freesurfer="./BIDS/derivatives/freesurfer/sub-${participant}"
+    bck_derivatives_cmp="./BIDS/derivatives/cmp/sub-${participant}"
+    bck_derivatives_nipype="./BIDS/derivatives/nipype/sub-${participant}"
+    bck_fmriprep="./fmriprep/sub-${participant}*"
+    bck_dwiprep="./dwiprep/sub-${participant}"
+    bck_conf="./study_config"
     bck_results="./RESULTS/sub-${participant}"
 
-    tar --ignore-failed-read -cvzf sub-${participant}.tar.gz $bck_bids $bck_dicom $bck_derivatives_freesurfer $bck_derivatives_KUL_compute $bck_derivatives_KUL_VBG
+    tar --ignore-failed-read -cvzf sub-${participant}.tar.gz $bck_bids \
+        $bck_dicom $bck_derivatives_freesurfer $bck_derivatives_KUL_compute $bck_derivatives_KUL_VBG \
+        $bck_derivatives_cmp $bck_derivatives_nipype $bck_fmriprep $bck_dwiprep $bck_conf \
+        $bck_results
+
+    read -p "Are you sure the backup is complete and continue with delete? (y/n) " answ
+    if [[ ! "$answ" == "y" ]]; then
+        exit 1
+    else  
+        rm -fr $bck_bids \
+            $bck_dicom $bck_derivatives_freesurfer $bck_derivatives_KUL_compute $bck_derivatives_KUL_VBG \
+            $bck_derivatives_cmp $bck_derivatives_nipype $bck_fmriprep $bck_dwiprep \
+            $bck_results
+    fi
 
     exit 0
 fi
@@ -162,12 +182,36 @@ function KUL_antsApply_Transform {
 function KUL_convert2bids {
     # convert the DICOM to BIDS
     if [ ! -d "BIDS/sub-${participant}" ];then
-        KUL_dcm2bids_new.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e
+        #echo "KUL_dcm2bids.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e"
+        KUL_dcm2bids.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e -v
     else
         echo "BIDS conversion already done"
     fi
 }
+
 function KUL_check_data {
+    
+    mkdir -p $globalresultsdir
+
+    bidsdir="BIDS/sub-$participant"
+    T1w=($(find $bidsdir -name "*T1w.nii.gz" ! -name "*gadolinium*" -type f ))
+    nT1w=${#T1w[@]}
+    echo "number of non-contrast T1w: $nT1w"
+    ncT1w=${#cT1w[@]}
+    echo "number of contrast enhanced T1w: $ncT1w"
+    FLAIR=($(find $bidsdir -name "*FLAIR.nii.gz" -type f ))
+    nFLAIR=${#FLAIR[@]}
+    echo "number of FLAIR: $nFLAIR"
+    T2w=($(find $bidsdir -name "*T2w.nii.gz" -type f ))
+    nT2w=${#T2w[@]}
+    echo "number of T2w: $nT2w"
+    SWI=($(find $bidsdir -name "*run-01_SWI.nii.gz" -type f ))
+    nSWI=${#SWI[@]}
+    SWIp=($(find $bidsdir -name "*run-02_SWI.nii.gz" -type f ))
+    nSWIp=${#SWIp[@]}
+    echo "number of SWI magnitude: $nSWI"
+    echo "number of SWI phase: $nSWIp"
+
     # check the BIDS
     find_fmri=($(find ${cwd}/BIDS/sub-${participant} -name "*_bold.nii.gz"))
     n_fMRI=${#find_fmri[@]}
@@ -180,6 +224,23 @@ function KUL_check_data {
     if [ $n_dwi -eq 0 ]; then
         echo " WARNING: no dwi data"
     fi
+
+}
+
+function KUL_rigid_register {
+    warp_field="${registeroutputdir}/${source_mri_label}_reg2_T1w"
+    output_mri="${globalresultsdir}/Anat/${source_mri_label}_reg2_T1w.nii.gz"
+    echo " rigidly registering $source_mri to $target_mri"
+    my_cmd="antsRegistration --verbose $ants_verbose --dimensionality 3 \
+    --output [$warp_field,$output_mri] \
+    --interpolation BSpline \
+    --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
+    --initial-moving-transform [$target_mri,$source_mri,1] \
+    --transform Rigid[0.1] \
+    --metric MI[$target_mri,$source_mri,1,32,Regular,0.25] \
+    --convergence [1000x500x250x100,1e-6,10] \
+    --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox $str_silent"
+    eval $my_cmd
 }
 
 function KUL_run_fmriprep {
@@ -326,21 +387,6 @@ function KUL_compute_SPM {
 }
 
 function KUL_segment_tumor {
-    bidsdir="BIDS/sub-$participant"
-    T1w=($(find $bidsdir -name "*T1w.nii.gz" ! -name "*gadolinium*" -type f ))
-    nT1w=${#T1w[@]}
-    echo "number of non-contrast T1w: $nT1w"
-    cT1w=($(find $bidsdir -name "*T1w.nii.gz" -name "*gadolinium*" -type f ))
-    ncT1w=${#cT1w[@]}
-    echo "number of contrast enhanced T1w: $ncT1w"
-    FLAIR=($(find $bidsdir -name "*FLAIR.nii.gz" -type f ))
-    nFLAIR=${#FLAIR[@]}
-    echo "number of FLAIR: $nFLAIR"
-    T2w=($(find $bidsdir -name "*T2w.nii.gz" -type f ))
-    nT2w=${#T2w[@]}
-    echo "number of T2w: $nT2w"
-
-    mkdir -p $globalresultsdir
     
     # this will segment the lesion automatically
     hdglioinputdir="$kulderivativesdir/sub-${participant}/hdglio/input"
@@ -355,47 +401,11 @@ function KUL_segment_tumor {
                 cp $cT1w $hdglioinputdir/CT1.nii.gz
                 cp $FLAIR $hdglioinputdir/FLAIR.nii.gz
                 cp $T2w $hdglioinputdir/T2.nii.gz
-                if [[ $machine_type = "Darwin" ]];then
-                    echo "Running HD-GLIO"
-                    fslreorient2std $hdglioinputdir/T1.nii.gz $hdgliooutputdir/T1_reorient.nii.gz
-                    fslreorient2std $hdglioinputdir/CT1.nii.gz $hdgliooutputdir/CT1_reorient.nii.gz
-                    fslreorient2std $hdglioinputdir/T2.nii.gz $hdgliooutputdir/T2_reorient.nii.gz
-                    fslreorient2std $hdglioinputdir/FLAIR.nii.gz $hdgliooutputdir/FLAIR_reorient.nii.gz
-                    cd $hdgliooutputdir
-                    # run hd bet
-                    hd-bet -i T1_reorient.nii.gz -o t1_bet.nii.gz -s 1 -device cpu -mode fast -tta 0
-                    hd-bet -i CT1_reorient.nii.gz -o ct1_bet.nii.gz -device cpu -mode fast -tta 0
-                    hd-bet -i T2_reorient.nii.gz -o t2_bet.nii.gz -device cpu -mode fast -tta 0
-                    hd-bet -i FLAIR_reorient.nii.gz -o flair_bet.nii.gz -device cpu -mode fast -tta 0
-                    # register brain extracted images to t1, save matrix
-                    flirt -in ct1_bet.nii.gz -out ct1_bet_reg.nii.gz -ref t1_bet.nii.gz -omat ct1_to_t1.mat -interp spline -dof 6 &
-                    flirt -in t2_bet.nii.gz -out t2_bet_reg.nii.gz -ref t1_bet.nii.gz -omat t2_to_t1.mat -interp spline -dof 6 &
-                    flirt -in flair_bet.nii.gz -out flair_bet_reg.nii.gz -ref t1_bet.nii.gz -omat flair_to_t1.mat -interp spline -dof 6 &
-                    wait
-                    # we are only interested in the matrices, delete the other output images
-                    rm ct1_bet.nii.gz t2_bet.nii.gz flair_bet.nii.gz
-                    rm ct1_bet_reg.nii.gz t2_bet_reg.nii.gz flair_bet_reg.nii.gz
-                    # now apply the transformation matrices to the original images (pre hd-bet)
-                    flirt -in CT1_reorient.nii.gz -out ct1_reg.nii.gz -ref t1_bet.nii.gz -applyxfm -init ct1_to_t1.mat -interp spline &
-                    flirt -in T2_reorient.nii.gz -out t2_reg.nii.gz -ref t1_bet.nii.gz -applyxfm -init t2_to_t1.mat -interp spline &
-                    flirt -in FLAIR_reorient.nii.gz -out flair_reg.nii.gz -ref t1_bet.nii.gz -applyxfm -init flair_to_t1.mat -interp spline &
-                    wait
-                    # now apply t1 brain mask to all registered images
-                    fslmaths ct1_reg.nii.gz -mas t1_bet_mask.nii.gz CT1_reorient_reg_bet.nii.gz & # t1_bet_mask.nii.gz was generated by hd-bet (see above)
-                    fslmaths t2_reg.nii.gz -mas t1_bet_mask.nii.gz T2_reorient_reg_bet.nii.gz & # t1_bet_mask.nii.gz was generated by hd-bet (see above)
-                    fslmaths flair_reg.nii.gz -mas t1_bet_mask.nii.gz FLAIR_reorient_reg_bet.nii.gz & # t1_bet_mask.nii.gz was generated by hd-bet (see above)
-                    wait
-                    # run hd-glio
-                    hd_glio_predict -t1 T1_reorient.nii.gz -t1c CT1_reorient_reg_bet.nii.gz -t2 T2_reorient_reg_bet.nii.gz \
-                     -flair FLAIR_reorient_reg_bet.nii.gz -o OUTPUT_FILE.nii.gz
-                    # change back
-                    cd $cwd
-                else
-                    echo "Running HD-GLIO-AUTO using docker"
-                    docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
-                     --mount type=bind,source=$hdgliooutputdir,target=/output \
-                    jenspetersen/hd-glio-auto
-                fi
+                
+                echo "  running HD-GLIO-AUTO using docker"
+                docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
+                    --mount type=bind,source=$hdgliooutputdir,target=/output \
+                jenspetersen/hd-glio-auto
                 
                 mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -ge $globalresultsdir/Anat/lesion.nii -force
 
@@ -419,9 +429,9 @@ function KUL_run_VBG {
             # dev version 19/05/2021
             KUL_VBG.sh -S ${participant} \
                 -l $globalresultsdir/Anat/lesion.nii \
-                -o BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-                -m BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-                -z T1 -b -B 1 -t -P 1 -n $ncpu -v          
+                -o ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
+                -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
+                -z T1 -b -B 1 -t -P 3 -n $ncpu -v          
 
             #cp -r ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}/* \
             #    BIDS/derivatives/freesurfer/sub-${participant}
@@ -486,7 +496,7 @@ function KUL_run_FWT {
     eval $my_cmd
 
     ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
-    ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*filt3_BT_iFOD2.tck $globalresultsdir/Tracto/
+    ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_BT_iFOD2.tck $globalresultsdir/Tracto/
     pdfunite $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
  }
 
@@ -570,6 +580,47 @@ else
 fi
 }
 
+
+function KUL_register_anatomical_images {
+
+    if [ ! -f KUL_LOG/sub-${participant}_anat_reg.done ]; then 
+        target_mri=$T1w
+        registeroutputdir="$kulderivativesdir/sub-${participant}/antsregister"
+        mkdir -p $registeroutputdir
+
+        if [ $ncT1w -gt 0 ];then
+            source_mri_label="cT1w"
+            source_mri=$cT1w
+            KUL_rigid_register
+        fi
+        if [ $nT2w -gt 0 ];then
+            source_mri_label="T2w"
+            source_mri=$T2w
+            KUL_rigid_register
+        fi
+        if [ $nFLAIR -gt 0 ];then
+            source_mri_label="FLAIR"
+            source_mri=$FLAIR
+            KUL_rigid_register
+        fi
+        if [ $nSWI -gt 0 ];then
+            source_mri_label="SWI"
+            source_mri=$SWI
+            KUL_rigid_register
+
+            input=$SWIp
+            transform="${registeroutputdir}/${source_mri_label}_reg2_T1w0GenericAffine.mat"
+            output="${globalresultsdir}/Anat/${source_mri_label}_phase_reg2_T1w.nii.gz"
+            reference=$target_mri
+            KUL_antsApply_Transform
+        fi
+        touch KUL_LOG/sub-${participant}_anat_reg.done
+    else 
+        echo "Anatomical registration already done"
+    fi
+}
+
+
 # --- MAIN ---
 kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute
 mkdir -p $kulderivativesdir
@@ -594,9 +645,9 @@ if [ ! -f KUL_LOG/sub-${participant}_1_bidscheck.done ]; then
     fi
 fi
 
+
 # Check if fMRI and/or dwi data are present
 KUL_check_data
-
 
 # STEP 2 - run fmriprep/dwiprep and continue
 KUL_run_fmriprep &
@@ -604,11 +655,20 @@ if [ $n_dwi -gt 0 ];then
     KUL_run_dwiprep &
 fi
 
+# don't run too many AI tools (hd-bet on dwi and HD-GLIO-AUTO on structural) simultaneously on a 6GB GPU - wait a bit...
+if [ ! -f dwiprep/sub-${participant}/dwiprep_is_done.log ]; then
+    sleep 600
+fi
 
 # STEP 3 - run HD-GLIO-AUTO
 if [ $hdglio -eq 1 ];then
     KUL_segment_tumor
 fi
+
+
+# STEP 3B - regsiter all anatomical other data to the T1w without contrast
+KUL_register_anatomical_images &
+
 
 # STEP 4 - run VBG+freesurfer or freesurfer only
 if [ $vbg -eq 1 ];then
@@ -617,8 +677,10 @@ else
     KUL_run_freesurfer &
 fi
 
+
 # WAIT FOR ALL TO FINISH
 wait
+
 
 # STEP 5 - run SPM/melodic/msbp
 KUL_run_msbp &
