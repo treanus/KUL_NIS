@@ -136,6 +136,14 @@ fi
 
 
 if [ $bc -eq 1 ]; then
+    # clean some stuff
+    clean_dwiprep="./dwiprep/sub-${participant}/sub-${participant}/kul_dwifsl* \
+        ./dwiprep/sub-${participant}/sub-${participant}/raw \
+        ./dwiprep/sub-${participant}/sub-${participant}/dwi_orig* \
+        ./dwiprep/sub-${participant}/sub-${participant}/dwi_preproced.mif"
+
+    #rm -fr $clean_dwiprep
+
     #we backup everything
     bck_bids="./BIDS/sub-${participant}"
     bck_dicom="./DICOM/${participant}*"
@@ -144,15 +152,18 @@ if [ $bc -eq 1 ]; then
     bck_derivatives_freesurfer="./BIDS/derivatives/freesurfer/sub-${participant}"
     bck_derivatives_cmp="./BIDS/derivatives/cmp/sub-${participant}"
     bck_derivatives_nipype="./BIDS/derivatives/nipype/sub-${participant}"
+    bck_derivatives_ini="./BIDS/derivatives/sub-${participant}_anatomical_config.ini"
     bck_fmriprep="./fmriprep/sub-${participant}*"
     bck_dwiprep="./dwiprep/sub-${participant}"
-    bck_conf="./study_config"
+    bck_karawun="./Karawun/sub-${participant}"
     bck_results="./RESULTS/sub-${participant}"
+    bck_conf="./study_config"
 
     tar --ignore-failed-read -cvzf sub-${participant}.tar.gz $bck_bids \
         $bck_dicom $bck_derivatives_freesurfer $bck_derivatives_KUL_compute $bck_derivatives_KUL_VBG \
-        $bck_derivatives_cmp $bck_derivatives_nipype $bck_fmriprep $bck_dwiprep $bck_conf \
-        $bck_results
+        $bck_derivatives_cmp $bck_derivatives_nipype $bck_derivatives_ini $bck_fmriprep $bck_dwiprep \
+        $bck_results $bck_karawun \
+        $bck_conf
 
     read -p "Are you sure the backup is complete and continue with delete? (y/n) " answ
     if [[ ! "$answ" == "y" ]]; then
@@ -160,8 +171,8 @@ if [ $bc -eq 1 ]; then
     else  
         rm -fr $bck_bids \
             $bck_dicom $bck_derivatives_freesurfer $bck_derivatives_KUL_compute $bck_derivatives_KUL_VBG \
-            $bck_derivatives_cmp $bck_derivatives_nipype $bck_fmriprep $bck_dwiprep \
-            $bck_results
+            $bck_derivatives_cmp $bck_derivatives_nipype $bck_derivatives_ini $bck_fmriprep $bck_dwiprep \
+            $bck_results $bck_karawun
     fi
 
     exit 0
