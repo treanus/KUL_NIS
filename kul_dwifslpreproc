@@ -840,7 +840,7 @@ def execute(): #pylint: disable=unused-variable
         kul_gid = str(os.getgid())
         kul_fs_path = os.getenv('FS_LICENSE')
 
-        kul_disco_cmd = 'docker run -u $(id -u) --rm -v ' + kul_pwd + '/INPUTS/:/INPUTS/ -v ' + kul_pwd + '/OUTPUTS:/OUTPUTS/ -v ' + kul_fs_path + ':/extra/freesurfer/license.txt --user ' + kul_uid + ':' + kul_gid + ' justinblaber/synb0_25iso'
+        kul_disco_cmd = 'docker run -u $(id -u) --rm -v ' + kul_pwd + '/INPUTS/:/INPUTS/ -v ' + kul_pwd + '/OUTPUTS:/OUTPUTS/ -v ' + kul_fs_path + ':/extra/freesurfer/license.txt --user ' + kul_uid + ':' + kul_gid + ' hansencb/synb0'
         #disco_output = run.command('docker run --rm -v $(pwd)/INPUTS/:/INPUTS/ -v $(pwd)/OUTPUTS:/OUTPUTS/ -v $FREESURFER_HOME/license.txt:/extra/freesurfer/license.txt --user 502:20 justinblaber/synb0_25iso')
         disco_output = run.command(kul_disco_cmd)
         with open('disco_output.txt', 'w') as disco_output_file:
