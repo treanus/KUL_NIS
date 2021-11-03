@@ -189,12 +189,14 @@ log=log/log_${d}.txt
 # --- MAIN ----------------
 
 # Check mrtrix3 version
-if ! type "dwicat" > /dev/null; then
+if [ $mrtrix_version_major -lt 3 ]; then
 	mrtrix3new=0
-elif type "notfound" > /dev/null; then
-	mrtrix3new=2
-else
+elif [ $mrtrix_version_major -eq 3 ] && [ $mrtrix_version_major -eq 0 ]; then
 	mrtrix3new=1
+elif [ $mrtrix_version_major -eq 3 ] && [ $mrtrix_version_major -eq 1 ]; then
+	mrtrix3new=2
+else 
+	mrtrix3new=0
 fi
 
 bids_subj=BIDS/sub-${subj}
