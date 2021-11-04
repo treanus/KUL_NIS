@@ -208,6 +208,7 @@ function KUL_check_data {
     T1w=($(find $bidsdir -name "*T1w.nii.gz" ! -name "*gadolinium*" -type f ))
     nT1w=${#T1w[@]}
     echo "number of non-contrast T1w: $nT1w"
+    cT1w=($(find $bidsdir -name "*T1w.nii.gz" -name "*gadolinium*" -type f ))
     ncT1w=${#cT1w[@]}
     echo "number of contrast enhanced T1w: $ncT1w"
     FLAIR=($(find $bidsdir -name "*FLAIR.nii.gz" -type f ))
