@@ -53,6 +53,10 @@ function kul_e2cl {
 machine_type=$(uname)
 #echo $machine_type
 
+# Check the mrtrix3 version
+mrtrix_version_major=$(mrconvert | head -1 | cut -d'.' -f1 | cut -d' ' -f2)
+mrtrix_version_minor=$(mrconvert | head -1 | cut -d'.' -f2)
+mrtrix_version_revision=$(mrconvert | head -1 | cut -d'.' -f3 | cut -d'-' -f 1)
 
 # -- Set global defaults --
 silent=1
