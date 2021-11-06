@@ -419,7 +419,13 @@ function KUL_segment_tumor {
                     --mount type=bind,source=$hdgliooutputdir,target=/output \
                 jenspetersen/hd-glio-auto
                 
-                mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -ge $globalresultsdir/Anat/lesion.nii -force
+                #mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -ge $globalresultsdir/Anat/lesion.nii -force
+                maskfilter $hdgliooutputdir/segmentation.nii.gz fill $globalresultsdir/Anat/lesion.nii -force
+                mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -eq $globalresultsdir/Anat/lesion_perilesional_oedema.nii -force
+                mrcalc $hdgliooutputdir/segmentation.nii.gz 2 -eq $globalresultsdir/Anat/lesion_solid_tumour.nii -force
+                mrcalc $globalresultsdir/Anat/lesion.nii $globalresultsdir/Anat/lesion_perilesional_oedema.nii -sub \
+                    $globalresultsdir/Anat/lesion_solid_tumour.nii -sub $globalresultsdir/Anat/lesion_central_necrosis.nii
+
 
             else
                 echo "HD-GLIO-AUTO already done"
@@ -695,6 +701,8 @@ wait
 
 
 # STEP 5 - run SPM/melodic/msbp
+echo " exit before msbp"
+exit
 KUL_run_msbp &
 KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
 if [ $n_fMRI -gt 0 ];then

@@ -191,13 +191,16 @@ log=log/log_${d}.txt
 # Check mrtrix3 version
 if [ $mrtrix_version_major -lt 3 ]; then
 	mrtrix3new=0
-elif [ $mrtrix_version_major -eq 3 ] && [ $mrtrix_version_major -eq 0 ]; then
+elif [ $mrtrix_version_major -eq 3 ] && [ $mrtrix_version_minor -eq 0 ]; then
 	mrtrix3new=1
-elif [ $mrtrix_version_major -eq 3 ] && [ $mrtrix_version_major -eq 1 ]; then
+elif [ $mrtrix_version_major -eq 3 ] && [ $mrtrix_version_minor -eq 1 ]; then
 	mrtrix3new=2
 else 
 	mrtrix3new=0
 fi
+
+mrtrix3new=2
+
 
 bids_subj=BIDS/sub-${subj}
 
