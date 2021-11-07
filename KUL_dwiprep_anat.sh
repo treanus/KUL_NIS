@@ -154,6 +154,7 @@ else
 	mrtrix3new=0
 fi
 
+mrtrix3new=2
 
 bids_subj=BIDS/sub-${subj}
 
