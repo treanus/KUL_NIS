@@ -308,10 +308,10 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 			# read the median b0 values
 			if [ $mrtrix3new -eq 2 ]; then
 				dwi2mask hdbet ${raw}/dwi_p${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif 
-				scale[dwi_i]=$(mrstats ${raw}/b0s_p${dwi_i}.mif -mask ${raw}/dwi_p${dwi_i}_mask.mif -output median)
 			else
-				scale[dwi_i]=$(mrstats ${raw}/b0s_p${dwi_i}.mif -mask `dwi2mask ${raw}/dwi_p${dwi_i}.mif - -quiet` -output median)
+				dwi2mask ${raw}/dwi_p${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif 
 			fi
+			scale[dwi_i]=$(mrstats ${raw}/b0s_p${dwi_i}.mif -mask ${raw}/dwi_p${dwi_i}_mask.mif -output median)
 			kul_e2cl "   dataset p${dwi_i} has ${scale[dwi_i]} as mean b0 intensity" ${preproc}/${log}
 
 			#echo "scaling ${raw}/dwi_p${dwi_i}_scaled.mif"

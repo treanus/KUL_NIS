@@ -142,7 +142,7 @@ if [ $bc -eq 1 ]; then
         ./dwiprep/sub-${participant}/sub-${participant}/dwi_orig* \
         ./dwiprep/sub-${participant}/sub-${participant}/dwi_preproced.mif"
 
-    #rm -fr $clean_dwiprep
+    rm -fr $clean_dwiprep
 
     #we backup everything
     bck_bids="./BIDS/sub-${participant}"
