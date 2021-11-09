@@ -126,9 +126,10 @@ def execute(): #pylint: disable=unused-variable
   app.check_output_path(app.ARGS.output)
 
   # prepare for new 3.1 version
-  mrtrix_path = os.environ.get('PYTHONPATH', '')
-  test_mrtrix_path = os.path.join(mrtrix_path, '../','bin','notfound')
-  if os.path.isfile(test_mrtrix_path):
+  #mrtrix_path = os.environ.get('PYTHONPATH', '')
+  #est_mrtrix_path = os.path.join(mrtrix_path, '../','bin','notfound')
+  test_version_mrtrix = os.system('dwi2mask | grep hdbet')
+  if test_version_mrtrix == 0:
     kul_mrtrix_new = 1
   else:
     kul_mrtrix_new = 0
