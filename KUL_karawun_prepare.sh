@@ -7,7 +7,24 @@
 # 07/12/2020
 version="0.1"
 
-participant=sub-Renders
+participant=sub-Vandervelpen
+
+
+function KUL_karawun_get_tract {
+    cp BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_BT_iFOD2.tck \
+        Karawun/${participant}/tck/${tract_name_final}.tck
+    mrgrid BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_map_BT_iFOD2.nii.gz \
+        regrid -template Karawun/${participant}/T1w.nii.gz \
+        - | mrcalc - ${tract_threshold} -gt ${tract_color} -mul \
+        Karawun/${participant}/labels/${tract_name_final}_center.nii.gz -force
+}
+
+function KUL_karawun_get_voi {
+    mrgrid BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_VOIs/${tract_name_orig}_VOIs/${tract_name_orig}_incs1/${tract_name_orig}_incs1_map.nii.gz \
+        regrid -template Karawun/${participant}/T1w.nii.gz \
+        - | mrcalc - ${voi_threshold} -gt ${voi_color} -mul \
+        Karawun/${participant}/labels/${voi_name_final}.nii.gz -force
+}
 
 mkdir -p Karawun/${participant}/labels
 mkdir -p Karawun/${participant}/tck
@@ -15,38 +32,43 @@ mkdir -p Karawun/${participant}/DICOM
 
 mrcalc RESULTS/${participant}/Anat/T1w.nii 100 -div Karawun/${participant}/T1w.nii.gz -force
 
-mrgrid BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_VOIs/CSHP_LT_VOIs/CSHP_LT_incs1/CSHP_LT_incs1_map.nii.gz \
-    regrid -template Karawun/${participant}/T1w.nii.gz \
-    - | mrcalc - 0.1 -gt 3 -mul \
-    Karawun/${participant}/labels/DISTAL_STN_MOTOR_LT.nii.gz -force
-mrgrid BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_VOIs/CSHP_RT_VOIs/CSHP_RT_incs1/CSHP_RT_incs1_map.nii.gz \
-    regrid -template Karawun/${participant}/T1w.nii.gz \
-    - | mrcalc - 0.1 -gt 3 -mul \
-    Karawun/${participant}/labels/DISTAL_STN_MOTOR_RT.nii.gz -force
-cp BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_TCKs_output/CSHP_LT_output/CSHP_LT_fin_BT_iFOD2.tck \
-    Karawun/${participant}/tck/CSHDP_LT.tck
-mrgrid BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_TCKs_output/CSHP_LT_output/CSHP_LT_fin_map_BT_iFOD2.nii.gz \
-    regrid -template Karawun/${participant}/T1w.nii.gz \
-    - | mrcalc - 20 -gt 2 -mul \
-    Karawun/${participant}/labels/CSHDP_LT_center.nii.gz -force
-cp BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_TCKs_output/CSHP_RT_output/CSHP_RT_fin_BT_iFOD2.tck \
-    Karawun/${participant}/tck/CSHDP_RT.tck
-mrgrid BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_TCKs_output/CSHP_RT_output/CSHP_RT_fin_map_BT_iFOD2.nii.gz \
-    regrid -template Karawun/${participant}/T1w.nii.gz \
-    - | mrcalc - 20 -gt 2 -mul \
-    Karawun/${participant}/labels/CSHDP_RT_center.nii.gz -force
-cp BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_TCKs_output/CST_RT_output/CST_RT_fin_BT_iFOD2.tck \
-    Karawun/${participant}/tck/CST_RT.tck
-cp BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_TCKs_output/CST_LT_output/CST_LT_fin_BT_iFOD2.tck \
-    Karawun/${participant}/tck/CST_LT.tck
-mrgrid BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_TCKs_output/CST_LT_output/CST_LT_fin_map_BT_iFOD2.nii.gz \
-    regrid -template Karawun/${participant}/T1w.nii.gz \
-    - | mrcalc - 20 -gt 1 -mul \
-    Karawun/${participant}/labels/CST_LT_center.nii.gz -force
-mrgrid BIDS/derivatives/KUL_compute/${participant}/FWT/${participant}_TCKs_output/CST_RT_output/CST_RT_fin_map_BT_iFOD2.nii.gz \
-    regrid -template Karawun/${participant}/T1w.nii.gz \
-    - | mrcalc - 20 -gt 1 -mul \
-    Karawun/${participant}/labels/CST_RT_center.nii.gz -force
+tract_name_orig="CSHP_LT"
+voi_name_final="DISTAL_STN_MOTOR_Left"
+voi_color=3
+voi_threshold=0.1
+KUL_karawun_get_voi
+
+tract_name_orig="CSHP_RT"
+voi_name_final="DISTAL_STN_MOTOR_Right"
+voi_color=3
+voi_threshold=0.1
+KUL_karawun_get_voi
+
+tract_name_orig="CSHP_LT"
+tract_name_final="CSHDP_Left"
+tract_color=2
+tract_threshold=20
+KUL_karawun_get_tract
+
+tract_name_orig="CSHP_RT"
+tract_name_final="CSHDP_Right"
+tract_color=2
+tract_threshold=20
+KUL_karawun_get_tract
+
+tract_name_orig="CST_LT"
+tract_name_final="CST_Left"
+tract_color=1
+tract_threshold=20
+KUL_karawun_get_tract
+
+tract_name_orig="CST_RT"
+tract_name_final="CST_Right"
+tract_color=1
+tract_threshold=20
+KUL_karawun_get_tract
+
+exit
 
 
 conda activate KarawunEnv
