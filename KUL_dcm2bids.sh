@@ -320,7 +320,12 @@ function kul_dcmtags {
 
             #single_slice_time (in seconds)
             local single_slice_time=$(echo $repetion_time_msec $number_of_slices $multiband_factor | awk '{print $1 / ($2 / $3) / 1000}')
-    
+            
+            # clear variables
+            unset slit
+            unset slit1
+            unset slit2
+
             # number of excitations given multiband
             # e = n. of excitations/slices per band
             local e=$(echo $number_of_slices $multiband_factor | awk '{print ($1 / $2) -1 }')

@@ -142,7 +142,7 @@ if [ $bc -eq 1 ]; then
         ./dwiprep/sub-${participant}/sub-${participant}/dwi_orig* \
         ./dwiprep/sub-${participant}/sub-${participant}/dwi_preproced.mif"
 
-    #rm -fr $clean_dwiprep
+    rm -fr $clean_dwiprep
 
     #we backup everything
     bck_bids="./BIDS/sub-${participant}"
@@ -193,7 +193,6 @@ function KUL_antsApply_Transform {
 function KUL_convert2bids {
     # convert the DICOM to BIDS
     if [ ! -d "BIDS/sub-${participant}" ];then
-        #echo "KUL_dcm2bids.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e"
         KUL_dcm2bids.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e -v
     else
         echo "BIDS conversion already done"
@@ -224,25 +223,48 @@ function KUL_check_data {
     echo "number of SWI magnitude: $nSWI"
     echo "number of SWI phase: $nSWIp"
 
+    # check the T1w
+    if [ $nT1w -lt 1 ]; then
+        echo "No T1w (without Gd) found. Fmriprep will not run."
+        echo " Is the BIDS dataset correct?"
+        read -p "Are you sure you want to continue? (y/n)? " answ
+        if [[ ! "$answ" == "n" ]]; then
+            exit 1
+        fi
+    if 
+
+    # check hd-glio-auto requirements
+    if [ $hdglio -eq 1 ]; then
+        if [ $nT1w -lt 1 ] || [ $ncT1w -lt 1 ] || [ $nT2w -lt 1 ] || [ $nT1w -lt 1 ] && ; then
+            echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
+            echo " At least one is missing. Is the BIDS dataset correct?"
+            read -p "Are you sure you want to continue? (y/n)? " answ
+            if [[ ! "$answ" == "n" ]]; then
+                exit 1
+            fi
+        fi
+    if 
+
     # check the BIDS
     find_fmri=($(find ${cwd}/BIDS/sub-${participant} -name "*_bold.nii.gz"))
     n_fMRI=${#find_fmri[@]}
     if [ $n_fMRI -eq 0 ]; then
-        echo " WARNING: no fMRI data"
+        echo "WARNING: no fMRI data"
     fi
 
     find_dwi=($(find ${cwd}/BIDS/sub-${participant} -name "*_dwi.nii.gz"))
     n_dwi=${#find_dwi[@]}
     if [ $n_dwi -eq 0 ]; then
-        echo " WARNING: no dwi data"
+        echo "WARNING: no dwi data"
     fi
+    echo -e "\n\n"
 
 }
 
 function KUL_rigid_register {
     warp_field="${registeroutputdir}/${source_mri_label}_reg2_T1w"
     output_mri="${globalresultsdir}/Anat/${source_mri_label}_reg2_T1w.nii.gz"
-    echo " rigidly registering $source_mri to $target_mri"
+    echo "Rigidly registering $source_mri to $target_mri"
     my_cmd="antsRegistration --verbose $ants_verbose --dimensionality 3 \
     --output [$warp_field,$output_mri] \
     --interpolation BSpline \
@@ -253,6 +275,7 @@ function KUL_rigid_register {
     --convergence [1000x500x250x100,1e-6,10] \
     --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox $str_silent"
     eval $my_cmd
+    echo "Done rigidly registering $source_mri to $target_mri"
 }
 
 function KUL_run_fmriprep {
@@ -363,7 +386,7 @@ function KUL_compute_SPM {
     #gunzip -f $globalresultsdir/Anat/T1w.nii.gz
 
     if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
-        echo "Preparing for SPM"
+        echo "Computing SPM"
         tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
         #echo ${tasks[@]}
 
@@ -377,7 +400,8 @@ function KUL_compute_SPM {
                 fmrifile="${shorttask}${searchtask}"
                 cp $fmriprepdir/*$fmrifile.gz $fmridatadir
                 gunzip -f $fmridatadir/*$fmrifile.gz
-                KUL_compute_SPM_matlab
+                my_cmd="KUL_compute_SPM_matlab $silent"
+                eval $my_cmd
 
                 # do the combined analysis
                 if [[ "$shorttask" == *"run-2" ]]; then
@@ -387,12 +411,14 @@ function KUL_compute_SPM {
                     tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs.m" #template config file
                     tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs_job.m" #template job file
                     fmrifile="${shorttask}"
-                    KUL_compute_SPM_matlab
+                    my_cmd="KUL_compute_SPM_matlab $silent"
+                    eval $my_cmd
                 fi
             
             fi
         done
         touch KUL_LOG/sub-${participant}_SPM.done
+        echo "Done computing SPM"
     else
         echo "SPM analysis already done"
     fi
@@ -414,7 +440,7 @@ function KUL_segment_tumor {
                 cp $FLAIR $hdglioinputdir/FLAIR.nii.gz
                 cp $T2w $hdglioinputdir/T2.nii.gz
                 
-                echo "  running HD-GLIO-AUTO using docker"
+                echo "Running HD-GLIO-AUTO using docker"
                 docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
                     --mount type=bind,source=$hdgliooutputdir,target=/output \
                 jenspetersen/hd-glio-auto
@@ -426,6 +452,7 @@ function KUL_segment_tumor {
                 mrcalc $globalresultsdir/Anat/lesion.nii $globalresultsdir/Anat/lesion_perilesional_oedema.nii -sub \
                     $globalresultsdir/Anat/lesion_solid_tumour.nii -sub $globalresultsdir/Anat/lesion_central_necrosis.nii
 
+                echo "Done running HD-GLIO-AUTO using docker"
 
             else
                 echo "HD-GLIO-AUTO already done"
@@ -440,16 +467,17 @@ function KUL_run_VBG {
     if [ $vbg -eq 1 ]; then
         vbg_test="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_T1_nat_filled.nii.gz"
         if [[ ! -f $vbg_test ]]; then
-            echo "Starting KUL_VBG"
+            echo "Computing KUL_VBG"
             mkdir -p ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
             mkdir -p ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG
 
             # Need to update to dev version
-            KUL_VBG.sh -S ${participant} \
+            my_cmd="KUL_VBG.sh -S ${participant} \
                 -l $globalresultsdir/Anat/lesion.nii \
                 -o ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-                -z T1 -b -B 1 -t -P 3 -n $ncpu -v          
+                -z T1 -b -B 1 -t -P 3 -n $ncpu $silent"       
+            eval $my_cmd
 
             # copy the output of VBG to the derivatives freesurfer directory
             cp -r ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant} \
@@ -457,6 +485,7 @@ function KUL_run_VBG {
             #rm -fr ${cwd}/BIDS/derivatives/KUL_compute//sub-${participant}/KUL_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/${participant}
             #ln -s ${cwd}/lesion_wf/output_LWF/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/ freesurfer
             echo "done" > BIDS/derivatives/freesurfer/sub-${participant}_freesurfer_is.done
+            echo "Done computing KUL_VBG"
         else
             echo "KUL_VBG has already run"
         fi
@@ -466,7 +495,7 @@ function KUL_run_VBG {
 function KUL_run_msbp {
     if [ ! -f KUL_LOG/sub-${participant}_MSBP.done ]; then
 
-        echo " starting MSBP"
+        echo "Running MSBP"
 
         # there seems tpo be a problem with docker if the fsaverage dir is a soft link; so we delete the link and hardcopy it
         rm -fr $cwd/BIDS/derivatives/freesurfer/fsaverage
@@ -482,6 +511,7 @@ function KUL_run_msbp {
         #echo $my_cmd
         eval $my_cmd
         
+        echo "Done MSBP"
         touch KUL_LOG/sub-${participant}_MSBP.done
         
     else
@@ -492,7 +522,7 @@ function KUL_run_msbp {
 function KUL_run_FWT {
     config="tracks_list.txt"
 
-    echo " starting FWT VOI generation"
+    echo "Running FWT VOI generation"
     my_cmd="KUL_FWT_make_VOIs.sh -p ${participant} \
      -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
@@ -502,7 +532,7 @@ function KUL_run_FWT {
      -n $ncpu $str_silent"
     eval $my_cmd
 
-    echo " starting FWT tracking"
+    echo "Running FWT tracking"
     my_cmd="KUL_FWT_make_TCKs.sh -p ${participant} \
      -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
      -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
@@ -533,7 +563,7 @@ mkdir -p $computedir/RESULTS
 mkdir -p $globalresultsdir
 
 if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
-    echo "Preparing for Melodic"
+    echo "Computing Melodic"
     tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
     # we loop over the found tasks
     for task in ${tasks[@]}; do
@@ -571,13 +601,13 @@ if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
          $fmriresults/melodic_IC.nii.gz > $fmriresults/kul/kul_networks.txt
 
         while IFS=$' ' read network ic stat; do
-            echo $network
+            #echo $network
             network_name=$(sed "${network}q;d" $kul_main_dir/atlasses/Yeo2011_rsfMRI_in_FSL_Space/yeo2011_7_liberal_combined_networks.txt)
-            echo $network_name
+            #echo $network_name
             icfile="$fmriresults/stats/thresh_zstat${ic}.nii.gz"
             network_file="$fmriresults/kul/melodic_${network_name}_ic${ic}.nii.gz"
-            echo $icfile
-            echo $network_file
+            #echo $icfile
+            #echo $network_file
             mrcalc $icfile 2 -gt $icfile -mul $network_file -force
 
             # since Melodic analysis was in MNI space, we transform back in native space
@@ -586,13 +616,14 @@ if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
             transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
             find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
             reference=${find_T1w[0]}
-            echo "input=$input"
-            echo "output=$output"
-            echo "transform=$transform"
-            echo "reference=$reference"
+            #echo "input=$input"
+            #echo "output=$output"
+            #echo "transform=$transform"
+            #echo "reference=$reference"
             KUL_antsApply_Transform
         done < $fmriresults/kul/kul_networks.txt
     done
+    echo "Done computing Melodic"
     touch KUL_LOG/sub-${participant}_melodic.done
 else
     echo "Melodic analysis already done"
@@ -666,6 +697,7 @@ fi
 
 
 # Check if fMRI and/or dwi data are present
+echo "Starting KUL_clinical_fmridti"
 KUL_check_data
 
 # STEP 2 - run fmriprep/dwiprep and continue
@@ -702,7 +734,6 @@ wait
 
 
 # STEP 5 - run SPM/melodic/msbp
-echo " no more exit before msbp"
 KUL_run_msbp &
 KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
 if [ $n_fMRI -gt 0 ];then

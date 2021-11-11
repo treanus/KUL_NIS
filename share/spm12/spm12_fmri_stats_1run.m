@@ -1,6 +1,6 @@
 % List of open inputs
 
-spm_path = [getenv('HOME') filesep 'KUL_apps/spm12'];
+spm_path = [getenv('KUL_apps_DIR') filesep 'spm12'];
 addpath(spm_path)
 nrun = 1; % enter the number of runs here
 jobfile = {'###JOBFILE###'};

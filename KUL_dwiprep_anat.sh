@@ -143,19 +143,18 @@ log=log/log_${d}.txt
 # --- MAIN ----------------
 
 # Check mrtrix3 version
-# Check mrtrix3 version
-if [ $mrtrix_version_major -lt 3 ]; then
+if [ $mrtrix_version_revision_major -eq 2 ]; then
 	mrtrix3new=0
-elif [ $mrtrix_version_major -eq 3 ] && [ $mrtrix_version_major -eq 0 ]; then
+elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -lt 100 ]; then
 	mrtrix3new=1
-elif [ $mrtrix_version_major -eq 3 ] && [ $mrtrix_version_major -eq 1 ]; then
+elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -gt 100 ]; then
 	mrtrix3new=2
 else 
-	mrtrix3new=0
+	echo "cannot find correct mrtrix versions - exitting"
+	exit 1
 fi
 
-mrtrix3new=2
-
+# start
 bids_subj=BIDS/sub-${subj}
 
 # Either a session is given on the command line
