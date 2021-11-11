@@ -193,7 +193,6 @@ function KUL_antsApply_Transform {
 function KUL_convert2bids {
     # convert the DICOM to BIDS
     if [ ! -d "BIDS/sub-${participant}" ];then
-        #echo "KUL_dcm2bids.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e"
         KUL_dcm2bids.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e -v
     else
         echo "BIDS conversion already done"
@@ -224,25 +223,48 @@ function KUL_check_data {
     echo "number of SWI magnitude: $nSWI"
     echo "number of SWI phase: $nSWIp"
 
+    # check the T1w
+    if [ $nT1w -lt 1 ]; then
+        echo "No T1w (without Gd) found. Fmriprep will not run."
+        echo " Is the BIDS dataset correct?"
+        read -p "Are you sure you want to continue? (y/n)? " answ
+        if [[ ! "$answ" == "n" ]]; then
+            exit 1
+        fi
+    if 
+
+    # check hd-glio-auto requirements
+    if [ $hdglio -eq 1 ]; then
+        if [ $nT1w -lt 1 ] || [ $ncT1w -lt 1 ] || [ $nT2w -lt 1 ] || [ $nT1w -lt 1 ] && ; then
+            echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
+            echo " At least one is missing. Is the BIDS dataset correct?"
+            read -p "Are you sure you want to continue? (y/n)? " answ
+            if [[ ! "$answ" == "n" ]]; then
+                exit 1
+            fi
+        fi
+    if 
+
     # check the BIDS
     find_fmri=($(find ${cwd}/BIDS/sub-${participant} -name "*_bold.nii.gz"))
     n_fMRI=${#find_fmri[@]}
     if [ $n_fMRI -eq 0 ]; then
-        echo " WARNING: no fMRI data"
+        echo "WARNING: no fMRI data"
     fi
 
     find_dwi=($(find ${cwd}/BIDS/sub-${participant} -name "*_dwi.nii.gz"))
     n_dwi=${#find_dwi[@]}
     if [ $n_dwi -eq 0 ]; then
-        echo " WARNING: no dwi data"
+        echo "WARNING: no dwi data"
     fi
+    echo -e "\n\n"
 
 }
 
 function KUL_rigid_register {
     warp_field="${registeroutputdir}/${source_mri_label}_reg2_T1w"
     output_mri="${globalresultsdir}/Anat/${source_mri_label}_reg2_T1w.nii.gz"
-    echo " rigidly registering $source_mri to $target_mri"
+    echo "Rigidly registering $source_mri to $target_mri"
     my_cmd="antsRegistration --verbose $ants_verbose --dimensionality 3 \
     --output [$warp_field,$output_mri] \
     --interpolation BSpline \
@@ -253,7 +275,7 @@ function KUL_rigid_register {
     --convergence [1000x500x250x100,1e-6,10] \
     --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox $str_silent"
     eval $my_cmd
-    echo " Done rigidly registering $source_mri to $target_mri"
+    echo "Done rigidly registering $source_mri to $target_mri"
 }
 
 function KUL_run_fmriprep {
@@ -378,7 +400,8 @@ function KUL_compute_SPM {
                 fmrifile="${shorttask}${searchtask}"
                 cp $fmriprepdir/*$fmrifile.gz $fmridatadir
                 gunzip -f $fmridatadir/*$fmrifile.gz
-                KUL_compute_SPM_matlab
+                my_cmd="KUL_compute_SPM_matlab $silent"
+                eval $my_cmd
 
                 # do the combined analysis
                 if [[ "$shorttask" == *"run-2" ]]; then
@@ -388,7 +411,8 @@ function KUL_compute_SPM {
                     tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs.m" #template config file
                     tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs_job.m" #template job file
                     fmrifile="${shorttask}"
-                    KUL_compute_SPM_matlab
+                    my_cmd="KUL_compute_SPM_matlab $silent"
+                    eval $my_cmd
                 fi
             
             fi
@@ -485,9 +509,9 @@ function KUL_run_msbp {
          --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
          --multiproc_number_of_cores $ncpu $str_silent"
         #echo $my_cmd
-        eval $
+        eval $my_cmd
         
-        echo "Done running MSBP"
+        echo "Done MSBP"
         touch KUL_LOG/sub-${participant}_MSBP.done
         
     else
@@ -577,13 +601,13 @@ if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
          $fmriresults/melodic_IC.nii.gz > $fmriresults/kul/kul_networks.txt
 
         while IFS=$' ' read network ic stat; do
-            echo $network
+            #echo $network
             network_name=$(sed "${network}q;d" $kul_main_dir/atlasses/Yeo2011_rsfMRI_in_FSL_Space/yeo2011_7_liberal_combined_networks.txt)
-            echo $network_name
+            #echo $network_name
             icfile="$fmriresults/stats/thresh_zstat${ic}.nii.gz"
             network_file="$fmriresults/kul/melodic_${network_name}_ic${ic}.nii.gz"
-            echo $icfile
-            echo $network_file
+            #echo $icfile
+            #echo $network_file
             mrcalc $icfile 2 -gt $icfile -mul $network_file -force
 
             # since Melodic analysis was in MNI space, we transform back in native space
@@ -592,10 +616,10 @@ if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
             transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
             find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
             reference=${find_T1w[0]}
-            echo "input=$input"
-            echo "output=$output"
-            echo "transform=$transform"
-            echo "reference=$reference"
+            #echo "input=$input"
+            #echo "output=$output"
+            #echo "transform=$transform"
+            #echo "reference=$reference"
             KUL_antsApply_Transform
         done < $fmriresults/kul/kul_networks.txt
     done
@@ -673,6 +697,7 @@ fi
 
 
 # Check if fMRI and/or dwi data are present
+echo "Starting KUL_clinical_fmridti"
 KUL_check_data
 
 # STEP 2 - run fmriprep/dwiprep and continue
@@ -709,7 +734,6 @@ wait
 
 
 # STEP 5 - run SPM/melodic/msbp
-echo " no more exit before msbp"
 KUL_run_msbp &
 KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
 if [ $n_fMRI -gt 0 ];then
