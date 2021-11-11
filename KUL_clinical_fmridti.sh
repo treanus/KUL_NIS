@@ -224,18 +224,18 @@ function KUL_check_data {
     echo "number of SWI phase: $nSWIp"
 
     # check the T1w
-    if [ $nT1w -lt 1 ]; then
+    if [ $nT1w -eq 0 ]; then
         echo "No T1w (without Gd) found. Fmriprep will not run."
         echo " Is the BIDS dataset correct?"
         read -p "Are you sure you want to continue? (y/n)? " answ
         if [[ ! "$answ" == "n" ]]; then
             exit 1
         fi
-    if 
+    fi 
 
     # check hd-glio-auto requirements
     if [ $hdglio -eq 1 ]; then
-        if [ $nT1w -lt 1 ] || [ $ncT1w -lt 1 ] || [ $nT2w -lt 1 ] || [ $nT1w -lt 1 ] && ; then
+        if [ [ $nT1w -lt 1 ] || [ $ncT1w -lt 1 ] || [ $nT2w -lt 1 ] || [ $nT1w -lt 1 ] ]; then
             echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
             echo " At least one is missing. Is the BIDS dataset correct?"
             read -p "Are you sure you want to continue? (y/n)? " answ
@@ -243,7 +243,7 @@ function KUL_check_data {
                 exit 1
             fi
         fi
-    if 
+    fi
 
     # check the BIDS
     find_fmri=($(find ${cwd}/BIDS/sub-${participant} -name "*_bold.nii.gz"))
@@ -257,6 +257,7 @@ function KUL_check_data {
     if [ $n_dwi -eq 0 ]; then
         echo "WARNING: no dwi data"
     fi
+
     echo -e "\n\n"
 
 }
@@ -400,7 +401,7 @@ function KUL_compute_SPM {
                 fmrifile="${shorttask}${searchtask}"
                 cp $fmriprepdir/*$fmrifile.gz $fmridatadir
                 gunzip -f $fmridatadir/*$fmrifile.gz
-                my_cmd="KUL_compute_SPM_matlab $silent"
+                my_cmd="KUL_compute_SPM_matlab $str_silent"
                 eval $my_cmd
 
                 # do the combined analysis
@@ -411,7 +412,7 @@ function KUL_compute_SPM {
                     tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs.m" #template config file
                     tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs_job.m" #template job file
                     fmrifile="${shorttask}"
-                    my_cmd="KUL_compute_SPM_matlab $silent"
+                    my_cmd="KUL_compute_SPM_matlab $str_silent"
                     eval $my_cmd
                 fi
             
@@ -476,7 +477,7 @@ function KUL_run_VBG {
                 -l $globalresultsdir/Anat/lesion.nii \
                 -o ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-                -z T1 -b -B 1 -t -P 3 -n $ncpu $silent"       
+                -z T1 -b -B 1 -t -P 3 -n $ncpu $str_silent"       
             eval $my_cmd
 
             # copy the output of VBG to the derivatives freesurfer directory
