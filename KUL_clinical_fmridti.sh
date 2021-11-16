@@ -4,8 +4,8 @@
 # Requires matlab fmriprep
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
-# 16/12/2020
-version="0.1"
+# 11/11/2021
+version="0.7"
 
 kul_main_dir=`dirname "$0"`
 source $kul_main_dir/KUL_main_functions.sh
@@ -42,6 +42,8 @@ Optional arguments:
      -d:  dicom zip file (or directory)
      -c:  make a backup and cleanup 
      -n:  number of cpu to use (default 15)
+     -r:  redo certain steps (program will ask)
+     -R:  make results ready
      -v:  show output from commands
 
 USAGE
@@ -58,6 +60,8 @@ ants_verbose=1
 ncpu=15
 bc=0 
 type=1
+redo=0
+results=0 
 
 # Set required options
 p_flag=0
@@ -68,7 +72,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:cv" OPT; do
+	while getopts "p:t:d:n:Rrcv" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -86,6 +90,12 @@ else
 		;;
 		c) #backup&clean
 			bc=1
+		;;
+        r) #redo
+			redo=1
+		;;
+        R) #make results
+			results=1
 		;;
         v) #verbose
 			silent=0
@@ -178,7 +188,43 @@ if [ $bc -eq 1 ]; then
     exit 0
 fi
 
+if [ $results -eq 1 ];then
+
+    ### under development 
+    results_final_output="RESULTS/sub-${participant}/${participant}4silvia/for_PACS"
+    mkdir -p $results_final_output
+    #SPM
+    read -p "Which SPM results (.e.g. TAAL_run-2) " answ_spm
+    read -p "Which SPM threshold (.e.g. 7.5) " answ_thr
+    SPM_orig="RESULTS/sub-${participant}/SPM/SPM_${answ_spm}.nii"
+    SPM_output="${results_final_output}/tbfMRI_${answ_spm}_thr${answ_thr}.nii"
+    mrcalc $SPM_orig $answ_thr -gt $SPM_orig -mul $SPM_output
+    exit
+
+    #Melodic
+    melodic_network="visual"
+    melodic_thr=3
+    melodic_orig="RESULTS/sub-${participant}/Melodic/melodic*${Melodic_network}*.nii"
+    melodic_output="${results_final_output}/rsfMRI_visual_thr${melodic_thr}.nii"
+    mrmath $melodic_orig mean - | \
+        mrcalc - $melodic_thr -gt - -mul $melodic_output
+    exit
+
+fi
+
 # --- functions ---
+function KUL_check_redo {
+    if [ $redo -eq 1 ];then
+        read -p "Redo: Melodic? (y/n) " answ
+        if [[ "$answ" == "y" ]]; then
+            echo $answ
+            echo "rm ${cwd}/KUL_LOG/sub-${participant}_melodic.done"
+            rm -f ${cwd}/KUL_LOG/sub-${participant}_melodic.done >/dev/null 2>&1
+            rm -f ${cwd}/RESULTS/sub-${participant}/Melodic/*
+            rm -fr ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/FSL_melodic/*
+        fi
+    fi
+}
 
 function KUL_antsApply_Transform {
     antsApplyTransforms -d 3 --float 1 \
@@ -281,6 +327,8 @@ function KUL_rigid_register {
 
 function KUL_run_fmriprep {
     if [ ! -f fmriprep/sub-${participant}.html ]; then
+        
+        # preparing for fmriprep
         cp study_config/run_fmriprep.txt KUL_LOG/sub-${participant}_run_fmriprep.txt
         sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_fmriprep.txt
         rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
@@ -291,12 +339,25 @@ function KUL_run_fmriprep {
         fi
         sed -i.bck "s/fmriprep_options: /fmriprep_options: ${fmriprep_options}/" KUL_LOG/sub-${participant}_run_fmriprep.txt
         rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
+        
+        # running fmriprep
         KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_fmriprep.txt 
+        
+        # cleaning the working directory
         rm -fr fmriprep_work_${participant}
+        
+        # copying the result to the global results dir
         cp -f fmriprep/sub-$participant/anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/Anat/T1w.nii.gz
         gunzip -f $globalresultsdir/Anat/T1w.nii.gz
+        
+        # create a GM mask in the global results dir
+        mrcalc fmriprep/sub-$participant/anat/sub-${participant}_dseg.nii.gz 1 -eq \
+            fmriprep/sub-$participant/anat/sub-${participant}_dseg.nii.gz -mul - | \
+            maskfilter - median - | \
+            maskfilter - dilate $globalresultsdir/Anat/T1w_GM.nii.gz
+
     else
-        echo "fmriprep already done"
+        echo "Fmriprep already done"
     fi
 }
 
@@ -307,7 +368,7 @@ function KUL_run_dwiprep {
         rm -f KUL_LOG/sub-${participant}_run_dwiprep.txt.bck
         KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_dwiprep.txt 
     else
-        echo "dwiprep already done"
+        echo "Dwiprep already done"
     fi
 }
 
@@ -318,8 +379,206 @@ function KUL_run_freesurfer {
         rm -f KUL_LOG/sub-${participant}_run_freesurfer.txt.bck
         KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_freesurfer.txt 
     else
-        echo "freesurfer already done"
+        echo "Freesurfer already done"
     fi
+}
+
+
+function task_exec {
+
+    echo "  " | tee -a ${prep_log} 
+    
+    echo ${task_in} | tee -a ${prep_log} 
+
+    echo " Started @ $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${prep_log} 
+
+    eval ${task_in} | tee -a ${prep_log} 2>&1 &
+
+    echo " pid = $! basicPID = $$ " | tee -a ${prep_log}
+
+    wait ${pid}
+
+    ### STEFAN NEED TO DO: is the sleep needed, or can it be shorter?
+    sleep 5
+
+    if [ $? -eq 0 ]; then
+        echo Success | tee -a ${prep_log}
+    else
+        echo Fail | tee -a ${prep_log}
+
+        exit 1
+    fi
+
+    echo " Finished @  $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${prep_log} 
+
+    echo "  " | tee -a ${prep_log} 
+
+    unset task_in
+
+}
+
+
+function KUL_run_fastsurfer {
+
+    echo
+    echo "Hybrid parcellation flag is set, now starting FastSurfer/FreeSurfer hybrid recon-all based part of VBG"
+    echo
+
+    # make your log file
+    prep_log="KUL_LOG/sub-${participant}_run_fastsurfer.txt" 
+    if [[ ! -f ${prep_log} ]] ; then
+        touch ${prep_log}
+    else
+        echo "${prep_log} already created"
+    fi
+
+    fs_output="${cwd}/BIDS/derivatives/freesurfer"
+    output_d="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/FastSurfer"
+    #str_op="${output_d}/${participant}"
+    #fasu_output="${str_op}fastsurfer"
+    fasu_output=$output_d
+    #T1_4_parc="${str_op}_T1_nat_4parc.mgz"
+    T1_4_parc="${cwd}/$T1w"
+    echo $T1_4_parc
+
+    recall_scripts="${fs_output}/sub-${participant}/scripts"
+    echo $recall_scripts
+ 
+
+    #search_wf_mark4=($(find ${recall_scripts} -type f 2> /dev/null | grep recon-all.done))
+    #echo $search_wf_mark4
+
+
+    #FS_brain="${fs_output}/${participant}/mri/brainmask.mgz"
+
+    #new_brain="${str_pp}_T1_Brain_4FS.mgz"
+
+    task_in="mkdir -p ${fs_output} >/dev/null 2>&1"
+    task_exec
+
+    # Run recon-all and convert the T1 to .mgz for display
+    # running with -noskulltrip and using brain only inputs
+    # for recon-all
+    # if we can run up to skull strip, break, fix with hd-bet result then continue it would be much better
+    # if we can switch to fast-surf, would be great also
+    # another possiblity is using recon-all -skullstrip -clean-bm -gcut -subjid <subject name>
+    
+    echo "starting recon-all stage 1"
+    task_in="recon-all -i ${T1_4_parc} -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1 -no-isrunning"
+    task_exec
+    echo "done recon-all stage 1"
+
+    #task_in="mri_convert -rl ${fs_output}/${participant}/mri/brainmask.mgz ${T1_BM_4_FS} ${clean_BM_mgz}"
+    #task_exec
+
+    #task_in="mri_mask ${FS_brain} ${T1_BM_4_FS} ${new_brain} && mv ${new_brain} ${fs_output}/${participant}/mri/brainmask.mgz && cp \
+    #${fs_output}/${participant}/mri/brainmask.mgz ${fs_output}/${participant}/mri/brainmask.auto.mgz"
+    #task_exec
+
+    #exit
+
+
+    FaSu_loc=$(which run_fastsurfer.sh)
+    #nvd_cu=$(nvcc --version)
+    user_id_str=$(id -u $(whoami))
+    T1_4_FaSu=$(basename ${T1_4_parc})
+    nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
+    if [[ ! -z ${nvram} ]]; then
+        if [[ ${nvram} -lt 6000 ]]; then
+            batch_fasu="4"
+        elif [[ ${nvram} -gt 6500 ]] && [[ ${nvram} -lt 7000 ]]; then
+            batch_fasu="6"
+        elif [[ ${nvram} -gt 7000 ]]; then
+            batch_fasu="8"
+        fi
+    else
+        batch_fasu="4"
+    fi
+
+
+    if [[ ! -z ${FaSu_loc} ]]; then
+
+        if [ -z ${nvram} -lt 4000 ]; then
+
+            FaSu_cpu=" --no_cuda "
+            echo " Running FastSurfer without CUDA " | tee -a ${prep_log}
+
+        else
+
+            FaSu_cpu=""
+            echo " Running FastSurfer with CUDA " | tee -a ${prep_log}
+
+        fi
+
+        # it's a good idea to run autorecon1 first anyway
+        # then use the orig from that to feed to FaSu
+
+        task_in="run_fastsurfer.sh --t1 ${T1_4_parc} \
+        --sid sub-${participant} --sd ${fasu_output} --parallel --threads ${ncpu} \
+        --fs_license $FS_LICENSE --py python ${FaSu_cpu} --ignore_fs_version --batch ${batch_fasu}"
+
+        task_exec
+
+    else
+
+        # it's a good idea to run autorecon1 first anyway
+        # then use the orig from that to feed to FaSu
+
+        echo "Local FastSurfer not found, switching to Docker version" | tee -a ${prep_log}
+        T1_4_FaSu=$(basename ${T1_4_parc})
+
+        if [[ ! -z ${nvd_cu} ]]; then
+
+            FaSu_v="gpu"
+
+        else
+
+            FaSu_v="cpu"
+
+        fi
+
+        task_in="docker run -v ${output_d}:/data -v ${fasu_output}:/output \
+        -v $FREESURFER_HOME:/fs60 --rm --user ${user_id_str} fastsurfer:${FaSu_v} \
+        --fs_license /fs60/$(basename $FS_LICENSE) --sid sub-${participant} \
+        --sd /output/ --t1 /data/${T1_4_FaSu} \
+        --parallel --threads ${ncpu}"
+
+        task_exec
+
+    fi
+
+
+    # time to copy the surfaces and labels from FaSu to FS dir
+    # here we run FastSurfer first and 
+
+    #cp -rf ${output_d}/${participant}fastsurfer/${participant}/surf ${output_d}/${participant}_FS_output/${participant}/
+    #cp -rf ${output_d}/${participant}fastsurfer/${participant}/label ${output_d}/${participant}_FS_output/${participant}/
+    
+    cp -rf ${output_d}/sub-${participant}/surf/* $fs_output/sub-${participant}/surf/
+    cp -rf ${output_d}/sub-${participant}/label/* $fs_output/sub-${participant}/surf/label/ 
+
+
+    # task_in="recon-all -s ${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -all -noskullstrip"
+
+    # task_exec
+
+    task_in="recon-all -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -noskullstrip -no-isrunning -make all"
+    task_exec
+
+    exit
+
+    task_in="mri_convert -rl ${fs_output}/${participant}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${participant}/mri/real_T1.mgz"
+
+    task_exec
+
+    task_in="mri_convert -rl ${fs_output}/${participant}/mri/brain.mgz -rt nearest ${Lmask_o} ${fs_output}/${participant}/mri/Lmask_T1_bin.mgz"
+
+    task_exec
+
+    fs_parc_mgz="${fs_output}/${participant}/mri/aparc+aseg.mgz"
+
+
+
 }
 
 function KUL_compute_SPM_matlab {
@@ -522,33 +781,38 @@ function KUL_run_msbp {
 
 function KUL_run_FWT {
     config="tracks_list.txt"
+    if [ ! -f KUL_LOG/sub-${participant}_FWT.done ]; then
+        echo "Running FWT VOI generation"
+        my_cmd="KUL_FWT_make_VOIs.sh -p ${participant} \
+        -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
+        -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
+        -c $cwd/study_config/${config} \
+        -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
+        -o $kulderivativesdir/sub-${participant}/FWT \
+        -n $ncpu $str_silent"
+        eval $my_cmd
 
-    echo "Running FWT VOI generation"
-    my_cmd="KUL_FWT_make_VOIs.sh -p ${participant} \
-     -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
-     -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
-     -c $cwd/study_config/${config} \
-     -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-     -o $kulderivativesdir/sub-${participant}/FWT \
-     -n $ncpu $str_silent"
-    eval $my_cmd
+        echo "Running FWT tracking"
+        my_cmd="KUL_FWT_make_TCKs.sh -p ${participant} \
+        -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
+        -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
+        -c $cwd/study_config/${config} \
+        -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
+        -o $kulderivativesdir/sub-${participant}/FWT \
+        -T 1 -a iFOD2 \
+        -Q -S \
+        -n $ncpu $str_silent"
+        eval $my_cmd
 
-    echo "Running FWT tracking"
-    my_cmd="KUL_FWT_make_TCKs.sh -p ${participant} \
-     -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
-     -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
-     -c $cwd/study_config/${config} \
-     -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-     -o $kulderivativesdir/sub-${participant}/FWT \
-     -T 1 -a iFOD2 \
-     -Q -S \
-     -n $ncpu $str_silent"
-    eval $my_cmd
-
-    ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
-    ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_BT_iFOD2.tck $globalresultsdir/Tracto/
-    pdfunite $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
- }
+        ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
+        ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_BT_iFOD2.tck $globalresultsdir/Tracto/
+        pdfunite $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
+        touch KUL_LOG/sub-${participant}_FWT.done
+        
+    else
+        echo "FWT already done"
+    fi
+}
 
 function KUL_compute_melodic {
 # run FSL Melodic
@@ -598,12 +862,12 @@ if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
         
         # now we compare to known networks
         mkdir -p $fmriresults/kul
-        fslcc --noabs -p 3 -t .204 $kul_main_dir/atlasses/Yeo2011_rsfMRI_in_FSL_Space/yeo2011_7_liberal_combined.nii.gz \
-         $fmriresults/melodic_IC.nii.gz > $fmriresults/kul/kul_networks.txt
+        fslcc --noabs -p 3 -t .204 $kul_main_dir/atlasses/Local/Sunaert2021/KUL_NIT_networks.nii.gz \
+            $fmriresults/melodic_IC.nii.gz > $fmriresults/kul/kul_networks.txt
 
         while IFS=$' ' read network ic stat; do
             #echo $network
-            network_name=$(sed "${network}q;d" $kul_main_dir/atlasses/Yeo2011_rsfMRI_in_FSL_Space/yeo2011_7_liberal_combined_networks.txt)
+            network_name=$(sed "${network}q;d" $kul_main_dir/atlasses/Local/Sunaert2021/KUL_NIT_networks.txt)
             #echo $network_name
             icfile="$fmriresults/stats/thresh_zstat${ic}.nii.gz"
             network_file="$fmriresults/kul/melodic_${network_name}_ic${ic}.nii.gz"
@@ -697,9 +961,10 @@ if [ ! -f KUL_LOG/sub-${participant}_1_bidscheck.done ]; then
 fi
 
 
-# Check if fMRI and/or dwi data are present
+# Check if fMRI and/or dwi data are present and/or to redo some processing
 echo "Starting KUL_clinical_fmridti"
 KUL_check_data
+KUL_check_redo
 
 # STEP 2 - run fmriprep/dwiprep and continue
 KUL_run_fmriprep &
@@ -726,9 +991,14 @@ KUL_register_anatomical_images &
 if [ $vbg -eq 1 ];then
     KUL_run_VBG &
 else
-    KUL_run_freesurfer &
+    #KUL_run_freesurfer &
+    fast=0
+    if [ $fast -eq 1 ];then
+        KUL_run_fastsurfer
+    else
+        KUL_run_freesurfer
+    fi
 fi
-
 
 # WAIT FOR ALL TO FINISH
 wait
