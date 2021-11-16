@@ -756,6 +756,9 @@ def execute(): #pylint: disable=unused-variable
   dwi_path = 'dwi.mif'
   
   # KUL - Stefan
+  path_2_KULNIs = os.path.dirname(__file__)
+  temp = os.path.join(path_2_KULNIs, 'atlasses', 'Temp_4_KUL_dwiprep', 'UKBB_fMRI_mod.nii.gz')
+  tempm = os.path.join(path_2_KULNIs, 'atlasses', 'Temp_4_KUL_dwiprep', 'UKBB_fMRI_mod_brain_mask.nii.gz')
    
   if do_topup or kul_disco:
 
@@ -850,13 +853,16 @@ def execute(): #pylint: disable=unused-variable
             app.console('Output of synb0-disco command:')
             sys.stderr.write(disco_output.stdout + '\n' + disco_output.stderr + '\n')
         
-        # for now let's use the standard (non-topup & non-disco) brain mask
+        # For now let's use the standard (non-topup & non-disco) brain mask
+        # Replaced all dwi2mask hdbet, with dwi2mask using b02template
         if kul_mrtrix_new == 1:
-          #run.command('dwi2mask hdbet ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
-          run.command('dwi2mask hdbet ' + dwi_path + ' kul_bet.mif')
+          # run.command('dwi2mask hdbet ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+          # run.command('dwi2mask hdbet ' + dwi_path + ' kul_bet.mif')
+          # run.command('dwi2mask ants -nocleanup -template ' + temp + ' ' + tempm + ' ' + dwi_path + ' kul_bet.mif')
+          run.command('dwi2mask -nocleanup b02template -software antsfull -template ' + temp + ' ' + tempm + ' ' + dwi_path + ' kul_bet.mif')
           run.command('maskfilter kul_bet.mif dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
         else:
-          run.command('dwi2mask ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+          run.command('dwi2mask -nocleanup ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
         
         run.command('cp OUTPUTS/topup_fieldcoef.nii.gz field_fieldcoef.nii.gz')
         run.command('cp OUTPUTS/topup_movpar.txt field_movpar.txt')
@@ -909,12 +915,17 @@ def execute(): #pylint: disable=unused-variable
         index += 1
 
       # Use the initial corrected volumes to derive a brain mask for eddy
+      # Replaced all dwi2mask hdbet, with dwi2mask using b02template
       if not app.ARGS.eddy_mask:
         if len(applytopup_image_list) == 1:
           if kul_mrtrix_new == 1:
-            run.command('dwi2mask hdbet ' + applytopup_image_list[0] + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+            # run.command('dwi2mask hdbet ' + applytopup_image_list[0] + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+            # run.command('dwi2mask b02template -software antsfull -template ' + temp + ' ' + ' ' + tempm + ' ' + applytopup_image_list[0] + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+            # run.command('dwi2mask -nocleanup -force b02template -software antsfull -template ' + temp + ' ' + tempm + ' ' + applytopup_image_list[0] + ' initial_mask.mif && maskfilter initial_mask.mif dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+            run.command('dwi2mask ants -nocleanup -force -template ' + temp + ' ' + tempm + ' ' + applytopup_image_list[0] + ' initial_mask.mif && maskfilter initial_mask.mif dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+
           else:
-            run.command('dwi2mask ' + applytopup_image_list[0] + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+            run.command('dwi2mask -nocleanup ' + applytopup_image_list[0] + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
 
         else:
           run.command('mrcat ' + ' '.join(applytopup_image_list) + ' - -axis 3 | dwi2mask - - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
@@ -926,11 +937,14 @@ def execute(): #pylint: disable=unused-variable
   else:
 
     # Generate a processing mask for eddy based on the uncorrected input DWIs
+    # Replaced all dwi2mask hdbet, with dwi2mask using b02template
     if not app.ARGS.eddy_mask:
       if kul_mrtrix_new == 1:
-        run.command('dwi2mask hdbet ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+        # run.command('dwi2mask hdbet ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+        # run.command('dwi2mask -nocleanup b02template -software antsfull -template ' + temp + ' ' + tempm + ' ' + dwi_path + ' initial_mask.mif && maskfilter initial_mask.mif dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+        run.command('dwi2mask ants -nocleanup -template ' + temp + ' ' + tempm + ' ' + dwi_path + ' initial_mask.mif && maskfilter initial_mask.mif dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
       else:
-        run.command('dwi2mask ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+        run.command('dwi2mask -nocleanup ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
 
 
   # Use user supplied mask for eddy instead of one derived from the images using dwi2mask

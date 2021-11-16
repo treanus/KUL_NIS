@@ -1,4 +1,5 @@
-#!/bin/bash -e 
+#!/bin/bash
+# set -x
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 # Requires Mrtrix3, FSL, ants
@@ -191,10 +192,13 @@ log=log/log_${d}.txt
 # Check mrtrix3 version
 if [ $mrtrix_version_revision_major -eq 2 ]; then
 	mrtrix3new=0
+	echo " you are using an older version of MRTrix3 $mrtrix_version_revision_major"
 elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -lt 100 ]; then
 	mrtrix3new=1
+	echo " you are using a new version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor but not the latest"
 elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -gt 100 ]; then
 	mrtrix3new=2
+	echo " you are using the newest version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor"
 else 
 	echo "cannot find correct mrtrix versions - exitting"
 	exit 1
@@ -249,6 +253,11 @@ kul_e2cl " Start processing $bids_subj" ${preproc}/${log}
 # STEP 1 - CONVERSION of BIDS to MIF ---------------------------------------------
 
 # test if conversion has been done
+declare -a dwi_pes
+declare -a fdwi_pes
+declare -a pedirs
+# declare -a pedp
+declare -a peds
 if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
 	kul_e2cl " Preparing datasets from BIDS directory..." ${preproc}/${log}
@@ -264,7 +273,13 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 		kul_e2cl "   only 1 dwi dataset, scaling not necessary" ${preproc}/${log}
 		dwi_base=${bids_dwi_found%%.*}
 		mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
-		-json_import ${dwi_base}.json ${preproc}/dwi_orig.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu
+		-json_import ${dwi_base}.json -strides 1:3 -force \
+		-clear_property comments -nthreads $ncpu ${preproc}/dwi_orig.mif
+		mrinfo -force ${preproc}/dwi_orig.mif -export_pe_table ${raw}/dwi_orig_petable.txt
+		mapfile -t dwi_pes < ${raw}/dwi_orig_petable.txt
+		fdwi_pes=(${dwi_pes[0]})
+		# we assume each part has only 1 pe
+		pedir="${fdwi_pes[0]},${fdwi_pes[1]},${fdwi_pes[2]}"
 
 	else
 
@@ -299,15 +314,27 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 		dwi_i=1
 		for dwi_file in $bids_dwi_found; do
 			dwi_base=${dwi_file%%.*}
+			declare -a ped_${dwi_i}
 
 			mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
-				-json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} -force -clear_property comments -nthreads $ncpu
+			-json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} -force -clear_property comments -nthreads $ncpu
+
+			mrinfo ${raw}/dwi_p${dwi_i}.mif -export_pe_table ${raw}/dwi_p${dwi_i}_petable.txt
+			peds[$((dwi_i-1))]=$(mrinfo ${raw}/dwi_p${dwi_i}.mif -size)
+			mapfile -t ${dwi_pes} < ${raw}/dwi_p${dwi_i}_petable.txt
+			fdwi_pes=(${dwi_pes[0]})
+			pedirs[$((dwi_i-1))]="${fdwi_pes[0]},${fdwi_pes[1]},${fdwi_pes[2]}"
 
 			dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
 
 			# read the median b0 values
-			if [ $mrtrix3new -eq 2 ]; then
-				dwi2mask hdbet ${raw}/dwi_p${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif 
+			if [ ! $mrtrix3new -eq 0 ]; then
+				# Exchanged all dwi2mask hdbet with dwi2mask b02template
+				# dwi2mask hdbet ${raw}/dwi_p${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif
+				# dwi2mask ants -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+				dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+				${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+				dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
 			else
 				dwi2mask ${raw}/dwi_p${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif 
 			fi
@@ -318,6 +345,27 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 			mrcalc -quiet ${scale[1]} ${scale[dwi_i]} -divide ${raw}/dwi_p${dwi_i}.mif -mult ${raw}/dwi_p${dwi_i}_scaled.mif -force
 
 			((dwi_i++))
+
+		done
+
+		for xx in ${!pedirs[@]}; do
+
+			if [[ ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} -ge ${peds[0]} ]]; then
+				echo "same pe as first part"
+				pedir=${pedirs[$xx]}
+				# pedinv=${ped[$xx]}
+			elif [[ ! ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} -lt ${peds[0]} ]]; then
+				echo "different pe than first part"
+				pedir=${ped[0]}
+				pedinv=${pedirs[$xx]}
+			elif [[ ! ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} -gt ${peds[0]} ]]; then
+				pedir=${ped[$xx]}
+				pedinv=${pedirs[0]}
+			elif [[ ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} == ${peds[0]} ]]; then
+				pedir=${ped[0]}
+				pedinv=${pedirs[$xx]}
+
+			fi
 
 		done
 
@@ -333,7 +381,8 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 			#which mrhistmatch
 			#ls ${raw}/dwi_p?.mif
 			sleep 5
-			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif # -nocleanup 
+			# dwicat ${raw}/dwi_p?.mif - | mrgrid - crop - -axis 1 5,5 | mrgrid - pad ${preproc}/dwi_orig.mif -axis 1 5,5 #-nocleanup 
+			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif #-nocleanup 
 
 		fi
 
@@ -351,7 +400,8 @@ fi
 if [ $rev_only_topup -eq 1 ]; then
 
 	# need to update the code to check for the -pe dir.
-	dwiextract ${preproc}/dwi_orig.mif -pe 0,-1,0 ${preproc}/dwi_orig_norev.mif -force
+	
+	dwiextract ${preproc}/dwi_orig.mif -pe ${pedir} ${preproc}/dwi_orig_norev.mif -force
 	dwi_orig=dwi_orig_norev.mif
 
 else
@@ -606,8 +656,11 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 		# make an mriqc/fmriprep style report (i.e. just link qc.pdf into main dwiprep directory)
 		echo $cwd
 		echo $preproc
-		ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}/../${subj}.pdf &
-
+		if [[ -z ${ses} ]]; then
+			ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}/../sub-${subj}.pdf &
+		else
+			ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}/../sub-${subj}_ses-${ses}.pdf &
+		fi
 
 	fi
 
@@ -629,10 +682,10 @@ if [ ! -f dwi_preproced.mif ]; then
 	# bias field correction
 	kul_e2cl "    dwibiascorrect" ${log}
 	if [ $mrtrix3new -eq 0 ]; then
-		dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force
+		dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force -mask $temp_dir/eddy_mask.nii
 		#dwibiascorrect -fsl dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force
 	else 
-		dwibiascorrect ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force
+		dwibiascorrect ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force -mask $temp_dir/eddy_mask.nii
 	fi
 
 	# upsample the images
@@ -640,7 +693,7 @@ if [ ! -f dwi_preproced.mif ]; then
 	if [ $mrtrix3new -eq 0 ]; then
 		mrresize dwi/biascorr.mif -vox 1.3 dwi/upsampled.mif -nthreads $ncpu -force
 	else
-		mrgrid dwi/biascorr.mif regrid -voxel 1.3 dwi/upsampled.mif -nthreads $ncpu -force
+		mrgrid -nthreads $ncpu -force -axis 1 5,5 dwi/biascorr.mif crop - | mrgrid -axis 1 5,5 -force - pad - | mrgrid -voxel 1.3 -force - regrid dwi/upsampled.mif 
 	fi
 	rm dwi/biascorr.mif
 
@@ -649,10 +702,18 @@ if [ ! -f dwi_preproced.mif ]; then
 	mrconvert dwi/upsampled.mif dwi_preproced.mif -set_property comments "Preprocessed dMRI data." -nthreads $ncpu -force
 	rm dwi/upsampled.mif
 
+	# There is still a problem with this step
 	# create mask of the dwi data
 	kul_e2cl "    creating mask of the dwi data..." ${log}
-	if [ $mrtrix3new -eq 2 ]; then
-		dwi2mask hdbet dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+	if [ ! $mrtrix3new -eq 0 ]; then
+		# dwi2mask hdbet dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+		# dwi2mask ants -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+		dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+		${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+		dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+		# dwi2mask ants -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+		# ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+		# dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
 	else
 		dwi2mask dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
 	fi
@@ -679,7 +740,7 @@ if [[ $dwipreproc_options == *"dhollander"* ]]; then
 
 	if [ ! -f response/wm_response.txt ]; then
 		kul_e2cl "   Calculating dhollander dwi2response..." ${log}
-		dwi2response dhollander dwi_preproced.mif response/dhollander_wm_response.txt \
+		dwi2response dhollander dwi_preproced.mif response/dhollander_wm_response.txt -mask dwi_mask.nii.gz \
 		response/dhollander_gm_response.txt response/dhollander_csf_response.txt -nthreads $ncpu -force
 
 	else
@@ -728,7 +789,7 @@ if [[ $dwipreproc_options == *"tax"* ]]; then
 	if [ ! -f response/tax_wmfod.mif ]; then
 		kul_e2cl "   Calculating tax dwi2fod..." ${log}
 		dwi2fod csd dwi_preproced.mif response/tax_response.txt response/tax_wmfod.mif  \
-		-mask dwi_mask.nii.gz -force -nthreads $ncpu
+		-mask dwi_mask.nii.gz -force -nthreads $ncpu -mask dwi_mask.nii.gz
 
 	else
 
@@ -771,19 +832,19 @@ mkdir -p qa
 if [ ! -f qa/dec.mif ]; then
 
 	kul_e2cl "   Calculating FA/ADC/dec..." ${log}
-	dwi2tensor dwi_preproced.mif dwi_dt.mif -force
+	dwi2tensor dwi_preproced.mif dwi_dt.mif -force -mask dwi_mask.nii.gz
 	tensor2metric dwi_dt.mif -fa qa/fa.nii.gz -mask dwi_mask.nii.gz -force
 	tensor2metric dwi_dt.mif -adc qa/adc.nii.gz -mask dwi_mask.nii.gz -force
 
 	if [[ $dwipreproc_options == *"tournier"* ]]; then
 
-		fod2dec response/tournier_wmfod.mif qa/tournier_dec.mif -force
+		fod2dec response/tournier_wmfod.mif qa/tournier_dec.mif -force -mask dwi_mask.nii.gz
 	fi
 	if [[ $dwipreproc_options == *"tax"* ]]; then
-		fod2dec response/tax_wmfod.mif qa/tax_dec.mif -force
+		fod2dec response/tax_wmfod.mif qa/tax_dec.mif -force -mask dwi_mask.nii.gz
 	fi
 	if [[ $dwipreproc_options == *"dhollander"* ]]; then
-		fod2dec response/dhollander_wmfod.mif qa/dhollander_dec.mif -force
+		fod2dec response/dhollander_wmfod.mif qa/dhollander_dec.mif -force -mask dwi_mask.nii.gz
 		#fod2dec response/dhollander_wmfod_norm.mif qa/dhollander_dec_norm.mif -force
 	fi
 
