@@ -7,7 +7,8 @@
 # 11/11/2021
 version="0.7"
 
-kul_main_dir=`dirname "$0"`
+kul_main_dir=$(dirname "$0")
+script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
 
@@ -223,6 +224,13 @@ function KUL_check_redo {
             rm -f ${cwd}/RESULTS/sub-${participant}/Melodic/*
             rm -fr ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/FSL_melodic/*
         fi
+        read -p "Redo: KUL_VBG? (y/n) " answ
+        if [[ "$answ" == "y" ]]; then
+            echo $answ
+            echo "rm ${cwd}/KUL_LOG/sub-${participant}_VBG.log"
+            rm -f ${cwd}/KUL_LOG/sub-${participant}_VBG.log >/dev/null 2>&1
+            rm -fr ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/*
+        fi
     fi
 }
 
@@ -248,40 +256,40 @@ function KUL_convert2bids {
 function KUL_check_data {
     
     mkdir -p $globalresultsdir
-
+    echo -e "\n\nAn overview of the BIDS data:"
     bidsdir="BIDS/sub-$participant"
     T1w=($(find $bidsdir -name "*T1w.nii.gz" ! -name "*gadolinium*" -type f ))
     nT1w=${#T1w[@]}
-    echo "number of non-contrast T1w: $nT1w"
+    echo "  number of non-contrast T1w: $nT1w"
     cT1w=($(find $bidsdir -name "*T1w.nii.gz" -name "*gadolinium*" -type f ))
     ncT1w=${#cT1w[@]}
-    echo "number of contrast enhanced T1w: $ncT1w"
+    echo "  number of contrast enhanced T1w: $ncT1w"
     FLAIR=($(find $bidsdir -name "*FLAIR.nii.gz" -type f ))
     nFLAIR=${#FLAIR[@]}
-    echo "number of FLAIR: $nFLAIR"
+    echo "  number of FLAIR: $nFLAIR"
     T2w=($(find $bidsdir -name "*T2w.nii.gz" -type f ))
     nT2w=${#T2w[@]}
-    echo "number of T2w: $nT2w"
+    echo "  number of T2w: $nT2w"
     SWI=($(find $bidsdir -name "*run-01_SWI.nii.gz" -type f ))
     nSWI=${#SWI[@]}
     SWIp=($(find $bidsdir -name "*run-02_SWI.nii.gz" -type f ))
     nSWIp=${#SWIp[@]}
-    echo "number of SWI magnitude: $nSWI"
-    echo "number of SWI phase: $nSWIp"
+    echo "  number of SWI magnitude: $nSWI"
+    echo "  number of SWI phase: $nSWIp"
 
     # check the T1w
-    if [ $nT1w -lt 1 ]; then
+    if [ $nT1w -eq 0 ]; then
         echo "No T1w (without Gd) found. Fmriprep will not run."
         echo " Is the BIDS dataset correct?"
         read -p "Are you sure you want to continue? (y/n)? " answ
         if [[ ! "$answ" == "n" ]]; then
             exit 1
         fi
-    if 
+    fi 
 
     # check hd-glio-auto requirements
     if [ $hdglio -eq 1 ]; then
-        if [ $nT1w -lt 1 ] || [ $ncT1w -lt 1 ] || [ $nT2w -lt 1 ] || [ $nT1w -lt 1 ] && ; then
+        if [ $nT1w -lt 1 ] || [ $ncT1w -lt 1 ] || [ $nT2w -lt 1 ] || [ $nT1w -lt 1 ]; then
             echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
             echo " At least one is missing. Is the BIDS dataset correct?"
             read -p "Are you sure you want to continue? (y/n)? " answ
@@ -289,7 +297,7 @@ function KUL_check_data {
                 exit 1
             fi
         fi
-    if 
+    fi 
 
     # check the BIDS
     find_fmri=($(find ${cwd}/BIDS/sub-${participant} -name "*_bold.nii.gz"))
@@ -319,7 +327,7 @@ function KUL_rigid_register {
     --transform Rigid[0.1] \
     --metric MI[$target_mri,$source_mri,1,32,Regular,0.25] \
     --convergence [1000x500x250x100,1e-6,10] \
-    --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox $str_silent"
+    --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox $str_silent_regAnat"
     eval $my_cmd
     echo "Done rigidly registering $source_mri to $target_mri"
 }
@@ -632,6 +640,9 @@ function KUL_compute_SPM {
     fmriprepdir="fmriprep/sub-$participant/func"
     searchtask="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
     matlab_exe=$(which matlab)
+    if [ $silent -eq 1 ] ; then
+        str_silent_SPM=" >> KUL_LOG/sub-${participant}_SPM.log"
+    fi
     #  the template files in KNT for SPM analysis
     tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run.m" #template config file
     tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run_job.m" #template job file
@@ -659,7 +670,7 @@ function KUL_compute_SPM {
                 fmrifile="${shorttask}${searchtask}"
                 cp $fmriprepdir/*$fmrifile.gz $fmridatadir
                 gunzip -f $fmridatadir/*$fmrifile.gz
-                my_cmd="KUL_compute_SPM_matlab $silent"
+                my_cmd="KUL_compute_SPM_matlab $str_silent_SPM"
                 eval $my_cmd
 
                 # do the combined analysis
@@ -670,7 +681,7 @@ function KUL_compute_SPM {
                     tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs.m" #template config file
                     tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs_job.m" #template job file
                     fmrifile="${shorttask}"
-                    my_cmd="KUL_compute_SPM_matlab $silent"
+                    my_cmd="KUL_compute_SPM_matlab $str_silent_SPM"
                     eval $my_cmd
                 fi
             
@@ -691,6 +702,9 @@ function KUL_segment_tumor {
     if [ $hdglio -eq 1 ]; then
 
         if [ $nT1w -eq 1 ] && [ $ncT1w -eq 1 ] && [ $nFLAIR -eq 1 ] && [ $nT2w -eq 1 ];then
+            if [ $silent -eq 1 ] ; then
+                str_silent_hdglio=" > KUL_LOG/sub-${participant}_hdglio.log"
+            fi
             mkdir -p $hdglioinputdir
             mkdir -p $hdgliooutputdir
             if [ ! -f "$hdgliooutputdir/volumes.txt" ]; then
@@ -700,10 +714,11 @@ function KUL_segment_tumor {
                 cp $T2w $hdglioinputdir/T2.nii.gz
                 
                 echo "Running HD-GLIO-AUTO using docker"
-                docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
+                task_in="docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
                     --mount type=bind,source=$hdgliooutputdir,target=/output \
-                jenspetersen/hd-glio-auto
-                
+                jenspetersen/hd-glio-auto $str_silent_hdglio"
+                KUL_task_exec
+
                 #mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -ge $globalresultsdir/Anat/lesion.nii -force
                 maskfilter $hdgliooutputdir/segmentation.nii.gz fill $globalresultsdir/Anat/lesion.nii -force
                 mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -eq $globalresultsdir/Anat/lesion_perilesional_oedema.nii -force
@@ -723,6 +738,9 @@ function KUL_segment_tumor {
 }
 
 function KUL_run_VBG {
+    if [ $silent -eq 1 ] ; then
+        str_silent_VBG=" > KUL_LOG/sub-${participant}_VBG.log"
+    fi
     if [ $vbg -eq 1 ]; then
         vbg_test="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_T1_nat_filled.nii.gz"
         if [[ ! -f $vbg_test ]]; then
@@ -735,7 +753,7 @@ function KUL_run_VBG {
                 -l $globalresultsdir/Anat/lesion.nii \
                 -o ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-                -z T1 -b -B 1 -t -P 3 -n $ncpu $silent"       
+                -z T1 -b -B 1 -t -P 3 -n $ncpu $str_silent_VBG"       
             eval $my_cmd
 
             # copy the output of VBG to the derivatives freesurfer directory
@@ -752,6 +770,9 @@ function KUL_run_VBG {
 }
 
 function KUL_run_msbp {
+    if [ $silent -eq 1 ] ; then
+        str_silent_msbp=" > KUL_LOG/sub-${participant}_msbp.log"
+    fi
     if [ ! -f KUL_LOG/sub-${participant}_MSBP.done ]; then
 
         echo "Running MSBP"
@@ -766,7 +787,7 @@ function KUL_run_msbp {
          sebastientourbier/multiscalebrainparcellator:v1.1.1 /bids_dir /output_dir participant \
          --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
          --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
-         --multiproc_number_of_cores $ncpu $str_silent"
+         --multiproc_number_of_cores $ncpu $str_silent_msbp"
         #echo $my_cmd
         eval $my_cmd
         
@@ -782,16 +803,22 @@ function KUL_run_FWT {
     config="tracks_list.txt"
     if [ ! -f KUL_LOG/sub-${participant}_FWT.done ]; then
         echo "Running FWT VOI generation"
+        if [ $silent -eq 1 ] ; then
+            str_silent_FWTvoi=" > KUL_LOG/sub-${participant}_FWTvoi.log"
+        fi
         my_cmd="KUL_FWT_make_VOIs.sh -p ${participant} \
         -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
         -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
         -c $cwd/study_config/${config} \
         -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
         -o $kulderivativesdir/sub-${participant}/FWT \
-        -n $ncpu $str_silent"
+        -n $ncpu $str_silent_FWTvoi"
         eval $my_cmd
 
         echo "Running FWT tracking"
+        if [ $silent -eq 1 ] ; then
+            str_silent_FWTtck=" > KUL_LOG/sub-${participant}_FWTtck.log"
+        fi
         my_cmd="KUL_FWT_make_TCKs.sh -p ${participant} \
         -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
         -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
@@ -800,7 +827,7 @@ function KUL_run_FWT {
         -o $kulderivativesdir/sub-${participant}/FWT \
         -T 1 -a iFOD2 \
         -Q -S \
-        -n $ncpu $str_silent"
+        -n $ncpu $str_silent_FWTtck"
         eval $my_cmd
 
         ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
@@ -897,7 +924,12 @@ fi
 
 function KUL_register_anatomical_images {
 
-    if [ ! -f KUL_LOG/sub-${participant}_anat_reg.done ]; then 
+    if [ ! -f KUL_LOG/sub-${participant}_anat_reg.done ]; then
+        
+        if [ $silent -eq 1 ] ; then
+            str_silent_regAnat=" >> KUL_LOG/sub-${participant}_regAnat.log"
+        fi
+
         target_mri=$T1w
         registeroutputdir="$kulderivativesdir/sub-${participant}/antsregister"
         mkdir -p $registeroutputdir
@@ -926,7 +958,7 @@ function KUL_register_anatomical_images {
             transform="${registeroutputdir}/${source_mri_label}_reg2_T1w0GenericAffine.mat"
             output="${globalresultsdir}/Anat/${source_mri_label}_phase_reg2_T1w.nii.gz"
             reference=$target_mri
-            KUL_antsApply_Transform
+            KUL_antsApply_Transform $str_silent_regAnat
         fi
         touch KUL_LOG/sub-${participant}_anat_reg.done
     else 
@@ -948,8 +980,10 @@ mkdir -p $globalresultsdir/Tracto
 KUL_convert2bids
 
 # Run BIDS validation
-if [ ! -f KUL_LOG/sub-${participant}_1_bidscheck.done ]; then 
-    docker run -ti --rm -v ${cwd}/BIDS:/data:ro bids/validator /data
+if [ ! -f KUL_LOG/sub-${participant}_1_bidscheck.done ]; then
+
+    task_in="docker run -ti --rm -v ${cwd}/BIDS:/data:ro bids/validator /data"
+    KUL_task_exec 0
 
     read -p "Are you happy? (y/n) " answ
     if [[ ! "$answ" == "y" ]]; then
@@ -965,16 +999,18 @@ echo "Starting KUL_clinical_fmridti"
 KUL_check_data
 KUL_check_redo
 
+
 # STEP 2 - run fmriprep/dwiprep and continue
 KUL_run_fmriprep &
 if [ $n_dwi -gt 0 ];then
     KUL_run_dwiprep &
 fi
 
+
 # don't run too many AI tools (hd-bet on dwi and HD-GLIO-AUTO on structural) simultaneously on a 6GB GPU - wait a bit...
-if [ ! -f dwiprep/sub-${participant}/dwiprep_is_done.log ]; then
-    sleep 600
-fi
+#if [ ! -f dwiprep/sub-${participant}/dwiprep_is_done.log ]; then
+#    sleep 600
+#fi
 
 # STEP 3 - run HD-GLIO-AUTO
 if [ $hdglio -eq 1 ];then
@@ -1012,6 +1048,7 @@ if [ $n_fMRI -gt 0 ];then
 fi
 
 wait 
+
 
 # STEP 6 - run Fun With Tracts
 if [ $n_dwi -gt 0 ];then
