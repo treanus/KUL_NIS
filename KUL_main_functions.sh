@@ -6,6 +6,113 @@
 #
 
 
+# Function task_exec
+# Inputs
+#  - obligatory
+#       task_in (a command string that needs to be evaluated)
+#  - facultative
+#       kul_verbous_level (1= default)
+#       kul_log_file (the path of the log file)
+function KUL_task_exec {
+
+    local kul_verbous_level=$1
+
+    if [[ -z "$kul_verbous_level" ]]; then
+        kul_verbous_level=1
+    fi
+    
+    if [[ -z "$kul_log_file" ]]; then 
+        kul_log_file="/dev/null"
+    fi
+
+    ### TODO
+    # implement multiple task_in (see preproc_all)
+    task_in_short=$(echo ${task_in:0:20})
+    eval ${task_in} | tee -a ${kul_log_file} &
+    task_in_pid="$!"
+
+    if [ $kul_verbous_level -gt 0 ]; then 
+        echo -e "\n${task_in}" | tee -a ${kul_log_file} 
+        echo "Starting [\"${task_in_short}...\"] @ $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${kul_log_file} 
+    fi
+
+    local pidsArray=${task_in_pid[@]} # pids to wait for, separated by semi-colon
+    local procsArray=${task_in_short[@]} # name of procs to wait for, separated by semi-colon     
+    #local exit_on_error="false"
+    #local soft_alert=0 # Does a soft alert need to be triggered, if yes, send an alert once 
+    local log_ttime=0 # local time instance for comparaison
+    local seconds_begin=$SECONDS # Seconds since the beginning of the script
+    local exec_time=0 # Seconds since the beginning of this function
+    #local retval=0 # return value of monitored pid process
+    local errorcount=0 # Number of pids that finished with errors
+    local pidCount # number of given pids
+    local c # counter for pids/procsArray
+
+    pidCount=${#pidsArray[@]}
+    #echo "  pidCount: $pidCount"
+    #echo "  pidsArray: ${pidsArray[@]}"
+
+    while [ ${#pidsArray[@]} -gt 0 ]; do
+
+        newPidsArray=()
+        newProcsArray=()
+        c=0
+
+        for pid in "${pidsArray[@]}"; do
+            #echo "pid: $pid"
+            #echo "proc: ${procsArray[c]}"
+            if kill -0 $pid > /dev/null 2>&1; then
+                newPidsArray+=($pid)
+                #echo "newPidsArray: ${newPidsArray[@]}"
+                newProcsArray+=(${procsArray[c]})
+                #echo "newProcsArray: ${newProcsArray[@]}"
+            else
+                wait $pid
+                result=$?
+                #echo "result: $result"
+                if [ $result -ne 0 ]; then
+                    errorcount=$((errorcount+1))
+                    echo "  *** WARNING! **** Process ${procsArray[c]} with pid $pid FAILED (with exitcode [$result]). Check the log-file"
+                else
+                    if [ $kul_verbous_level -gt 0 ]; then 
+                        echo "Process ${procsArray[c]} with pid $pid finished successfully @ $(date "+%Y-%m-%d_%H-%M-%S") (with exitcode [$result])."
+                    fi
+                fi
+            fi
+            c=$((c+1))
+        done
+
+        ## Log a standby message every hour
+        every_time=1201
+        exec_time=$(($SECONDS - $seconds_begin))
+        if [ $((($exec_time + 1) % $every_time)) -eq 0 ]; then
+            if [ $log_ttime -ne $exec_time ]; then
+                log_ttime=$exec_time
+                log_min=$((log_ttime / 60))
+                echo "  Current tasks [${procsArray[@]}] still running after $log_min minutes with pids [${pidsArray[@]}]."
+            fi
+        fi
+
+        pidsArray=("${newPidsArray[@]}")
+        procsArray=("${newProcsArray[@]}")
+        sleep 1
+
+    done
+
+    if [ $errorcount -eq 0 ]; then
+        if [ $kul_verbous_level -gt 0 ]; then 
+            echo Success | tee -a ${kul_log_file}
+        fi
+    else
+        echo Fail | tee -a ${kul_log_file}
+        exit 1
+    fi
+
+    unset task_in
+
+}
+
+
 # parameters for logging
 log_every_seconds=120
 
@@ -82,6 +189,6 @@ if [ ! -z "$1" ];then
     mkdir -p $log_dir
     # -- Say Welcome --
     command_line_options=$@
-    kul_e2cl "Welcome to $script, version $v, invoked with parameters $command_line_options" $log
+    kul_e2cl "Welcome to $script, version $version, invoked with parameters $command_line_options" $log
     echo "   starting at $d"
 fi
