@@ -1,4 +1,4 @@
-# KUL_neuroimaging_tools
+# KUL_NIS - KULeuven Neuro Imaging Suite
 We provide tools to analyse (resting/task-based) fMRI, diffusion & structural MRI data.
 Pipelines use many open-source packages.
 
