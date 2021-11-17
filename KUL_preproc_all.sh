@@ -2,7 +2,7 @@
 # @ Stefan Sunaert & Ahmed Radwan- UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 06/11/2018 - first version
-v="v1.1 - dd 21/01/2021"
+version="v1.1 - dd 21/01/2021"
 
 # This is the main script of the KUL_NeuroImaging_Toools
 #
