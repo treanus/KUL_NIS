@@ -820,15 +820,6 @@ def execute(): #pylint: disable=unused-variable
     run.command('mrconvert ' + se_epi_path + ' topup_in.nii' + se_epi_manual_pe_table_option + ' -strides -1,+2,+3,+4 -export_pe_table topup_datain.txt')
     app.cleanup(se_epi_path)
 
-    if kul_mrtrix_new == 1:
-          # run.command('dwi2mask hdbet ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
-          # run.command('dwi2mask hdbet ' + dwi_path + ' kul_bet.mif')
-          # run.command('dwi2mask -nocleanup b02template -software antsfull -template ' + temp + ' ' + tempm + ' ' + dwi_path + ' kul_bet.mif')
-        run.command('dwi2mask ants -nocleanup -template ' + temp + ' ' + tempm + ' ' + dwi_path + ' kul_bet.mif')
-        run.command('maskfilter kul_bet.mif dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
-    else:
-        run.command('dwi2mask -nocleanup ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
-
     
     # KUL - Stefan
     # Run topup or Synb0-disco
@@ -853,11 +844,8 @@ def execute(): #pylint: disable=unused-variable
         kul_gid = str(os.getgid())
         kul_fs_path = os.getenv('FS_LICENSE')
 
-        # kul_disco_cmd = 'docker run -u $(id -u) --rm -v ' + kul_pwd + '/INPUTS/:/INPUTS/ -v ' + kul_pwd + '/OUTPUTS:/OUTPUTS/ -v ' + kul_fs_path + ':/extra/freesurfer/license.txt --user ' + kul_uid + ':' + kul_gid + ' hansencb/synb0'
+        kul_disco_cmd = 'docker run -u $(id -u) --rm -v ' + kul_pwd + '/INPUTS/:/INPUTS/ -v ' + kul_pwd + '/OUTPUTS:/OUTPUTS/ -v ' + kul_fs_path + ':/extra/freesurfer/license.txt --user ' + kul_uid + ':' + kul_gid + ' hansencb/synb0'
         #disco_output = run.command('docker run --rm -v $(pwd)/INPUTS/:/INPUTS/ -v $(pwd)/OUTPUTS:/OUTPUTS/ -v $FREESURFER_HOME/license.txt:/extra/freesurfer/license.txt --user 502:20 justinblaber/synb0_25iso')
-
-        # trying with local run + replacing fslbet with hd-bet, and epi_reg with ants_II
-        kul_disco_cmd = 'KUL_radsyndisco.sh '
         disco_output = run.command(kul_disco_cmd)
         with open('disco_output.txt', 'w') as disco_output_file:
             disco_output_file.write(disco_output.stdout + '\n' + disco_output.stderr)
@@ -867,14 +855,14 @@ def execute(): #pylint: disable=unused-variable
         
         # For now let's use the standard (non-topup & non-disco) brain mask
         # Replaced all dwi2mask hdbet, with dwi2mask using b02template
-        # if kul_mrtrix_new == 1:
-        #   # run.command('dwi2mask hdbet ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
-        #   # run.command('dwi2mask hdbet ' + dwi_path + ' kul_bet.mif')
-        #   # run.command('dwi2mask -nocleanup b02template -software antsfull -template ' + temp + ' ' + tempm + ' ' + dwi_path + ' kul_bet.mif')
-        #   run.command('dwi2mask ants -nocleanup -template ' + temp + ' ' + tempm + ' ' + dwi_path + ' kul_bet.mif')
-        #   run.command('maskfilter kul_bet.mif dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
-        # else:
-        #   run.command('dwi2mask -nocleanup ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+        if kul_mrtrix_new == 1:
+          # run.command('dwi2mask hdbet ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+          # run.command('dwi2mask hdbet ' + dwi_path + ' kul_bet.mif')
+          # run.command('dwi2mask -nocleanup b02template -software antsfull -template ' + temp + ' ' + tempm + ' ' + dwi_path + ' kul_bet.mif')
+          run.command('dwi2mask ants -nocleanup -template ' + temp + ' ' + tempm + ' ' + dwi_path + ' kul_bet.mif')
+          run.command('maskfilter kul_bet.mif dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
+        else:
+          run.command('dwi2mask -nocleanup ' + dwi_path + ' - | maskfilter - dilate - | mrconvert - eddy_mask.nii -datatype float32 -strides -1,+2,+3')
         
         run.command('cp OUTPUTS/topup_fieldcoef.nii.gz field_fieldcoef.nii.gz')
         run.command('cp OUTPUTS/topup_movpar.txt field_movpar.txt')
