@@ -164,7 +164,7 @@ machine_type=$(uname)
 mrtrix_version_major=$(mrconvert | head -1 | cut -d'.' -f1 | cut -d' ' -f2)
 mrtrix_version_minor=$(mrconvert | head -1 | cut -d'.' -f2)
 mrtrix_version_revision_major=$(mrconvert | head -1 | cut -d'.' -f3 | cut -d'-' -f 1)
-mrtrix_version_revision_minor=$(mrconvert | head -1 | cut -d'.' -f2)
+mrtrix_version_revision_minor=$(mrconvert | head -1 | cut -d'-' -f2)
  
 # -- Set global defaults --
 silent=1

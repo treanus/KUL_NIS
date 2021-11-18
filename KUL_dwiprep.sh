@@ -7,12 +7,15 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 09/11/2018 - alpha version
-v="v1.0 - dd 19/03/2021"
+version="v1.1 - dd 18/11/2021"
 
 # To Do
-#  - register dwi to T1 with ants-syn
 #  - fod calc msmt-5tt in stead of dhollander
 
+# testing:
+#  1 = hdbet
+#  2 = b02template with ants
+dwi2mask_method=1
 
 # -----------------------------------  MAIN  ---------------------------------------------
 # this script defines a few functions:
@@ -80,7 +83,7 @@ USAGE
 	exit 1
 }
 
-set +x
+# set +x
 
 # CHECK COMMAND LINE OPTIONS -------------
 #
@@ -328,13 +331,18 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 			dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
 
 			# read the median b0 values
-			if [ ! $mrtrix3new -eq 0 ]; then
+			if [ $mrtrix3new -eq 2 ]; then
 				# Exchanged all dwi2mask hdbet with dwi2mask b02template
 				# dwi2mask hdbet ${raw}/dwi_p${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif
 				# dwi2mask ants -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
-				dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
-				${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
-				dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+				if [ $dwi2mask_method -eq 1 ];then
+					dwi2mask hdbet \
+						${raw}/dwi_p${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif -nthreads $ncpu -force
+				else
+					dwi2mask b02template -software antsquick -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+						${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+						${raw}/dwi_p${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif -nthreads $ncpu -force
+				fi
 			else
 				dwi2mask ${raw}/dwi_p${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif 
 			fi
@@ -364,7 +372,6 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 			elif [[ ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} == ${peds[0]} ]]; then
 				pedir=${ped[0]}
 				pedinv=${pedirs[$xx]}
-
 			fi
 
 		done
@@ -376,11 +383,6 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
 		else
 			echo "Using dwicat (new style mrtrix)"
-			#dwicat -version
-			#which dwicat
-			#which mrhistmatch
-			#ls ${raw}/dwi_p?.mif
-			sleep 5
 			# dwicat ${raw}/dwi_p?.mif - | mrgrid - crop - -axis 1 5,5 | mrgrid - pad ${preproc}/dwi_orig.mif -axis 1 5,5 #-nocleanup 
 			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif #-nocleanup 
 
@@ -396,10 +398,8 @@ else
 fi
 
 
-
+# Only keep the desired part of the dMRI
 if [ $rev_only_topup -eq 1 ]; then
-
-	# need to update the code to check for the -pe dir.
 	
 	dwiextract ${preproc}/dwi_orig.mif -pe ${pedir} ${preproc}/dwi_orig_norev.mif -force
 	dwi_orig=dwi_orig_norev.mif
@@ -416,13 +416,26 @@ fi
 cd ${preproc}
 mkdir -p dwi
 
+# Make a descent initial mask
+if [ ! -f dwi_orig_mask.nii.gz ]; then
+	kul_e2cl "   Making an initial brain mask..." ${log}
+	if [ $dwi2mask_method -eq 1 ];then
+		dwi2mask hdbet \
+			${dwi_orig} dwi_orig_mask.nii.gz -nthreads $ncpu -force
+	else
+		dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+			${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+			${dwi_orig} dwi_orig_mask.nii.gz -nthreads $ncpu -force
+	fi
+fi
+
 # Do some qa: make FA/ADC of unprocessed images
 mkdir -p qa
 
 if [ ! -f qa/adc_orig.nii.gz ]; then
 
 	kul_e2cl "   Calculating FA/ADC/dec..." ${log}
-	dwi2tensor $dwi_orig dwi_orig_dt.mif -force
+	dwi2tensor $dwi_orig dwi_orig_dt.mif -mask dwi_orig_mask.nii.gz -force
 	tensor2metric dwi_orig_dt.mif -fa qa/fa_orig.nii.gz -force
 	tensor2metric dwi_orig_dt.mif -adc qa/adc_orig.nii.gz -force
 
@@ -435,7 +448,7 @@ if [ ! -f dwi/degibbs.mif ] && [ ! -f dwi_preproced.mif ]; then
 
 	# dwidenoise
 	kul_e2cl "   dwidenoise..." ${log}
-	dwidenoise $dwi_orig dwi/denoise.mif -noise dwi/noiselevel.mif -nthreads $ncpu -force
+	dwidenoise $dwi_orig dwi/denoise.mif -noise dwi/noiselevel.mif -mask dwi_orig_mask.nii.gz -nthreads $ncpu -force
 
 	# mrdegibbs
 	kul_e2cl "   mrdegibbs..." ${log}
@@ -677,7 +690,7 @@ fi
 # check if next 4 steps of dwi preprocessing are done
 if [ ! -f dwi_preproced.mif ]; then
 
-	kul_e2cl " Start part 3 of preprocessing: dwibiascorrect, upsampling & creation of dwi_mask" ${log}
+	kul_e2cl " Start part 3 of preprocessing: dwibiascorrect, upsampling & creation of a final dwi_mask" ${log}
 
 	# bias field correction
 	kul_e2cl "    dwibiascorrect" ${log}
@@ -702,18 +715,18 @@ if [ ! -f dwi_preproced.mif ]; then
 	mrconvert dwi/upsampled.mif dwi_preproced.mif -set_property comments "Preprocessed dMRI data." -nthreads $ncpu -force
 	rm dwi/upsampled.mif
 
-	# There is still a problem with this step
-	# create mask of the dwi data
+	# create a final mask of the dwi data
 	kul_e2cl "    creating mask of the dwi data..." ${log}
-	if [ ! $mrtrix3new -eq 0 ]; then
+	if [ $mrtrix3new -eq 2 ]; then
 		# dwi2mask hdbet dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
-		# dwi2mask ants -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
-		dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
-		${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
-		dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
-		# dwi2mask ants -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
-		# ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
-		# dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+		if [ $dwi2mask_method -eq 1 ];then
+			dwi2mask hdbet \
+				dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+		else
+			dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+				${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+				dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+		fi
 	else
 		dwi2mask dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
 	fi

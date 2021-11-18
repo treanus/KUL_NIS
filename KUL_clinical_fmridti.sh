@@ -216,6 +216,13 @@ fi
 # --- functions ---
 function KUL_check_redo {
     if [ $redo -eq 1 ];then
+        read -p "Redo: KUL_dwiprep? (y/n) " answ
+        if [[ "$answ" == "y" ]]; then
+            echo $answ
+            echo "rm ${cwd}/KUL_LOG/sub-${participant}_run_dwiprep.txt"
+            rm -f ${cwd}/KUL_LOG/sub-${participant}_run_dwiprep.txt >/dev/null 2>&1
+            rm -rf ${cwd}/dwiprep/sub-${participant} >/dev/null 2>&1
+        fi
         read -p "Redo: Melodic? (y/n) " answ
         if [[ "$answ" == "y" ]]; then
             echo $answ
@@ -427,9 +434,7 @@ function task_exec {
 
 function KUL_run_fastsurfer {
 
-    echo
-    echo "Hybrid parcellation flag is set, now starting FastSurfer/FreeSurfer hybrid recon-all based part of VBG"
-    echo
+    #echo "Hybrid parcellation flag is set, now starting FastSurfer/FreeSurfer hybrid recon-all based part of VBG"
 
     # make your log file
     prep_log="KUL_LOG/sub-${participant}_run_fastsurfer.txt" 
@@ -440,29 +445,19 @@ function KUL_run_fastsurfer {
     fi
 
     fs_output="${cwd}/BIDS/derivatives/freesurfer"
-    output_d="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/FastSurfer"
+    #output_d="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/FastSurfer"
     #str_op="${output_d}/${participant}"
     #fasu_output="${str_op}fastsurfer"
-    fasu_output=$output_d
+    fasu_output="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/FastSurfer"
     #T1_4_parc="${str_op}_T1_nat_4parc.mgz"
     T1_4_parc="${cwd}/$T1w"
     echo $T1_4_parc
 
-    recall_scripts="${fs_output}/sub-${participant}/scripts"
-    echo $recall_scripts
+    #recall_scripts="${fs_output}/sub-${participant}/scripts"
+    #echo $recall_scripts
  
-
-    #search_wf_mark4=($(find ${recall_scripts} -type f 2> /dev/null | grep recon-all.done))
-    #echo $search_wf_mark4
-
-
-    #FS_brain="${fs_output}/${participant}/mri/brainmask.mgz"
-
-    #new_brain="${str_pp}_T1_Brain_4FS.mgz"
-
-    task_in="mkdir -p ${fs_output} >/dev/null 2>&1"
-    task_exec
-
+    mkdir -p ${fs_output} >/dev/null 2>&1
+    
     # Run recon-all and convert the T1 to .mgz for display
     # running with -noskulltrip and using brain only inputs
     # for recon-all
@@ -470,10 +465,10 @@ function KUL_run_fastsurfer {
     # if we can switch to fast-surf, would be great also
     # another possiblity is using recon-all -skullstrip -clean-bm -gcut -subjid <subject name>
     
-    echo "starting recon-all stage 1"
-    task_in="recon-all -i ${T1_4_parc} -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1 -no-isrunning"
-    task_exec
-    echo "done recon-all stage 1"
+    #echo "starting recon-all stage 1"
+    #task_in="recon-all -i ${T1_4_parc} -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1 -no-isrunning"
+    #task_exec
+    #echo "done recon-all stage 1"
 
     #task_in="mri_convert -rl ${fs_output}/${participant}/mri/brainmask.mgz ${T1_BM_4_FS} ${clean_BM_mgz}"
     #task_exec
@@ -533,6 +528,7 @@ function KUL_run_fastsurfer {
 
         echo "Local FastSurfer not found, switching to Docker version" | tee -a ${prep_log}
         T1_4_FaSu=$(basename ${T1_4_parc})
+        dir_4_FaSu=$(dirname ${T1_4_parc})
 
         if [[ ! -z ${nvd_cu} ]]; then
 
@@ -544,7 +540,7 @@ function KUL_run_fastsurfer {
 
         fi
 
-        task_in="docker run -v ${output_d}:/data -v ${fasu_output}:/output \
+        task_in="docker run -v ${dir_4_FaSu}:/data -v ${fasu_output}:/output \
         -v $FREESURFER_HOME:/fs60 --rm --user ${user_id_str} fastsurfer:${FaSu_v} \
         --fs_license /fs60/$(basename $FS_LICENSE) --sid sub-${participant} \
         --sd /output/ --t1 /data/${T1_4_FaSu} \
@@ -561,29 +557,28 @@ function KUL_run_fastsurfer {
     #cp -rf ${output_d}/${participant}fastsurfer/${participant}/surf ${output_d}/${participant}_FS_output/${participant}/
     #cp -rf ${output_d}/${participant}fastsurfer/${participant}/label ${output_d}/${participant}_FS_output/${participant}/
     
-    cp -rf ${output_d}/sub-${participant}/surf/* $fs_output/sub-${participant}/surf/
-    cp -rf ${output_d}/sub-${participant}/label/* $fs_output/sub-${participant}/surf/label/ 
+    #cp -rf ${output_d}/sub-${participant}/surf/* $fs_output/sub-${participant}/surf/
+    #cp -rf ${output_d}/sub-${participant}/label/* $fs_output/sub-${participant}/surf/label/ 
 
 
     # task_in="recon-all -s ${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -all -noskullstrip"
 
     # task_exec
 
-    task_in="recon-all -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -noskullstrip -no-isrunning -make all"
-    task_exec
+    #task_in="recon-all -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -noskullstrip -no-isrunning -make all"
+    #task_exec
 
-    exit
+    #exit
 
-    task_in="mri_convert -rl ${fs_output}/${participant}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${participant}/mri/real_T1.mgz"
+    #task_in="mri_convert -rl ${fs_output}/${participant}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${participant}/mri/real_T1.mgz"
 
-    task_exec
+    #task_exec
 
-    task_in="mri_convert -rl ${fs_output}/${participant}/mri/brain.mgz -rt nearest ${Lmask_o} ${fs_output}/${participant}/mri/Lmask_T1_bin.mgz"
+    #task_in="mri_convert -rl ${fs_output}/${participant}/mri/brain.mgz -rt nearest ${Lmask_o} ${fs_output}/${participant}/mri/Lmask_T1_bin.mgz"
 
-    task_exec
+    #task_exec
 
-    fs_parc_mgz="${fs_output}/${participant}/mri/aparc+aseg.mgz"
-
+    #fs_parc_mgz="${fs_output}/${participant}/mri/aparc+aseg.mgz"
 
 
 }
@@ -720,7 +715,9 @@ function KUL_segment_tumor {
                 KUL_task_exec
 
                 #mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -ge $globalresultsdir/Anat/lesion.nii -force
-                maskfilter $hdgliooutputdir/segmentation.nii.gz fill $globalresultsdir/Anat/lesion.nii -force
+                maksfilter $hdgliooutputdir/segmentation.nii.gz dilate $hdgliooutputdir/lesion_dil5.nii.gz -npass 5 -force
+                maskfilter $hdgliooutputdir/lesion_dil5.nii.gz fill $hdgliooutputdir/lesion_dil5_fill.nii.gz -force
+                maksfilter $hdgliooutputdir/lesion_dil5_fill.nii.gz erode $globalresultsdir/Anat/lesion.nii -npass 5 -force
                 mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -eq $globalresultsdir/Anat/lesion_perilesional_oedema.nii -force
                 mrcalc $hdgliooutputdir/segmentation.nii.gz 2 -eq $globalresultsdir/Anat/lesion_solid_tumour.nii -force
                 mrcalc $globalresultsdir/Anat/lesion.nii $globalresultsdir/Anat/lesion_perilesional_oedema.nii -sub \
