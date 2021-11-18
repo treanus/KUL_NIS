@@ -647,6 +647,22 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 		temp_dir=$(ls -d *dwifslpreproc*)
 	fi
 
+	# create an intermediate mask of the dwi data
+	kul_e2cl "    creating intermediate mask of the dwi data..." ${log}
+	if [ $mrtrix3new -eq 2 ]; then
+		# dwi2mask hdbet dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+		if [ $dwi2mask_method -eq 1 ];then
+			dwi2mask hdbet \
+				dwi/geomcorr.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
+		else
+			dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+				${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+				dwi/geomcorr.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
+		fi
+	else
+		dwi2mask dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
+	fi
+
 	# check id eddy_quad is available
 	#machine_type=$(uname)
 	#echo $machine_type
@@ -695,10 +711,10 @@ if [ ! -f dwi_preproced.mif ]; then
 	# bias field correction
 	kul_e2cl "    dwibiascorrect" ${log}
 	if [ $mrtrix3new -eq 0 ]; then
-		dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force -mask $temp_dir/eddy_mask.nii
+		dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force -mask dwi/dwi_intermediate_mask.nii.gz
 		#dwibiascorrect -fsl dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force
 	else 
-		dwibiascorrect ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force -mask $temp_dir/eddy_mask.nii
+		dwibiascorrect ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force -mask dwi/dwi_intermediate_mask.nii.gz
 	fi
 
 	# upsample the images
