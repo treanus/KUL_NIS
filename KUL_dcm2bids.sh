@@ -15,7 +15,7 @@ v="v0.8 - dd 08/09/2020"
 #  - NOW USES https://github.com/UNFmontreal/Dcm2Bids
 #  - works for GE/Siemens/Philips
 #  - wrap around for multiple subjects: use KUL_multisubjects_dcm2bids
-
+export LANG=us.UTF-8
 
 # -----------------------------------  MAIN  ---------------------------------------------
 # this script defines a few functions:
