@@ -12,10 +12,6 @@ version="v1.1 - dd 18/11/2021"
 # To Do
 #  - fod calc msmt-5tt in stead of dhollander
 
-# testing:
-#  1 = hdbet
-#  2 = b02template with ants
-dwi2mask_method=1
 
 # -----------------------------------  MAIN  ---------------------------------------------
 # this script defines a few functions:
@@ -60,6 +56,7 @@ Optional arguments:
 	 -t:  options to pass to topup
 	 -e:  options to pass to eddy (default "--slm=linear --repol")
 	 -r:  use reverse phase data only for topup and not for further processing
+	 -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants; 1=default)
 	 -v:  show output from mrtrix commands
 
 Documentation:
@@ -94,6 +91,7 @@ silent=1 # default if option -v is not given
 eddy_options="--slm=linear --repol"
 topup_options=""
 dwipreproc_options="dhollander"
+dwi2mask_method=1
 
 # Set required options
 p_flag=0
@@ -108,7 +106,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:d:t:e:rbfv" OPT; do
+	while getopts "p:s:n:d:t:e:m:rbfv" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -130,6 +128,9 @@ else
 		;;
 		e) #eddy_options
 			eddy_options=$OPTARG
+		;;
+		m) #dwi2mask options
+			dwi2mask_method=$OPTARG
 		;;
 		r) #rev_only topup
 			rev_only_topup=1
