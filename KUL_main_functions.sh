@@ -12,11 +12,27 @@
 #       task_in (a command string that needs to be evaluated)
 #  - facultative
 #       kul_verbous_level (1= default)
-#       kul_log_file (the path of the log file)
+#       kul_log_file (the path of the log file,NOT YET IMPLEMENTED)
+#       wait for execution to finish (0=no, 1=yes, default=0, NOT YET IMPLEMENTED)
+#       kul_short_name (what to displat as process)
+# Example
+#  task_in="Run_a_big_long_process 0 KUL_LOG/my_big_long_process.log 0"
 function KUL_task_exec {
 
     local kul_verbous_level=$1
-
+    local pidsArray=${task_in_pid[@]} # pids to wait for, separated by semi-colon
+    local procsArray=${task_in_short[@]} # name of procs to wait for, separated by semi-colon      
+    local log_ttime=0 # local time instance for comparaison
+    local seconds_begin=$SECONDS # Seconds since the beginning of the script
+    local exec_time=0 # Seconds since the beginning of this function
+    local errorcount=0 # Number of pids that finished with errors
+    local pidCount # number of given pids
+    local c # counter for pids/procsArray
+    #local exit_on_error="false"
+    #local soft_alert=0 # Does a soft alert need to be triggered, if yes, send an alert once
+    #local retval=0 # return value of monitored pid process
+    
+    
     if [[ -z "$kul_verbous_level" ]]; then
         kul_verbous_level=1
     fi
@@ -28,25 +44,21 @@ function KUL_task_exec {
     ### TODO
     # implement multiple task_in (see preproc_all)
     task_in_short=$(echo ${task_in:0:20})
-    eval ${task_in} | tee -a ${kul_log_file} &
+    if [ $kul_verbous_level -gt 0 ]; then 
+        task_in="$task_in  2>&1 | tee -a ${kul_log_file}"
+        eval ${task_in} &
+    else
+        task_in="$task_in  2>&1 >> ${kul_log_file}"
+        eval ${task_in} &
+    fi
     task_in_pid="$!"
 
     if [ $kul_verbous_level -gt 0 ]; then 
-        echo -e "\n${task_in}" | tee -a ${kul_log_file} 
-        echo "Starting [\"${task_in_short}...\"] @ $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${kul_log_file} 
+        echo -e "\n${task_in}" | tee -a ${kul_log_file}   
     fi
+    echo "Starting [\"${task_in_short}...\"] @ $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${kul_log_file}
 
-    local pidsArray=${task_in_pid[@]} # pids to wait for, separated by semi-colon
-    local procsArray=${task_in_short[@]} # name of procs to wait for, separated by semi-colon     
-    #local exit_on_error="false"
-    #local soft_alert=0 # Does a soft alert need to be triggered, if yes, send an alert once 
-    local log_ttime=0 # local time instance for comparaison
-    local seconds_begin=$SECONDS # Seconds since the beginning of the script
-    local exec_time=0 # Seconds since the beginning of this function
-    #local retval=0 # return value of monitored pid process
-    local errorcount=0 # Number of pids that finished with errors
-    local pidCount # number of given pids
-    local c # counter for pids/procsArray
+
 
     pidCount=${#pidsArray[@]}
     #echo "  pidCount: $pidCount"
@@ -74,9 +86,9 @@ function KUL_task_exec {
                     errorcount=$((errorcount+1))
                     echo "  *** WARNING! **** Process ${procsArray[c]} with pid $pid FAILED (with exitcode [$result]). Check the log-file"
                 else
-                    if [ $kul_verbous_level -gt 0 ]; then 
+                    #if [ $kul_verbous_level -gt 0 ]; then 
                         echo "Process ${procsArray[c]} with pid $pid finished successfully @ $(date "+%Y-%m-%d_%H-%M-%S") (with exitcode [$result])."
-                    fi
+                    #fi
                 fi
             fi
             c=$((c+1))

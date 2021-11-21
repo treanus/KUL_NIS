@@ -422,6 +422,7 @@ mkdir -p dwi
 # Make a descent initial mask
 if [ ! -f dwi_orig_mask.nii.gz ]; then
 	kul_e2cl "   Making an initial brain mask..." ${log}
+
 	dwiextract ${dwi_orig} dwi/bzeros.mif -bzero -force \
 	&& dwiextract ${dwi_orig} dwi/nonbzeros.mif -no_bzero -force \
 	&& mrcat -force -nthreads ${ncpu} dwi/bzeros.mif dwi/nonbzeros.mif dwi/rearranged_dwis.mif
@@ -659,10 +660,11 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
 	# create an intermediate mask of the dwi data
 	kul_e2cl "    creating intermediate mask of the dwi data..." ${log}
-	dwiextract dwi/geomcorr.mif dwi/geomcorr_bzeros.mif -bzero -force \
-	&& dwiextract dwi/geomcorr.mif dwi/geomcorr_nonbzeros.mif -no_bzero -force \
-	&& mrcat -force -nthreads ${ncpu} dwi/geomcorr_bzeros.mif dwi/geomcorr_nonbzeros.mif dwi/rearranged_geomcorr_dwis.mif
+
 	if [ $mrtrix3new -eq 2 ]; then
+      dwiextract dwi/geomcorr.mif dwi/geomcorr_bzeros.mif -bzero -force \
+	    && dwiextract dwi/geomcorr.mif dwi/geomcorr_nonbzeros.mif -no_bzero -force \
+	    && mrcat -force -nthreads ${ncpu} dwi/geomcorr_bzeros.mif dwi/geomcorr_nonbzeros.mif dwi/rearranged_geomcorr_dwis.mif
 		if [ $dwi2mask_method -eq 1 ];then
 			dwi2mask hdbet \
 				dwi/rearranged_geomcorr_dwis.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
@@ -746,8 +748,6 @@ if [ ! -f dwi_preproced.mif ]; then
 	# create a final mask of the dwi data
 	kul_e2cl "    creating mask of the dwi data..." ${log}
 	if [ $mrtrix3new -eq 2 ]; then
-		# dwi2mask hdbet dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
-		# dwiextract dwi_preproced.mif dwi_preproced_bzeros.mif -bzero -force
 		dwiextract dwi_preproced.mif dwi/preproced_bzeros.mif -bzero -force \
 		&& dwiextract dwi_preproced.mif dwi/preproced_nonbzeros.mif -no_bzero -force \
 		&& mrcat -force -nthreads ${ncpu} dwi/preproced_bzeros.mif dwi/preproced_nonbzeros.mif dwi/rearranged_preproced_dwis.mif
