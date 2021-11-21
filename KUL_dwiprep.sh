@@ -420,11 +420,12 @@ mkdir -p dwi
 # Make a descent initial mask
 if [ ! -f dwi_orig_mask.nii.gz ]; then
 	kul_e2cl "   Making an initial brain mask..." ${log}
-	dwiextract ${dwi_orig} dwi/initial_bzeros.mif -bzero
+	
 	if [ $dwi2mask_method -eq 1 ];then
 		dwi2mask hdbet \
-			dwi/initial_bzeros.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force
+			${dwi_orig} dwi_orig_mask.nii.gz -nthreads $ncpu -force
 	else
+		dwiextract ${dwi_orig} dwi/initial_bzeros.mif -bzero
 		dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
 			${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
 			dwi/initial_bzeros.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force
@@ -656,11 +657,11 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 	kul_e2cl "    creating intermediate mask of the dwi data..." ${log}
 	if [ $mrtrix3new -eq 2 ]; then
 		# dwi2mask hdbet dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
-		dwiextract dwi/geomcorr.mif dwi/geomcorr_bzeros.mif -bzero
 		if [ $dwi2mask_method -eq 1 ];then
 			dwi2mask hdbet \
-				dwi/geomcorr_bzeros.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
+				dwi/geomcorr.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
 		else
+			dwiextract dwi/geomcorr.mif dwi/geomcorr_bzeros.mif -bzero
 			dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
 				${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
 				dwi/geomcorr_bzeros.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
@@ -741,11 +742,11 @@ if [ ! -f dwi_preproced.mif ]; then
 	kul_e2cl "    creating mask of the dwi data..." ${log}
 	if [ $mrtrix3new -eq 2 ]; then
 		# dwi2mask hdbet dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
-		dwiextract dwi_preproced.mif dwi_preproced_bzeros.mif -bzero
 		if [ $dwi2mask_method -eq 1 ];then
 			dwi2mask hdbet \
-				dwi_preproced_bzeros.mif dwi_mask.nii.gz -nthreads $ncpu -force
+				dwi_preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
 		else
+			dwiextract dwi_preproced.mif dwi_preproced_bzeros.mif -bzero
 			dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
 				${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
 				dwi_preproced_bzeros.mif dwi_mask.nii.gz -nthreads $ncpu -force
