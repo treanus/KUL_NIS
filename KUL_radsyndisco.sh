@@ -13,14 +13,6 @@ set -x
 
 TOPUP=1
 
-for arg in "$@"
-do
-    case $arg in
-        -i|--notopup)
-        TOPUP=0
-    esac
-done
-
 
 # This script needs to know
 # where ANTs, FS, FSL and Synb0DISCO live
@@ -109,7 +101,7 @@ pip install 'nibabel==2.5.2'
 if [[ ! -f "${radwd}/OUTPUTS/b0_d_nonlin_atlas_2_5.nii.gz" ]]; then
 
     task_in="prepare_input_AR.sh ${radwd}/INPUTS/b0.nii.gz ${radwd}/INPUTS/T1.nii.gz ${radwd}/INPUTS/T1_mask.nii.gz ${sbzd_p2}/atlases/mni_icbm152_t1_tal_nlin_asym_09c.nii.gz \
-    ${sbzd_p2}/atlases/mni_icbm152_t1_tal_nlin_asym_09c_2_5.nii.gz ${radwd}/OUTPUTS"
+    ${sbzd_p2}/atlases/mni_icbm152_t1_tal_nlin_asym_09c_2_5.nii.gz ${radwd}/OUTPUTS 12"
 
     task_exec
 
