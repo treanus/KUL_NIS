@@ -1,65 +1,115 @@
 #!/bin/bash
 # Bash shell script to:
-#  - define global functions used by all sub-scripts
+#  - define global functions used by all /DATA/fmri_pats/BIDS/derivatives/KUL_compute/sub-Casier/FastSurfer/sub-Casier/scripts/lh.processing.cmdfsub-scripts
 #  - define defaults
 #  - execute startup
 #
+# @ prof.sunaert@gmail.com - v0.2 - 18/11/2021
 
 
-# Function task_exec
-# Inputs
-#  - obligatory
+# MAIN FUNCTION - Function task_exec ###################################################################################
+#  - obligatory variable to set
 #       task_in (a command string that needs to be evaluated)
-#  - facultative
-#       kul_verbous_level (1= default)
-#       kul_log_file (the path of the log file,NOT YET IMPLEMENTED)
-#       wait for execution to finish (0=no, 1=yes, default=0, NOT YET IMPLEMENTED)
-#       kul_short_name (what to displat as process)
-# Example
-#  task_in="Run_a_big_long_process 0 KUL_LOG/my_big_long_process.log 0"
+#  - facultative command line options
+#       kul_silent (1=silent, 0=normal; 1=default)
+#       kul_short_name (what to display as process)
+#       kul_log_file (the path of the log file)
+# Example 1
+#  task_in="a_big_long_process 0 1 "KUL VBG" KUL_LOG/my_big_long_process"
+#   Run "process a_big_long_process"
+#   Do it silently
+#   Display "KUL VBG" as the running process
+#   Log to the files KUL_LOG/my_big_long_process.log and KUL_LOG/my_big_long_process.error.log
+# Example 2
+#  task_in="another big process"
+#   Run process "another_big_process"
+#   Have output to the terminal and to log files (default kul_silent 1)
+#   Take the first 20 characters of "task_in" and display that (kul_short_name is generated automatically)
+#   Log to the files KUL_LOG_kul_short_name.log and KUL_LOG_kul_short_name.error.log (/ -> _, and spaces too)
 function KUL_task_exec {
 
-    local kul_verbous_level=$1
-    local pidsArray=${task_in_pid[@]} # pids to wait for, separated by semi-colon
-    local procsArray=${task_in_short[@]} # name of procs to wait for, separated by semi-colon      
+    local kul_silent="$1"
+    local kul_process_name="$2"
+    local kul_log_files="$3"
+
+    # export KUL_DEBUG=1 in terminal to debug
+    if [[ -z "$KUL_DEBUG" ]]; then
+        KUL_DEBUG=0
+    fi
+
+    if [ $KUL_DEBUG -eq 1 ]; then
+        echo $kul_silent
+        echo $kul_process_name
+        echo $kul_log_files
+        echo $script
+    fi
+
+    #local pidsArray=${task_in_pid[@]} # pids to wait for, separated by semi-colon
+    #local procsArray=${task_in_name[@]} # name of procs to wait for, separated by semi-colon 
+    local pidsArray=() # pids to wait for, separated by semi-colon
+    local procsArray=() # name of procs to wait for, separated by semi-colon     
     local log_ttime=0 # local time instance for comparaison
     local seconds_begin=$SECONDS # Seconds since the beginning of the script
     local exec_time=0 # Seconds since the beginning of this function
     local errorcount=0 # Number of pids that finished with errors
     local pidCount # number of given pids
     local c # counter for pids/procsArray
-    #local exit_on_error="false"
-    #local soft_alert=0 # Does a soft alert need to be triggered, if yes, send an alert once
-    #local retval=0 # return value of monitored pid process
     
-    
-    if [[ -z "$kul_verbous_level" ]]; then
-        kul_verbous_level=1
-    fi
-    
-    if [[ -z "$kul_log_file" ]]; then 
-        kul_log_file="/dev/null"
+    ### STEP 1 - test the input to the function and of unset, set a default
+    if [[ -z "$kul_silent" ]]; then
+        kul_silent=1
     fi
 
-    ### TODO
-    # implement multiple task_in (see preproc_all)
-    task_in_short=$(echo ${task_in:0:20})
-    if [ $kul_verbous_level -gt 0 ]; then 
-        task_in="$task_in  2>&1 | tee -a ${kul_log_file}"
-        eval ${task_in} &
+    if [[ -z "$kul_process_name" ]]; then
+        task_in_name="$(echo ${task_in:0:20})"
     else
-        task_in="$task_in  2>&1 >> ${kul_log_file}"
-        eval ${task_in} &
+        task_in_name="$kul_process_name"
     fi
+
+    if [[ -z "$kul_log_files" ]]; then 
+        task_in_name_nospaces="${task_in_name// /_}"
+        task_in_name_nospaces="${task_in_name_nospaces////_}"
+        kul_log_file="KUL_LOG/${script}/"${task_in_name_nospaces}".log"
+        kul_errorlog_file="KUL_LOG/${script}/"${task_in_name_nospaces}".error.log"
+    else
+        kul_log_file="${kul_log_files}.log"
+        kul_errorlog_file="${kul_log_files}.error.log"
+    fi
+
+    ### STEP 2 - execute the task_in
+    # to
+    # implement multiple task_in (see preproc_all)
+
+    if [ $kul_silent -eq 1 ]; then 
+    
+        local task_in_final="$task_in  1>>${kul_log_file} 2>>${kul_errorlog_file}"
+        eval ${task_in_final} &
+    
+    else
+        
+        local task_in_final="$task_in  > >(tee -a ${kul_log_file}) 2> >(tee -a ${kul_errorlog_file})"
+        eval ${task_in_final} &
+         
+    fi
+    
+    # set the pids, first we get the pid by "$!", then feed it into an array
     task_in_pid="$!"
+    pidsArray+=($task_in_pid)
+    procsArray+=("$task_in_name")
 
-    if [ $kul_verbous_level -gt 0 ]; then 
-        echo -e "\n${task_in}" | tee -a ${kul_log_file}   
+
+    ### STEP 3 - give some information
+    tput bold
+    echo "${task_in_name}... started @ $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${kul_log_file}
+    tput sgr0
+    if [ $kul_silent -eq 0 ]; then 
+        tput dim
+        echo -e "   The task_in command: ${task_in}" | tee -a ${kul_log_file}
+        tput sgr0
     fi
-    echo "Starting [\"${task_in_short}...\"] @ $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${kul_log_file}
 
 
-
+    ### STEP 4 - keep checking if the process is still running    
     pidCount=${#pidsArray[@]}
     #echo "  pidCount: $pidCount"
     #echo "  pidsArray: ${pidsArray[@]}"
@@ -83,12 +133,21 @@ function KUL_task_exec {
                 result=$?
                 #echo "result: $result"
                 if [ $result -ne 0 ]; then
+
                     errorcount=$((errorcount+1))
-                    echo "  *** WARNING! **** Process ${procsArray[c]} with pid $pid FAILED (with exitcode [$result]). Check the log-file"
+                    fail_exec_time_seconds=$(($SECONDS - $seconds_begin))
+                    fail_exec_time_minutes=$(($final_exec_time_seconds / 60))
+                    tput bold; tput setaf 1
+                    echo "  *** WARNING! **** Process ${procsArray[c]} with pid $pid might have failed after $fail_exec_time_minutes minutes. (with exitcode [$result]). Check the ${kul_errorlog_file} log-file" | tee -a ${kul_errorlog_file}
+                    tput sgr0
+                
                 else
-                    #if [ $kul_verbous_level -gt 0 ]; then 
-                        echo "Process ${procsArray[c]} with pid $pid finished successfully @ $(date "+%Y-%m-%d_%H-%M-%S") (with exitcode [$result])."
-                    #fi
+                    
+                    final_exec_time_seconds=$(($SECONDS - $seconds_begin))
+                    final_exec_time_minutes=$(($final_exec_time_seconds / 60))
+                    #echo "Process ${procsArray[c]} with pid $pid finished successfully @ $(date "+%Y-%m-%d_%H-%M-%S") (with exitcode [$result])." | tee -a ${kul_log_file}
+                    echo "$task_in_name finished successfully after $final_exec_time_minutes minutes" | tee -a ${kul_log_file}
+
                 fi
             fi
             c=$((c+1))
@@ -111,23 +170,25 @@ function KUL_task_exec {
 
     done
 
+    ### STEP 5 - return the status of execution 
     if [ $errorcount -eq 0 ]; then
-        if [ $kul_verbous_level -gt 0 ]; then 
-            echo Success | tee -a ${kul_log_file}
+        if [ $kul_silent -eq 0 ]; then 
+            echo -e "Success\n\n" | tee -a ${kul_log_file}
         fi
     else
-        echo Fail | tee -a ${kul_log_file}
-        exit 1
+        echo "Fail" | tee -a ${kul_log_file}
+        #exit 1
     fi
 
     unset task_in
 
+    # return errorcount
+
 }
 
 
-# parameters for logging
-log_every_seconds=120
 
+# MAIN FUNCTION - kul_echo ######################################################################################
 # echo loud or silent
 function kul_echo {
     if [ $silent -eq 0 ];then
@@ -135,7 +196,11 @@ function kul_echo {
     fi
 }
 
-# -- function kul_e2cl to echo to console & log file with matlab tic/toc behavior ---
+
+
+# MAIN FUNCTION - function kul_e2cl to echo to console & log file with matlab tic/toc behavior ##################
+# parameters for logging
+log_every_seconds=120
 function kul_e2cl {
 
     x=0
@@ -169,6 +234,9 @@ function kul_e2cl {
 
 }
 
+
+
+### OTHER STUFF ############################################################################################
 machine_type=$(uname)
 #echo $machine_type
 
@@ -189,10 +257,10 @@ tmp=/tmp
 start=$(date +%s)
 
 # Directory to write preprocessed data in, i.e $preproc
-preproc=KUL_LOG/${subj}
+preproc=KUL_LOG
 
 # Define directory/files to log in 
-log_dir=${preproc}/log/$script
+log_dir=${preproc}/$script
 d=$(date "+%Y-%m-%d_%H-%M-%S")
 log=$log_dir/main_log_${d}.txt
 
@@ -201,6 +269,7 @@ if [ ! -z "$1" ];then
     mkdir -p $log_dir
     # -- Say Welcome --
     command_line_options=$@
-    kul_e2cl "Welcome to $script, version $version, invoked with parameters $command_line_options" $log
-    echo "   starting at $d"
+    #kul_e2cl "Welcome to $script, version $version, invoked with parameters $command_line_options" $log
+    kul_echo "Welcome to $script, version $version, invoked with parameters $command_line_options"
+    #echo "   starting at $d"
 fi

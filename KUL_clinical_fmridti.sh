@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Bash shell script to analyse clinical fMRI/DTI
 #
 # Requires matlab fmriprep
@@ -126,6 +126,9 @@ if [ $p_flag -eq 0 ] ; then
 	echo
 	exit 2
 fi
+
+KUL_LOG_DIR="KUL_LOG/${script}/sub-${participant}"
+mkdir -p $KUL_LOG_DIR
 
 # MRTRIX and others verbose or not?
 if [ $silent -eq 1 ] ; then
@@ -397,40 +400,6 @@ function KUL_run_freesurfer {
     fi
 }
 
-# Can be deleted after checking line 409 (how to redirect error)
-function task_exec {
-
-    echo "  " | tee -a ${prep_log} 
-    
-    echo ${task_in} | tee -a ${prep_log} 
-
-    echo " Started @ $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${prep_log} 
-
-    eval ${task_in} | tee -a ${prep_log} 2>&1 &
-
-    echo " pid = $! basicPID = $$ " | tee -a ${prep_log}
-
-    wait ${pid}
-
-    ### STEFAN NEED TO DO: is the sleep needed, or can it be shorter?
-    sleep 5
-
-    if [ $? -eq 0 ]; then
-        echo Success | tee -a ${prep_log}
-    else
-        echo Fail | tee -a ${prep_log}
-
-        exit 1
-    fi
-
-    echo " Finished @  $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${prep_log} 
-
-    echo "  " | tee -a ${prep_log} 
-
-    unset task_in
-
-}
-
 
 function KUL_run_fastsurfer {
 if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
@@ -456,13 +425,13 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
     else
         T1_4_parc="${cwd}/$T1w"
     fi
-    echo $T1_4_parc
-    ls -l $T1_4_parc
+    #echo $T1_4_parc
+    #ls -l $T1_4_parc
 
     #recall_scripts="${fs_output}/sub-${participant}/scripts"
     #echo $recall_scripts
  
-    mkdir -p ${fs_output}/sub-${participant} >/dev/null 2>&1
+    mkdir -p ${fs_output} >/dev/null 2>&1
     mkdir -p ${fasu_output} >/dev/null 2>&1
 
     # Run recon-all and convert the T1 to .mgz for display
@@ -473,9 +442,11 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
     # another possiblity is using recon-all -skullstrip -clean-bm -gcut -subjid <subject name>
     
     #echo "starting recon-all stage 1"
-    #task_in="recon-all -i ${T1_4_parc} -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1 -no-isrunning"
-    #task_exec
+    task_in="recon-all -i ${T1_4_parc} -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1 -no-isrunning"
+    KUL_task_exec $silent "FastSurfer part 1: recon-all stage 1" "$KUL_LOG_DIR/FastSurfer"
     #echo "done recon-all stage 1"
+
+
 
     #task_in="mri_convert -rl ${fs_output}/${participant}/mri/brainmask.mgz ${T1_BM_4_FS} ${clean_BM_mgz}"
     #task_exec
@@ -483,8 +454,6 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
     #task_in="mri_mask ${FS_brain} ${T1_BM_4_FS} ${new_brain} && mv ${new_brain} ${fs_output}/${participant}/mri/brainmask.mgz && cp \
     #${fs_output}/${participant}/mri/brainmask.mgz ${fs_output}/${participant}/mri/brainmask.auto.mgz"
     #task_exec
-
-    #exit
 
 
     FaSu_loc=$(which run_fastsurfer.sh)
@@ -507,16 +476,14 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
 
     if [[ ! -z ${FaSu_loc} ]]; then
 
-        if [ -z ${nvram} -lt 5500 ]; then
-
+        if [ ${nvram} -lt 5500 ]; then
             FaSu_cpu=" --no_cuda "
-            echo " Running FastSurfer without CUDA " | tee -a ${prep_log}
-
+            FaSu_mode="cpu"
+            #echo " Running FastSurfer without CUDA " | tee -a ${prep_log}
         else
-
             FaSu_cpu=""
-            echo " Running FastSurfer with CUDA " | tee -a ${prep_log}
-
+            FaSu_mode="cuda-gpu"
+            #echo " Running FastSurfer with CUDA " | tee -a ${prep_log}
         fi
 
         # it's a good idea to run autorecon1 first anyway
@@ -526,8 +493,7 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
         --sid sub-${participant} --sd ${fasu_output} --fsaparc --parallel --threads ${ncpu} \
         --fs_license $FS_LICENSE --py python ${FaSu_cpu} --ignore_fs_version --batch ${batch_fasu}"
         kul_log_file="KUL_LOG/sub-${participant}_run_fastsurfer.txt"
-        KUL_task_exec 0
-        wait
+        KUL_task_exec $silent "FastSurfer part 2: Fastsurfer itself (script & $FaSu_mode mode)" "$KUL_LOG_DIR/FastSurfer"
 
     else
 
@@ -538,14 +504,10 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
         T1_4_FaSu=$(basename ${T1_4_parc})
         dir_4_FaSu=$(dirname ${T1_4_parc})
 
-        if [[ ! -z ${nvd_cu} ]]; then
-
-            FaSu_v="gpu"
-
-        else
-
+        if [ ${nvram} -lt 5500 ]; then
             FaSu_v="cpu"
-
+        else
+            FaSu_v="gpu"
         fi
 
         task_in="docker run -v ${dir_4_FaSu}:/data -v ${fasu_output}:/output \
@@ -554,15 +516,13 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
         --sd /output/ --t1 /data/${T1_4_FaSu} \
         --parallel --threads ${ncpu}"
         kul_log_file="KUL_LOG/sub-${participant}_run_fastsurfer.txt"
-        KUL_task_exec 0
-        wait
+        KUL_task_exec $silent "FastSurfer part 2: Fastsurfer itself (docker & $FaSu_mode mode)" "$KUL_LOG_DIR/FastSurfer"
 
     fi
 
     #fs_output="${cwd}/BIDS/derivatives/freesurfer"
     #fasu_output="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/FastSurfer"
-
-    cp -rf $fasu_output/sub-${participant}/* $fs_output/sub-${participant}/
+    
 
     # time to copy the surfaces and labels from FaSu to FS dirtask_exec
     # here we run FastSurfer first and 
@@ -573,15 +533,14 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
     #cp -rf ${output_d}/sub-${participant}/surf/* $fs_output/sub-${participant}/surf/
     #cp -rf ${output_d}/sub-${participant}/label/* $fs_output/sub-${participant}/surf/label/ 
 
+    rsync -azv ${fasu_output}/sub-${participant}/ fs_output/sub-${participant}/
 
     #task_in="recon-all -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -all -noskullstrip"
     #task_exec
 
     task_in="recon-all -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} \
-        -parallel -noskullstrip -no-isrunning -make all"
-    kul_log_file="KUL_LOG/sub-${participant}_run_fastsurfer.txt"
-    KUL_task_exec 0
-    wait
+        -parallel -no-isrunning -make all"
+    KUL_task_exec $silent "FastSurfer part 3: recon-all -make-all" "$KUL_LOG_DIR/FastSurfer"
 
     #exit
 
@@ -709,55 +668,50 @@ function KUL_compute_SPM {
 
 function KUL_segment_tumor {
     
-    # this will segment the lesion automatically
-    hdglioinputdir="$kulderivativesdir/sub-${participant}/hdglio/input"
-    hdgliooutputdir="$kulderivativesdir/sub-${participant}/hdglio/output"
+    # Segmentation of the tumor using HD-GLIO-AUTO
+    
+    # check if it needs to be performed
     if [ $hdglio -eq 1 ]; then
 
-        if [ $nT1w -eq 1 ] && [ $ncT1w -eq 1 ] && [ $nFLAIR -eq 1 ] && [ $nT2w -eq 1 ];then
-            if [ $silent -eq 1 ] ; then
-                str_silent_hdglio=" > KUL_LOG/sub-${participant}_hdglio.log"
-            fi
+        hdglioinputdir="$kulderivativesdir/sub-${participant}/hdglio/input"
+        hdgliooutputdir="$kulderivativesdir/sub-${participant}/hdglio/output"
+        
+        # only run if not yet done
+        if [ ! -f "$globalresultsdir/Anat/lesion_central_necrosis_or_cyst.nii" ]; then
+
+            # prepare the inputs
             mkdir -p $hdglioinputdir
             mkdir -p $hdgliooutputdir
-            if [ ! -f "$hdgliooutputdir/volumes.txt" ]; then
-                cp $T1w $hdglioinputdir/T1.nii.gz
-                cp $cT1w $hdglioinputdir/CT1.nii.gz
-                cp $FLAIR $hdglioinputdir/FLAIR.nii.gz
-                cp $T2w $hdglioinputdir/T2.nii.gz
-                
-                echo "Running HD-GLIO-AUTO using docker"
-                task_in="docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
-                    --mount type=bind,source=$hdgliooutputdir,target=/output \
-                    jenspetersen/hd-glio-auto"
-                kul_log_file=KUL_LOG/sub-${participant}_hdglio.log
-                KUL_task_exec 0
-                wait
+            cp $T1w $hdglioinputdir/T1.nii.gz
+            cp $cT1w $hdglioinputdir/CT1.nii.gz
+            cp $FLAIR $hdglioinputdir/FLAIR.nii.gz
+            cp $T2w $hdglioinputdir/T2.nii.gz
+            
+            # run HD-GLIO-AUTO using docker
+            task_in="docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
+                --mount type=bind,source=$hdgliooutputdir,target=/output \
+                jenspetersen/hd-glio-auto"
+            KUL_task_exec $silent "HD-GLIO-AUTO using docker" "${KUL_LOG_DIR}/2_hdglioauto"
 
-                #mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -ge $globalresultsdir/Anat/lesion.nii -force
-                maskfilter $hdgliooutputdir/segmentation.nii.gz dilate $hdgliooutputdir/lesion_dil5.nii.gz -npass 5 -force
-                maskfilter $hdgliooutputdir/lesion_dil5.nii.gz fill $hdgliooutputdir/lesion_dil5_fill.nii.gz -force
-                maskfilter $hdgliooutputdir/lesion_dil5_fill.nii.gz erode $globalresultsdir/Anat/lesion.nii -npass 5 -force
-                mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -eq $globalresultsdir/Anat/lesion_perilesional_oedema.nii -force
-                mrcalc $hdgliooutputdir/segmentation.nii.gz 2 -eq $globalresultsdir/Anat/lesion_solid_tumour.nii -force
+            # compute some additional output
+            task_in="maskfilter $hdgliooutputdir/segmentation.nii.gz dilate $hdgliooutputdir/lesion_dil5.nii.gz -npass 5 -force; \
+                maskfilter $hdgliooutputdir/lesion_dil5.nii.gz fill $hdgliooutputdir/lesion_dil5_fill.nii.gz -force; \
+                maskfilter $hdgliooutputdir/lesion_dil5_fill.nii.gz erode $globalresultsdir/Anat/lesion.nii -npass 5 -force; \
+                mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -eq $globalresultsdir/Anat/lesion_perilesional_oedema.nii -force; \
+                mrcalc $hdgliooutputdir/segmentation.nii.gz 2 -eq $globalresultsdir/Anat/lesion_solid_tumour.nii -force; \
                 mrcalc $globalresultsdir/Anat/lesion.nii $globalresultsdir/Anat/lesion_perilesional_oedema.nii -sub \
-                    $globalresultsdir/Anat/lesion_solid_tumour.nii -sub $globalresultsdir/Anat/lesion_central_necrosis.nii
-
-                echo "Done running HD-GLIO-AUTO using docker"
-
-            else
-                echo "HD-GLIO-AUTO already done"
-            fi
+                    $globalresultsdir/Anat/lesion_solid_tumour.nii -sub $globalresultsdir/Anat/lesion_central_necrosis_or_cyst.nii -force"
+            KUL_task_exec $silent "compute lesion, oedema, solid, necrosis/cystic parts" "${KUL_LOG_DIR}/2_hdglioauto"
+            
         else
-            echo "Not possible to run HD-GLIO-AUTO"
-        fi 
+            echo "HD-GLIO-AUTO already done"
+        fi
+
     fi
 }
 
 function KUL_run_VBG {
-    if [ $silent -eq 1 ] ; then
-        str_silent_VBG=" > KUL_LOG/sub-${participant}_VBG.log"
-    fi
+
     if [ $vbg -eq 1 ]; then
         vbg_test="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_T1_nat_filled.nii.gz"
         if [[ ! -f $vbg_test ]]; then
@@ -770,8 +724,7 @@ function KUL_run_VBG {
                 -o ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -z T1 -b -B 1 -t -n $ncpu"
-            kul_log_file=KUL_LOG/sub-${participant}_VBG.log
-            KUL_task_exec 0 
+            KUL_task_exec $silent "KUL_VBG" "$KUL_LOG_DIR/VBG"
             wait
 
             # Need to update to dev version
@@ -785,7 +738,7 @@ function KUL_run_VBG {
             # copy the output of VBG to the derivatives freesurfer directory
             #cp -r ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant} \
             #    BIDS/derivatives/freesurfer/
-            echo "Done computing KUL_VBG"
+            #echo "Done computing KUL_VBG"
         else
             echo "KUL_VBG has already run"
         fi
@@ -793,9 +746,7 @@ function KUL_run_VBG {
 }
 
 function KUL_run_msbp {
-    if [ $silent -eq 1 ] ; then
-        str_silent_msbp=" > KUL_LOG/sub-${participant}_msbp.log"
-    fi
+
     if [ ! -f KUL_LOG/sub-${participant}_MSBP.done ]; then
 
         echo "Running MSBP"
@@ -811,10 +762,7 @@ function KUL_run_msbp {
          --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
          --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
          --multiproc_number_of_cores $ncpu"
-        #echo $my_cmd
-        kul_log_file=KUL_LOG/sub-${participant}_msbp.log
-        KUL_task_exec 0
-        wait 
+        KUL_task_exec $silent "MSBP" "$KUL_LOG_DIR/msbp"
 
         echo "Done MSBP"
         touch KUL_LOG/sub-${participant}_MSBP.done
@@ -827,10 +775,7 @@ function KUL_run_msbp {
 function KUL_run_FWT {
     config="tracks_list.txt"
     if [ ! -f KUL_LOG/sub-${participant}_FWT.done ]; then
-        echo "Running FWT VOI generation"
-        if [ $silent -eq 1 ] ; then
-            str_silent_FWTvoi=" > KUL_LOG/sub-${participant}_FWTvoi.log"
-        fi
+
         task_in="KUL_FWT_make_VOIs.sh -p ${participant} \
         -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
         -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
@@ -838,14 +783,9 @@ function KUL_run_FWT {
         -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
         -o $kulderivativesdir/sub-${participant}/FWT \
         -n $ncpu"
-        kul_log_file=KUL_LOG/sub-${participant}_FWTvoi.log
-        KUL_task_exec 0
-        wait
+        KUL_task_exec $silent "KUL_FWT voi generation" "$KUL_LOG_DIR/FWTvoi"
 
-        echo "Running FWT tracking"
-        if [ $silent -eq 1 ] ; then
-            str_silent_FWTtck=" > KUL_LOG/sub-${participant}_FWTtck.log"
-        fi
+
         task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
         -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
         -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
@@ -855,9 +795,7 @@ function KUL_run_FWT {
         -T 1 -a iFOD2 \
         -Q -S \
         -n $ncpu"
-        kul_log_file=KUL_LOG/sub-${participant}_FWTtck.log
-        KUL_task_exec 0
-        wait
+        KUL_task_exec $silent "KUL_FWT tract generation" "$KUL_LOG_DIR/FWTtck"
 
         ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
         ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_BT_iFOD2.tck $globalresultsdir/Tracto/
@@ -1020,16 +958,16 @@ mkdir -p $globalresultsdir/Tracto
 KUL_convert2bids
 
 # Run BIDS validation
-if [ ! -f KUL_LOG/sub-${participant}_1_bidscheck.done ]; then
+check_in=${KUL_LOG_DIR}/1_bidscheck.done
+if [ ! -f $check_in ]; then
 
-    task_in="docker run -ti --rm -v ${cwd}/BIDS:/data:ro bids/validator /data"
-    KUL_task_exec 1
+    docker run -ti --rm -v ${cwd}/BIDS:/data:ro bids/validator /data
 
     read -p "Are you happy? (y/n) " answ
     if [[ ! "$answ" == "y" ]]; then
         exit 1
     else
-        touch KUL_LOG/sub-${participant}_1_bidscheck.done
+        touch $check_in
     fi
 fi
 
@@ -1052,12 +990,6 @@ if [ $n_dwi -gt 0 ];then
 fi
 
 
-# don't run too many AI tools (hd-bet on dwi and HD-GLIO-AUTO on structural) simultaneously on a 6GB GPU - wait a bit...
-#if [ ! -f dwiprep/sub-${participant}/dwiprep_is_done.log ]; then
-#    sleep 600
-#fi
-
-
 # STEP 3 - regsiter all anatomical other data to the T1w without contrast
 KUL_register_anatomical_images &
 
@@ -1070,6 +1002,7 @@ wait
 
 # STEP 5 - run SPM/melodic/msbp
 KUL_run_fastsurfer
+#KUL_run_freesurfer
 wait 
 
 # STEP 5 - run SPM/melodic/msbp
@@ -1092,25 +1025,3 @@ if [ $n_dwi -gt 0 ];then
 fi
 
 echo "Finished"
-
-
-exit
-
-if [ $vbg -eq 1 ];then
-    KUL_run_VBG &
-else
-    #KUL_run_freesurfer &
-    fast=0
-    if [ $fast -eq 1 ];then
-        KUL_run_fastsurfer
-    else
-        KUL_run_freesurfer
-    fi
-fi
-
-
-# WAIT FOR ALL TO FINISH
-wait
-
-exit
-
