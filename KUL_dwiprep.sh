@@ -7,7 +7,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 09/11/2018 - alpha version
-version="v1.1 - dd 18/11/2021"
+version="v1.2 - dd 23/11/2021"
 
 # To Do
 #  - fod calc msmt-5tt in stead of dhollander
@@ -56,7 +56,7 @@ Optional arguments:
 	 -t:  options to pass to topup
 	 -e:  options to pass to eddy (default "--slm=linear --repol")
 	 -r:  use reverse phase data only for topup and not for further processing
-	 -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants; 1=default)
+	 -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 3=legacy; 1=default)
 	 -v:  show output from mrtrix commands
 
 Documentation:
@@ -401,9 +401,12 @@ if [ ! -f dwi_orig_mask.nii.gz ]; then
 	if [ $dwi2mask_method -eq 1 ];then
 		dwi2mask hdbet \
 			dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force
-	else
+	elif [ $dwi2mask_method -eq 2 ];then
 		dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
 			${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+			dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force
+	elif [ $dwi2mask_method -eq 3 ];then
+		dwi2mask legacy \
 			dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force
 	fi
 fi
@@ -639,9 +642,12 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 		if [ $dwi2mask_method -eq 1 ];then
 			dwi2mask hdbet \
 				dwi/rearranged_geomcorr_dwis.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
-		else
+		elif [ $dwi2mask_method -eq 2 ];then
 			dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
 				${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+				dwi/rearranged_geomcorr_dwis.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
+		elif [ $dwi2mask_method -eq 3 ];then
+			dwi2mask legacy \
 				dwi/rearranged_geomcorr_dwis.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
 		fi
 	else
@@ -725,9 +731,12 @@ if [ ! -f dwi_preproced.mif ]; then
 		if [ $dwi2mask_method -eq 1 ];then
 			dwi2mask hdbet \
 				dwi/rearranged_preproced_dwis.mif dwi_mask.nii.gz -nthreads $ncpu -force
-		else
+		elif [ $dwi2mask_method -eq 2 ];then
 			dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
 				${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+				dwi/rearranged_preproced_dwis.mif dwi_mask.nii.gz -nthreads $ncpu -force
+		elif [ $dwi2mask_method -eq 3 ];then
+			dwi2mask legacy \
 				dwi/rearranged_preproced_dwis.mif dwi_mask.nii.gz -nthreads $ncpu -force
 		fi
 	else
