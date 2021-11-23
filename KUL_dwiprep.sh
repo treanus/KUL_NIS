@@ -279,6 +279,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 		mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
 		-json_import ${dwi_base}.json -strides 1:3 -force \
 		-clear_property comments -nthreads $ncpu ${preproc}/dwi_orig.mif
+		
 		mrinfo -force ${preproc}/dwi_orig.mif -export_pe_table ${raw}/dwi_orig_petable.txt
 		mapfile -t dwi_pes < ${raw}/dwi_orig_petable.txt
 		fdwi_pes=(${dwi_pes[0]})
@@ -326,34 +327,13 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 			mrinfo ${raw}/dwi_p${dwi_i}.mif -export_pe_table ${raw}/dwi_p${dwi_i}_petable.txt
 			peds[$((dwi_i-1))]=$(mrinfo ${raw}/dwi_p${dwi_i}.mif -size)
 			mapfile -t ${dwi_pes} < ${raw}/dwi_p${dwi_i}_petable.txt
+			echo $dwi_pes
 			fdwi_pes=(${dwi_pes[0]})
+			echo ${fdwi_pes[@]}
 			pedirs[$((dwi_i-1))]="${fdwi_pes[0]},${fdwi_pes[1]},${fdwi_pes[2]}"
+			echo ${pedirs[$((dwi_i-1))]}
 
 			dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
-
-			dwiextract ${raw}/dwi_p${dwi_i}.mif dwi/bzeros_${dwi_i}.mif -bzero -force \
-			&& dwiextract ${raw}/dwi_p${dwi_i}.mif dwi/nonbzeros_${dwi_i}.mif -no_bzero -force \
-			&& mrcat -force -nthreads ${ncpu} dwi/bzeros_${dwi_i}.mif dwi/nonbzeros_${dwi_i}.mif dwi/rearranged_dwis_${dwi_i}.mif
-
-			# read the median b0 values
-			if [ $mrtrix3new -eq 2 ]; then
-				# Exchanged all dwi2mask hdbet with dwi2mask b02template
-				if [ $dwi2mask_method -eq 1 ];then
-					dwi2mask hdbet \
-						dwi/rearranged_dwis_${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif -nthreads $ncpu -force
-				else
-					dwi2mask b02template -software antsquick -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
-						${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
-						dwi/rearranged_dwis_${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif -nthreads $ncpu -force
-				fi
-			else
-				dwi2mask dwi/rearranged_dwis_${dwi_i}.mif ${raw}/dwi_p${dwi_i}_mask.mif 
-			fi
-			scale[dwi_i]=$(mrstats ${raw}/b0s_p${dwi_i}.mif -mask ${raw}/dwi_p${dwi_i}_mask.mif -output median)
-			kul_e2cl "   dataset p${dwi_i} has ${scale[dwi_i]} as mean b0 intensity" ${preproc}/${log}
-
-			#echo "scaling ${raw}/dwi_p${dwi_i}_scaled.mif"
-			mrcalc -quiet ${scale[1]} ${scale[dwi_i]} -divide ${raw}/dwi_p${dwi_i}.mif -mult ${raw}/dwi_p${dwi_i}_scaled.mif -force
 
 			((dwi_i++))
 
@@ -379,18 +359,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
 		done
 
-		if [ $mrtrix3new -eq 0 ]; then
-
-			echo "Using mrcat (old style mrtrix)"
-			mrcat ${raw}/dwi_p*_scaled.mif ${preproc}/dwi_orig.mif
-
-		else
-			echo "Using dwicat (new style mrtrix)"
-			# dwicat ${raw}/dwi_p?.mif - | mrgrid - crop - -axis 1 5,5 | mrgrid - pad ${preproc}/dwi_orig.mif -axis 1 5,5 #-nocleanup 
-			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif #-nocleanup 
-
-		fi
-
+		dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif #-nocleanup 
 
 	fi
 
@@ -404,6 +373,7 @@ fi
 # Only keep the desired part of the dMRI
 if [ $rev_only_topup -eq 1 ]; then
 	
+	pedir="0,-1,0"
 	dwiextract ${preproc}/dwi_orig.mif -pe ${pedir} ${preproc}/dwi_orig_norev.mif -force
 	dwi_orig=dwi_orig_norev.mif
 
@@ -412,6 +382,7 @@ else
 	dwi_orig=dwi_orig.mif
 
 fi
+
 
 # STEP 2 - DWI Preprocessing ---------------------------------------------
 

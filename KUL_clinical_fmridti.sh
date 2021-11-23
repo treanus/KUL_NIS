@@ -41,11 +41,11 @@ Optional arguments:
                     put lesion.nii in RESULTS/sub-{participant}/Anat)
         type 3: don't run hd-glio nor vbg (cavernoma, epilepsy, etc... cT1w)
      -d:  dicom zip file (or directory)
-     -c:  make a backup and cleanup 
+     -B:  make a backup and cleanup 
      -n:  number of cpu to use (default 15)
      -r:  redo certain steps (program will ask)
      -R:  make results ready
-     -v:  show output from commands
+     -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
 
 USAGE
 
@@ -63,6 +63,7 @@ bc=0
 type=1
 redo=0
 results=0 
+verbose_level=1
 
 # Set required options
 p_flag=0
@@ -73,7 +74,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:Rrcv" OPT; do
+	while getopts "p:t:d:n:v:RBr" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -89,7 +90,7 @@ else
         n) #ncpu
 			ncpu=$OPTARG
 		;;
-		c) #backup&clean
+		B) #backup&clean
 			bc=1
 		;;
         r) #redo
@@ -99,7 +100,7 @@ else
 			results=1
 		;;
         v) #verbose
-			silent=0
+            verbose_level=$OPTARG
 		;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -131,12 +132,18 @@ KUL_LOG_DIR="KUL_LOG/${script}/sub-${participant}"
 mkdir -p $KUL_LOG_DIR
 
 # MRTRIX and others verbose or not?
-if [ $silent -eq 1 ] ; then
+if [ $verbose_level -lt 2 ] ; then
 	export MRTRIX_QUIET=1
+    silent=1
     str_silent=" > /dev/null 2>&1" 
     ants_verbose=0
+elif [ $verbose_level -eq 2 ] ; then
+    silent=0
+    str_silent="" 
+    ants_verbose=1
 fi
 
+# Determine what to process depending on patient lesion type
 if [ $type -eq 1 ]; then
     hdglio=1
     vbg=1
@@ -148,7 +155,7 @@ elif [ $type -eq 3 ]; then
     vbg=0
 fi
 
-
+# The BACKUP and clean option
 if [ $bc -eq 1 ]; then
     # clean some stuff
     clean_dwiprep="./dwiprep/sub-${participant}/sub-${participant}/kul_dwifsl* \
@@ -192,6 +199,7 @@ if [ $bc -eq 1 ]; then
     exit 0
 fi
 
+# The make RESULTS option
 if [ $results -eq 1 ];then
 
     ### under development 
@@ -328,8 +336,8 @@ function KUL_check_data {
 function KUL_rigid_register {
     warp_field="${registeroutputdir}/${source_mri_label}_reg2_T1w"
     output_mri="${globalresultsdir}/Anat/${source_mri_label}_reg2_T1w.nii.gz"
-    echo "Rigidly registering $source_mri to $target_mri"
-    my_cmd="antsRegistration --verbose $ants_verbose --dimensionality 3 \
+    #echo "Rigidly registering $source_mri to $target_mri"
+    antsRegistration --verbose $ants_verbose --dimensionality 3 \
     --output [$warp_field,$output_mri] \
     --interpolation BSpline \
     --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
@@ -337,9 +345,8 @@ function KUL_rigid_register {
     --transform Rigid[0.1] \
     --metric MI[$target_mri,$source_mri,1,32,Regular,0.25] \
     --convergence [1000x500x250x100,1e-6,10] \
-    --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox $str_silent_regAnat"
-    eval $my_cmd
-    echo "Done rigidly registering $source_mri to $target_mri"
+    --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
+    #echo "Done rigidly registering $source_mri to $target_mri"
 }
 
 function KUL_run_fmriprep {
@@ -443,7 +450,7 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
     
     #echo "starting recon-all stage 1"
     task_in="recon-all -i ${T1_4_parc} -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1 -no-isrunning"
-    KUL_task_exec $silent "FastSurfer part 1: recon-all stage 1" "$KUL_LOG_DIR/FastSurfer"
+    KUL_task_exec $verbose_level "FastSurfer part 1: recon-all stage 1" "$KUL_LOG_DIR/FastSurfer"
     #echo "done recon-all stage 1"
 
 
@@ -493,7 +500,7 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
         --sid sub-${participant} --sd ${fasu_output} --fsaparc --parallel --threads ${ncpu} \
         --fs_license $FS_LICENSE --py python ${FaSu_cpu} --ignore_fs_version --batch ${batch_fasu}"
         kul_log_file="KUL_LOG/sub-${participant}_run_fastsurfer.txt"
-        KUL_task_exec $silent "FastSurfer part 2: Fastsurfer itself (script & $FaSu_mode mode)" "$KUL_LOG_DIR/FastSurfer"
+        KUL_task_exec $verbose_level "FastSurfer part 2: Fastsurfer itself (script & $FaSu_mode mode)" "$KUL_LOG_DIR/FastSurfer"
 
     else
 
@@ -516,7 +523,7 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
         --sd /output/ --t1 /data/${T1_4_FaSu} \
         --parallel --threads ${ncpu}"
         kul_log_file="KUL_LOG/sub-${participant}_run_fastsurfer.txt"
-        KUL_task_exec $silent "FastSurfer part 2: Fastsurfer itself (docker & $FaSu_mode mode)" "$KUL_LOG_DIR/FastSurfer"
+        KUL_task_exec $verbose_level "FastSurfer part 2: Fastsurfer itself (docker & $FaSu_mode mode)" "$KUL_LOG_DIR/FastSurfer"
 
     fi
 
@@ -533,14 +540,14 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
     #cp -rf ${output_d}/sub-${participant}/surf/* $fs_output/sub-${participant}/surf/
     #cp -rf ${output_d}/sub-${participant}/label/* $fs_output/sub-${participant}/surf/label/ 
 
-    rsync -azv ${fasu_output}/sub-${participant}/ fs_output/sub-${participant}/
+    rsync -azv ${fasu_output}/sub-${participant}/ ${fs_output}/sub-${participant}/
 
     #task_in="recon-all -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -all -noskullstrip"
     #task_exec
 
     task_in="recon-all -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} \
         -parallel -no-isrunning -make all"
-    KUL_task_exec $silent "FastSurfer part 3: recon-all -make-all" "$KUL_LOG_DIR/FastSurfer"
+    KUL_task_exec $verbose_level "FastSurfer part 3: recon-all -make-all" "$KUL_LOG_DIR/FastSurfer"
 
     #exit
 
@@ -691,7 +698,7 @@ function KUL_segment_tumor {
             task_in="docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
                 --mount type=bind,source=$hdgliooutputdir,target=/output \
                 jenspetersen/hd-glio-auto"
-            KUL_task_exec $silent "HD-GLIO-AUTO using docker" "${KUL_LOG_DIR}/2_hdglioauto"
+            KUL_task_exec $verbose_level "HD-GLIO-AUTO using docker" "${KUL_LOG_DIR}/2_hdglioauto"
 
             # compute some additional output
             task_in="maskfilter $hdgliooutputdir/segmentation.nii.gz dilate $hdgliooutputdir/lesion_dil5.nii.gz -npass 5 -force; \
@@ -701,7 +708,7 @@ function KUL_segment_tumor {
                 mrcalc $hdgliooutputdir/segmentation.nii.gz 2 -eq $globalresultsdir/Anat/lesion_solid_tumour.nii -force; \
                 mrcalc $globalresultsdir/Anat/lesion.nii $globalresultsdir/Anat/lesion_perilesional_oedema.nii -sub \
                     $globalresultsdir/Anat/lesion_solid_tumour.nii -sub $globalresultsdir/Anat/lesion_central_necrosis_or_cyst.nii -force"
-            KUL_task_exec $silent "compute lesion, oedema, solid, necrosis/cystic parts" "${KUL_LOG_DIR}/2_hdglioauto"
+            KUL_task_exec $verbose_level "compute lesion, oedema, solid, necrosis/cystic parts" "${KUL_LOG_DIR}/2_hdglioauto"
             
         else
             echo "HD-GLIO-AUTO already done"
@@ -724,7 +731,7 @@ function KUL_run_VBG {
                 -o ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -z T1 -b -B 1 -t -n $ncpu"
-            KUL_task_exec $silent "KUL_VBG" "$KUL_LOG_DIR/VBG"
+            KUL_task_exec $verbose_level "KUL_VBG" "$KUL_LOG_DIR/VBG"
             wait
 
             # Need to update to dev version
@@ -762,7 +769,7 @@ function KUL_run_msbp {
          --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
          --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
          --multiproc_number_of_cores $ncpu"
-        KUL_task_exec $silent "MSBP" "$KUL_LOG_DIR/msbp"
+        KUL_task_exec $verbose_level "MSBP" "$KUL_LOG_DIR/msbp"
 
         echo "Done MSBP"
         touch KUL_LOG/sub-${participant}_MSBP.done
@@ -783,7 +790,7 @@ function KUL_run_FWT {
         -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
         -o $kulderivativesdir/sub-${participant}/FWT \
         -n $ncpu"
-        KUL_task_exec $silent "KUL_FWT voi generation" "$KUL_LOG_DIR/FWTvoi"
+        KUL_task_exec $verbose_level "KUL_FWT voi generation" "$KUL_LOG_DIR/FWTvoi"
 
 
         task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
@@ -795,7 +802,7 @@ function KUL_run_FWT {
         -T 1 -a iFOD2 \
         -Q -S \
         -n $ncpu"
-        KUL_task_exec $silent "KUL_FWT tract generation" "$KUL_LOG_DIR/FWTtck"
+        KUL_task_exec $verbose_level "KUL_FWT tract generation" "$KUL_LOG_DIR/FWTtck"
 
         ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
         ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_BT_iFOD2.tck $globalresultsdir/Tracto/
@@ -901,13 +908,9 @@ fi
 
 
 function KUL_register_anatomical_images {
-
-    if [ ! -f KUL_LOG/sub-${participant}_anat_reg.done ]; then
+    check="KUL_LOG/sub-${participant}_anat_reg.done"
+    if [ ! -f $check ]; then
         
-        if [ $silent -eq 1 ] ; then
-            str_silent_regAnat=" >> KUL_LOG/sub-${participant}_regAnat.log"
-        fi
-
         target_mri=$T1w
         registeroutputdir="$kulderivativesdir/sub-${participant}/antsregister"
         mkdir -p $registeroutputdir
@@ -915,30 +918,35 @@ function KUL_register_anatomical_images {
         if [ $ncT1w -gt 0 ];then
             source_mri_label="cT1w"
             source_mri=$cT1w
-            KUL_rigid_register
+            task_in="KUL_rigid_register"
+            KUL_task_exec 0 "KUL_rigid_register cT1w" "$KUL_LOG_DIR/3_register_anat"
         fi
         if [ $nT2w -gt 0 ];then
             source_mri_label="T2w"
             source_mri=$T2w
-            KUL_rigid_register
+            task_in="KUL_rigid_register"
+            KUL_task_exec 0 "KUL_rigid_register cT1w" "$KUL_LOG_DIR/3_register_anat"
         fi
         if [ $nFLAIR -gt 0 ];then
             source_mri_label="FLAIR"
             source_mri=$FLAIR
-            KUL_rigid_register
+            task_in="KUL_rigid_register"
+            KUL_task_exec 0 "KUL_rigid_register cT1w" "$KUL_LOG_DIR/3_register_anat"
         fi
         if [ $nSWI -gt 0 ];then
             source_mri_label="SWI"
             source_mri=$SWI
-            KUL_rigid_register
+            task_in="KUL_rigid_register"
+            KUL_task_exec 0 "KUL_rigid_register cT1w" "$KUL_LOG_DIR/3_register_anat"
 
             input=$SWIp
             transform="${registeroutputdir}/${source_mri_label}_reg2_T1w0GenericAffine.mat"
             output="${globalresultsdir}/Anat/${source_mri_label}_phase_reg2_T1w.nii.gz"
             reference=$target_mri
-            KUL_antsApply_Transform $str_silent_regAnat
+            task_in="KUL_rigid_register"
+            KUL_task_exec 0 "KUL_rigid_register cT1w" "$KUL_LOG_DIR/3_register_anat"
         fi
-        touch KUL_LOG/sub-${participant}_anat_reg.done
+        touch $check
     else 
         echo "Anatomical registration already done"
     fi
@@ -993,6 +1001,7 @@ fi
 # STEP 3 - regsiter all anatomical other data to the T1w without contrast
 KUL_register_anatomical_images &
 
+exit
 
 # STEP 4 - run VBG
 if [ $vbg -eq 1 ];then

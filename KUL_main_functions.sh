@@ -11,7 +11,7 @@
 #  - obligatory variable to set
 #       task_in (a command string that needs to be evaluated)
 #  - facultative command line options
-#       kul_silent (1=silent, 0=normal; 1=default)
+#       kul_verbose_level (0=silent, 1=normal; 2=verbose; 1=default)
 #       kul_short_name (what to display as process)
 #       kul_log_file (the path of the log file)
 # Example 1
@@ -23,12 +23,12 @@
 # Example 2
 #  task_in="another big process"
 #   Run process "another_big_process"
-#   Have output to the terminal and to log files (default kul_silent 1)
+#   Have output to the terminal and to log files (default kul_verbose_level 1)
 #   Take the first 20 characters of "task_in" and display that (kul_short_name is generated automatically)
 #   Log to the files KUL_LOG_kul_short_name.log and KUL_LOG_kul_short_name.error.log (/ -> _, and spaces too)
 function KUL_task_exec {
 
-    local kul_silent="$1"
+    local kul_verbose_level="$1"
     local kul_process_name="$2"
     local kul_log_files="$3"
 
@@ -38,7 +38,7 @@ function KUL_task_exec {
     fi
 
     if [ $KUL_DEBUG -eq 1 ]; then
-        echo $kul_silent
+        echo $kul_verbose_level
         echo $kul_process_name
         echo $kul_log_files
         echo $script
@@ -56,8 +56,8 @@ function KUL_task_exec {
     local c # counter for pids/procsArray
     
     ### STEP 1 - test the input to the function and of unset, set a default
-    if [[ -z "$kul_silent" ]]; then
-        kul_silent=1
+    if [[ -z "$kul_verbose_level" ]]; then
+        kul_verbose_level=1
     fi
 
     if [[ -z "$kul_process_name" ]]; then
@@ -80,7 +80,7 @@ function KUL_task_exec {
     # to
     # implement multiple task_in (see preproc_all)
 
-    if [ $kul_silent -eq 1 ]; then 
+    if [ $kul_verbose_level -eq 0 ]; then 
     
         local task_in_final="$task_in  1>>${kul_log_file} 2>>${kul_errorlog_file}"
         eval ${task_in_final} &
@@ -99,10 +99,12 @@ function KUL_task_exec {
 
 
     ### STEP 3 - give some information
-    tput bold
-    echo "${task_in_name}... started @ $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${kul_log_file}
-    tput sgr0
-    if [ $kul_silent -eq 0 ]; then 
+    if [ $kul_verbose_level -gt 0 ]; then
+        tput bold
+        echo "${task_in_name}... started @ $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${kul_log_file}
+        tput sgr0
+    fi
+    if [ $kul_verbose_level -eq 2 ]; then 
         tput dim
         echo -e "   The task_in command: ${task_in}" | tee -a ${kul_log_file}
         tput sgr0
@@ -145,9 +147,9 @@ function KUL_task_exec {
                     
                     final_exec_time_seconds=$(($SECONDS - $seconds_begin))
                     final_exec_time_minutes=$(($final_exec_time_seconds / 60))
-                    #echo "Process ${procsArray[c]} with pid $pid finished successfully @ $(date "+%Y-%m-%d_%H-%M-%S") (with exitcode [$result])." | tee -a ${kul_log_file}
-                    echo "$task_in_name finished successfully after $final_exec_time_minutes minutes" | tee -a ${kul_log_file}
-
+                    if [ $kul_verbose_level -gt 0 ]; then
+                        echo "$task_in_name finished successfully after $final_exec_time_minutes minutes" | tee -a ${kul_log_file}
+                    fi
                 fi
             fi
             c=$((c+1))
@@ -160,7 +162,9 @@ function KUL_task_exec {
             if [ $log_ttime -ne $exec_time ]; then
                 log_ttime=$exec_time
                 log_min=$((log_ttime / 60))
-                echo "  Current tasks [${procsArray[@]}] still running after $log_min minutes with pids [${pidsArray[@]}]."
+                if [ $kul_verbose_level -gt 0 ]; then
+                    echo "  Current tasks [${procsArray[@]}] still running after $log_min minutes with pids [${pidsArray[@]}]."
+                fi
             fi
         fi
 
@@ -172,7 +176,7 @@ function KUL_task_exec {
 
     ### STEP 5 - return the status of execution 
     if [ $errorcount -eq 0 ]; then
-        if [ $kul_silent -eq 0 ]; then 
+        if [ $kul_verbose_level -eq 2 ]; then 
             echo -e "Success\n\n" | tee -a ${kul_log_file}
         fi
     else
