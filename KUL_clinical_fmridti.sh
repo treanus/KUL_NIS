@@ -1010,9 +1010,10 @@ fi
 wait
 
 # STEP 5 - run SPM/melodic/msbp
-KUL_run_fastsurfer
-#KUL_run_freesurfer
+#KUL_run_fastsurfer
+KUL_run_freesurfer
 wait 
+exit
 
 # STEP 5 - run SPM/melodic/msbp
 KUL_run_msbp

@@ -580,7 +580,7 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 					kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
 						-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 				else
-					mrcat raw/b0s_pe*.mif raw/dwi_reverse_phase.mif raw/se_epi_for_topup.mif -force
+					mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force
 					kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
 						-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 				fi
@@ -678,8 +678,8 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
 	fi
 
-	clean-up the above dwipreproc temporary directory
-	rm -rf $temp_dir
+	# clean-up the above dwipreproc temporary directory
+	# rm -rf $temp_dir
 
 else
 
