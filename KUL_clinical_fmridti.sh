@@ -1001,7 +1001,6 @@ fi
 # STEP 3 - regsiter all anatomical other data to the T1w without contrast
 KUL_register_anatomical_images &
 
-exit
 
 # STEP 4 - run VBG
 if [ $vbg -eq 1 ];then
@@ -1013,14 +1012,14 @@ wait
 #KUL_run_fastsurfer
 KUL_run_freesurfer
 wait 
-exit
+
 
 # STEP 5 - run SPM/melodic/msbp
 KUL_run_msbp
 wait
 
-
 KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
+
 if [ $n_fMRI -gt 0 ];then
     KUL_compute_SPM &  
     KUL_compute_melodic &

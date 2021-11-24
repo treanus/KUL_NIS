@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # set -x
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
@@ -13,14 +13,18 @@ version="v1.2 - dd 23/11/2021"
 #  - fod calc msmt-5tt in stead of dhollander
 
 
+### TESTING
+new_style=1
+
 # -----------------------------------  MAIN  ---------------------------------------------
 # this script defines a few functions:
 #  - Usage (for information to the novice user)
 #  - kul_e2cl (for logging)
 #
-# this script uses "preprocessing control", i.e. if some steps are already processed it will skip these
+# this script will skip if some steps are already processed
 
 kul_main_dir=`dirname "$0"`
+script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
 
@@ -35,7 +39,7 @@ cat <<USAGE
 
 Usage:
 
-  `basename $0` -p subject <OPT_ARGS>
+  `basename $0` -p participant <OPT_ARGS>
 
 Example:
 
@@ -43,7 +47,7 @@ Example:
 
 Required arguments:
 
-	 -p:  praticipant (BIDS name of the subject)
+	 -p:  praticipant (BIDS name of the participant)
 
 
 Optional arguments:
@@ -52,12 +56,10 @@ Optional arguments:
 	 -s:  session (BIDS session)
 	 -n:  number of cpu for parallelisation (default 6)
 	 -b:  use Synb0-DISCO instead of topup (requires docker)
-	 -f:  specify that an fmap (reverse phase image) exists in the bids folder for topup
-	 -t:  options to pass to topup
 	 -e:  options to pass to eddy (default "--slm=linear --repol")
 	 -r:  use reverse phase data only for topup and not for further processing
 	 -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 3=legacy; 1=default)
-	 -v:  show output from mrtrix commands
+	 -v:  show output from mrtrix commands (0=silent, 1=normal, 2=verbose; default=1)
 
 Documentation:
 
@@ -89,7 +91,6 @@ ncpu=6 # default if option -n is not given
 silent=1 # default if option -v is not given
 # Specify additional options for FSL eddy
 eddy_options="--slm=linear --repol"
-topup_options=""
 dwipreproc_options="dhollander"
 dwi2mask_method=1
 
@@ -98,7 +99,8 @@ p_flag=0
 s_flag=0
 rev_only_topup=0
 synb0=0
-fmap=0
+#fmap=0
+verbose_level=1
 
 if [ "$#" -lt 1 ]; then
 	Usage >&2
@@ -106,12 +108,12 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:d:t:e:m:rbfv" OPT; do
+	while getopts "p:s:n:d:t:e:m:v:rbv" OPT; do
 
 		case $OPT in
 		p) #participant
 			p_flag=1
-			subj=$OPTARG
+			participant=$OPTARG
 		;;
 		s) #session
 			s_flag=1
@@ -122,9 +124,6 @@ else
 		;;
 		d) #dwipreproc_options
 			dwipreproc_options=$OPTARG
-		;;
-		t) #topup_options
-			topup_options=$OPTARG
 		;;
 		e) #eddy_options
 			eddy_options=$OPTARG
@@ -138,11 +137,8 @@ else
 		b) #use SynB0-DISCO
 			synb0=1
 		;;
-		f) #use fmap in bids
-			fmap=1
-		;;
 		v) #verbose
-			silent=0
+			silent=$OPTARG
 		;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -172,10 +168,15 @@ fi
 
 
 # MRTRIX verbose or not?
-if [ $silent -eq 1 ] ; then
-
+if [ $silent -eq 0 ] ; then
 	export MRTRIX_QUIET=1
-
+	verbose_level=0
+elif [ $silent -eq 1 ] ; then
+	export MRTRIX_QUIET=1
+	verbose_level=1
+elif [ $silent -eq 2 ] ; then
+	export MRTRIX_QUIET=0
+	verbose_level=2
 fi
 
 # REST OF SETTINGS ---
@@ -197,6 +198,8 @@ log=log/log_${d}.txt
 if [ $mrtrix_version_revision_major -eq 2 ]; then
 	mrtrix3new=0
 	echo " you are using an older version of MRTrix3 $mrtrix_version_revision_major"
+	echo " this is not supported. Exitting"
+	exit 1
 elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -lt 100 ]; then
 	mrtrix3new=1
 	echo " you are using a new version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor but not the latest"
@@ -209,19 +212,19 @@ else
 fi
 
 # start
-bids_subj=BIDS/sub-${subj}
+bids_participant=BIDS/sub-${participant}
 
 # Either a session is given on the command line
 # If not the session(s) need to be determined.
 if [ $s_flag -eq 1 ]; then
 
 	# session is given on the command line
-	search_sessions=BIDS/sub-${subj}/ses-${ses}
+	search_sessions=BIDS/sub-${participant}/ses-${ses}
 
 else
 
 	# search if any sessions exist
-	search_sessions=($(find BIDS/sub-${subj} -type d | grep dwi))
+	search_sessions=($(find BIDS/sub-${participant} -type d | grep dwi))
 
 fi
 
@@ -235,13 +238,13 @@ echo "    notably: ${search_sessions[@]}"
 for current_session in `seq 0 $(($num_sessions-1))`; do
 
 # set up directories
-cd $cwd
-long_bids_subj=${search_sessions[$current_session]}
-#echo $long_bids_subj
-bids_subj=${long_bids_subj%dwi}
+#cd $cwd
+long_bids_participant=${search_sessions[$current_session]}
+#echo $long_bids_participant
+bids_participant=${long_bids_participant%dwi}
 
 # Create the Directory to write preprocessed data in
-preproc=dwiprep/sub-${subj}/$(basename $bids_subj)
+preproc=${cwd}/dwiprep/sub-${participant}/$(basename $bids_participant)
 #echo $preproc
 
 # Directory to put raw mif data in
@@ -251,23 +254,27 @@ raw=${preproc}/raw
 mkdir -p ${preproc}/raw
 mkdir -p ${preproc}/log
 
-kul_e2cl " Start processing $bids_subj" ${preproc}/${log}
+KUL_LOG_DIR="${preproc}/log"
+mkdir -p $KUL_LOG_DIR
+echo $KUL_LOG_DIR
+
+kul_e2cl " Start processing $bids_participant" ${preproc}/${log}
 
 
 # STEP 1 - CONVERSION of BIDS to MIF ---------------------------------------------
 
+function KUL_dwiprep_convert {
 # test if conversion has been done
 declare -a dwi_pes
 declare -a fdwi_pes
 declare -a pedirs
-# declare -a pedp
 declare -a peds
 if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
 	kul_e2cl " Preparing datasets from BIDS directory..." ${preproc}/${log}
 
 	# convert dwi
-	bids_dwi_search="$bids_subj/dwi/sub-*_dwi.nii.gz"
+	bids_dwi_search="$bids_participant/dwi/sub-*_dwi.nii.gz"
 	bids_dwi_found=$(ls $bids_dwi_search)
 
 	number_of_bids_dwi_found=$(echo $bids_dwi_found | wc -w)
@@ -290,6 +297,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
 		kul_e2cl "   found $number_of_bids_dwi_found dwi datasets, checking number_of slices (and adjusting), scaling & catting" ${preproc}/${log}
 
+		### find number of slices of the multiple datasets and correct if necessary
 		dwi_i=1
 		for dwi_file in $bids_dwi_found; do
 			dwi_base=${dwi_file%%.*}
@@ -312,10 +320,11 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
 		done
 
-		# Output results:
 		# echo "Max is: $max"
 		((max--))
 
+
+		# convert each file and make a mean b0
 		dwi_i=1
 		for dwi_file in $bids_dwi_found; do
 			dwi_base=${dwi_file%%.*}
@@ -324,41 +333,12 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 			mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
 			-json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} -force -clear_property comments -nthreads $ncpu
 
-			mrinfo ${raw}/dwi_p${dwi_i}.mif -export_pe_table ${raw}/dwi_p${dwi_i}_petable.txt
-			peds[$((dwi_i-1))]=$(mrinfo ${raw}/dwi_p${dwi_i}.mif -size)
-			mapfile -t ${dwi_pes} < ${raw}/dwi_p${dwi_i}_petable.txt
-			echo $dwi_pes
-			fdwi_pes=(${dwi_pes[0]})
-			echo ${fdwi_pes[@]}
-			pedirs[$((dwi_i-1))]="${fdwi_pes[0]},${fdwi_pes[1]},${fdwi_pes[2]}"
-			echo ${pedirs[$((dwi_i-1))]}
-
-			dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
+			#dwiextract -quiet -bzero ${raw}/dwi_p${dwi_i}.mif - | mrmath -axis 3 - mean ${raw}/b0s_p${dwi_i}.mif -force
 
 			((dwi_i++))
-
 		done
 
-		for xx in ${!pedirs[@]}; do
-
-			if [[ ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} -ge ${peds[0]} ]]; then
-				echo "same pe as first part"
-				pedir=${pedirs[$xx]}
-				# pedinv=${ped[$xx]}
-			elif [[ ! ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} -lt ${peds[0]} ]]; then
-				echo "different pe than first part"
-				pedir=${ped[0]}
-				pedinv=${pedirs[$xx]}
-			elif [[ ! ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} -gt ${peds[0]} ]]; then
-				pedir=${ped[$xx]}
-				pedinv=${pedirs[0]}
-			elif [[ ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} == ${peds[0]} ]]; then
-				pedir=${ped[0]}
-				pedinv=${pedirs[$xx]}
-			fi
-
-		done
-
+		# dwicat the files together
 		dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif #-nocleanup 
 
 	fi
@@ -368,11 +348,46 @@ else
 	echo " Conversion has been done already... skipping to next step"
 
 fi
+}
 
+task_in="KUL_dwiprep_convert"
+KUL_task_exec $verbose_level "kul_dwiprep part 1: convert data to mif" "$KUL_LOG_DIR/1_convert_mif"
 
 # Only keep the desired part of the dMRI
 if [ $rev_only_topup -eq 1 ]; then
 	
+
+	#TO DO
+
+		#mrinfo ${raw}/dwi_p${dwi_i}.mif -export_pe_table ${raw}/dwi_p${dwi_i}_petable.txt
+		#peds[$((dwi_i-1))]=$(mrinfo ${raw}/dwi_p${dwi_i}.mif -size)
+		#mapfile -t ${dwi_pes} < ${raw}/dwi_p${dwi_i}_petable.txt
+		#echo $dwi_pes
+		#fdwi_pes=(${dwi_pes[0]})
+		#echo ${fdwi_pes[@]}
+		#pedirs[$((dwi_i-1))]="${fdwi_pes[0]},${fdwi_pes[1]},${fdwi_pes[2]}"
+		#echo ${pedirs[$((dwi_i-1))]}
+
+		#for xx in ${!pedirs[@]}; do
+		#
+		#	if [[ ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} -ge ${peds[0]} ]]; then
+		#		echo "same pe as first part"
+		#		pedir=${pedirs[$xx]}
+		#		# pedinv=${ped[$xx]}
+		#	elif [[ ! ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} -lt ${peds[0]} ]]; then
+		#		echo "different pe than first part"
+		#		pedir=${ped[0]}
+		#		pedinv=${pedirs[$xx]}
+		#	elif [[ ! ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} -gt ${peds[0]} ]]; then
+		#		pedir=${ped[$xx]}
+		#		pedinv=${pedirs[0]}
+		#	elif [[ ${pedirs[$xx]} == ${pedirs[0]} ]] && [[ ${peds[$xx]} == ${peds[0]} ]]; then
+		#		pedir=${ped[0]}
+		#		pedinv=${pedirs[$xx]}
+		#	fi
+		#
+		#done
+
 	pedir="0,-1,0"
 	dwiextract ${preproc}/dwi_orig.mif -pe ${pedir} ${preproc}/dwi_orig_norev.mif -force
 	dwi_orig=dwi_orig_norev.mif
@@ -382,6 +397,7 @@ else
 	dwi_orig=dwi_orig.mif
 
 fi
+
 
 
 # STEP 2 - DWI Preprocessing ---------------------------------------------
@@ -394,21 +410,24 @@ mkdir -p dwi
 if [ ! -f dwi_orig_mask.nii.gz ]; then
 	kul_e2cl "   Making an initial brain mask..." ${log}
 
-	dwiextract ${dwi_orig} dwi/bzeros.mif -bzero -force \
+	task_in1="dwiextract ${dwi_orig} dwi/bzeros.mif -bzero -force \
 	&& dwiextract ${dwi_orig} dwi/nonbzeros.mif -no_bzero -force \
-	&& mrcat -force -nthreads ${ncpu} dwi/bzeros.mif dwi/nonbzeros.mif dwi/rearranged_dwis.mif
+	&& mrcat -force -nthreads ${ncpu} dwi/bzeros.mif dwi/nonbzeros.mif dwi/rearranged_dwis.mif"
 	
 	if [ $dwi2mask_method -eq 1 ];then
-		dwi2mask hdbet \
-			dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force
+		task_in2="dwi2mask hdbet \
+			dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force"
 	elif [ $dwi2mask_method -eq 2 ];then
-		dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+		task_in2="dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
 			${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
-			dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force
+			dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force"
 	elif [ $dwi2mask_method -eq 3 ];then
-		dwi2mask legacy \
-			dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force
+		task_in2="dwi2mask legacy \
+			dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force"
 	fi
+	task_in="$task_in1; $task_in2"
+	KUL_task_exec $verbose_level "kul_dwiprep: make an initial mask" "$KUL_LOG_DIR/1_convert_mif"
+
 fi
 
 # Do some qa: make FA/ADC of unprocessed images
@@ -429,16 +448,18 @@ if [ ! -f dwi/degibbs.mif ] && [ ! -f dwi_preproced.mif ]; then
 	kul_e2cl " Start part 1 of preprocessing: dwidenoise & mrdegibbs" ${log}
 
 	# dwidenoise
-	kul_e2cl "   dwidenoise..." ${log}
+	# kul_e2cl "   dwidenoise..." ${log}
 	# STEFAN: pretty sure the mask gives a masked topup_in in kul_dwifslpreproc,... \
 	#    and this get's converted to b0.nii for synb0. No eyes in there anymore and this makes the fieldmap look really bad
 	# dwidenoise $dwi_orig dwi/denoise.mif -noise dwi/noiselevel.mif -mask dwi_orig_mask.nii.gz -nthreads $ncpu -force
-	dwidenoise $dwi_orig dwi/denoise.mif -noise dwi/noiselevel.mif -nthreads $ncpu -force
+	task_in="dwidenoise $dwi_orig dwi/denoise.mif -noise dwi/noiselevel.mif -mask dwi_orig_mask.nii.gz -nthreads $ncpu -force"
+	KUL_task_exec $verbose_level "kul_dwiprep part 2: dwidenoise" "$KUL_LOG_DIR/2_dwidenoise"
 
 	# mrdegibbs
-	kul_e2cl "   mrdegibbs..." ${log}
-	mrdegibbs dwi/denoise.mif dwi/degibbs.mif -nthreads $ncpu -force
-	rm dwi/denoise.mif
+	# kul_e2cl "   mrdegibbs..." ${log}
+	task_in="mrdegibbs dwi/denoise.mif dwi/degibbs.mif -nthreads $ncpu -force; \
+		rm dwi/denoise.mif"
+	KUL_task_exec $verbose_level "kul_dwiprep part 2: mrdegibbs" "$KUL_LOG_DIR/2_mrdegibbs"
 
 else
 
@@ -458,33 +479,45 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
 	# prepare for Synb0-disco
 	if [ $synb0 -eq 1 ]; then
-		# find T1
-		bids_T1_found=($(find $cwd/$bids_subj/anat -type f -name "*T1w.nii.gz" ! -name "*gadolinium*")) 
-		number_of_bids_T1_found=${#bids_T1_found[@]}
-		if [ $number_of_bids_T1_found -gt 1 ]; then
-			kul_e2cl "   more than 1 T1 dataset, using first only for Synb0-disco" ${preproc}/${log}
+
+
+		if [ $new_style -eq 1 ];then
+			
+			# run KUL_synb0 first and then use the new dwifslpreproc -topupfield option
+			KUL_synb0.sh -p $participant
+
+		else 
+
+			# find T1
+			bids_T1_found=($(find $cwd/$bids_participant/anat -type f -name "*T1w.nii.gz" ! -name "*gadolinium*")) 
+			number_of_bids_T1_found=${#bids_T1_found[@]}
+			if [ $number_of_bids_T1_found -gt 1 ]; then
+				kul_e2cl "   more than 1 T1 dataset, using first only for Synb0-disco" ${preproc}/${log}
+			fi
+			#echo $bids_T1_found
+			Synb0_T1=${bids_T1_found[0]}
+			echo "The used T1 for sSynb0-disco is $Synb0_T1"
+
+		
 		fi
-		#echo $bids_T1_found
-		Synb0_T1=${bids_T1_found[0]}
-		echo "The used T1 for sSynb0-disco is $Synb0_T1"
 	fi
 
 	# prepare for fmap
-	if [ $fmap -eq 1 ]; then
-		# find fmap
-		bids_fmap_search="$cwd/$bids_subj/fmap/sub-*_epi.nii.gz"
-		echo $bids_fmap_search
-		bids_fmap_found=$(ls $bids_fmap_search)
-		number_of_bids_fmap_found=$(echo $bids_fmap_found | wc -w)
-		if [ $number_of_bids_fmap_found -lt 1 ]; then
-			kul_e2cl "   more than 1 fmap dataset, using first only for topup" ${preproc}/${log}
-		fi
-		#echo $bids_fmap_found
-		fmap_epi=${bids_fmap_found[0]}
-		echo "The used fmap for topup is $fmap_epi"
-		fmap_base=${fmap_epi%%.*}
-		mrconvert ${fmap_base}.nii.gz -json_import ${fmap_base}.json raw/dwi_reverse_phase.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu
-	fi
+	#if [ $fmap -eq 1 ]; then
+	#	# find fmap
+	#	bids_fmap_search="$cwd/$bids_participant/fmap/sub-*_epi.nii.gz"
+	#	echo $bids_fmap_search
+	#	bids_fmap_found=$(ls $bids_fmap_search)
+	#	number_of_bids_fmap_found=$(echo $bids_fmap_found | wc -w)
+	#	if [ $number_of_bids_fmap_found -lt 1 ]; then
+	#		kul_e2cl "   more than 1 fmap dataset, using first only for topup" ${preproc}/${log}
+	#	fi
+	#	#echo $bids_fmap_found
+	#	fmap_epi=${bids_fmap_found[0]}
+	#	echo "The used fmap for topup is $fmap_epi"
+	#	fmap_base=${fmap_epi%%.*}
+	#	mrconvert ${fmap_base}.nii.gz -json_import ${fmap_base}.json raw/dwi_reverse_phase.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu
+	#fi
 
 	# prepare eddy_options
 	#
@@ -492,24 +525,8 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 	full_eddy_options="--cnr_maps --residuals "${eddy_options}
 	echo "full_eddy_options: $full_eddy_options"
 
-	# NOT RELEVANT YET (not yet implemented)
-	#if [ -z "$topup_options" ]; then
-	#    dwipreproc_topup_options=""
-	#else
-	#    dwipreproc_topup_options="-topup_options $topup_options "
-	#fi
 
 	# PREPARE FOR TOPUP and EDDY, but allways use rpe_header, since we start from BIDS format
-	#
-	# Check whether:
-	#  - is there only 1 b0?
-	#      -> do regular mrtrix-dwiprep (topup will not be called)
-	#  - are there less than 5 b0s?
-	#      -> do regular mrtrix-dwiprep (topup will be called if necessary)
-	#  - when equal to or more than 5 b0s, are there different pe_schemes (i.e. reversed phase)?
-	#    - if not: continue with regular mrtrix-dwipreproc (topup will not be called)
-	#    - if so, only keep one of each pe_scheme and call mrtrix-dwipreproc with -se_epi option
-
 	regular_dwipreproc=1
 
 	# read the pe table of the b0s of dwi_orig.mif
@@ -521,18 +538,9 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 	#echo $n_pe
 
 
-	# in case there is only 1 b0
-	if [ $n_pe -eq 1 ]; then
-
-		echo "Prepare for topup: only 1 b0"
-
-	elif [ $n_pe -lt 5 ]; then
-
-	    echo "Prepare for topup: less than 5 b0s"
-
-	else
-
-		echo "Prepare for topup: more than or equal to 5 b0s, now checking pe_scheme"
+	# in case there is only 1 b0max
+	if [ $n_pe -gt 4 ]; then
+		echo "Prepare for topup: more than 4 b0s, now checking pe_scheme"
 
 		# extract first b0
 		dwiextract dwi_orig.mif -bzero - | mrconvert - -coord 3 0 raw/b0s_pe0.mif -force
@@ -557,12 +565,15 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 				echo previous_pe=$previous_pe, current_pe=$current_pe
 				echo "new pe_scheme, convert"
 				dwiextract dwi_orig.mif -bzero - | mrconvert - -coord 3 $i raw/b0s_pe${i}.mif -force
+				break 
 
 			fi
 
 			previous_pe=$current_pe
 
 		done
+
+		mrcat raw/b0s_pe*.mif dwi/se_epi_for_topup.mif -force
 
 	fi
 
@@ -572,12 +583,31 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 	echo "fmap: $fmap"
 	echo "rev_only_topup: $rev_only_topup"
 
-	
-	if [ $regular_dwipreproc -eq 1 ]; then
+	if [ $new_style -eq 1 ];then
 
-		if [ $mrtrix3new -eq 0 ]; then
-			dwipreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+		if [ $synb0 -eq 0 ]; then
+
+			# note: maybe add -eddy_mask
+			dwifslpreproc_option="-se_epi dwi/se_epi_for_topup.mif -align_seepi"
+
 		else
+			
+			dwifslpreproc_option="-topup_files ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/synb0/topup_"
+
+		fi
+
+		task_in="dwifslpreproc ${dwifslpreproc_option} -rpe_header \
+				-eddyqc_all eddy_qc/raw -eddy_options \"${full_eddy_options} \" -force -nthreads $ncpu -nocleanup \
+				dwi/degibbs.mif dwi/geomcorr.mif"
+		echo $task_in
+		KUL_task_exec $verbose_level "kul_dwiprep part 3: motion and distortion correction" "$KUL_LOG_DIR/3_dwifslpreproc"
+		wait
+
+	else
+
+		if [ $regular_dwipreproc -eq 1 ]; then
+
+
 			if [ $synb0 -eq 0 ]; then
 				if [ $fmap -eq 0 ]; then
 					kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
@@ -589,48 +619,50 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 				fi
 			else
 				kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif \
-				 -synb0_disco_T1 "$Synb0_T1" \
-				 -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+					-synb0_disco_T1 "$Synb0_T1" \
+					-rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
 			fi
-		fi
 
-	else
 
-		if [ $synb0 -eq 1 ]; then
-			echo "EXPERIMENTAL: Not tested well; contact Stefan to fix scipt KUL_dwiprep.sh synb0=1 case, but regular_dwiprproc=0, lines 485 on"
-			kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif \
-			 -synb0_disco_T1 "$Synb0_T1" \
-			 -rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-		
-		
-		
 		else
 
-			# concat all b0 with different pe_schemes
-			mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force
-
-			echo $rev_only_topup
-
-			if [ $rev_only_topup -eq 0 ]; then
-
-				kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
-				-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-
+			if [ $synb0 -eq 1 ]; then
+				echo "EXPERIMENTAL: Not tested well; contact Stefan to fix scipt KUL_dwiprep.sh synb0=1 case, but regular_dwiprproc=0, lines 485 on"
+				kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif \
+				-synb0_disco_T1 "$Synb0_T1" \
+				-rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+			
+			
+			
 			else
 
-				kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_pair \
-				-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-			fi
+				# concat all b0 with different pe_schemes
+				mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force
 
+				echo $rev_only_topup
+
+				if [ $rev_only_topup -eq 0 ]; then
+
+					kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
+					-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+
+				else
+
+					#kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_pair \
+					#-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+					kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
+					-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
+				fi
+
+			fi
+		
 		fi
 
-	fi
+	fi		
 
-	if [ $mrtrix3new -eq 0 ]; then
-		temp_dir=$(ls -d dwipreproc*)
-	else
-		temp_dir=$(ls -d *dwifslpreproc*)
-	fi
+
+	temp_dir=$(ls -d *dwifslpreproc*)
+
 
 	# create an intermediate mask of the dwi data
 	kul_e2cl "    creating intermediate mask of the dwi data..." ${log}
@@ -662,7 +694,7 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
 	if [ $test_eddy_quad = "" ]; then
 
-		echo "You are probably on the VSC and we skip eddy_quad (which was not found in the path)"
+		echo "Eddy_quad skipped (which was not found in the path)"
 
 	else
 
@@ -677,9 +709,9 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 		echo $cwd
 		echo $preproc
 		if [[ -z ${ses} ]]; then
-			ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}/../sub-${subj}.pdf &
+			ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}/../sub-${participant}.pdf &
 		else
-			ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}/../sub-${subj}_ses-${ses}.pdf &
+			ln -s $cwd/${preproc}/eddy_qc/quad/qc.pdf $cwd/${preproc}/../sub-${participant}_ses-${ses}.pdf &
 		fi
 
 	fi
@@ -701,20 +733,13 @@ if [ ! -f dwi_preproced.mif ]; then
 
 	# bias field correction
 	kul_e2cl "    dwibiascorrect" ${log}
-	if [ $mrtrix3new -eq 0 ]; then
-		dwibiascorrect -ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force -mask dwi/dwi_intermediate_mask.nii.gz
-		#dwibiascorrect -fsl dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force
-	else 
-		dwibiascorrect ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force -mask dwi/dwi_intermediate_mask.nii.gz
-	fi
+	dwibiascorrect ants dwi/geomcorr.mif dwi/biascorr.mif -bias dwi/biasfield.mif -nthreads $ncpu -force -mask dwi/dwi_intermediate_mask.nii.gz
+
 
 	# upsample the images
 	kul_e2cl "    upsampling resolution..." ${log}
-	if [ $mrtrix3new -eq 0 ]; then
-		mrresize dwi/biascorr.mif -vox 1.3 dwi/upsampled.mif -nthreads $ncpu -force
-	else
-		mrgrid -nthreads $ncpu -force -axis 1 5,5 dwi/biascorr.mif crop - | mrgrid -axis 1 5,5 -force - pad - | mrgrid -voxel 1.3 -force - regrid dwi/upsampled.mif 
-	fi
+	mrgrid -nthreads $ncpu -force -axis 1 5,5 dwi/biascorr.mif crop - | mrgrid -axis 1 5,5 -force - pad - | mrgrid -voxel 1.3 -force - regrid dwi/upsampled.mif 
+
 	rm dwi/biascorr.mif
 
 	# copy to main directory for subsequent processing
@@ -865,9 +890,11 @@ if [ ! -f qa/dec.mif ]; then
 
 		fod2dec response/tournier_wmfod.mif qa/tournier_dec.mif -force -mask dwi_mask.nii.gz
 	fi
+
 	if [[ $dwipreproc_options == *"tax"* ]]; then
 		fod2dec response/tax_wmfod.mif qa/tax_dec.mif -force -mask dwi_mask.nii.gz
 	fi
+
 	if [[ $dwipreproc_options == *"dhollander"* ]]; then
 		fod2dec response/dhollander_wmfod.mif qa/dhollander_dec.mif -force -mask dwi_mask.nii.gz
 		#fod2dec response/dhollander_wmfod_norm.mif qa/dhollander_dec_norm.mif -force
@@ -888,7 +915,7 @@ echo "done" > log/${current_session}_done.log
 #rm -rf dwi/geomcorr.mif
 #rm -rf raw
 
-echo " Finished processing session $bids_subj"
+echo " Finished processing session $bids_participant"
 
 
 # ---- END of the BIG loop over sessions
