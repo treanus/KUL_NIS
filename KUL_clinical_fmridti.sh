@@ -800,6 +800,7 @@ function KUL_run_FWT {
         -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
         -o $kulderivativesdir/sub-${participant}/FWT \
         -T 1 -a iFOD2 \
+        -f 1 \
         -Q -S \
         -n $ncpu"
         KUL_task_exec $verbose_level "KUL_FWT tract generation" "$KUL_LOG_DIR/FWTtck"

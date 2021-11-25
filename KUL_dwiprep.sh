@@ -414,20 +414,24 @@ if [ ! -f dwi_orig_mask.nii.gz ]; then
 	&& dwiextract ${dwi_orig} dwi/nonbzeros.mif -no_bzero -force \
 	&& mrcat -force -nthreads ${ncpu} dwi/bzeros.mif dwi/nonbzeros.mif dwi/rearranged_dwis.mif"
 	
-	if [ $dwi2mask_method -eq 1 ];then
-		task_in2="dwi2mask hdbet \
-			dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force"
-	elif [ $dwi2mask_method -eq 2 ];then
-		task_in2="dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
-			${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
-			dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force"
-	elif [ $dwi2mask_method -eq 3 ];then
-		task_in2="dwi2mask legacy \
-			dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force"
+	if [ $mrtrix3new -eq 2 ]; then
+		if [ $dwi2mask_method -eq 1 ];then
+			task_in2="dwi2mask hdbet \
+				dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force"
+		elif [ $dwi2mask_method -eq 2 ];then
+			task_in2="dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+				${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+				dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force"
+		elif [ $dwi2mask_method -eq 3 ];then
+			task_in2="dwi2mask legacy \
+				dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force"
+		fi
+		task_in="$task_in1; $task_in2"
+		KUL_task_exec $verbose_level "kul_dwiprep: make an initial mask" "$KUL_LOG_DIR/1_convert_mif"
+	else
+		dwi2mask \
+				dwi/rearranged_dwis.mif dwi_orig_mask.nii.gz -nthreads $ncpu -force
 	fi
-	task_in="$task_in1; $task_in2"
-	KUL_task_exec $verbose_level "kul_dwiprep: make an initial mask" "$KUL_LOG_DIR/1_convert_mif"
-
 fi
 
 # Do some qa: make FA/ADC of unprocessed images
