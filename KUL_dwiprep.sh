@@ -398,12 +398,12 @@ if [ ! -f dwi/dwi_orig_mask.nii.gz ]; then
 			task_in2="dwi2mask legacy \
 				dwi/rearranged_dwis.mif dwi/dwi_orig_mask.nii.gz -nthreads $ncpu -force"
 		fi
-		task_in="$task_in1; $task_in2"
-		KUL_task_exec $verbose_level "kul_dwiprep: make an initial mask" "$KUL_LOG_DIR/1_convert_mif"
 	else
-		dwi2mask \
-				dwi/rearranged_dwis.mif dwi/dwi_orig_mask.nii.gz -nthreads $ncpu -force
+		task_in2="dwi2mask \
+				dwi/rearranged_dwis.mif dwi/dwi_orig_mask.nii.gz -nthreads $ncpu -force"
 	fi
+	task_in="$task_in1; $task_in2"
+	KUL_task_exec $verbose_level "kul_dwiprep: make an initial mask" "$KUL_LOG_DIR/1_convert_mif"
 fi
 
 # Do some qa: make FA/ADC of unprocessed images
@@ -644,9 +644,9 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 	kul_e2cl "    creating intermediate mask of the dwi data..." ${log}
 
 	if [ $mrtrix3new -eq 2 ]; then
-      dwiextract dwi/geomcorr.mif dwi/geomcorr_bzeros.mif -bzero -force \
-	    && dwiextract dwi/geomcorr.mif dwi/geomcorr_nonbzeros.mif -no_bzero -force \
-	    && mrcat -force -nthreads ${ncpu} dwi/geomcorr_bzeros.mif dwi/geomcorr_nonbzeros.mif dwi/rearranged_geomcorr_dwis.mif
+      	dwiextract dwi/geomcorr.mif dwi/geomcorr_bzeros.mif -bzero -force \
+	    	&& dwiextract dwi/geomcorr.mif dwi/geomcorr_nonbzeros.mif -no_bzero -force \
+	    	&& mrcat -force -nthreads ${ncpu} dwi/geomcorr_bzeros.mif dwi/geomcorr_nonbzeros.mif dwi/rearranged_geomcorr_dwis.mif
 		if [ $dwi2mask_method -eq 1 ];then
 			dwi2mask hdbet \
 				dwi/rearranged_geomcorr_dwis.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
