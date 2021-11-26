@@ -478,9 +478,6 @@ function task_KUL_dwiprep {
 
 # check if already performed KUL_dwiprep
 dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_is_done.log
-
-#FLAG we still need to implement topup_options
-
 if [ ! -f  $dwiprep_file_to_check ]; then
 
     dwiprep_log=${preproc}/log/dwiprep/dwiprep_${BIDS_participant}.txt
@@ -498,12 +495,14 @@ if [ ! -f  $dwiprep_file_to_check ]; then
         extra_options_revphase=" -r "
     fi
 
-    extra_options_fmapbids=""
-    if [ "$topup_fmap_present_in_bids" -eq 1 ]; then
-        extra_options_fmapbids=" -f "
+    extra_options_dwi2mask=""
+    if [ "$dwi2mask_method" -gt 0 ]; then
+        extra_options_dwi2mask=" -f $dwi2mask_method "
     fi
 
-    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} $extra_options_fmapbids $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v \
+    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} \
+    $extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep \
+    -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1 -m 3 \
     > $dwiprep_log 2>&1 ")
 
     kul_echo "   using cmd: $task_dwiprep_cmd"
@@ -518,7 +517,9 @@ if [ ! -f  $dwiprep_file_to_check ]; then
         kul_echo " making a PBS file"
         mkdir -p VSC
         cp $kul_main_dir/VSC/master_dwiprep.pbs VSC/run_dwiprep.pbs
-        task_command=$(echo "KUL_dwiprep.sh -p \${BIDS_participant} $extra_options_fmapbids $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v \
+        task_command=$(echo "KUL_dwiprep.sh -p \${BIDS_participant} \
+$extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep \
+-d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1 -m 3 \
 > \$dwiprep_log 2>&1 ")
         kul_echo $task_command
         perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_dwiprep.pbs
@@ -1271,9 +1272,8 @@ if [ $expert -eq 1 ]; then
 
         rev_phase_for_topup_only=$(grep rev_phase_for_topup_only $conf | grep -v \# | sed 's/[^0-9]//g')
 
-        topup_fmap_present_in_bids=$(grep topup_fmap_present_in_bids $conf | grep -v \# | sed 's/[^0-9]//g')
+        dwi2mask_method=$(grep dwi2mask_method $conf | grep -v \# | sed 's/[^0-9]//g')
 
-        topup_options=$(grep topup_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
         eddy_options=$(grep eddy_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
 
         dwiprep_ncpu=$(grep dwiprep_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
@@ -1288,8 +1288,7 @@ if [ $expert -eq 1 ]; then
         kul_echo "  dwiprep_options: $dwiprep_options"
         kul_echo "  synbzero_disco_instead_of_topup: $synbzero_disco_instead_of_topup"
         kul_echo "  rev_phase_for_topup_only: $rev_phase_for_topup_only"
-        kul_echo "  topup_fmap_present_in_bids: $topup_fmap_present_in_bids"
-        kul_echo "  topup_options: $topup_options"
+        kul_echo "  dwi2mask_method: $dwi2mask_method"
         kul_echo "  eddy_options: $eddy_options"
         kul_echo "  dwiprep_ncpu: $dwiprep_ncpu"
         kul_echo "  BIDS_participants: ${BIDS_subjects[@]}"
@@ -1659,7 +1658,7 @@ else
     # regular mode 
 
  # we read the config file (and it may be csv, tsv or ;-seperated)
- while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options  eddy_options do_dwiprep_anat anat_options do_dwiprep_fibertract; do
+ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options eddy_options do_dwiprep_anat anat_options do_dwiprep_fibertract; do
     
     
     if [ "$BIDS_participant" = "BIDS_participant" ]; then
@@ -1685,7 +1684,6 @@ else
             echo "    freesurfer_options: $freesurfer_options"
             echo "    do_dwiprep: $do_dwiprep"
             echo "    dwipreproc_options: $dwipreproc_options"
-            echo "    topup_options: $topup_options"
             echo "    eddy_options: $eddy_options"
             echo "    do_dwiprep_anat: $do_dwiprep_anat"
             echo "    anat_options: $anat_options"

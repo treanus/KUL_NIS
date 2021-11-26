@@ -12,10 +12,6 @@ version="v1.2 - dd 23/11/2021"
 # To Do
 #  - fod calc msmt-5tt in stead of dhollander
 
-
-### TESTING
-new_style=1
-
 # -----------------------------------  MAIN  ---------------------------------------------
 # this script defines a few functions:
 #  - Usage (for information to the novice user)
@@ -59,7 +55,7 @@ Optional arguments:
 	 -e:  options to pass to eddy (default "--slm=linear --repol")
 	 -v:  show output from mrtrix commands (0=silent, 1=normal, 2=verbose; default=1)
 	 -r:  use reverse phase data only for topup and not for further processing
-	 -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 3=legacy; 1=default)
+	 -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 3=legacy; 3=default)
 
 
 Documentation:
@@ -98,7 +94,7 @@ verbose_level=1
 # Specify additional options for FSL eddy
 eddy_options="--slm=linear --repol"
 dwipreproc_options="dhollander"
-dwi2mask_method=1
+dwi2mask_method=3
 
 # Set required options
 p_flag=0
@@ -184,6 +180,12 @@ elif [ $local_verbose_level -eq 2 ] ; then
 	verbose_level=2
 fi
 
+if [[ $synb0 -eq 1 ]] && [[ $mrtrix3new -lt 2 ]]; then
+	echo "Synb0 usage needs a newer version of MRTrix3 than the one you have installed. Please update to 3.0.3-xxx > 296"
+	exit
+fi
+
+
 # REST OF SETTINGS ---
 
 # timestamp
@@ -243,7 +245,6 @@ kul_echo "    notably: ${search_sessions[@]}"
 for current_session in `seq 0 $(($num_sessions-1))`; do
 
 # set up directories
-#cd $cwd
 long_bids_participant=${search_sessions[$current_session]}
 #echo $long_bids_participant
 bids_participant=${long_bids_participant%dwi}
@@ -455,27 +456,10 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 
 	# prepare for Synb0-disco
 	if [ $synb0 -eq 1 ]; then
-
-
-		if [ $new_style -eq 1 ];then
 			
-			# run KUL_synb0 first and then use the new dwifslpreproc -topupfield option
-			KUL_synb0.sh -p $participant
+		# run KUL_synb0 first and then use the new dwifslpreproc -topupfield option
+		KUL_synb0.sh -p $participant
 
-		else 
-
-			# find T1
-			bids_T1_found=($(find $cwd/$bids_participant/anat -type f -name "*T1w.nii.gz" ! -name "*gadolinium*")) 
-			number_of_bids_T1_found=${#bids_T1_found[@]}
-			if [ $number_of_bids_T1_found -gt 1 ]; then
-				kul_e2cl "   more than 1 T1 dataset, using first only for Synb0-disco" ${preproc}/${log}
-			fi
-			#echo $bids_T1_found
-			Synb0_T1=${bids_T1_found[0]}
-			echo "The used T1 for sSynb0-disco is $Synb0_T1"
-
-		
-		fi
 	fi
 
 	# prepare for fmap
@@ -559,83 +543,25 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 	kul_echo "fmap: $fmap"
 	kul_echo "rev_only_topup: $rev_only_topup"
 
-	if [ $new_style -eq 1 ];then
 
-		if [ $synb0 -eq 0 ]; then
 
-			# note: maybe add -eddy_mask
-			dwifslpreproc_option="-se_epi dwi/se_epi_for_topup.mif -align_seepi"
+	if [ $synb0 -eq 0 ]; then
 
-		else
-			
-			dwifslpreproc_option="-topup_files ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/synb0/topup_"
-
-		fi
-
-		task_in="dwifslpreproc ${dwifslpreproc_option} -rpe_header \
-				-eddyqc_all eddy_qc/raw -eddy_options \"${full_eddy_options} \" -force -nthreads $ncpu -nocleanup \
-				dwi/degibbs.mif dwi/geomcorr.mif"
-		echo $task_in
-		KUL_task_exec $verbose_level "kul_dwiprep part 3: motion and distortion correction" "$KUL_LOG_DIR/3_dwifslpreproc"
-		wait
+		# note: maybe add -eddy_mask
+		dwifslpreproc_option="-se_epi dwi/se_epi_for_topup.mif -align_seepi"
 
 	else
-
-		if [ $regular_dwipreproc -eq 1 ]; then
-
-
-			if [ $synb0 -eq 0 ]; then
-				if [ $fmap -eq 0 ]; then
-					kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
-						-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-				else
-					mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force
-					kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
-						-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-				fi
-			else
-				kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif \
-					-synb0_disco_T1 "$Synb0_T1" \
-					-rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-			fi
-
-
-		else
-
-			if [ $synb0 -eq 1 ]; then
-				echo "EXPERIMENTAL: Not tested well; contact Stefan to fix scipt KUL_dwiprep.sh synb0=1 case, but regular_dwiprproc=0, lines 485 on"
-				kul_dwifslpreproc dwi/degibbs.mif dwi/geomcorr.mif \
-				-synb0_disco_T1 "$Synb0_T1" \
-				-rpe_header -eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-			
-			
-			
-			else
-
-				# concat all b0 with different pe_schemes
-				mrcat raw/b0s_pe*.mif raw/se_epi_for_topup.mif -force
-
-				echo $rev_only_topup
-
-				if [ $rev_only_topup -eq 0 ]; then
-
-					kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
-					-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-
-				else
-
-					#kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_pair \
-					#-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-					kul_dwifslpreproc -se_epi raw/se_epi_for_topup.mif -align_seepi dwi/degibbs.mif dwi/geomcorr.mif -rpe_header \
-					-eddyqc_all eddy_qc/raw -eddy_options "${full_eddy_options} " -force -nthreads $ncpu -nocleanup
-				fi
-
-			fi
 		
-		fi
+		dwifslpreproc_option="-topup_files ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/synb0/topup_"
 
-	fi		
+	fi
 
+	task_in="dwifslpreproc ${dwifslpreproc_option} -rpe_header \
+			-eddyqc_all eddy_qc/raw -eddy_options \"${full_eddy_options} \" -force -nthreads $ncpu -nocleanup \
+			dwi/degibbs.mif dwi/geomcorr.mif"
+	echo $task_in
+	KUL_task_exec $verbose_level "kul_dwiprep part 3: motion and distortion correction" "$KUL_LOG_DIR/3_dwifslpreproc"
+	#wait
 
 	temp_dir=$(ls -d *dwifslpreproc*)
 
