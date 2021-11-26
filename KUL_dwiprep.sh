@@ -458,8 +458,14 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 	if [ $synb0 -eq 1 ]; then
 			
 		# run KUL_synb0 first and then use the new dwifslpreproc -topupfield option
-		KUL_synb0.sh -p $participant
-
+		cd ${cwd}
+		if [ $ses_flag -eq 1 ]; then
+			synb0_ses="-s $ses"
+		else
+			synb0_ses=""
+		fi
+		KUL_synb0.sh -p $participant $synb0_ses
+		cd ${preproc}
 	fi
 
 	# prepare for fmap
