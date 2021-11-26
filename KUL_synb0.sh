@@ -160,7 +160,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 
 	synb0_scratch="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${sessuf1}/synb0/tmp"
 	bids_target="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${sessuf1}/synb0"
-	bids_dmri_found=($(find $cwd/$bids_subj/dwi -type f -name "*dwi.nii.gz")) 
+	bids_dmri_found=($(find $bids_subj/dwi -type f -name "*dwi.nii.gz")) 
 	number_of_bids_dmri_found=${#bids_dmri_found[@]}
 
 	test_file=$bids_target/topup_movpar.txt
@@ -176,7 +176,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 
 
 		# find T1
-		bids_T1_found=($(find $cwd/$bids_subj/anat -type f -name "*T1w.nii.gz" ! -name "*gadolinium*")) 
+		bids_T1_found=($(find $bids_subj/anat -type f -name "*T1w.nii.gz" ! -name "*gadolinium*")) 
 		number_of_bids_T1_found=${#bids_T1_found[@]}
 		if [ $number_of_bids_T1_found -gt 1 ]; then
 			echo "   more than 1 T1 dataset, using first only for Synb0-disco" ${preproc}/${log}

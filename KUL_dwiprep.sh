@@ -459,12 +459,13 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 			
 		# run KUL_synb0 first and then use the new dwifslpreproc -topupfield option
 		cd ${cwd}
-		if [ $ses_flag -eq 1 ]; then
+		if [ $s_flag -eq 1 ]; then
 			synb0_ses="-s $ses"
 		else
 			synb0_ses=""
 		fi
-		KUL_synb0.sh -p $participant $synb0_ses
+		task_in="KUL_synb0.sh -p $participant $synb0_ses"
+		KUL_task_exec $verbose_level "kul_dwiprep part 3: synb0" "$KUL_LOG_DIR/3_synb0"
 		cd ${preproc}
 	fi
 
