@@ -497,12 +497,12 @@ if [ ! -f  $dwiprep_file_to_check ]; then
 
     extra_options_dwi2mask=""
     if [ "$dwi2mask_method" -gt 0 ]; then
-        extra_options_dwi2mask=" -f $dwi2mask_method "
+        extra_options_dwi2mask=" -m $dwi2mask_method "
     fi
 
     local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} \
     $extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep \
-    -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1 -m 3 \
+    -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1 \
     > $dwiprep_log 2>&1 ")
 
     kul_echo "   using cmd: $task_dwiprep_cmd"
@@ -519,7 +519,7 @@ if [ ! -f  $dwiprep_file_to_check ]; then
         cp $kul_main_dir/VSC/master_dwiprep.pbs VSC/run_dwiprep.pbs
         task_command=$(echo "KUL_dwiprep.sh -p \${BIDS_participant} \
 $extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep \
--d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1 -m 3 \
+-d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1 \
 > \$dwiprep_log 2>&1 ")
         kul_echo $task_command
         perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_dwiprep.pbs

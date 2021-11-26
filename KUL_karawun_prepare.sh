@@ -150,25 +150,25 @@ if [ $type -eq 1 ]; then
 
 elif [ $type -eq 2 ]; then
 
-    tract_name_orig="CSHP_LT"
+    tract_name_orig="CSHDP_LT"
     voi_name_final="DISTAL_STN_MOTOR_Left"
     voi_color=3
     voi_threshold=0.1
     KUL_karawun_get_voi
 
-    tract_name_orig="CSHP_RT"
+    tract_name_orig="CSHDP_RT"
     voi_name_final="DISTAL_STN_MOTOR_Right"
     voi_color=3
     voi_threshold=0.1
     KUL_karawun_get_voi
 
-    tract_name_orig="CSHP_LT"
+    tract_name_orig="CSHDP_LT"
     tract_name_final="CSHDP_Left"
     tract_color=2
     tract_threshold=20
     KUL_karawun_get_tract
 
-    tract_name_orig="CSHP_RT"
+    tract_name_orig="CSHDP_RT"
     tract_name_final="CSHDP_Right"
     tract_color=2
     tract_threshold=20
@@ -183,6 +183,18 @@ elif [ $type -eq 2 ]; then
     tract_name_orig="CST_RT"
     tract_name_final="CST_Right"
     tract_color=1
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="DRT_LT"
+    tract_name_final="DRT_Left"
+    tract_color=3
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="DRT_RT"
+    tract_name_final="DRT_Right"
+    tract_color=3
     tract_threshold=20
     KUL_karawun_get_tract
 

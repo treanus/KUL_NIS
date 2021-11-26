@@ -180,11 +180,6 @@ elif [ $local_verbose_level -eq 2 ] ; then
 	verbose_level=2
 fi
 
-if [[ $synb0 -eq 1 ]] && [[ $mrtrix3new -lt 2 ]]; then
-	echo "Synb0 usage needs a newer version of MRTrix3 than the one you have installed. Please update to 3.0.3-xxx > 296"
-	exit
-fi
-
 
 # REST OF SETTINGS ---
 
@@ -215,6 +210,11 @@ elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_mino
 	kul_echo " you are using the newest version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor"
 else 
 	echo "cannot find correct mrtrix versions - exitting"
+	exit 1
+fi
+
+if [[ $synb0 -eq 1 ]] && [[ $mrtrix3new -lt 2 ]]; then
+	echo "Synb0 usage needs a newer version of MRTrix3 than the one you have installed. Please update to 3.0.3-xxx > 296"
 	exit 1
 fi
 
