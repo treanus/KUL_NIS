@@ -19,7 +19,7 @@ version="v1.2 - dd 23/11/2021"
 #
 # this script will skip if some steps are already processed
 
-kul_main_dir=`dirname "$0"`
+kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
@@ -585,7 +585,7 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 				dwi/rearranged_geomcorr_dwis.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
 		fi
 	else
-		dwi2mask dwi/geomcorr.mif dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
+		dwi2mask dwi/geomcorr.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
 	fi
 
 	# check id eddy_quad is available

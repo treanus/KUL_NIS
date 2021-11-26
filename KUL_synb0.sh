@@ -8,6 +8,7 @@
 version="0.1"
 
 kul_main_dir=`dirname "$0"`
+script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
 
@@ -117,12 +118,12 @@ fi
 if [ $s_flag -eq 1 ]; then
 
     # session is given on the command line
-    search_sessions=BIDS/sub-${participant}/ses-${session}
+    search_sessions=${cwd}/BIDS/sub-${participant}/ses-${session}
 
 else
 
     # search if any sessions exist
-    search_sessions=($(find BIDS/sub-${participant} -type d | grep dwi))
+    search_sessions=($(find ${cwd}/BIDS/sub-${participant} -type d | grep dwi))
 
 fi    
  
