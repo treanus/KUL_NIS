@@ -585,7 +585,7 @@ if [ ! -f dwi/geomcorr.mif ]  && [ ! -f dwi_preproced.mif ]; then
 				dwi/rearranged_geomcorr_dwis.mif dwi/dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
 		fi
 	else
-		dwi2mask dwi/rearranged_geomcorr_dwis.mif dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
+		dwi2mask dwi/geomcorr.mif dwi_intermediate_mask.nii.gz -nthreads $ncpu -force
 	fi
 
 	# check id eddy_quad is available
@@ -665,7 +665,7 @@ if [ ! -f dwi_preproced.mif ]; then
 				dwi/rearranged_preproced_dwis.mif dwi_mask.nii.gz -nthreads $ncpu -force
 		fi
 	else
-		dwi2mask dwi/rearranged_preproced_dwis.mif dwi_mask.nii.gz -nthreads $ncpu -force
+		dwi2mask dwi/preproced.mif dwi_mask.nii.gz -nthreads $ncpu -force
 	fi
 
 	# create mean b0 of the dwi data
