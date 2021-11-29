@@ -733,7 +733,7 @@ function KUL_run_VBG {
                 -l $globalresultsdir/Anat/lesion.nii \
                 -o ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-                -z T1 -b -B 1 -t -n $ncpu"
+                -z T1 -b -B 1 -t -P 3 -n $ncpu"
             KUL_task_exec $verbose_level "KUL_VBG" "$KUL_LOG_DIR/VBG"
             #wait
 
@@ -1006,7 +1006,6 @@ fi
 KUL_register_anatomical_images &
 wait
 
-exit
 
 # STEP 4 - run SPM & melodic
 if [ $n_fMRI -gt 0 ];then
@@ -1015,11 +1014,14 @@ if [ $n_fMRI -gt 0 ];then
 fi
 wait 
 
+
 # STEP 5 - run VBG
 if [ $vbg -eq 1 ];then
     KUL_run_VBG 
 fi
 wait
+
+exit
 
 # STEP 5 - run SPM/melodic/msbp
 #KUL_run_fastsurfer
@@ -1031,11 +1033,10 @@ wait
 KUL_run_msbp
 wait
 
+
 # STEP 6 run dwiprep_anat
 task_in="KUL_dwiprep_anat.sh -p $participant -n $ncpu"
 KUL_task_exec $verbose_level "KUL_dwiprep_anat" "$KUL_LOG_DIR/6_dwiprep_anat"
-
-
 
 
 

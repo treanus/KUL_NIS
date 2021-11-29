@@ -242,12 +242,12 @@ for i in `seq 0 $(($num_sessions-1))`; do
 		kul_synb0_fork=1
 		if [ $kul_synb0_fork -eq 1 ]; then
 
-			hdbet -i $synb0_scratch/INPUTS/T1.nii.gz -o $synb0_scratch/INPUTS/T1_masked
+			hd-bet -i $synb0_scratch/INPUTS/T1.nii.gz -o $synb0_scratch/INPUTS/T1_masked
 			mv $synb0_scratch/INPUTS/T1_masked_mask.nii.gz $synb0_scratch/INPUTS/T1_mask.nii.gz 
 			cd $synb0_scratch
 			KUL_radsyndisco.sh
 			cd $cwd
-			
+
 		else
 
 			# run synb0
