@@ -14,35 +14,50 @@
 #       kul_verbose_level (0=silent, 1=normal; 2=verbose; 1=default)
 #       kul_short_name (what to display as process)
 #       kul_log_file (the path of the log file)
+#
+#  it will return $total_errorcount in the calling script (a sum of all errors that happened)
+# 
 # Example 1
-#  task_in="a_big_long_process 0 1 "KUL VBG" KUL_LOG/my_big_long_process"
-#   Run "process a_big_long_process"
-#   Do it silently
+#  task_in="a_big_long_process"
+#  and also given are: 0 
+#  and also given is: "KUL VBG" 
+#  and also given is: "KUL_LOG/my_big_long_process"
+#   It will run "process a_big_long_process"
+#   Do it silently (the 0)
 #   Display "KUL VBG" as the running process
 #   Log to the files KUL_LOG/my_big_long_process.log and KUL_LOG/my_big_long_process.error.log
+#
 # Example 2
 #  task_in="another big process"
-#   Run process "another_big_process"
-#   Have output to the terminal and to log files (default kul_verbose_level 1)
+#   Run process "another big process"
+#   It will give output to the terminal and to log files (because default is kul_verbose_level 1)
 #   Take the first 20 characters of "task_in" and display that (kul_short_name is generated automatically)
-#   Log to the files KUL_LOG_kul_short_name.log and KUL_LOG_kul_short_name.error.log (/ -> _, and spaces too)
+#   Log to the files another_big_process.log and another_big_process.error.log (/ -> _, and spaces too)
 function KUL_task_exec {
 
+    # task_in needs to be defined
+    if [[ -z "$task_in" ]]; then
+        echo "task_in is not defined, exitting"
+        exit 1
+    fi
+
+    #remove the double (or more) spaces from task_in
+    task_in=$(echo $task_in | tr -s ' ')
+    
+    
+    # get the input variables; a check below wil put default values if $1/$2/$3 are empty
     local kul_verbose_level="$1"
     local kul_process_name="$2"
     local kul_log_files="$3"
 
-    # export KUL_DEBUG=1 in terminal to debug
-    if [[ -z "$KUL_DEBUG" ]]; then
-        KUL_DEBUG=0
-    fi
 
     if [ $KUL_DEBUG -eq 1 ]; then
-        echo $kul_verbose_level
-        echo $kul_process_name
-        echo $kul_log_files
-        echo $script
+        echo "kul_verbose_level: $kul_verbose_level"
+        echo "kul_process_name: $kul_process_name"
+        echo "kul_log_files: $kul_log_files"
+        echo "script: $script"
     fi
+
 
     #local pidsArray=${task_in_pid[@]} # pids to wait for, separated by semi-colon
     #local procsArray=${task_in_name[@]} # name of procs to wait for, separated by semi-colon 
@@ -51,9 +66,9 @@ function KUL_task_exec {
     local log_ttime=0 # local time instance for comparaison
     local seconds_begin=$SECONDS # Seconds since the beginning of the script
     local exec_time=0 # Seconds since the beginning of this function
-    local errorcount=0 # Number of pids that finished with errors
     local pidCount # number of given pids
     local c # counter for pids/procsArray
+    local errorcount=0 # Number of pids that finished with errors
     
     ### STEP 1 - test the input to the function and of unset, set a default
     if [[ -z "$kul_verbose_level" ]]; then
@@ -122,6 +137,27 @@ function KUL_task_exec {
         newProcsArray=()
         c=0
 
+        total_exec_time=$(($SECONDS - $script_start_time))
+        #echo $total_exec_time
+        total_exec_time_min=$(echo "scale=2; $total_exec_time/60" | bc)
+
+        ## Log a standby message every hour
+        every_time=1201
+        exec_time=$(($SECONDS - $seconds_begin))
+        if [ $((($exec_time + 1) % $every_time)) -eq 0 ]; then
+            if [ $log_ttime -ne $exec_time ]; then
+                log_ttime=$exec_time
+                log_min=$(echo "scale=2; $log_ttime/60" | bc)
+                if [ $kul_verbose_level -gt 0 ]; then
+                    tput dim
+                    echo "  Current tasks [${procsArray[@]}] still running after $log_min minutes with pids [${pidsArray[@]}]."
+                    echo "    Total script time: $total_exec_time_min minutes"
+                    tput sgr0
+                fi
+            fi
+        fi
+
+
         for pid in "${pidsArray[@]}"; do
             #echo "pid: $pid"
             #echo "proc: ${procsArray[c]}"
@@ -138,7 +174,7 @@ function KUL_task_exec {
 
                     errorcount=$((errorcount+1))
                     fail_exec_time_seconds=$(($SECONDS - $seconds_begin))
-                    fail_exec_time_minutes=$(($final_exec_time_seconds / 60))
+                    fail_exec_time_minutes=$(echo "scale=2; $final_exec_time_seconds/60" | bc)
                     tput bold; tput setaf 1
                     echo "  *** WARNING! **** Process ${procsArray[c]} with pid $pid might have failed after $fail_exec_time_minutes minutes. (with exitcode [$result]). Check the ${kul_errorlog_file} log-file" | tee -a ${kul_errorlog_file}
                     tput sgr0
@@ -146,27 +182,18 @@ function KUL_task_exec {
                 else
                     
                     final_exec_time_seconds=$(($SECONDS - $seconds_begin))
-                    final_exec_time_minutes=$(($final_exec_time_seconds / 60))
+                    final_exec_time_minutes=$(echo "scale=2; $final_exec_time_seconds/60" | bc)
                     if [ $kul_verbose_level -gt 0 ]; then
+                        tput setaf 2
                         echo "$task_in_name finished successfully after $final_exec_time_minutes minutes" | tee -a ${kul_log_file}
+                        echo "    Total script time: $total_exec_time_min minutes"
+                        tput sgr0
                     fi
                 fi
             fi
             c=$((c+1))
         done
 
-        ## Log a standby message every hour
-        every_time=1201
-        exec_time=$(($SECONDS - $seconds_begin))
-        if [ $((($exec_time + 1) % $every_time)) -eq 0 ]; then
-            if [ $log_ttime -ne $exec_time ]; then
-                log_ttime=$exec_time
-                log_min=$((log_ttime / 60))
-                if [ $kul_verbose_level -gt 0 ]; then
-                    echo "  Current tasks [${procsArray[@]}] still running after $log_min minutes with pids [${pidsArray[@]}]."
-                fi
-            fi
-        fi
 
         pidsArray=("${newPidsArray[@]}")
         procsArray=("${newProcsArray[@]}")
@@ -177,16 +204,23 @@ function KUL_task_exec {
     ### STEP 5 - return the status of execution 
     if [ $errorcount -eq 0 ]; then
         if [ $kul_verbose_level -eq 2 ]; then 
-            echo -e "Success\n\n" | tee -a ${kul_log_file}
+            echo -e "Success" | tee -a ${kul_log_file}
         fi
     else
-        echo "Fail" | tee -a ${kul_log_file}
+        echo -e "Fail" | tee -a ${kul_log_file}
         #exit 1
     fi
 
     unset task_in
 
     # return errorcount
+
+    if [[ ! -z $total_errorcount ]]; then
+        total_errorcount=$(($total_errorcount + $errorcount))
+        if [ $kul_verbose_level -eq 2 ]; then 
+	        echo -e "total_errorcount: $total_errorcount\n\n\n"
+        fi
+    fi
 
 }
 
@@ -195,8 +229,19 @@ function KUL_task_exec {
 # MAIN FUNCTION - kul_echo ######################################################################################
 # echo loud or silent
 function kul_echo {
-    if [ $silent -eq 0 ];then
-        echo $1
+    #echo "previous verbose_level: $verbose_level"
+    if [[ -z "$verbose_level" ]]; then
+        echo "setting verbose_level = 2"
+        verbose_level=2
+    fi
+    #if [ $silent -eq 0 ];then
+    #    echo $1
+    #fi
+    if [ $verbose_level -eq 1 ]; then
+        #echo "log: $log"
+        echo "$1" >> ${log}
+    elif [ $verbose_level -eq 2 ]; then
+        echo $1 | tee -a ${log}
     fi
 }
 
@@ -240,7 +285,22 @@ function kul_e2cl {
 
 
 
-### OTHER STUFF ############################################################################################
+### MAIN ############################################################################################
+
+# Upon sourcing this script these variables are set
+kul_main_dir=$(dirname "$0")
+cwd=$(pwd)
+script_start_time=$SECONDS
+
+# The KUL_DEBUG variable
+# export KUL_DEBUG=1 in terminal to debug
+if [[ -z "$KUL_DEBUG" ]]; then
+    KUL_DEBUG=0
+elif [ $KUL_DEBUG -eq 1]; then
+    set -x
+fi
+
+
 machine_type=$(uname)
 #echo $machine_type
 
@@ -251,8 +311,8 @@ mrtrix_version_revision_major=$(mrconvert | head -1 | cut -d'.' -f3 | cut -d'-' 
 mrtrix_version_revision_minor=$(mrconvert | head -1 | cut -d'-' -f2)
  
 # -- Set global defaults --
-silent=1
-tmp=/tmp
+#silent=1
+#tmp=/tmp
 
 
 # -- Execute global startup --
@@ -260,11 +320,8 @@ tmp=/tmp
 # timestamp
 start=$(date +%s)
 
-# Directory to write preprocessed data in, i.e $preproc
-preproc=KUL_LOG
-
 # Define directory/files to log in 
-log_dir=${preproc}/$script
+log_dir=${cwd}/KUL_LOG/$script
 d=$(date "+%Y-%m-%d_%H-%M-%S")
 log=$log_dir/main_log_${d}.txt
 
@@ -273,7 +330,7 @@ if [ ! -z "$1" ];then
     mkdir -p $log_dir
     # -- Say Welcome --
     command_line_options=$@
-    #kul_e2cl "Welcome to $script, version $version, invoked with parameters $command_line_options" $log
-    kul_echo "Welcome to $script, version $version, invoked with parameters $command_line_options"
-    #echo "   starting at $d"
+    #if []
+    echo "Welcome to $script, version $version, invoked with parameters $command_line_options"
+
 fi

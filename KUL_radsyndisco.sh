@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -x
-
 # @ AR 04/02/2021
 # this script will apply synb0disco without docker or singularity
 
@@ -86,10 +84,13 @@ sbzd_p2="${sbzd_pD}/.."
 
 # source conda and activate virtual env
 source ${c} # Or path to where your conda is
-conda activate base # or conda virtual env of your choosing
-pip install torch
-pip install torchvision
-pip install 'nibabel==2.5.2'
+conda activate radsyndisco # or conda virtual env of your choosing
+# conda create --name radsyndisco; conda activate radsyndisco
+# pip install torch
+# pip install torchvision
+# pip install numpy scipy matplotlib ipython jupyter pandas sympy nose
+# pip install 'nibabel==2.5.2'
+
 
 # make the output dir
 

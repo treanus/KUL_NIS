@@ -10,7 +10,7 @@ version="0.7"
 kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
-cwd=$(pwd)
+# $cwd & $log_dir is made in main_functions
 
 # FUNCTIONS --------------
 
@@ -158,8 +158,9 @@ fi
 # The BACKUP and clean option
 if [ $bc -eq 1 ]; then
     # clean some stuff
-    clean_dwiprep="./dwiprep/sub-${participant}/sub-${participant}/kul_dwifsl* \
+    clean_dwiprep="./dwiprep/sub-${participant}/sub-${participant}/*dwifsl*tmp* \
         ./dwiprep/sub-${participant}/sub-${participant}/raw \
+        ./dwiprep/sub-${participant}/sub-${participant}/dwi \
         ./dwiprep/sub-${participant}/sub-${participant}/dwi_orig* \
         ./dwiprep/sub-${participant}/sub-${participant}/dwi_preproced.mif"
 
@@ -649,8 +650,9 @@ function KUL_compute_SPM {
                 fmrifile="${shorttask}${searchtask}"
                 cp $fmriprepdir/*$fmrifile.gz $fmridatadir
                 gunzip -f $fmridatadir/*$fmrifile.gz
-                my_cmd="KUL_compute_SPM_matlab $str_silent_SPM"
-                eval $my_cmd
+                task_in="KUL_compute_SPM_matlab"
+                eval $taks_in
+                #KUL_task_exec $verbose_level "SPM $shorttask" "${KUL_LOG_DIR}/5_spm_$shorttask"
 
                 # do the combined analysis
                 if [[ "$shorttask" == *"run-2" ]]; then
@@ -660,8 +662,9 @@ function KUL_compute_SPM {
                     tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs.m" #template config file
                     tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs_job.m" #template job file
                     fmrifile="${shorttask}"
-                    my_cmd="KUL_compute_SPM_matlab $str_silent_SPM"
-                    eval $my_cmd
+                    task_in="KUL_compute_SPM_matlab $str_silent_SPM"
+                    eval $task_in
+                    #KUL_task_exec $verbose_level "SPM $shorttask" "${KUL_LOG_DIR}/5_spm_$shorttask"
                 fi
             
             fi
@@ -705,10 +708,10 @@ function KUL_segment_tumor {
                 maskfilter $hdgliooutputdir/lesion_dil5.nii.gz fill $hdgliooutputdir/lesion_dil5_fill.nii.gz -force; \
                 maskfilter $hdgliooutputdir/lesion_dil5_fill.nii.gz erode $globalresultsdir/Anat/lesion.nii -npass 5 -force; \
                 mrcalc $hdgliooutputdir/segmentation.nii.gz 1 -eq $globalresultsdir/Anat/lesion_perilesional_oedema.nii -force; \
-                mrcalc $hdgliooutputdir/segmentation.nii.gz 2 -eq $globalresultsdir/Anat/lesion_solid_tumour.nii -force; \
-                mrcalc $globalresultsdir/Anat/lesion.nii $globalresultsdir/Anat/lesion_perilesional_oedema.nii -sub \
-                    $globalresultsdir/Anat/lesion_solid_tumour.nii -sub $globalresultsdir/Anat/lesion_central_necrosis_or_cyst.nii -force"
-            KUL_task_exec $verbose_level "compute lesion, oedema, solid, necrosis/cystic parts" "${KUL_LOG_DIR}/2_hdglioauto"
+                mrcalc $hdgliooutputdir/segmentation.nii.gz 2 -eq $globalresultsdir/Anat/lesion_solid_tumour.nii -force" 
+                #mrcalc $globalresultsdir/Anat/lesion.nii $globalresultsdir/Anat/lesion_perilesional_oedema.nii -sub \
+                #    $globalresultsdir/Anat/lesion_solid_tumour.nii -sub $globalresultsdir/Anat/lesion_central_necrosis_or_cyst.nii -force"
+            KUL_task_exec $verbose_level "compute lesion, oedema & solid parts" "${KUL_LOG_DIR}/2_hdglioauto"
             
         else
             echo "HD-GLIO-AUTO already done"
@@ -732,7 +735,7 @@ function KUL_run_VBG {
                 -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -z T1 -b -B 1 -t -n $ncpu"
             KUL_task_exec $verbose_level "KUL_VBG" "$KUL_LOG_DIR/VBG"
-            wait
+            #wait
 
             # Need to update to dev version
             #my_cmd="KUL_VBG.sh -S ${participant} \
@@ -769,7 +772,7 @@ function KUL_run_msbp {
          --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
          --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
          --multiproc_number_of_cores $ncpu"
-        KUL_task_exec $verbose_level "MSBP" "$KUL_LOG_DIR/msbp"
+        KUL_task_exec $verbose_level "MSBP" "$KUL_LOG_DIR/7_msbp"
 
         echo "Done MSBP"
         touch KUL_LOG/sub-${participant}_MSBP.done
@@ -911,7 +914,7 @@ fi
 function KUL_register_anatomical_images {
     check="KUL_LOG/sub-${participant}_anat_reg.done"
     if [ ! -f $check ]; then
-        
+
         target_mri=$T1w
         registeroutputdir="$kulderivativesdir/sub-${participant}/antsregister"
         mkdir -p $registeroutputdir
@@ -920,32 +923,32 @@ function KUL_register_anatomical_images {
             source_mri_label="cT1w"
             source_mri=$cT1w
             task_in="KUL_rigid_register"
-            KUL_task_exec 0 "KUL_rigid_register cT1w" "$KUL_LOG_DIR/3_register_anat"
+            KUL_task_exec $verbose_level "KUL_rigid_register cT1w" "$KUL_LOG_DIR/3_register_anat"
         fi
         if [ $nT2w -gt 0 ];then
             source_mri_label="T2w"
             source_mri=$T2w
             task_in="KUL_rigid_register"
-            KUL_task_exec 0 "KUL_rigid_register cT1w" "$KUL_LOG_DIR/3_register_anat"
+            KUL_task_exec $verbose_level "KUL_rigid_register T2w" "$KUL_LOG_DIR/3_register_anat"
         fi
         if [ $nFLAIR -gt 0 ];then
             source_mri_label="FLAIR"
             source_mri=$FLAIR
             task_in="KUL_rigid_register"
-            KUL_task_exec 0 "KUL_rigid_register cT1w" "$KUL_LOG_DIR/3_register_anat"
+            KUL_task_exec $verbose_level "KUL_rigid_register FLAIR" "$KUL_LOG_DIR/3_register_anat"
         fi
         if [ $nSWI -gt 0 ];then
             source_mri_label="SWI"
             source_mri=$SWI
             task_in="KUL_rigid_register"
-            KUL_task_exec 0 "KUL_rigid_register cT1w" "$KUL_LOG_DIR/3_register_anat"
+            KUL_task_exec $verbose_level "KUL_rigid_register SWIm" "$KUL_LOG_DIR/3_register_anat"
 
             input=$SWIp
             transform="${registeroutputdir}/${source_mri_label}_reg2_T1w0GenericAffine.mat"
             output="${globalresultsdir}/Anat/${source_mri_label}_phase_reg2_T1w.nii.gz"
             reference=$target_mri
             task_in="KUL_rigid_register"
-            KUL_task_exec 0 "KUL_rigid_register cT1w" "$KUL_LOG_DIR/3_register_anat"
+            KUL_task_exec $verbose_level "KUL_rigid_register SWIp" "$KUL_LOG_DIR/3_register_anat"
         fi
         touch $check
     else 
@@ -1001,9 +1004,18 @@ fi
 
 # STEP 3 - regsiter all anatomical other data to the T1w without contrast
 KUL_register_anatomical_images &
+wait
 
+exit
 
-# STEP 4 - run VBG
+# STEP 4 - run SPM & melodic
+if [ $n_fMRI -gt 0 ];then
+    KUL_compute_SPM &  
+    KUL_compute_melodic &
+fi
+wait 
+
+# STEP 5 - run VBG
 if [ $vbg -eq 1 ];then
     KUL_run_VBG 
 fi
@@ -1019,14 +1031,12 @@ wait
 KUL_run_msbp
 wait
 
-KUL_dwiprep_anat.sh -p $participant -n $ncpu > /dev/null &
+# STEP 6 run dwiprep_anat
+task_in="KUL_dwiprep_anat.sh -p $participant -n $ncpu"
+KUL_task_exec $verbose_level "KUL_dwiprep_anat" "$KUL_LOG_DIR/6_dwiprep_anat"
 
-if [ $n_fMRI -gt 0 ];then
-    KUL_compute_SPM &  
-    KUL_compute_melodic &
-fi
 
-wait 
+
 
 
 # STEP 6 - run Fun With Tracts

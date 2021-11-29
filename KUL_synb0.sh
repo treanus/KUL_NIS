@@ -10,7 +10,7 @@ version="0.1"
 kul_main_dir=`dirname "$0"`
 script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
-cwd=$(pwd)
+# $cwd & $log_dir is made in main_functions
 
 # FUNCTIONS --------------
 
@@ -198,11 +198,35 @@ for i in `seq 0 $(($num_sessions-1))`; do
 		echo "The used dMRI for synb0-disco is $Synb0_dmri"
 		dwi_base=${Synb0_dmri%%.*}
 
+		# convert the b0s
+		echo "	preparing input data"
 		mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
 			-json_import ${dwi_base}.json $synb0_scratch/dwi_p1.mif -strides 1:3 -force -clear_property comments -nthreads $ncpu
 
 		dwiextract -quiet -bzero $synb0_scratch/dwi_p1.mif $synb0_scratch/dwi_p1_b0s.mif -force
-		mrconvert $synb0_scratch/dwi_p1_b0s.mif -coord 3 0 $synb0_scratch/INPUTS/b0.nii.gz -strides -1,+2,+3,+4 -export_pe_table $synb0_scratch/topup_datain.txt
+		mrconvert $synb0_scratch/dwi_p1_b0s.mif -coord 3 0 $synb0_scratch/INPUTS/b0.nii.gz -strides -1,+2,+3,+4 
+		test_pe_table=$(mrinfo $synb0_scratch/dwi_p1_b0s.mif -petable)
+		echo "test_pe_table: $test_pe_table"
+		if [[ $test_pe_table == "" ]]; then
+			pe_axis=$(mrinfo $synb0_scratch/dwi_p1_b0s.mif -property PhaseEncodingAxis)
+			echo "	WARNING! No phase encoding data present in the data, assuming PhaseEncodingAxis $pe_axis"
+			if [ $pe_axis == "i" ]; then
+				echo "1 0 0 0.05" > $synb0_scratch/INPUTS/acqparams.txt
+				echo "1 0 0 0.00" >> $synb0_scratch/INPUTS/acqparams.txt
+			elif [ $pe_axis == "j" ]; then
+				echo "0 1 0 0.05" > $synb0_scratch/INPUTS/acqparams.txt
+				echo "0 1 0 0.00" >> $synb0_scratch/INPUTS/acqparams.txt
+			elif [ $pe_axis == "j" ]; then
+				echo "0 0 1 0.05" > $synb0_scratch/INPUTS/acqparams.txt
+				echo "0 0 1 0.00" >> $synb0_scratch/INPUTS/acqparams.txt
+			fi
+		else
+			mrinfo $synb0_scratch/dwi_p1_b0s.mif -export_pe_table $synb0_scratch/topup_datain.txt
+			# read topup_datain.txt and add line
+			topup_data=($(cat $synb0_scratch/topup_datain.txt))
+			echo "${topup_data[0]} ${topup_data[1]} ${topup_data[2]} ${topup_data[3]}" > $synb0_scratch/INPUTS/acqparams.txt
+			echo "${topup_data[0]} ${topup_data[1]} ${topup_data[2]} 0.000" >> $synb0_scratch/INPUTS/acqparams.txt
+		fi
 
 
 		# adjust the FOV of the T1 to match the b0
@@ -213,27 +237,31 @@ for i in `seq 0 $(($num_sessions-1))`; do
 		mrgrid $synb0_scratch/INPUTS/T1_crop.nii.gz crop -axis 1 10,10 $synb0_scratch/INPUTS/T1.nii.gz
 		rm $synb0_scratch/INPUTS/T1_crop.nii.gz
 		rm $synb0_scratch/INPUTS/T1_full.nii.gz
-		rm $synb0_scratch/INPUTS/b0_as_T1.nii.gz
-	
+		rm $synb0_scratch/INPUTS/b0_as_T1.nii.gz		
 
-		# read topup_datain.txt and add line
-		topup_data=($(cat $synb0_scratch/topup_datain.txt))
-		echo "${topup_data[0]} ${topup_data[1]} ${topup_data[2]} ${topup_data[3]}" > $synb0_scratch/INPUTS/acqparams.txt
-		echo "${topup_data[0]} ${topup_data[1]} ${topup_data[2]} 0.000" >> $synb0_scratch/INPUTS/acqparams.txt
+		kul_synb0_fork=1
+		if [ $kul_synb0_fork -eq 1 ]; then
 
+			hdbet -i $synb0_scratch/INPUTS/T1.nii.gz -o $synb0_scratch/INPUTS/T1_masked
+			mv $synb0_scratch/INPUTS/T1_masked_mask.nii.gz $synb0_scratch/INPUTS/T1_mask.nii.gz 
+			cd $synb0_scratch
+			KUL_radsyndisco.sh
+			cd $cwd
+			
+		else
 
-		# run synb0
-		cmd="docker run -u $(id -u) --rm \
-			-v $synb0_scratch/INPUTS/:/INPUTS/ \
-			-v $synb0_scratch/OUTPUTS:/OUTPUTS/ \
-			-v $FS_LICENSE:/extra/freesurfer/license.txt \
-			--user $(id -u):$(id -g) \
-			hansencb/synb0" 
+			# run synb0
+			cmd="docker run -u $(id -u) --rm \
+				-v $synb0_scratch/INPUTS/:/INPUTS/ \
+				-v $synb0_scratch/OUTPUTS:/OUTPUTS/ \
+				-v $FS_LICENSE:/extra/freesurfer/license.txt \
+				--user $(id -u):$(id -g) \
+				hansencb/synb0" 
 
-		echo "  we run synb0 using command: $cmd"
-		eval $cmd
+			echo "  we run synb0 using command: $cmd"
+			eval $cmd
 
-
+		fi
 		# make a json
 		json_file=${synb0_scratch}/sub-${participant}${sessuf2}_dir-${dir_epi}_epi.json
 		echo "{" > $json_file
