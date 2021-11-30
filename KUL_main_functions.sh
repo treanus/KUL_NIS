@@ -41,10 +41,21 @@ function KUL_task_exec {
         exit 1
     fi
 
-    #remove the double (or more) spaces from task_in
-    task_in=$(echo $task_in | tr -s ' ')
-    
-    
+    #local pidsArray=${task_in_pid[@]} # pids to wait for, separated by semi-colon
+    #local procsArray=${task_in_name[@]} # name of procs to wait for, separated by semi-colon 
+    local pidsArray=() # pids to wait for, separated by semi-colon
+    local procsArray=() # name of procs to wait for, separated by semi-colon     
+    local log_ttime=0 # local time instance for comparaison
+    local seconds_begin=$SECONDS # Seconds since the beginning of the script
+    local exec_time=0 # Seconds since the beginning of this function
+    local pidCount # number of given pids
+    local c # counter for pids/procsArray
+    local errorcount=0 # Number of pids that finished with errors
+
+    local local_task_in
+    local local_n_tasks
+    local local_task_in_name
+
     # get the input variables; a check below wil put default values if $1/$2/$3 are empty
     local kul_verbose_level="$1"
     local kul_process_name="$2"
@@ -56,80 +67,95 @@ function KUL_task_exec {
         echo "kul_process_name: $kul_process_name"
         echo "kul_log_files: $kul_log_files"
         echo "script: $script"
+        echo "task_in: ${task_in[@]}"
     fi
 
-
-    #local pidsArray=${task_in_pid[@]} # pids to wait for, separated by semi-colon
-    #local procsArray=${task_in_name[@]} # name of procs to wait for, separated by semi-colon 
-    local pidsArray=() # pids to wait for, separated by semi-colon
-    local procsArray=() # name of procs to wait for, separated by semi-colon     
-    local log_ttime=0 # local time instance for comparaison
-    local seconds_begin=$SECONDS # Seconds since the beginning of the script
-    local exec_time=0 # Seconds since the beginning of this function
-    local pidCount # number of given pids
-    local c # counter for pids/procsArray
-    local errorcount=0 # Number of pids that finished with errors
     
-    ### STEP 1 - test the input to the function and of unset, set a default
+    # test the input to the function and of unset, set a default
     if [[ -z "$kul_verbose_level" ]]; then
         kul_verbose_level=1
     fi
 
-    if [[ -z "$kul_process_name" ]]; then
-        task_in_name="$(echo ${task_in:0:20})"
-    else
-        task_in_name="$kul_process_name"
-    fi
+    local_n_tasks=0
+    for local_task_in in "${task_in[@]}"; do
 
-    if [[ -z "$kul_log_files" ]]; then 
-        task_in_name_nospaces="${task_in_name// /_}"
-        task_in_name_nospaces="${task_in_name_nospaces////_}"
-        kul_log_file="KUL_LOG/${script}/"${task_in_name_nospaces}".log"
-        kul_errorlog_file="KUL_LOG/${script}/"${task_in_name_nospaces}".error.log"
-    else
-        kul_log_file="${kul_log_files}.log"
-        kul_errorlog_file="${kul_log_files}.error.log"
-    fi
-
-    ### STEP 2 - execute the task_in
-    # to
-    # implement multiple task_in (see preproc_all)
-
-    if [ $kul_verbose_level -eq 0 ]; then 
-    
-        local task_in_final="$task_in  1>>${kul_log_file} 2>>${kul_errorlog_file}"
-        eval ${task_in_final} &
-    
-    else
+        if [ $KUL_DEBUG -eq 1 ]; then
+            echo "local_task_in: $local_task_in"
+            echo "local_n_tasks: $local_n_tasks"
+        fi
+        #remove the double (or more) spaces from task_in
+        local_task_in=$(echo $local_task_in | tr -s ' ')
         
-        local task_in_final="$task_in  > >(tee -a ${kul_log_file}) 2> >(tee -a ${kul_errorlog_file})"
-        eval ${task_in_final} &
-         
-    fi
-    
-    # set the pids, first we get the pid by "$!", then feed it into an array
-    task_in_pid="$!"
-    pidsArray+=($task_in_pid)
-    procsArray+=("$task_in_name")
 
+        if [[ -z "$kul_process_name" ]]; then
+            task_in_name[$local_n_tasks]="$(echo ${local_task_in:0:20} [instance $local_n_tasks])"
+        else
+            task_in_name[$local_n_tasks]="$kul_process_name [instance $local_n_tasks]"
+        fi
 
-    ### STEP 3 - give some information
-    if [ $kul_verbose_level -gt 0 ]; then
-        tput bold
-        echo "${task_in_name}... started @ $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${kul_log_file}
-        tput sgr0
-    fi
-    if [ $kul_verbose_level -eq 2 ]; then 
-        tput dim
-        echo -e "   The task_in command: ${task_in}" | tee -a ${kul_log_file}
-        tput sgr0
-    fi
+        if [ ! -d "KUL_LOG/${script}" ]; then
+            mkdir "KUL_LOG/${script}"
+        fi
 
+        if [[ -z "$kul_log_files" ]]; then 
+            task_in_name_nospaces_tmp="${task_in_name[$local_n_tasks]// /_}"
+            task_in_name_nospaces="${task_in_name_nospaces_tmp////_}"
+            kul_log_file[$local_n_tasks]="KUL_LOG/${script}/"${task_in_name_nospaces}".log"
+            kul_errorlog_file[$local_n_tasks]="KUL_LOG/${script}/"${task_in_name_nospaces}".error.log"
+        else
+            kul_log_file[$local_n_tasks]="KUL_LOG/${script}/"${kul_log_files}_[$local_n_tasks].log""
+            kul_errorlog_file[$local_n_tasks]="KUL_LOG/${script}/"${kul_log_files}_[$local_n_tasks].error.log""
+        fi
+
+        ### STEP 2 - execute the task_in
+        # to
+        # implement multiple task_in (see preproc_all)
+
+        if [ $kul_verbose_level -lt 2 ]; then 
+
+            #echo "using >"
+            tput dim
+            local task_in_final="($local_task_in)  >>${kul_log_file[$local_n_tasks]} 2>>${kul_errorlog_file[$local_n_tasks]}"
+            #echo $task_in_final
+            eval ${task_in_final} &
+            tput sgr0
+        
+        else
+            
+            #echo "using tee"
+            tput dim
+            local task_in_final="($local_task_in)  > >(tee -a ${kul_log_file[$local_n_tasks]}) 2> >(tee -a ${kul_errorlog_file[$local_n_tasks]})"
+            eval ${task_in_final} &
+            tput sgr0
+        fi
+        
+        # set the pids, first we get the pid by "$!", then feed it into an array
+        task_in_pid="$!"
+        pidsArray+=($task_in_pid)
+        procsArray+=("${task_in_name[$local_n_tasks]}")
+        #echo "procsArray: ${procsArray[$local_n_tasks]}"
+
+        ### STEP 3 - give some information
+        if [ $kul_verbose_level -gt 0 ]; then
+            tput bold
+            echo "KUL_task_exec: ${task_in_name[$local_n_tasks]}... started @ $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${kul_log_file[$local_n_tasks]}
+            tput sgr0
+        fi
+        if [ $kul_verbose_level -eq 2 ]; then 
+            tput dim
+            echo -e "   The task_in command: ${local_task_in}" | tee -a ${kul_log_file[$local_n_tasks]}
+            tput sgr0
+        fi
+
+        ((local_n_tasks++))
+
+    done
 
     ### STEP 4 - keep checking if the process is still running    
     pidCount=${#pidsArray[@]}
     #echo "  pidCount: $pidCount"
     #echo "  pidsArray: ${pidsArray[@]}"
+    #echo "  procsArray: ${procsArray[@]}"
 
     while [ ${#pidsArray[@]} -gt 0 ]; do
 
@@ -164,7 +190,7 @@ function KUL_task_exec {
             if kill -0 $pid > /dev/null 2>&1; then
                 newPidsArray+=($pid)
                 #echo "newPidsArray: ${newPidsArray[@]}"
-                newProcsArray+=(${procsArray[c]})
+                newProcsArray+=("${procsArray[c]}")
                 #echo "newProcsArray: ${newProcsArray[@]}"
             else
                 wait $pid
@@ -176,7 +202,7 @@ function KUL_task_exec {
                     fail_exec_time_seconds=$(($SECONDS - $seconds_begin))
                     fail_exec_time_minutes=$(echo "scale=2; $final_exec_time_seconds/60" | bc)
                     tput bold; tput setaf 1
-                    echo "  *** WARNING! **** Process ${procsArray[c]} with pid $pid might have failed after $fail_exec_time_minutes minutes. (with exitcode [$result]). Check the ${kul_errorlog_file} log-file" | tee -a ${kul_errorlog_file}
+                    echo "  *** WARNING! **** Process ${procsArray[c]} with pid $pid might have failed after $fail_exec_time_minutes minutes. (with exitcode [$result]). Check the ${kul_errorlog_file[$c]} log-file" | tee -a ${kul_errorlog_file[$c]}
                     tput sgr0
                 
                 else
@@ -185,7 +211,9 @@ function KUL_task_exec {
                     final_exec_time_minutes=$(echo "scale=2; $final_exec_time_seconds/60" | bc)
                     if [ $kul_verbose_level -gt 0 ]; then
                         tput setaf 2
-                        echo "$task_in_name finished successfully after $final_exec_time_minutes minutes" | tee -a ${kul_log_file}
+                        #echo "c: $c"
+                        #echo "procsArray: ${procsArray[c]}"
+                        echo " ${procsArray[c]} finished successfully after $final_exec_time_minutes minutes" | tee -a ${kul_log_file[$c]}
                         echo "    Total script time: $total_exec_time_min minutes"
                         tput sgr0
                     fi
