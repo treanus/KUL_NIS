@@ -3,7 +3,7 @@
 #
 # v0.1 - dd 06/11/2018 - first version
 version="v1.1 - dd 21/01/2021"
-
+verbose_level=1
 # This is the main script of the KUL_NeuroImaging_Toools
 #
 # Description:
@@ -223,7 +223,7 @@ function task_fmriprep {
     fmriprep_log=${log_dir}/fmriprep_${fmriprep_log_p}.txt
     fmriprep_act=${log_dir}/fmriprep_${fmriprep_log_p}_act
 
-    kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
+    #kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
 
     if [ $fmriprep_singularity -eq 1 ]; then 
 
@@ -247,36 +247,36 @@ function task_fmriprep {
 
     else
 
-        local task_fmriprep_cmd=$(echo "docker run --rm -u $(id -u) \
-    -v ${cwd}/${bids_dir}:/data \
-    -v ${cwd}:/out \
-    -v ${freesurfer_license}:/opt/freesurfer/license.txt \
-    $fmriprep_filter_mount \
-    nipreps/fmriprep:${fmriprep_version} \
-    /data /out \
-    participant \
-    --participant_label ${BIDS_participant} \
-    --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
-    --mem $mem_mb \
-    $fmriprep_options \
-    > $fmriprep_log  2>&1")
+        task_fmriprep_cmd=$(echo "docker run --rm -u $(id -u) \
+            -v ${cwd}/${bids_dir}:/data \
+            -v ${cwd}:/out \
+            -v ${freesurfer_license}:/opt/freesurfer/license.txt \
+            $fmriprep_filter_mount \
+            nipreps/fmriprep:${fmriprep_version} \
+            /data /out \
+            participant \
+            --participant_label ${BIDS_participant} \
+            --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
+            --mem $mem_mb \
+            $fmriprep_options") 
+            # > $fmriprep_log  2>&1")
 
     fi
 
-    kul_echo "   using cmd: $task_fmriprep_cmd"
+    #kul_echo "   using cmd: $task_fmriprep_cmd"
 
     # Now start the parallel job
     # echo $make_pbs_files_instead_of_running
-    if [ $make_pbs_files_instead_of_running -eq 0 ]; then
+    if [ $make_pbs_files_instead_of_running -eq 1 ]; then
 
-        eval $task_fmriprep_cmd &
-        fmriprep_pid="$!"
-        kul_echo " fmriprep pid is $fmriprep_pid"
+        #eval $task_fmriprep_cmd &
+        #fmriprep_pid="$!"
+        #kul_echo " fmriprep pid is $fmriprep_pid"
 
-        sleep 2
+        #sleep 2
         #psrecord $fmriprep_pid --include-children --log $fmriprep_act.txt --plot $fmriprep_act.png --interval 30 &
 
-    else
+    #else
 
         kul_echo " making a PBS file"
         mkdir -p VSC
@@ -483,7 +483,7 @@ function task_KUL_dwiprep {
         dwiprep_log=$log_dir/dwiprep_${BIDS_participant}.txt
         #mkdir -p ${preproc}/log/dwiprep
 
-        kul_e2cl " started (in parallel) KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
+        #kul_e2cl " started (in parallel) KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
         extra_options_synb0=""
         if [ "$synbzero_disco_instead_of_topup" -eq 1 ]; then
@@ -500,20 +500,20 @@ function task_KUL_dwiprep {
             extra_options_dwi2mask=" -m $dwi2mask_method "
         fi
 
-        local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} \
-        $extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep \
-        -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1 \
-        > $dwiprep_log 2>&1 ")
+        task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} \
+            $extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep \
+            -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1") 
+            # > $dwiprep_log 2>&1 ")
 
-        kul_echo "   using cmd: $task_dwiprep_cmd"
+        #kul_echo "   using cmd: $task_dwiprep_cmd"
         
-        if [ $make_pbs_files_instead_of_running -eq 0 ]; then
+        if [ $make_pbs_files_instead_of_running -eq 1 ]; then
             # Now we start the parallel job
-            eval $task_dwiprep_cmd &
-            dwiprep_pid="$!"
-            kul_echo " KUL_dwiprep pid is $dwiprep_pid"
-            sleep 2
-        else
+            #eval $task_dwiprep_cmd &
+            #dwiprep_pid="$!"
+            #kul_echo " KUL_dwiprep pid is $dwiprep_pid"
+            #sleep 2
+        #else
             kul_echo " making a PBS file"
             mkdir -p VSC
             cp $kul_main_dir/VSC/master_dwiprep.pbs VSC/run_dwiprep.pbs
@@ -835,8 +835,8 @@ elif [ ! -f $conf ] ; then
 fi 
 
 # ----------- MAIN ----------------------------------------------------------------------------------
-kul_echo "  The script you are running has basename `basename "$0"`, located in dirname $kul_main_dir"
-kul_echo "  The present working directory is `pwd`"
+#kul_echo "  The script you are running has basename `basename "$0"`, located in dirname $kul_main_dir"
+#kul_echo "  The present working directory is `pwd`"
 
 # ---------- SET MAIN DEFAULTS ---
 # set mem_mb for mriqc/fmriprep
@@ -1118,25 +1118,29 @@ if [ $expert -eq 1 ]; then
             #for BIDS_participant in $fmriprep_participants; do
                 
                 BIDS_participant=$fmriprep_participants
-                fmriprep_pid=-1
-                waitforprocs=()
-                waitforpids=()
+                #fmriprep_pid=-1
+                #waitforprocs=()
+                #waitforpids=()
 
                 task_fmriprep
-
-                if [ $fmriprep_pid -gt 0 ]; then
-                    waitforprocs+=("fmriprep")
-                    waitforpids+=($fmriprep_pid)
-                fi
+                task_in[$task_counter-2]=$task_fmriprep_cmd
+                #echo "task_in - instance $task_counter: ${task_in[$task_counter-2]}"
+                
+                #if [ $fmriprep_pid -gt 0 ]; then
+                #    waitforprocs+=("fmriprep")
+                #    waitforpids+=($fmriprep_pid)
+                #fi
 
             #done
 
-            kul_e2cl "  waiting for fmriprep processes [${waitforpids[@]}] for subject(s) $fmriprep_participants to finish before continuing with further processing... (this can take hours!)... " $log
-            WaitForTaskCompletion 
+            #kul_e2cl "  waiting for fmriprep processes [${waitforpids[@]}] for subject(s) $fmriprep_participants to finish before continuing with further processing... (this can take hours!)... " $log
+            #WaitForTaskCompletion 
 
-            kul_e2cl " processes [${waitforpids[@]}] for subject(s) $fmriprep_participants have finished" $log
+            #kul_e2cl " processes [${waitforpids[@]}] for subject(s) $fmriprep_participants have finished" $log
 
         done
+
+        KUL_task_exec $verbose_level "KUL_preproc_all running fmriprep" "fmriprep"
 
     fi
 
@@ -1293,27 +1297,32 @@ if [ $expert -eq 1 ]; then
         for i_bids_participant in $(seq 0 $dwiprep_simultaneous $(($n_subj_todo-1))); do
 
             fs_participants=${todo_bids_participants[@]:$i_bids_participant:$dwiprep_simultaneous}
-            kul_echo "  going to start dwiprep with $dwiprep_simultaneous participants simultaneously, notably $fs_participants"
+            #kul_echo "  going to start dwiprep with $dwiprep_simultaneous participants simultaneously, notably $fs_participants"
 
-            dwiprep_pid=-1
-            waitforprocs=()
-            waitforpids=()
+            #dwiprep_pid=-1
+            #waitforprocs=()
+            #waitforpids=()
+            task_count=0
 
             for BIDS_participant in $fs_participants; do
                 task_KUL_dwiprep
-                if [ $dwiprep_pid -gt 0 ]; then
-                    waitforprocs+=("dwiprep")
-                    waitforpids+=($dwiprep_pid)
-                fi
+                task_in[$task_count]=$task_dwiprep_cmd
+                
+                #if [ $dwiprep_pid -gt 0 ]; then
+                #    waitforprocs+=("dwiprep")
+                #    waitforpids+=($dwiprep_pid)
+                #fi
             done 
 
-            kul_e2cl "  waiting for dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
-            WaitForTaskCompletion 
+            #kul_e2cl "  waiting for dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
+            #WaitForTaskCompletion 
 
-            kul_e2cl " dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
+            #kul_e2cl " dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
        
         done
        
+        KUL_task_exec $verbose_level "KUL_preproc_all running KUL_dwiprep" "dwiprep"
+
     fi
 
     #check synb0 and options

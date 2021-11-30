@@ -56,6 +56,9 @@ function KUL_task_exec {
     local local_n_tasks
     local local_task_in_name
 
+    local local_main_logdir=${cwd}/KUL_LOG/${script}
+
+    
     # get the input variables; a check below wil put default values if $1/$2/$3 are empty
     local kul_verbose_level="$1"
     local kul_process_name="$2"
@@ -93,18 +96,18 @@ function KUL_task_exec {
             task_in_name[$local_n_tasks]="$kul_process_name [instance $local_n_tasks]"
         fi
 
-        if [ ! -d "KUL_LOG/${script}" ]; then
-            mkdir "KUL_LOG/${script}"
+        if [ ! -d "$local_main_logdir" ]; then
+            mkdir "$local_main_logdir"
         fi
 
         if [[ -z "$kul_log_files" ]]; then 
             task_in_name_nospaces_tmp="${task_in_name[$local_n_tasks]// /_}"
             task_in_name_nospaces="${task_in_name_nospaces_tmp////_}"
-            kul_log_file[$local_n_tasks]="KUL_LOG/${script}/"${task_in_name_nospaces}".log"
-            kul_errorlog_file[$local_n_tasks]="KUL_LOG/${script}/"${task_in_name_nospaces}".error.log"
+            kul_log_file[$local_n_tasks]="$local_main_logdir/"${task_in_name_nospaces}".log"
+            kul_errorlog_file[$local_n_tasks]="$local_main_logdir/"${task_in_name_nospaces}".error.log"
         else
-            kul_log_file[$local_n_tasks]="KUL_LOG/${script}/"${kul_log_files}_[$local_n_tasks].log""
-            kul_errorlog_file[$local_n_tasks]="KUL_LOG/${script}/"${kul_log_files}_[$local_n_tasks].error.log""
+            kul_log_file[$local_n_tasks]="$local_main_logdir/"${kul_log_files}_[$local_n_tasks].log""
+            kul_errorlog_file[$local_n_tasks]="$local_main_logdir/"${kul_log_files}_[$local_n_tasks].error.log""
         fi
 
         ### STEP 2 - execute the task_in

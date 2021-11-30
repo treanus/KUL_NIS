@@ -361,12 +361,12 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 	bids_dwi_found=$(ls $bids_dwi_search)
 	number_of_bids_dwi_found=$(echo $bids_dwi_found | wc -w)
 	task_in="KUL_dwiprep_convert"
-	KUL_task_exec $verbose_level "kul_dwiprep part 1: convert data to mif" "$KUL_LOG_DIR/1_convert_mif"
+	KUL_task_exec $verbose_level "kul_dwiprep part 1: convert data to mif" "1_convert_mif"
 
 
 	# Only keep the desired part of the dMRI
 	# do this if rev_only_topup -eq 1, but not if there is only 1 dwi file (which means there is no rev phase)
-	if [ $rev_only_topup -eq 1 ] && [ $bids_dwi_found -gt 1 ]; then
+	if [ $rev_only_topup -eq 1 ] && [ $number_of_bids_dwi_found -gt 1 ]; then
 
 		if [ ! -f dwi_orig_norev.mif ]; then
 
@@ -404,7 +404,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		dwi2mask_image_in=${dwi_orig}
 		dwi2mask_mask_out="dwi/dwi_orig_mask.nii.gz"
 		dwi2mask_message="kul_dwiprep- part1: make an initial mask"
-		dwi2mask_logfile="$KUL_LOG_DIR/1_convert_mif"
+		dwi2mask_logfile="1_convert_mif"
 		kul_dwi2mask
 	fi
 
@@ -417,7 +417,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		task_in="dwi2tensor $dwi_orig dwi_orig_dt.mif -mask dwi/dwi_orig_mask.nii.gz -force; \
 			tensor2metric dwi_orig_dt.mif -fa qa/fa_orig.nii.gz -force; \
 			tensor2metric dwi_orig_dt.mif -adc qa/adc_orig.nii.gz -force"
-		KUL_task_exec $verbose_level "kul_dwiprep part 1: initial /ADC/DEC" "$KUL_LOG_DIR/1_qa"
+		KUL_task_exec $verbose_level "kul_dwiprep part 1: initial /ADC/DEC" "1_qa"
 	fi
 
 	# check if first 2 steps of dwi preprocessing are done
@@ -431,13 +431,13 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		#    and this get's converted to b0.nii for synb0. No eyes in there anymore and this makes the fieldmap look really bad
 		# dwidenoise $dwi_orig dwi/denoise.mif -noise dwi/noiselevel.mif -mask dwi/dwi_orig_mask.nii.gz -nthreads $ncpu -force
 		task_in="dwidenoise $dwi_orig dwi/denoise.mif -noise dwi/noiselevel.mif -nthreads $ncpu -force"
-		KUL_task_exec $verbose_level "kul_dwiprep part 2: dwidenoise" "$KUL_LOG_DIR/2_dwidenoise"
+		KUL_task_exec $verbose_level "kul_dwiprep part 2: dwidenoise" "2_dwidenoise"
 
 		# mrdegibbs
 		kul_echo "mrdegibbs..."
 		task_in="mrdegibbs dwi/denoise.mif dwi/degibbs.mif -nthreads $ncpu -force; \
 			rm dwi/denoise.mif"
-		KUL_task_exec $verbose_level "kul_dwiprep part 2: mrdegibbs" "$KUL_LOG_DIR/2_mrdegibbs"
+		KUL_task_exec $verbose_level "kul_dwiprep part 2: mrdegibbs" "2_mrdegibbs"
 
 	else
 
@@ -466,7 +466,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 				synb0_ses=""
 			fi
 			task_in="KUL_synb0.sh -p $participant $synb0_ses"
-			KUL_task_exec $verbose_level "kul_dwiprep part 3: synb0" "$KUL_LOG_DIR/3_synb0"
+			KUL_task_exec $verbose_level "kul_dwiprep part 3: synb0" "3_synb0"
 			cd ${preproc}
 		fi
 
@@ -552,7 +552,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		task_in="dwifslpreproc ${dwifslpreproc_option} -rpe_header \
 				-eddyqc_all eddy_qc/raw -eddy_options \"${full_eddy_options} \" -force -nthreads $ncpu -nocleanup \
 				dwi/degibbs.mif dwi/geomcorr.mif"
-		KUL_task_exec $verbose_level "kul_dwiprep part 3: motion and distortion correction" "$KUL_LOG_DIR/3_dwifslpreproc"
+		KUL_task_exec $verbose_level "kul_dwiprep part 3: motion and distortion correction" "3_dwifslpreproc"
 
 
 		# create an intermediate mask of the dwi data
@@ -560,7 +560,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		dwi2mask_image_in="dwi/geomcorr.mif"
 		dwi2mask_mask_out="dwi/dwi_intermediate_mask.nii.gz"
 		dwi2mask_message="kul_dwiprep: make an intermediate mask"
-		dwi2mask_logfile="$KUL_LOG_DIR/3_mask"
+		dwi2mask_logfile="3_mask"
 		kul_dwi2mask
 
 
@@ -581,7 +581,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			task_in="eddy_quad $temp_dir/dwi_post_eddy --eddyIdx $temp_dir/eddy_indices.txt \
 				--eddyParams $temp_dir/dwi_post_eddy.eddy_parameters --mask $temp_dir/eddy_mask.nii \
 				--bvals $temp_dir/bvals --bvecs $temp_dir/bvecs --output-dir eddy_qc/quad" # --verbose
-			KUL_task_exec $verbose_level "kul_dwiprep part 3: eddy_quad" "$KUL_LOG_DIR/3_eddy_quad"
+			KUL_task_exec $verbose_level "kul_dwiprep part 3: eddy_quad" "3_eddy_quad"
 
 		fi
 
@@ -604,20 +604,20 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		kul_echo "    dwibiascorrect"
 		task_in="dwibiascorrect ants dwi/geomcorr.mif dwi/biascorr.mif \
 			-bias dwi/biasfield.mif -nthreads $ncpu -force -mask dwi/dwi_intermediate_mask.nii.gz"
-		KUL_task_exec $verbose_level "kul_dwiprep part 4: dwibiascorrect" "$KUL_LOG_DIR/4_dwibiascorrect"
+		KUL_task_exec $verbose_level "kul_dwiprep part 4: dwibiascorrect" "4_dwibiascorrect"
 
 		
 		# upsample the images
 		kul_echo "    upsampling resolution..."
 		task_in="mrgrid -nthreads $ncpu -force -axis 1 5,5 dwi/biascorr.mif crop - | mrgrid -axis 1 5,5 -force - pad - | mrgrid -voxel 1.3 -force - regrid dwi/upsampled.mif"
-		KUL_task_exec $verbose_level "kul_dwiprep part 5: upsampling resolution" "$KUL_LOG_DIR/5_upsample"
+		KUL_task_exec $verbose_level "kul_dwiprep part 5: upsampling resolution" "5_upsample"
 		rm dwi/biascorr.mif
 	
 
 		# copy to main directory for subsequent processing
 		kul_echo "    saving..."
 		task_in="mrconvert dwi/upsampled.mif dwi_preproced.mif -set_property comments \"Preprocessed dMRI data.\" -nthreads $ncpu -force"
-		KUL_task_exec $verbose_level "kul_dwiprep part 5: saving" "$KUL_LOG_DIR/5_saving"
+		KUL_task_exec $verbose_level "kul_dwiprep part 5: saving" "5_saving"
 		rm dwi/upsampled.mif
 
 
@@ -626,7 +626,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		dwi2mask_image_in="dwi_preproced.mif"
 		dwi2mask_mask_out="dwi_mask.nii.gz"
 		dwi2mask_message="kul_dwiprep part 6: make a final mask"
-		dwi2mask_logfile="$KUL_LOG_DIR/6_mask"
+		dwi2mask_logfile="6_mask"
 		kul_dwi2mask
 
 
@@ -653,7 +653,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			kul_echo "Calculating dhollander dwi2response..."
 			task_in="dwi2response dhollander dwi_preproced.mif response/dhollander_wm_response.txt -mask dwi_mask.nii.gz \
 			response/dhollander_gm_response.txt response/dhollander_csf_response.txt -nthreads $ncpu -force"
-			KUL_task_exec $verbose_level "kul_dwiprep part 6: estimate response dhollander" "$KUL_LOG_DIR/6_response_dhollander"
+			KUL_task_exec $verbose_level "kul_dwiprep part 6: estimate response dhollander" "6_response_dhollander"
 		else
 			kul_echo " dwi2response dhollander already done, skipping..."
 		fi
@@ -668,7 +668,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			task_in2="dwi2fod msmt_csd dwi_preproced.mif response/dhollander_wm_response.txt response/dhollander_wmfod_noGM.mif \
 			response/dhollander_csf_response.txt response/dhollander_csf_noGM.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu"
 			task_in="$task_in1;$task_in2"
-			KUL_task_exec $verbose_level "kul_dwiprep part 7: dwi2fod dhollander" "$KUL_LOG_DIR/6_dwi2fod_dhollander"
+			KUL_task_exec $verbose_level "kul_dwiprep part 7: dwi2fod dhollander" "6_dwi2fod_dhollander"
 		else
 			kul_echo " dwi2fod dhollander already done, skipping..."
 		fi
@@ -678,7 +678,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		if [ ! -f response/tax_response.txt ]; then
 			kul_echo "Calculating tax dwi2response..."
 			task_in1="dwi2response tax dwi_preproced.mif response/tax_response.txt -nthreads $ncpu -force"
-			KUL_task_exec $verbose_level "kul_dwiprep part 6: estimate response tax" "$KUL_LOG_DIR/6_response_tax"
+			KUL_task_exec $verbose_level "kul_dwiprep part 6: estimate response tax" "6_response_tax"
 		else
 			kul_echo " dwi2response tax already done, skipping..."
 		fi
@@ -687,7 +687,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			kul_echo "Calculating tax dwi2fod..."
 			task_in="dwi2fod csd dwi_preproced.mif response/tax_response.txt response/tax_wmfod.mif  \
 			-mask dwi_mask.nii.gz -force -nthreads $ncpu -mask dwi_mask.nii.gz"
-			KUL_task_exec $verbose_level "kul_dwiprep part 7: dwi2fod tax" "$KUL_LOG_DIR/6_dwi2fod_tax"
+			KUL_task_exec $verbose_level "kul_dwiprep part 7: dwi2fod tax" "6_dwi2fod_tax"
 		else
 			kul_echo " dwi2fod tax already done, skipping..."
 		fi
@@ -697,7 +697,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		if [ ! -f response/tournier_response.txt ]; then
 			kul_echo "Calculating tournier dwi2response..."
 			task_in="dwi2response tournier dwi_preproced.mif response/tournier_response.txt -nthreads $ncpu -force"
-			KUL_task_exec $verbose_level "kul_dwiprep part 6: estimate response tournier" "$KUL_LOG_DIR/6_response_tournier"
+			KUL_task_exec $verbose_level "kul_dwiprep part 6: estimate response tournier" "6_response_tournier"
 		else
 			kul_echo " dwi2response already done, skipping..."
 		fi
@@ -706,7 +706,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			kul_echo "Calculating tournier dwi2fod..."
 			task_in="dwi2fod csd dwi_preproced.mif response/tournier_response.txt response/tournier_wmfod.mif  \
 			-mask dwi_mask.nii.gz -force -nthreads $ncpu"
-			KUL_task_exec $verbose_level "kul_dwiprep part 7: dwi2fod tax" "$KUL_LOG_DIR/6_dwi2fod_tournier"
+			KUL_task_exec $verbose_level "kul_dwiprep part 7: dwi2fod tax" "6_dwi2fod_tournier"
 		else
 			kul_echo " dwi2fod already done, skipping..."
 		fi
@@ -723,21 +723,21 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		task_in="dwi2tensor dwi_preproced.mif dwi_dt.mif -force -mask dwi_mask.nii.gz; \
 			tensor2metric dwi_dt.mif -fa qa/fa.nii.gz -mask dwi_mask.nii.gz -force; \
 			tensor2metric dwi_dt.mif -adc qa/adc.nii.gz -mask dwi_mask.nii.gz -force"
-		KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC/DEC" "$KUL_LOG_DIR/8_qa"
+		KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC/DEC" "8_qa"
 
 		if [[ $dwipreproc_options == *"tournier"* ]]; then
 			task_in="fod2dec response/tournier_wmfod.mif qa/tournier_dec.mif -force -mask dwi_mask.nii.gz"
-			KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC/DEC" "$KUL_LOG_DIR/8_qa"
+			KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC/DEC" "8_qa"
 		fi
 
 		if [[ $dwipreproc_options == *"tax"* ]]; then
 			task_in="fod2dec response/tax_wmfod.mif qa/tax_dec.mif -force -mask dwi_mask.nii.gz"
-			KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC/DEC" "$KUL_LOG_DIR/8_qa"
+			KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC/DEC" "8_qa"
 		fi
 
 		if [[ $dwipreproc_options == *"dhollander"* ]]; then
 			task_in="fod2dec response/dhollander_wmfod.mif qa/dhollander_dec.mif -force -mask dwi_mask.nii.gz"
-			KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC/DEC" "$KUL_LOG_DIR/8_qa"
+			KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC/DEC" "8_qa"
 		fi
 
 		mrconvert dwi/biasfield.mif qa/biasfield.nii.gz

@@ -996,11 +996,13 @@ fi
 
 
 # STEP 2 - run fmriprep/dwiprep and continue
-KUL_run_fmriprep &
+#KUL_run_fmriprep &
+
 if [ $n_dwi -gt 0 ];then
     KUL_run_dwiprep &
 fi
 
+exit
 
 # STEP 3 - regsiter all anatomical other data to the T1w without contrast
 KUL_register_anatomical_images &
