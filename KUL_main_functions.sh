@@ -45,7 +45,7 @@ function KUL_task_exec {
     #local procsArray=${task_in_name[@]} # name of procs to wait for, separated by semi-colon 
     local pidsArray=() # pids to wait for, separated by semi-colon
     local procsArray=() # name of procs to wait for, separated by semi-colon     
-    local log_ttime=0 # local time instance for comparaison
+    local log_ttime=0 # local time instance for comparison
     local seconds_begin=$SECONDS # Seconds since the beginning of the script
     local exec_time=0 # Seconds since the beginning of this function
     local pidCount # number of given pids

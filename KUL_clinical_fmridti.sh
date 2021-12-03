@@ -772,7 +772,7 @@ function KUL_run_msbp {
          --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
          --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
          --multiproc_number_of_cores $ncpu"
-        KUL_task_exec $verbose_level "MSBP" "$KUL_LOG_DIR/7_msbp"
+        KUL_task_exec $verbose_level "MSBP" "7_msbp"
 
         echo "Done MSBP"
         touch KUL_LOG/sub-${participant}_MSBP.done
@@ -793,7 +793,7 @@ function KUL_run_FWT {
         -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
         -o $kulderivativesdir/sub-${participant}/FWT \
         -n $ncpu"
-        KUL_task_exec $verbose_level "KUL_FWT voi generation" "$KUL_LOG_DIR/FWTvoi"
+        KUL_task_exec $verbose_level "KUL_FWT voi generation" "FWTvoi"
 
 
         task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
@@ -806,7 +806,7 @@ function KUL_run_FWT {
         -f 1 \
         -Q -S \
         -n $ncpu"
-        KUL_task_exec $verbose_level "KUL_FWT tract generation" "$KUL_LOG_DIR/FWTtck"
+        KUL_task_exec $verbose_level "KUL_FWT tract generation" "FWTtck"
 
         ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
         ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_BT_iFOD2.tck $globalresultsdir/Tracto/
@@ -923,32 +923,32 @@ function KUL_register_anatomical_images {
             source_mri_label="cT1w"
             source_mri=$cT1w
             task_in="KUL_rigid_register"
-            KUL_task_exec $verbose_level "KUL_rigid_register cT1w" "$KUL_LOG_DIR/3_register_anat"
+            KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "3_register_anat"
         fi
         if [ $nT2w -gt 0 ];then
             source_mri_label="T2w"
             source_mri=$T2w
             task_in="KUL_rigid_register"
-            KUL_task_exec $verbose_level "KUL_rigid_register T2w" "$KUL_LOG_DIR/3_register_anat"
+            KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "3_register_anat"
         fi
         if [ $nFLAIR -gt 0 ];then
             source_mri_label="FLAIR"
             source_mri=$FLAIR
             task_in="KUL_rigid_register"
-            KUL_task_exec $verbose_level "KUL_rigid_register FLAIR" "$KUL_LOG_DIR/3_register_anat"
+            KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "3_register_anat"
         fi
         if [ $nSWI -gt 0 ];then
             source_mri_label="SWI"
             source_mri=$SWI
             task_in="KUL_rigid_register"
-            KUL_task_exec $verbose_level "KUL_rigid_register SWIm" "$KUL_LOG_DIR/3_register_anat"
+            KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "3_register_anat"
 
             input=$SWIp
             transform="${registeroutputdir}/${source_mri_label}_reg2_T1w0GenericAffine.mat"
             output="${globalresultsdir}/Anat/${source_mri_label}_phase_reg2_T1w.nii.gz"
             reference=$target_mri
-            task_in="KUL_rigid_register"
-            KUL_task_exec $verbose_level "KUL_rigid_register SWIp" "$KUL_LOG_DIR/3_register_anat"
+            task_in="KUL_antsApply_Transform"
+            KUL_task_exec $verbose_level "Applying the rigid resgistration of SWIm to SWIp too" "3_register_anat"
         fi
         touch $check
     else 
@@ -995,16 +995,17 @@ if [ $hdglio -eq 1 ];then
 fi
 
 
-# STEP 2 - run fmriprep/dwiprep and continue
-#KUL_run_fmriprep &
+# STEP 2 - run fmriprep and continue
+KUL_run_fmriprep &
 
+
+# STEP 3 - run dwiprep and continue
 if [ $n_dwi -gt 0 ];then
     KUL_run_dwiprep &
 fi
 
-exit
 
-# STEP 3 - regsiter all anatomical other data to the T1w without contrast
+# STEP 4 - regsiter all anatomical other data to the T1w without contrast
 KUL_register_anatomical_images &
 wait
 
@@ -1023,7 +1024,6 @@ if [ $vbg -eq 1 ];then
 fi
 wait
 
-exit
 
 # STEP 5 - run SPM/melodic/msbp
 #KUL_run_fastsurfer
@@ -1038,7 +1038,7 @@ wait
 
 # STEP 6 run dwiprep_anat
 task_in="KUL_dwiprep_anat.sh -p $participant -n $ncpu"
-KUL_task_exec $verbose_level "KUL_dwiprep_anat" "$KUL_LOG_DIR/6_dwiprep_anat"
+KUL_task_exec $verbose_level "KUL_dwiprep_anat" "6_dwiprep_anat"
 
 
 
