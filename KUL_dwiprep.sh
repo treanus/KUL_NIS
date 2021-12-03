@@ -563,12 +563,9 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		dwi2mask_logfile="3_mask"
 		kul_dwi2mask
 
-
-		# check id eddy_quad is available & run
-		test_eddy_quad=$(command -v eddy_quad)
-		#echo $test_eddy_quad
 		temp_dir=$(ls -d *dwifslpreproc*)
-		if [ $test_eddy_quad = "" ]; then
+
+		if [ ! command -v eddy_quad &> /dev/null ]; then
 
 			kul_echo "Eddy_quad skipped (which was not found in the path)"
 
