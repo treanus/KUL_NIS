@@ -67,6 +67,7 @@ verbose_level=1
 
 # Set required options
 p_flag=0
+d_flag=0
 
 if [ "$#" -lt 1 ]; then
 	Usage >&2
@@ -86,6 +87,7 @@ else
 		;;
         d) #dicomzip
 			dicomzip=$OPTARG
+            d_flag=1
 		;;
         n) #ncpu
 			ncpu=$OPTARG
@@ -266,7 +268,11 @@ function KUL_antsApply_Transform {
 function KUL_convert2bids {
     # convert the DICOM to BIDS
     if [ ! -d "BIDS/sub-${participant}" ];then
-        KUL_dcm2bids.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e -v
+        if [ $d_flag -eq 1 ]; then
+            KUL_dcm2bids.sh -d $dicomzip -p ${participant} -c study_config/sequences.txt -e -v
+        else
+            echo "Error: no dicom zip file given."
+        fi
     else
         echo "BIDS conversion already done"
     fi
@@ -958,6 +964,12 @@ function KUL_register_anatomical_images {
 
 
 # --- MAIN ---
+
+# STEP 1 - BIDS conversion
+KUL_convert2bids
+
+KUL_check_participant
+
 kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute
 mkdir -p $kulderivativesdir
 globalresultsdir=$cwd/RESULTS/sub-$participant
@@ -966,8 +978,10 @@ mkdir -p $globalresultsdir/SPM
 mkdir -p $globalresultsdir/Melodic
 mkdir -p $globalresultsdir/Tracto
 
-# STEP 1 - BIDS conversion
-KUL_convert2bids
+if [ $KUL_DEBUG -gt 0 ]; then 
+    echo "kulderivativesdir: $kulderivativesdir"
+    echo "globalresultsdir: $globalresultsdir"
+fi
 
 # Run BIDS validation
 check_in=${KUL_LOG_DIR}/1_bidscheck.done

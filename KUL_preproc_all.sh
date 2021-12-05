@@ -448,23 +448,24 @@ function task_freesurfer {
 
         #echo $notify_file
 
-        local task_freesurfer_cmd=$(echo "recon-all -subject $fs_BIDS_participant $freesurfer_invol \
+        task_freesurfer_cmd=$(echo "recon-all -subject $fs_BIDS_participant $freesurfer_invol \
             $fs_use_flair $fs_hippoT1T2 $fs_options_direct -all -openmp $ncpu_freesurfer \
-            -parallel -notify $notify_file > $freesurfer_log 2>&1 ")
+            -parallel -notify $notify_file") 
+            # > $freesurfer_log 2>&1 ")
 
-        kul_echo "   using cmd: $task_freesurfer_cmd"
+        #kul_echo "   using cmd: $task_freesurfer_cmd"
 
-        eval $task_freesurfer_cmd &
-        freesurfer_pid="$!"
-        kul_echo "   freesurfer pid is $freesurfer_pid"
+        #eval $task_freesurfer_cmd &
+        #freesurfer_pid="$!"
+        #kul_echo "   freesurfer pid is $freesurfer_pid"
         
-        sleep 2
+        #sleep 2
 
         #kul_e2cl "   done freesufer on participant $BIDS_participant" $log
 
     else
 
-        freesurfer_pid=-1
+        #freesurfer_pid=-1
         kul_echo " freesurfer of subjet $BIDS_participant already done, skipping..."
             
     fi
@@ -1115,7 +1116,7 @@ if [ $expert -eq 1 ]; then
             fi
             task_counter=$((task_counter+1))   
 
-            #for BIDS_participant in $fmriprep_participants; do
+            for BIDS_participant in $fmriprep_participants; do
                 
                 BIDS_participant=$fmriprep_participants
                 #fmriprep_pid=-1
@@ -1124,6 +1125,7 @@ if [ $expert -eq 1 ]; then
 
                 task_fmriprep
                 task_in[$task_counter-2]=$task_fmriprep_cmd
+                task_participant[$task_counter-2]=$BIDS_participant
                 #echo "task_in - instance $task_counter: ${task_in[$task_counter-2]}"
                 
                 #if [ $fmriprep_pid -gt 0 ]; then
@@ -1131,16 +1133,16 @@ if [ $expert -eq 1 ]; then
                 #    waitforpids+=($fmriprep_pid)
                 #fi
 
-            #done
+            done
 
             #kul_e2cl "  waiting for fmriprep processes [${waitforpids[@]}] for subject(s) $fmriprep_participants to finish before continuing with further processing... (this can take hours!)... " $log
             #WaitForTaskCompletion 
 
             #kul_e2cl " processes [${waitforpids[@]}] for subject(s) $fmriprep_participants have finished" $log
-
+            
+            KUL_task_exec $verbose_level "KUL_preproc_all running fmriprep" "fmriprep"
+        
         done
-
-        KUL_task_exec $verbose_level "KUL_preproc_all running fmriprep" "fmriprep"
 
     fi
 
@@ -1212,25 +1214,30 @@ if [ $expert -eq 1 ]; then
             fs_participants=${todo_bids_participants[@]:$i_bids_participant:$freesurfer_simultaneous}
             kul_echo "  going to start freesurfer with $freesurfer_simultaneous participants simultaneously, notably $fs_participants"
         
-            freesurfer_pid=-1
-            waitforprocs=()
-            waitforpids=()
-    
+            #freesurfer_pid=-1
+            #waitforprocs=()
+            #waitforpids=()
+            task_count=0
             for BIDS_participant in $fs_participants; do
                 task_freesurfer
-                if [ $freesurfer_pid -gt 0 ]; then
-                    waitforprocs+=("freesurfer")
-                    waitforpids+=($freesurfer_pid)
-                fi
+                task_in[$task_count]=$task_freesurfer_cmd
+                task_participant[$task_count]=$BIDS_participant
+                ((task_count++))
+                #if [ $freesurfer_pid -gt 0 ]; then
+                #    waitforprocs+=("freesurfer")
+                #    waitforpids+=($freesurfer_pid)
+                #fi
             done 
 
-            kul_e2cl "  waiting for freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
-            WaitForTaskCompletion 
+            #kul_e2cl "  waiting for freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
+            #WaitForTaskCompletion 
 
-            kul_e2cl " freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
-  
-        done
-       
+            #kul_e2cl " freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
+            
+            KUL_task_exec $verbose_level "KUL_preproc_all running freesurfer" "freesurfer"
+
+        done 
+
     fi
 
 
@@ -1307,7 +1314,8 @@ if [ $expert -eq 1 ]; then
             for BIDS_participant in $fs_participants; do
                 task_KUL_dwiprep
                 task_in[$task_count]=$task_dwiprep_cmd
-                
+                task_participant[$task_count]=$BIDS_participant
+                ((task_count++))
                 #if [ $dwiprep_pid -gt 0 ]; then
                 #    waitforprocs+=("dwiprep")
                 #    waitforpids+=($dwiprep_pid)
@@ -1318,10 +1326,10 @@ if [ $expert -eq 1 ]; then
             #WaitForTaskCompletion 
 
             #kul_e2cl " dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
-       
-        done
-       
-        KUL_task_exec $verbose_level "KUL_preproc_all running KUL_dwiprep" "dwiprep"
+            
+            KUL_task_exec $verbose_level "KUL_preproc_all running KUL_dwiprep" "dwiprep"
+        
+        done 
 
     fi
 

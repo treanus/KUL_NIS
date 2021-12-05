@@ -6,7 +6,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 09/11/2018 - alpha version
-v="v0.3 - dd 28/11/2021"
+version="v0.4 - dd 04/12/2021"
 
 # To Do
 #  - register dwi to T1 with ants-syn
@@ -15,7 +15,7 @@ v="v0.3 - dd 28/11/2021"
 
 kul_main_dir=`dirname "$0"`
 source $kul_main_dir/KUL_main_functions.sh
-# $cwd & $log_dir is made in main_functions
+# $cwd, mrtrix3new & $log_dir is made in main_functions
 
 non_linear=0 
 
@@ -74,7 +74,7 @@ else
         case $OPT in
         p) #participant
             p_flag=1
-            subj=$OPTARG
+            participant=$OPTARG
         ;;
         s) #session
             s_flag=1
@@ -138,37 +138,20 @@ log=${log_dir}/${script}_${d}.log
 
 # --- MAIN ----------------
 
-# Check mrtrix3 version
-if [ $mrtrix_version_revision_major -eq 2 ]; then
-	mrtrix3new=0
-	kul_echo "you are using an older version of MRTrix3 $mrtrix_version_revision_major"
-	kul_echo "this is not supported. Exitting"
-	exit 1
-elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -lt 100 ]; then
-	mrtrix3new=1
-	kul_echo "you are using a new version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor but not the latest"
-elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -gt 100 ]; then
-	mrtrix3new=2
-	kul_echo "you are using the newest version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor"
-else 
-	kul_echo "cannot find correct mrtrix versions - exitting"
-	exit 1
-fi
-
 # start
-bids_subj=BIDS/sub-${subj}
+bids_subj=BIDS/sub-${participant}
 
 # Either a session is given on the command line
 # If not the session(s) need to be determined.
 if [ $s_flag -eq 1 ]; then
 
     # session is given on the command line
-    search_sessions=BIDS/sub-${subj}/ses-${ses}
+    search_sessions=BIDS/sub-${participant}/ses-${ses}
 
 else
 
     # search if any sessions exist
-    search_sessions=($(find BIDS/sub-${subj} -type d | grep dwi))
+    search_sessions=($(find BIDS/sub-${participant} -type d | grep dwi))
 
 fi    
  
@@ -188,7 +171,7 @@ long_bids_subj=${search_sessions[$i]}
 bids_subj=${long_bids_subj%dwi}
 
 # Create the Directory to write preprocessed data in
-preproc=dwiprep/sub-${subj}/$(basename $bids_subj) 
+preproc=dwiprep/sub-${participant}/$(basename $bids_subj) 
 #echo $preproc
 
 # Directory to put raw mif data in
@@ -212,9 +195,9 @@ kul_echo "Welcome to KUL_dwiprep_anat $v - $d"
 mkdir -p T1w
 mkdir -p dwi_reg
 
-fmriprep_subj=fmriprep/"sub-${subj}"
-fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-preproc_T1w.nii.gz"
-fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-brain_mask.nii.gz"
+fmriprep_subj=fmriprep/"sub-${participant}"
+fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${participant}_desc-preproc_T1w.nii.gz"
+fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${participant}_desc-brain_mask.nii.gz"
 ants_anat_tmp=T1w/tmp.nii.gz
 ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
 
@@ -226,7 +209,6 @@ if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
     fslmaths $fmriprep_anat -mas $fmriprep_anat_mask $ants_anat_tmp
 
     # Transforming the T1w to fmriprep space
-    #xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
     xfm_search=($(find ${cwd}/${fmriprep_subj} -type f -name "*from-orig_to-T1w_mode-image_xfm*" ! -name "*gadolinium*" ))
     num_xfm=${#xfm_search[@]}
     kul_echo "  Xfm files: number : $num_xfm"
@@ -436,13 +418,13 @@ if [ ! -f log/status.freesurfer.done ]; then
 
     kul_echo " Starting with additional freesurfer processing..."
     # test for location in bids_derivatives
-    #echo ${cwd}/BIDS/derivatives/freesurfer/sub-${subj}
-    if [ -d ${cwd}/BIDS/derivatives/freesurfer/sub-${subj} ]; then 
+    #echo ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
+    if [ -d ${cwd}/BIDS/derivatives/freesurfer/sub-${participant} ]; then 
         fs_subject_dir="${cwd}/BIDS/derivatives/freesurfer"
-        fs_subj="sub-${subj}"
+        fs_subj="sub-${participant}"
     else
-        fs_subject_dir="${cwd}/freesurfer/sub-${subj}"
-        fs_subj=$subj
+        fs_subject_dir="${cwd}/freesurfer/sub-${participant}"
+        fs_subj=$participant
     fi
     fs_loc="${fs_subject_dir}/${fs_subj}"
     kul_echo " location of freesurfer: $fs_loc"

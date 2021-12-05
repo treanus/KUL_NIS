@@ -11,6 +11,7 @@ kul_main_dir=`dirname "$0"`
 script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 # $cwd & $log_dir is made in main_functions
+kul_synb0_fork=0
 
 # FUNCTIONS --------------
 
@@ -239,7 +240,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 		rm $synb0_scratch/INPUTS/T1_full.nii.gz
 		rm $synb0_scratch/INPUTS/b0_as_T1.nii.gz		
 
-		kul_synb0_fork=1
+
 		if [ $kul_synb0_fork -eq 1 ]; then
 
 			hd-bet -i $synb0_scratch/INPUTS/T1.nii.gz -o $synb0_scratch/INPUTS/T1_masked

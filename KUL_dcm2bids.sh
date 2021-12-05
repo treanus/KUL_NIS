@@ -1394,7 +1394,7 @@ else
 fi
 
 dcm2bids  -d "${tmp}" -p $subj $dcm2bids_session -c $bids_config_json_file \
-    -o $bids_output -l DEBUG --clobber > $dcm2niix_log_file
+    -o $bids_output -l DEBUG --clobber --forceDcm2niix > $dcm2niix_log_file
 
 
 # Multi Echo func needs extra work. dcm2bids does not convert these correctly. "run" needs to be "echo"

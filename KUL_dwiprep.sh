@@ -15,7 +15,7 @@ version="v1.3 - dd 27/11/2021"
 kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
-# $cwd & $log_dir is made in main_functions
+# $cwd, mrtrix3new & $log_dir is made in main_functions
 
 # --------------------------------------------------------------------------------------------------------
 # function Usage
@@ -180,24 +180,6 @@ OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
 
 #d=$(date "+%Y-%m-%d_%H-%M-%S")
 #log=log/log_${d}.txt
-
-
-# Check mrtrix3 version
-if [ $mrtrix_version_revision_major -eq 2 ]; then
-	mrtrix3new=0
-	kul_echo "you are using an older version of MRTrix3 $mrtrix_version_revision_major"
-	kul_echo "this is not supported. Exitting"
-	exit 1
-elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -lt 100 ]; then
-	mrtrix3new=1
-	kul_echo "you are using a new version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor but not the latest"
-elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -gt 100 ]; then
-	mrtrix3new=2
-	kul_echo "you are using the newest version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor"
-else 
-	kul_echo "cannot find correct mrtrix versions - exitting"
-	exit 1
-fi
 
 if [[ $synb0 -eq 1 ]] && [[ $mrtrix3new -lt 2 ]]; then
 	kul_echo "Synb0 usage needs a newer version of MRTrix3 than the one you have installed. Please update to 3.0.3-xxx > 100"

@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 # Requires Mrtrix3, FSL, ants
@@ -7,7 +7,13 @@
 # @ Ahmed Radwan - UZ/KUL - ahmed.radwan@uzleuven.be
 #
 # v0.1 - dd 19/01/2019 - jurassic version
-v="v0.1 - dd 19/01/2019"
+version="v0.2 - dd 05/12/2021"
+
+kul_main_dir=$(dirname "$0")
+script=$(basename "$0")
+source $kul_main_dir/KUL_main_functions.sh
+# $cwd & $log_dir is made in main_functions
+
 
 # To Do
 #  - make this thing work!
@@ -24,15 +30,7 @@ v="v0.1 - dd 19/01/2019"
 
 
 # -----------------------------------  MAIN  ---------------------------------------------
-# this script defines a few functions:
-#  - Usage (for information to the novice user)
-#  - kul_e2cl (for logging)
-#
-# this script uses "preprocessing control", i.e. if some steps are already processed it will skip these
 
-kul_main_dir=`dirname "$0"`
-source $kul_main_dir/KUL_main_functions.sh
-cwd=$(pwd)
 
 # FUNCTIONS --------------
 
@@ -53,19 +51,14 @@ Example:
 
 Required arguments:
 
-     -p:  praticipant (BIDS name of the subject)
+     -p:  praticipant
 
 
 Optional arguments:
      
-     -s:  session (BIDS session)
+     -s:  session
      -n:  number of cpu for parallelisation
-     -a:  options to pass to atlas based parcellation
-     -i:  options to pass to ICA
-     -c:  options to pass to clustering
-	 -t:  options to pass to FEAT
-	 -r:  high_res rendering in three orthogonal planes (WIP: only for FEAT)
-     -v:  verbose
+     -v:  verbose (0=silent, 1=normal, 2=verbose; default=1)
 
 
 USAGE
@@ -78,8 +71,7 @@ USAGE
 # 
 # Set defaults
 ncpu=6 # default if option -n is not given
-silent=1 # default if option -v is not given
-# Specify additional options for FSL eddy
+verbose_level=1
 
 
 # Set required options
@@ -92,12 +84,12 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "p:s:n:d:t:e:v" OPT; do
+    while getopts "p:s:n:v:" OPT; do
 
         case $OPT in
         p) #participant
             p_flag=1
-            subj=$OPTARG
+            participant=$OPTARG
         ;;
         s) #session
             s_flag=1
@@ -106,23 +98,8 @@ else
         n) #ncpu
             ncpu=$OPTARG
         ;;
-        a) #atlas_r2r
-            atlas_opts=$OPTARG
-        ;;
-        i) #ica_opts
-            ica_opts=$OPTARG
-        ;;
-        c) #cluster_opts
-            clust_opts=$OPTARG
-		;;
-	    t) #feat_opts
-	       	feat_opts=$OPTARG
-        ;;
-		r) # High res render
-			HR_rend=$OPTARG
-		;;
         v) #verbose
-            silent=0
+            verbose_level=$OPTARG
 	    ;;
         \?)
             echo "Invalid option: -$OPTARG" >&2
@@ -140,4 +117,217 @@ else
 
     done
 
+fi
+
+# check for required options
+if [ $p_flag -eq 0 ] ; then
+	echo
+	echo "Option -p is required: give the BIDS name of the participant." >&2
+	echo
+	exit 2
+fi
+
+# Functions --------------------------------------------------------
+function KUL_antsApply_Transform {
+    antsApplyTransforms -d 3 --float 1 \
+        --verbose 1 \
+        -i $input \
+        -o $output \
+        -r $reference \
+        -t $transform \
+        -n Linear
+}
+
+function KUL_compute_SPM_matlab {
+    
+    fmriresults="$computedir/RESULTS/stats_$fmrifile"
+    # clean a possible old result, 
+    rm -rf $fmriresults
+    mkdir -p $fmriresults
+    pcf="${scriptsdir}/stats_${fmrifile}.m" #participant config file
+    pjf="${scriptsdir}/stats_${fmrifile}_job.m" #participant job file
+    # get rid of - in filename, since this breaks -r in matlab
+    pcf=${pcf/run-/run}
+    pjf=${pjf/run-/run}
+    #echo "$pcf -- $pjf"
+    cp $tcf $pcf
+    cp $tjf $pjf
+    sed -i.bck "s|###JOBFILE###|$pjf|" $pcf
+    sed -i.bck "s|###FMRIDIR###|$fmridatadir|" $pjf
+    sed -i.bck "s|###FMRIFILE###|$fmrifile|" $pjf
+    sed -i.bck "s|###FMRIRESULTS###|$fmriresults|" $pjf
+
+    $matlab_exe -nodisplay -nosplash -nodesktop -r "run('$pcf');exit;"
+            
+    result=$computedir/RESULTS/MNI/${fmrifile}_space-MNI152NLin6Asym.nii
+    cp $fmriresults/spmT_0001.nii $result
+    
+    global_result=${globalresultsdir}/SPM_${fmrifile}.nii
+            
+    # since SPM analysis was in MNI space, we transform back in native space
+    input=$result
+    output=$global_result
+    transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
+    find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
+    reference=${find_T1w[0]}
+    if [ $KUL_DEBUG -gt 0 ]; then
+        echo "input=$input"
+        echo "output=$output"
+        echo "transform=$transform"
+        echo "reference=$reference"
+    fi
+    KUL_antsApply_Transform
+
+    # compute the gray matter mask
+    gm_mask="$fmriprepdir/anat/sub-${participant}_label-GM_probseg.nii.gz"
+    gm_mask2=$computedir/RESULTS/gm_mask_${fmrifile}.nii.gz
+    gm_mask3=$computedir/RESULTS/gm_mask_smooth_${fmrifile}.nii.gz
+    mrgrid $gm_mask regrid -template $global_result $gm_mask2 -force
+    mrfilter $gm_mask2 smooth $gm_mask3 -force
+
+    # compute a gray matter masked SPM result
+    #gm_result_global=${globalresultsdir}/SPM_${fmrifile}_gm.nii
+    #mrcalc $global_result $gm_mask3 0.1 -gt -mul $gm_result_global -force
+
+} 
+
+# MAIN --------------------------------------------------------------
+matlab_exe=$(which matlab)
+
+if [ $KUL_DEBUG -gt 0 ]; then 
+    echo "matlab lives at $matlab_exe"
+fi
+
+if [[ -z "$matlab_exe" ]]; then
+    echo "Matlab is required but not found on path. Exitting"
+    exit 1
+fi
+
+
+KUL_check_participant
+
+
+#  setup variables
+kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute
+computedir="$kulderivativesdir/sub-$participant/SPM"
+fmridatadir="$computedir/fmridata"
+scriptsdir="$computedir/scripts"
+fmriprepdir="${cwd}/fmriprep/sub-$participant"
+globalresultsdir=$cwd/RESULTS/sub-$participant/SPM
+
+
+if [ $KUL_DEBUG -gt 0 ]; then 
+    echo "kulderivativesdir: $kulderivativesdir"
+    echo "fmridatadir: $fmridatadir"
+    echo "fmriprepdir: $fmriprepdir"
+    echo "globalresultsdir: $globalresultsdir"
+fi
+
+mkdir -p $fmridatadir
+mkdir -p $scriptsdir
+mkdir -p $computedir/RESULTS/MNI
+mkdir -p $globalresultsdir
+
+fmriprep_output_type="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
+
+
+silent=0
+
+if [ $silent -eq 1 ] ; then
+    str_silent_SPM=" >> KUL_LOG/sub-${participant}_SPM.log"
+fi
+
+
+# Provide the anatomy
+#cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/Anat/T1w.nii.gz
+#gunzip -f $globalresultsdir/Anat/T1w.nii.gz
+
+if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
+    echo "Computing SPM"
+    
+    # find the output of fmriprep
+    fmriprep_match=($(find $fmriprepdir/func -name "*${fmriprep_output_type}.gz" -type f))
+
+    # find the unique tasks
+    tasks=()
+    for match in ${fmriprep_match[@]}; do
+        #echo ${match[@]}
+        match_tmp1=${match[@]#*_task-}
+        #echo ${match_tmp1[@]}
+        match_tmp2=${match_tmp1[@]%_space*}
+        #echo ${match_tmp2[@]}
+        match_tmp3=${match_tmp2[@]%_run*}
+        tasks=(${tasks[@]} $match_tmp3)
+    done
+    #echo ${tasks[@]}
+    uniqe_tasks=($(for i in ${tasks[@]}; do echo $i; done | sort -u))
+    #echo ${uniqe_tasks[@]}
+
+
+    # we loop over the unique tasks
+    for task in ${uniqe_tasks[@]}; do
+  
+        if [[ ! "$task" = *"rest"* ]]; then
+            echo " Analysing task $task"
+            task_and_type="*${task}*${fmriprep_output_type}"
+            #echo $task_and_type
+            
+            # find the number of runs
+            runs=($(find $fmriprepdir/func -name "*${task_and_type}.gz" -type f))
+            
+            # unzip each run
+            for run in ${runs[@]}; do
+                #echo $run
+                cp $run $fmridatadir
+                shortrun=$(basename $run)
+                echo " gunzipping $shortrun"
+                gunzip -f $fmridatadir/$shortrun
+            done
+
+            n_runs=${#runs[@]}
+            #echo $n_runs     
+
+            i_run=1
+            for run in ${runs[@]}; do
+            
+                #echo $run
+                tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run.m" #template config file
+                tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run_job.m" #template job file
+                if [ $n_runs -gt 1 ]; then
+                    fmrifile="${task}_run-${i_run}"
+                elif [ $n_runs -eq 1 ]; then
+                    fmrifile="${task}"
+                fi
+
+                echo " computing $fmrifile"
+                KUL_compute_SPM_matlab
+                ((i_run++))
+            
+            done
+
+            #  the template files in KNS for SPM analysis
+            if [ $n_runs -gt 1 ]; then
+                if [ $n_runs -eq 2 ]; then
+                    tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs.m" #template config file
+                    tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs_job.m" #template job file
+                else
+                    "Error: Not yet defined more than 2 runs. Exitting"
+                    exit 1
+                fi
+
+                fmrifile="${task}"
+                echo " computing aggregate n=${n_runs} ${fmrifile}"
+                KUL_compute_SPM_matlab
+            fi
+
+        fi
+    done
+
+    # cleanup
+    rm -rf $fmridatadir
+
+    #touch KUL_LOG/sub-${participant}_SPM.done
+    echo "Done computing SPM"
+else
+    echo "SPM analysis already done"
 fi

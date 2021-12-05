@@ -41,6 +41,16 @@ function KUL_task_exec {
         exit 1
     fi
 
+    # task_participant, if undefined, and only 1 task_in, set to current participant, otherwise exit
+    if [[ -z "$task_participant" ]]; then
+        if [ ${#task_in[@]} -eq 1 ]; then
+            task_participant[0]=$participant
+        else
+            echo "task_participant is not defined, exitting"
+            exit 1
+        fi
+    fi
+
     #local pidsArray=${task_in_pid[@]} # pids to wait for, separated by semi-colon
     #local procsArray=${task_in_name[@]} # name of procs to wait for, separated by semi-colon 
     local pidsArray=() # pids to wait for, separated by semi-colon
@@ -71,6 +81,7 @@ function KUL_task_exec {
         echo "kul_log_files: $kul_log_files"
         echo "script: $script"
         echo "task_in: ${task_in[@]}"
+        echo "task_participant: ${task_participant[@]}"
     fi
 
     
@@ -91,23 +102,25 @@ function KUL_task_exec {
         
 
         if [[ -z "$kul_process_name" ]]; then
-            task_in_name[$local_n_tasks]="$(echo ${local_task_in:0:20} [instance $local_n_tasks])"
+            task_in_name[$local_n_tasks]="$(echo ${local_task_in:0:20} [sub-${task_participant[local_n_tasks]}])"
         else
-            task_in_name[$local_n_tasks]="$kul_process_name [instance $local_n_tasks]"
+            task_in_name[$local_n_tasks]="$kul_process_name [sub-${task_participant[local_n_tasks]}]"
         fi
 
-        if [ ! -d "$local_main_logdir" ]; then
-            mkdir "$local_main_logdir"
+        local local_main_logdir_participant="$local_main_logdir/sub-${task_participant[local_n_tasks]}"
+
+        if [ ! -d "$local_main_logdir_participant" ]; then
+            mkdir "$local_main_logdir_participant"
         fi
 
         if [[ -z "$kul_log_files" ]]; then 
             task_in_name_nospaces_tmp="${task_in_name[$local_n_tasks]// /_}"
             task_in_name_nospaces="${task_in_name_nospaces_tmp////_}"
-            kul_log_file[$local_n_tasks]="$local_main_logdir/"${task_in_name_nospaces}".log"
-            kul_errorlog_file[$local_n_tasks]="$local_main_logdir/"${task_in_name_nospaces}".error.log"
+            kul_log_file[$local_n_tasks]="$local_main_logdir_participant/"${task_in_name_nospaces}".log"
+            kul_errorlog_file[$local_n_tasks]="$local_main_logdir_participant/"${task_in_name_nospaces}".error.log"
         else
-            kul_log_file[$local_n_tasks]="$local_main_logdir/"${kul_log_files}_[$local_n_tasks].log""
-            kul_errorlog_file[$local_n_tasks]="$local_main_logdir/"${kul_log_files}_[$local_n_tasks].error.log""
+            kul_log_file[$local_n_tasks]="$local_main_logdir_participant/"${kul_log_files}.log""
+            kul_errorlog_file[$local_n_tasks]="$local_main_logdir_participant/"${kul_log_files}.error.log""
         fi
 
         ### STEP 2 - execute the task_in
@@ -243,6 +256,7 @@ function KUL_task_exec {
     fi
 
     unset task_in
+    unset task_participant
 
     # return errorcount
 
@@ -269,7 +283,7 @@ function kul_echo {
     #    echo $1
     #fi
     if [ $verbose_level -eq 1 ]; then
-        #echo "log: $log"
+        echo "log: $log"
         echo "$1" >> ${log}
     elif [ $verbose_level -eq 2 ]; then
         echo $1 | tee -a ${log}
@@ -315,6 +329,14 @@ function kul_e2cl {
 }
 
 
+function KUL_check_participant {
+    #echo ${cwd}/BIDS/sub-${participant}
+    if [ ! -d ${cwd}/BIDS/sub-${participant} ]; then
+        echo "Error: participant ${participant} does not exists."
+        exit 1
+    fi
+}
+
 
 ### MAIN ############################################################################################
 
@@ -327,9 +349,12 @@ script_start_time=$SECONDS
 # export KUL_DEBUG=1 in terminal to debug
 if [[ -z "$KUL_DEBUG" ]]; then
     KUL_DEBUG=0
-elif [ $KUL_DEBUG -eq 1]; then
+elif [ $KUL_DEBUG -gt 0 ]; then 
+    echo "KUL_DEBUG is set"
+elif [ $KUL_DEBUG -gt 1 ]; then
     set -x
 fi
+
 
 
 machine_type=$(uname)
@@ -340,7 +365,23 @@ mrtrix_version_major=$(mrconvert | head -1 | cut -d'.' -f1 | cut -d' ' -f2)
 mrtrix_version_minor=$(mrconvert | head -1 | cut -d'.' -f2)
 mrtrix_version_revision_major=$(mrconvert | head -1 | cut -d'.' -f3 | cut -d'-' -f 1)
 mrtrix_version_revision_minor=$(mrconvert | head -1 | cut -d'-' -f2)
- 
+if [ $mrtrix_version_revision_major -eq 2 ]; then
+	mrtrix3new=0
+	kul_echo "you are using an older version of MRTrix3 $mrtrix_version_revision_major"
+	kul_echo "this is not supported. Exitting"
+	exit 1
+elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -lt 100 ]; then
+	mrtrix3new=1
+	kul_echo "you are using a new version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor but not the latest"
+elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -gt 100 ]; then
+	mrtrix3new=2
+	kul_echo "you are using the newest version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor"
+else 
+	kul_echo "cannot find correct mrtrix versions - exitting"
+	exit 1
+fi
+
+
 # -- Set global defaults --
 #silent=1
 #tmp=/tmp
