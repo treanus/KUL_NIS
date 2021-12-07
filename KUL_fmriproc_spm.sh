@@ -187,7 +187,7 @@ function KUL_compute_SPM_matlab {
     result=$computedir/RESULTS/MNI/${fmrifile}_space-MNI152NLin6Asym.nii
     cp $fmriresults/spmT_0001.nii $result
     
-    global_result=${globalresultsdir}/SPM_${fmrifile}.nii
+    global_result=${globalresultsdir}/afMRI_${fmrifile}.nii
             
     # since SPM analysis was in MNI space, we transform back in native space
     input=$result

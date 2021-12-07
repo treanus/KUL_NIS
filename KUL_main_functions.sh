@@ -189,7 +189,7 @@ function KUL_task_exec {
         if [ $((($exec_time + 1) % $every_time)) -eq 0 ]; then
             if [ $log_ttime -ne $exec_time ]; then
                 log_ttime=$exec_time
-                log_min=$(echo "scale=2; $log_ttime/60" | bc)
+                log_min=$(echo "scale=1; $log_ttime/60" | bc)
                 if [ $kul_verbose_level -gt 0 ]; then
                     tput dim
                     echo "  Current tasks [${procsArray[@]}] still running after $log_min minutes with pids [${pidsArray[@]}]."
@@ -216,7 +216,7 @@ function KUL_task_exec {
 
                     errorcount=$((errorcount+1))
                     fail_exec_time_seconds=$(($SECONDS - $seconds_begin))
-                    fail_exec_time_minutes=$(echo "scale=2; $final_exec_time_seconds/60" | bc)
+                    fail_exec_time_minutes=$(echo "scale=1; $final_exec_time_seconds/60" | bc)
                     tput bold; tput setaf 1
                     echo "  *** WARNING! **** Process ${procsArray[c]} with pid $pid might have failed after $fail_exec_time_minutes minutes. (with exitcode [$result]). Check the ${kul_errorlog_file[$c]} log-file" | tee -a ${kul_errorlog_file[$c]}
                     tput sgr0
@@ -283,7 +283,7 @@ function kul_echo {
     #    echo $1
     #fi
     if [ $verbose_level -eq 1 ]; then
-        echo "log: $log"
+        #echo "log: $log"
         echo "$1" >> ${log}
     elif [ $verbose_level -eq 2 ]; then
         echo $1 | tee -a ${log}

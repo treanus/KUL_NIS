@@ -317,9 +317,12 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 	#echo $long_bids_participant
 	bids_participant=${long_bids_participant%dwi}
 
+	echo "long_bids_participant: $long_bids_participant"
+	echo "bids_participant: $bids_participant"
+
 	# Create the Directory to write preprocessed data in
 	preproc=${cwd}/dwiprep/sub-${participant}/$(basename $bids_participant)
-	#echo $preproc
+	echo "preproc: $preproc"
 
 	# Directory to put raw mif data in
 	raw=${preproc}/raw
@@ -345,6 +348,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 	task_in="KUL_dwiprep_convert"
 	KUL_task_exec $verbose_level "kul_dwiprep part 1: convert data to mif" "1_convert_mif"
 
+	echo "number_of_bids_dwi_found: $number_of_bids_dwi_found"
 
 	# Only keep the desired part of the dMRI
 	# do this if rev_only_topup -eq 1, but not if there is only 1 dwi file (which means there is no rev phase)
@@ -357,6 +361,10 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			pe_directions_present=($(mrinfo ${preproc}/dwi_orig.mif -petable | sort | uniq -c))
 			pe_first_count=${pe_directions_present[0]}
 			pe_second_count=${pe_directions_present[5]}
+			echo "preproc: $preproc"
+			echo "pe_directions_present: ${pe_directions_present[@]}"
+			echo "pe_first_count: $pe_first_count"
+			echo "pe_second_count: $pe_second_count"
 			if [ $pe_first_count -gt $pe_second_count ]; then
 				pe_direction_to_keep="${pe_directions_present[1]},${pe_directions_present[2]},${pe_directions_present[3]}"
 			else
@@ -385,7 +393,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		kul_echo "Making an initial brain mask..."
 		dwi2mask_image_in=${dwi_orig}
 		dwi2mask_mask_out="dwi/dwi_orig_mask.nii.gz"
-		dwi2mask_message="kul_dwiprep- part1: make an initial mask"
+		dwi2mask_message="kul_dwiprep part1: make an initial mask"
 		dwi2mask_logfile="1_convert_mif"
 		kul_dwi2mask
 	fi

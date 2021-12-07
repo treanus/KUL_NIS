@@ -4,8 +4,8 @@
 # Requires matlab fmriprep
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
-# 11/11/2021
-version="0.7"
+# 07/12/2021
+version="0.8"
 
 kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
@@ -574,113 +574,6 @@ else
 fi
 }
 
-function KUL_compute_SPM_matlab {
-    fmriresults="$computedir/RESULTS/stats_$shorttask"
-    mkdir -p $fmriresults
-    pcf="${scriptsdir}/stats_${shorttask}.m" #participant config file
-    pjf="${scriptsdir}/stats_${shorttask}_job.m" #participant job file
-    # get rid of - in filename, since this breaks -r in matlab
-    pcf=${pcf/run-/run}
-    pjf=${pjf/run-/run}
-    #echo "$pcf -- $pjf"
-    cp $tcf $pcf
-    cp $tjf $pjf
-    sed -i.bck "s|###JOBFILE###|$pjf|" $pcf
-    sed -i.bck "s|###FMRIDIR###|$fmridatadir|" $pjf
-    sed -i.bck "s|###FMRIFILE###|$fmrifile|" $pjf
-    sed -i.bck "s|###FMRIRESULTS###|$fmriresults|" $pjf
-    $matlab_exe -nodisplay -nosplash -nodesktop -r "run('$pcf');exit;"
-            
-    result=$computedir/RESULTS/MNI/${shorttask}_space-MNI152NLin6Asym.nii
-    cp $fmriresults/spmT_0001.nii $result
-            
-    result_global=$cwd/RESULTS/sub-$participant/SPM/SPM_${shorttask}.nii
-            
-    # since SPM analysis was in MNI space, we transform back in native space
-    input=$result
-    output=$result_global
-    transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
-    find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
-    reference=${find_T1w[0]}
-    #echo "input=$input"
-    #echo "output=$output"
-    #echo "transform=$transform"
-    #echo "reference=$reference"
-    KUL_antsApply_Transform
-
-    gm_mask="$fmriprepdir/../anat/sub-${participant}_label-GM_probseg.nii.gz"
-    gm_mask2=$computedir/RESULTS/gm_mask_${shorttask}.nii.gz
-    gm_result_global=$cwd/RESULTS/sub-$participant/SPM/SPM_${shorttask}_gm.nii
-    mrgrid $gm_mask regrid -template $result_global $gm_mask2
-    gm_mask3=$computedir/RESULTS/gm_mask_smooth_${shorttask}.nii.gz
-    mrfilter $gm_mask2 smooth $gm_mask3
-    #mrcalc $result_global $gm_mask3 0.3 -gt -mul $gm_result_global
-
-} 
-
-function KUL_compute_SPM {
-    #  setup variables
-    computedir="$kulderivativesdir/sub-$participant/SPM"
-    fmridatadir="$computedir/fmridata"
-    scriptsdir="$computedir/scripts"
-    fmriprepdir="fmriprep/sub-$participant/func"
-    searchtask="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
-    matlab_exe=$(which matlab)
-    if [ $silent -eq 1 ] ; then
-        str_silent_SPM=" >> KUL_LOG/sub-${participant}_SPM.log"
-    fi
-    #  the template files in KNT for SPM analysis
-    tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run.m" #template config file
-    tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_1run_job.m" #template job file
-
-    mkdir -p $fmridatadir
-    mkdir -p $scriptsdir
-    mkdir -p $computedir/RESULTS/MNI
-
-    # Provide the anatomy
-    #cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/Anat/T1w.nii.gz
-    #gunzip -f $globalresultsdir/Anat/T1w.nii.gz
-
-    if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
-        echo "Computing SPM"
-        tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
-        #echo ${tasks[@]}
-
-        # we loop over the found tasks
-        for task in ${tasks[@]}; do
-            d1=${task#*_task-}
-            shorttask=${d1%_space*}
-            #echo "$task -- $shorttask"
-            if [[ ! "$shorttask" = *"rest"* ]]; then
-                echo " Analysing task $shorttask"
-                fmrifile="${shorttask}${searchtask}"
-                cp $fmriprepdir/*$fmrifile.gz $fmridatadir
-                gunzip -f $fmridatadir/*$fmrifile.gz
-                task_in="KUL_compute_SPM_matlab"
-                eval $taks_in
-                #KUL_task_exec $verbose_level "SPM $shorttask" "${KUL_LOG_DIR}/5_spm_$shorttask"
-
-                # do the combined analysis
-                if [[ "$shorttask" == *"run-2" ]]; then
-                    echo "this is run2, we run full analysis now" 
-                    shorttask=${shorttask%_run-2}
-                    #echo $shorttask
-                    tcf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs.m" #template config file
-                    tjf="$kul_main_dir/share/spm12/spm12_fmri_stats_2runs_job.m" #template job file
-                    fmrifile="${shorttask}"
-                    task_in="KUL_compute_SPM_matlab $str_silent_SPM"
-                    eval $task_in
-                    #KUL_task_exec $verbose_level "SPM $shorttask" "${KUL_LOG_DIR}/5_spm_$shorttask"
-                fi
-            
-            fi
-        done
-        touch KUL_LOG/sub-${participant}_SPM.done
-        echo "Done computing SPM"
-    else
-        echo "SPM analysis already done"
-    fi
-}
 
 function KUL_segment_tumor {
     
@@ -814,8 +707,12 @@ function KUL_run_FWT {
         -n $ncpu"
         KUL_task_exec $verbose_level "KUL_FWT tract generation" "FWTtck"
 
-        ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
-        ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_BT_iFOD2.tck $globalresultsdir/Tracto/
+        #ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
+        #ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_BT_iFOD2.tck $globalresultsdir/Tracto/
+        mcp "$kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz" \
+            "$globalresultsdir/Tracto/Tract-csd_#2.nii.gz"
+        mcp "$kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_BT_iFOD2.tck" \
+            "$globalresultsdir/Tracto/Tract-csd_#2.tck"
         pdfunite $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
         touch KUL_LOG/sub-${participant}_FWT.done
         
@@ -898,7 +795,7 @@ if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
 
             # since Melodic analysis was in MNI space, we transform back in native space
             input=$network_file
-            output=$globalresultsdir/Melodic/melodic_${shorttask}_${network_name}_ic${ic}.nii
+            output=$globalresultsdir/Melodic/rsfMRI_${shorttask}_${network_name}_ic${ic}.nii
             transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
             find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
             reference=${find_T1w[0]}
@@ -954,7 +851,7 @@ function KUL_register_anatomical_images {
             output="${globalresultsdir}/Anat/${source_mri_label}_phase_reg2_T1w.nii.gz"
             reference=$target_mri
             task_in="KUL_antsApply_Transform"
-            KUL_task_exec $verbose_level "Applying the rigid resgistration of SWIm to SWIp too" "3_register_anat"
+            KUL_task_exec $verbose_level "Applying the rigid registration of SWIm to SWIp too" "3_register_anat"
         fi
         touch $check
     else 
@@ -1026,8 +923,12 @@ wait
 
 # STEP 4 - run SPM & melodic
 if [ $n_fMRI -gt 0 ];then
-    KUL_compute_SPM &  
+    
+    task_in="KUL_fmriproc_spm.sh -p $participant"
+    KUL_task_exec $verbose_level "KUL_fmriproc_spm" "4_fmriproc_spm"
+
     KUL_compute_melodic &
+
 fi
 wait 
 
