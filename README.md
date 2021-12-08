@@ -56,3 +56,8 @@ Contributors: A. Radwan
 Requires Mrtrix3, FSL, ants, dcm2niix, docker, fmriprep and mriqc
 
 @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
+
+### Changes made by AR:
+1- Added KUL_radsyndisco.sh to allow a local run of Synb0DISCO from the fork -> https://github.com/Rad-dude/Synb0-DISCO.git
+2- Added UKBB_fMRI_mod templates (modified from UKBB_fMRI template by warping to MNI space) under /atlasses/Temp_4_KUL_dwiprep
+3- Modified KUL_dwifslpreproc to use local version of synb0disco via KUL_radsyndisco.sh

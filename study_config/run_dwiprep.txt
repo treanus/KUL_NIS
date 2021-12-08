@@ -14,15 +14,16 @@ BIDS_participants: 001
 #  options: look at the our webpage (in most cases leaving empty is fine)
 #  synbzero_disco_instead_of_topup: 1 for using it (see webpage)
 #  rev_phase_for_topup_only: 1 for using the rev_phase images only for topup
+#  dwi2mask_method: the method to use for masking (3=legacy)
 #  ncpu: numer of cpu's to use for each subject 
 #  simultaneous: defines how many subjects to process simultaneously
 do_dwiprep: 1
 dwiprep_options: dhollander
-synbzero_disco_instead_of_topup: 1
-topup_options: 
-rev_phase_for_topup_only: 1
+synbzero_disco_instead_of_topup: 0
+rev_phase_for_topup_only: 0
+dwi2mask_method: 3
 eddy_options: --slm=linear --repol
-dwiprep_ncpu: 4
+dwiprep_ncpu: 15
 dwiprep_simultaneous: 1
 
 

@@ -1,0 +1,8 @@
+visual
+sensorimotor
+dorsalattention
+ventralattention
+limbic
+default
+language_left
+language_right

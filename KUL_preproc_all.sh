@@ -2,8 +2,8 @@
 # @ Stefan Sunaert & Ahmed Radwan- UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 06/11/2018 - first version
-v="v1.1 - dd 21/01/2021"
-
+version="v1.1 - dd 21/01/2021"
+verbose_level=1
 # This is the main script of the KUL_NeuroImaging_Toools
 #
 # Description:
@@ -30,8 +30,8 @@ v="v1.1 - dd 21/01/2021"
 
 kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
-cwd=$(pwd)
 source $kul_main_dir/KUL_main_functions.sh
+# $cwd & $log_dir is made in main_functions
 
 # A Function to provide Usage information
 #   - gives information about the script
@@ -84,115 +84,115 @@ USAGE
 # A Function to start mriqc processing (in parallel)
 function task_mriqc_participant {
 
-# check whether to use singularity-mriqc
-mriqc_singularity=0
-#echo $KUL_use_mriqc_singularity
-if [ -z $KUL_use_mriqc_singularity ]; then
+    # check whether to use singularity-mriqc
+    mriqc_singularity=0
+    #echo $KUL_use_mriqc_singularity
+    if [ -z $KUL_use_mriqc_singularity ]; then
 
-    kul_echo "  KUL_use_mriqc_singularity not set, using docker"
+        kul_echo "  KUL_use_mriqc_singularity not set, using docker"
+        
+    elif [ $KUL_use_mriqc_singularity -eq 1 ]; then
+        
+        kul_echo "  KUL_use_mriqc_singularity is set to 1, using it"
+        mriqc_singularity=1
+
+    fi
+
+    #echo $mriqc_singularity
+
+    mriqc_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
+    mriqc_log="${log_dir}/mriqc_${mriqc_log_p}.txt"
+    mriqc_act="${log_dir}/mriqc_${mriqc_log_p}_act"
+    #mkdir -p ${preproc}/log/mriqc
+
+    kul_e2cl " started (in parallel) mriqc on participant(s) $BIDS_participant (with options $mriqc_options, using $ncpu_mriqc cores, logging to $mriqc_log)" $log
+
+    if [ $mriqc_singularity -eq 1 ]; then 
+
+    mkdir -p ./mriqc
+    mkdir -p ./mriqc_work_${mriqc_log_p}
+
+    local task_mriqc_cmd=$(echo "singularity run --cleanenv \
+    -B ${cwd}:/work \
+    $KUL_mriqc_singularity \
+    --participant_label $BIDS_participant \
+    $mriqc_options \
+    -w /work/mriqc_work_${mriqc_log_p} \
+    --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
+    /work/${bids_dir} /work/mriqc participant \
+    > $mriqc_log 2>&1 ") 
+
+    else
+
+    mkdir ${cwd}/mriqc_home
+    local task_mriqc_cmd=$(echo "docker run -u $(id -u) --tmpfs /run --tmpfs /tmp --rm \
+    -v ${cwd}/mriqc_home:/home/bidsapp/ \
+    -v ${cwd}/${bids_dir}:/data -v ${cwd}/mriqc:/out \
+    poldracklab/mriqc:latest \
+    --participant_label $BIDS_participant \
+    $mriqc_options \
+    --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
+    /data /out participant \
+    > $mriqc_log 2>&1 ") 
+    rm -rf ${cwd}/mriqc_home
     
-elif [ $KUL_use_mriqc_singularity -eq 1 ]; then
-    
-    kul_echo "  KUL_use_mriqc_singularity is set to 1, using it"
-    mriqc_singularity=1
+    fi
 
-fi
+    kul_echo "   using cmd: $task_mriqc_cmd"
 
-#echo $mriqc_singularity
+    # now we start the parallel job
+    if [ $make_pbs_files_instead_of_running -eq 0 ]; then
 
-mriqc_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
-mriqc_log="${preproc}/log/mriqc/mriqc_${mriqc_log_p}.txt"
-mriqc_act="${preproc}/log/mriqc/mriqc_${mriqc_log_p}_act"
-mkdir -p ${preproc}/log/mriqc
+        eval $task_mriqc_cmd &
+        mriqc_pid="$!"
+        kul_echo " mriqc pid is $mriqc_pid"
 
-kul_e2cl " started (in parallel) mriqc on participant(s) $BIDS_participant (with options $mriqc_options, using $ncpu_mriqc cores, logging to $mriqc_log)" $log
+        sleep 2
+        #psrecord $mriqc_pid --log $mriqc_act.txt --plot $mriqc_act.png --interval 30 &
 
-if [ $mriqc_singularity -eq 1 ]; then 
+    else
 
- mkdir -p ./mriqc
- mkdir -p ./mriqc_work_${mriqc_log_p}
+        kul_echo " making a PBS file"
+        mkdir -p VSC
 
- local task_mriqc_cmd=$(echo "singularity run --cleanenv \
- -B ${cwd}:/work \
- $KUL_mriqc_singularity \
- --participant_label $BIDS_participant \
- $mriqc_options \
- -w /work/mriqc_work_${mriqc_log_p} \
- --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
- /work/${bids_dir} /work/mriqc participant \
- > $mriqc_log 2>&1 ") 
+    #    echo $task_mriqc_cmd > VSC/pbs_task_mriqc.txt
+        task_command=$(echo "singularity run --cleanenv \
+    -B \${cwd}:/work \
+    -B \${cwd}:/data \
+    -B \${cwd}:/out \
+    \$KUL_mriqc_singularity \
+    --participant_label \$BIDS_participant \
+    \$mriqc_options \
+    -w /work/mriqc_work_\${mriqc_log_p} \
+    --n_procs \$ncpu_mriqc --ants-nthreads \$ncpu_mriqc_ants --mem_gb \$mem_gb --no-sub \
+    /work/\${bids_dir} /work/mriqc participant \
+    > \$mriqc_log 2>&1 ")
+        #chmod +x VSC/pbs_task_mriqc.sh
 
-else
+        cp $kul_main_dir/VSC/master.pbs VSC/run_mriqc.pbs
 
- mkdir ${cwd}/mriqc_home
- local task_mriqc_cmd=$(echo "docker run -u $(id -u) --tmpfs /run --tmpfs /tmp --rm \
- -v ${cwd}/mriqc_home:/home/bidsapp/ \
- -v ${cwd}/${bids_dir}:/data -v ${cwd}/mriqc:/out \
- poldracklab/mriqc:latest \
- --participant_label $BIDS_participant \
- $mriqc_options \
- --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
- /data /out participant \
- > $mriqc_log 2>&1 ") 
- rm -rf ${cwd}/mriqc_home
- 
-fi
-
-kul_echo "   using cmd: $task_mriqc_cmd"
-
-# now we start the parallel job
-if [ $make_pbs_files_instead_of_running -eq 0 ]; then
-
-    eval $task_mriqc_cmd &
-    mriqc_pid="$!"
-    kul_echo " mriqc pid is $mriqc_pid"
-
-    sleep 2
-    #psrecord $mriqc_pid --log $mriqc_act.txt --plot $mriqc_act.png --interval 30 &
-
-else
-
-    kul_echo " making a PBS file"
-    mkdir -p VSC
-
-#    echo $task_mriqc_cmd > VSC/pbs_task_mriqc.txt
-    task_command=$(echo "singularity run --cleanenv \
- -B \${cwd}:/work \
- -B \${cwd}:/data \
- -B \${cwd}:/out \
- \$KUL_mriqc_singularity \
- --participant_label \$BIDS_participant \
- \$mriqc_options \
- -w /work/mriqc_work_\${mriqc_log_p} \
- --n_procs \$ncpu_mriqc --ants-nthreads \$ncpu_mriqc_ants --mem_gb \$mem_gb --no-sub \
- /work/\${bids_dir} /work/mriqc participant \
- > \$mriqc_log 2>&1 ")
-    #chmod +x VSC/pbs_task_mriqc.sh
-
-    cp $kul_main_dir/VSC/master.pbs VSC/run_mriqc.pbs
-
-    perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_mriqc.pbs
-    perl  -pi -e "s/##CPU##/${pbs_cpu}/g" VSC/run_mriqc.pbs
-    perl  -pi -e "s/##MEM##/${pbs_mem}/g" VSC/run_mriqc.pbs
-    esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-    perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_mriqc.pbs
-    esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-    perl  -pi -e "s/##WALLTIME##/${esc_pbs_walltime}/g" VSC/run_mriqc.pbs
-    esc_pbs_singularity_fmriprep=$(echo $pbs_singularity_fmriprep | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-    perl  -pi -e "s/##FMRIPREP##/${esc_pbs_singularity_fmriprep}/g" VSC/run_mriqc.pbs
-    esc_pbs_singularity_mriqc=$(echo $pbs_singularity_mriqc | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-    perl  -pi -e "s/##MRIQC##/${esc_pbs_singularity_mriqc}/g" VSC/run_mriqc.pbs
-    esc_task_command=$(echo $task_command | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-    perl  -pi -e "s/##COMMAND##/${esc_task_command}/g" VSC/run_mriqc.pbs
+        perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_mriqc.pbs
+        perl  -pi -e "s/##CPU##/${pbs_cpu}/g" VSC/run_mriqc.pbs
+        perl  -pi -e "s/##MEM##/${pbs_mem}/g" VSC/run_mriqc.pbs
+        esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_mriqc.pbs
+        esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##WALLTIME##/${esc_pbs_walltime}/g" VSC/run_mriqc.pbs
+        esc_pbs_singularity_fmriprep=$(echo $pbs_singularity_fmriprep | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##FMRIPREP##/${esc_pbs_singularity_fmriprep}/g" VSC/run_mriqc.pbs
+        esc_pbs_singularity_mriqc=$(echo $pbs_singularity_mriqc | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##MRIQC##/${esc_pbs_singularity_mriqc}/g" VSC/run_mriqc.pbs
+        esc_task_command=$(echo $task_command | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##COMMAND##/${esc_task_command}/g" VSC/run_mriqc.pbs
 
 
-    kul_echo $pbs_data_file
-    if [ ! -f $pbs_data_file ]; then
-        echo "cwd,BIDS_participant,mriqc_options,mriqc_log_p,ncpu_mriqc,ncpu_mriqc_ants,mem_gb,bids_dir,mriqc_log" > $pbs_data_file
-    fi 
-    echo "$cwd,$BIDS_participant,$mriqc_options,$mriqc_log_p,$ncpu_mriqc,$ncpu_mriqc_ants,$mem_gb,$bids_dir,$mriqc_log" >> $pbs_data_file
+        kul_echo $pbs_data_file
+        if [ ! -f $pbs_data_file ]; then
+            echo "cwd,BIDS_participant,mriqc_options,mriqc_log_p,ncpu_mriqc,ncpu_mriqc_ants,mem_gb,bids_dir,mriqc_log" > $pbs_data_file
+        fi 
+        echo "$cwd,$BIDS_participant,$mriqc_options,$mriqc_log_p,$ncpu_mriqc,$ncpu_mriqc_ants,$mem_gb,$bids_dir,$mriqc_log" >> $pbs_data_file
 
-fi
+    fi
 
 }
 
@@ -200,274 +200,275 @@ fi
 # A function to start fmriprep processing (in parallel)
 function task_fmriprep {
 
-# make log dir and clean_up before starting
-mkdir -p ${preproc}/log/fmriprep
-#rm -fr ${cwd}/fmriprep_work_${fmriprep_log_p}
+    # make log dir and clean_up before starting
+    #mkdir -p ${preproc}/log/fmriprep
+    #rm -fr ${cwd}/fmriprep_work_${fmriprep_log_p}
 
-# check whether to use singularity-fmriprep
-fmriprep_singularity=0
-#echo $KUL_use_fmriprep_singularity
-if [ -z $KUL_use_fmriprep_singularity ]; then
+    # check whether to use singularity-fmriprep
+    fmriprep_singularity=0
+    #echo $KUL_use_fmriprep_singularity
+    if [ -z $KUL_use_fmriprep_singularity ]; then
 
-    kul_echo "  KUL_use_fmriprep_singularity not set, using docker"
-    
-elif [ $KUL_use_fmriprep_singularity -eq 1 ]; then
-    
-    kul_echo "  KUL_use_fmriprep_singularity is set to 1, using it"
-    fmriprep_singularity=1
-
-fi
-#echo $fmriprep_singularity
-
-fmriprep_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
-fmriprep_log=${preproc}/log/fmriprep/${fmriprep_log_p}.txt
-fmriprep_act=${preproc}/log/fmriprep/${fmriprep_log_p}_act
-
-kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
-
-if [ $fmriprep_singularity -eq 1 ]; then 
-
- mkdir -p ./fmriprep_work_${fmriprep_log_p}
+        kul_echo "  KUL_use_fmriprep_singularity not set, using docker"
         
- local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
- -B ./fmriprep_work_${fmriprep_log_p}:/work \
- -B .:/data \
- -B .:/out \
- -B ${freesurfer_license}:/opt/freesurfer/license.txt \
- $KUL_fmriprep_singularity \
- /data/${bids_dir} \
- /out \
- participant \
- --participant_label ${BIDS_participant} \
- -w /work \
- --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
- --mem $mem_mb \
- $fmriprep_options \
- > $fmriprep_log  2>&1") 
+    elif [ $KUL_use_fmriprep_singularity -eq 1 ]; then
+        
+        kul_echo "  KUL_use_fmriprep_singularity is set to 1, using it"
+        fmriprep_singularity=1
 
-else
+    fi
+    #echo $fmriprep_singularity
 
-    local task_fmriprep_cmd=$(echo "docker run --rm -u $(id -u) \
- -v ${cwd}/${bids_dir}:/data \
- -v ${cwd}:/out \
- -v ${freesurfer_license}:/opt/freesurfer/license.txt \
- $fmriprep_filter_mount \
- nipreps/fmriprep:${fmriprep_version} \
- /data /out \
- participant \
- --participant_label ${BIDS_participant} \
- --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
- --mem $mem_mb \
- $fmriprep_options \
- > $fmriprep_log  2>&1")
+    fmriprep_log_p=$(echo ${BIDS_participant} | sed -e 's/ /_/g' )
+    fmriprep_log=${log_dir}/fmriprep_${fmriprep_log_p}.txt
+    fmriprep_act=${log_dir}/fmriprep_${fmriprep_log_p}_act
 
-fi
+    #kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
 
-kul_echo "   using cmd: $task_fmriprep_cmd"
+    if [ $fmriprep_singularity -eq 1 ]; then 
 
-# Now start the parallel job
-# echo $make_pbs_files_instead_of_running
-if [ $make_pbs_files_instead_of_running -eq 0 ]; then
+    mkdir -p ./fmriprep_work_${fmriprep_log_p}
+            
+    local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
+    -B ./fmriprep_work_${fmriprep_log_p}:/work \
+    -B .:/data \
+    -B .:/out \
+    -B ${freesurfer_license}:/opt/freesurfer/license.txt \
+    $KUL_fmriprep_singularity \
+    /data/${bids_dir} \
+    /out \
+    participant \
+    --participant_label ${BIDS_participant} \
+    -w /work \
+    --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
+    --mem $mem_mb \
+    $fmriprep_options \
+    > $fmriprep_log  2>&1") 
 
-    eval $task_fmriprep_cmd &
-    fmriprep_pid="$!"
-    kul_echo " fmriprep pid is $fmriprep_pid"
+    else
 
-    sleep 2
-    #psrecord $fmriprep_pid --include-children --log $fmriprep_act.txt --plot $fmriprep_act.png --interval 30 &
+        task_fmriprep_cmd=$(echo "docker run --rm -u $(id -u) \
+            -v ${cwd}/${bids_dir}:/data \
+            -v ${cwd}:/out \
+            -v ${freesurfer_license}:/opt/freesurfer/license.txt \
+            $fmriprep_filter_mount \
+            nipreps/fmriprep:${fmriprep_version} \
+            /data /out \
+            participant \
+            --participant_label ${BIDS_participant} \
+            --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
+            --mem $mem_mb \
+            $fmriprep_options") 
+            # > $fmriprep_log  2>&1")
 
-else
+    fi
 
-    kul_echo " making a PBS file"
-    mkdir -p VSC
+    #kul_echo "   using cmd: $task_fmriprep_cmd"
 
-    task_command=$(echo "mkdir -p ./fmriprep_work_\${fmriprep_log_p}; \ 
- singularity run --cleanenv \
- -B ./\${bids_dir}:/data \
- -B .:/out
- -B ./fmriprep_work_\${fmriprep_log_p}:/work \
- -B \$FS_LICENSE:/opt/freesurfer/license.txt \
- \$KUL_fmriprep_singularity \
- data \
- out \
- participant \
- --participant_label \${BIDS_participant} \
- -w /work \
- --nthreads \$ncpu_fmriprep --omp-nthreads \$ncpu_fmriprep_ants \
- --mem \$mem_mb \
- \$fmriprep_options \
- > \$fmriprep_log  2>&1") 
+    # Now start the parallel job
+    # echo $make_pbs_files_instead_of_running
+    if [ $make_pbs_files_instead_of_running -eq 1 ]; then
 
-    cp $kul_main_dir/VSC/master.pbs VSC/run_fmriprep.pbs
+        #eval $task_fmriprep_cmd &
+        #fmriprep_pid="$!"
+        #kul_echo " fmriprep pid is $fmriprep_pid"
 
-    perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_fmriprep.pbs
-    perl  -pi -e "s/##CPU##/${pbs_cpu}/g" VSC/run_fmriprep.pbs
-    perl  -pi -e "s/##MEM##/${pbs_mem}/g" VSC/run_fmriprep.pbs
-    perl  -pi -e "s/##PARTITION##/${pbs_partition}/g" VSC/run_fmriprep.pbs
-    esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-    perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_fmriprep.pbs
-    esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-    perl  -pi -e "s/##WALLTIME##/${esc_pbs_walltime}/g" VSC/run_fmriprep.pbs
-    esc_pbs_singularity_fmriprep=$(echo $pbs_singularity_fmriprep | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-    perl  -pi -e "s/##FMRIPREP##/${esc_pbs_singularity_fmriprep}/g" VSC/run_fmriprep.pbs
-    esc_pbs_singularity_mriqc=$(echo $pbs_singularity_mriqc | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-    perl  -pi -e "s/##MRIQC##/${esc_pbs_singularity_mriqc}/g" VSC/run_fmriprep.pbs
-    esc_task_command=$(echo $task_command | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-    perl  -pi -e "s/##COMMAND##/${esc_task_command}/g" VSC/run_fmriprep.pbs
+        #sleep 2
+        #psrecord $fmriprep_pid --include-children --log $fmriprep_act.txt --plot $fmriprep_act.png --interval 30 &
+
+    #else
+
+        kul_echo " making a PBS file"
+        mkdir -p VSC
+
+        task_command=$(echo "mkdir -p ./fmriprep_work_\${fmriprep_log_p}; \ 
+    singularity run --cleanenv \
+    -B ./\${bids_dir}:/data \
+    -B .:/out
+    -B ./fmriprep_work_\${fmriprep_log_p}:/work \
+    -B \$FS_LICENSE:/opt/freesurfer/license.txt \
+    \$KUL_fmriprep_singularity \
+    data \
+    out \
+    participant \
+    --participant_label \${BIDS_participant} \
+    -w /work \
+    --nthreads \$ncpu_fmriprep --omp-nthreads \$ncpu_fmriprep_ants \
+    --mem \$mem_mb \
+    \$fmriprep_options \
+    > \$fmriprep_log  2>&1") 
+
+        cp $kul_main_dir/VSC/master.pbs VSC/run_fmriprep.pbs
+
+        perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_fmriprep.pbs
+        perl  -pi -e "s/##CPU##/${pbs_cpu}/g" VSC/run_fmriprep.pbs
+        perl  -pi -e "s/##MEM##/${pbs_mem}/g" VSC/run_fmriprep.pbs
+        perl  -pi -e "s/##PARTITION##/${pbs_partition}/g" VSC/run_fmriprep.pbs
+        esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_fmriprep.pbs
+        esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##WALLTIME##/${esc_pbs_walltime}/g" VSC/run_fmriprep.pbs
+        esc_pbs_singularity_fmriprep=$(echo $pbs_singularity_fmriprep | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##FMRIPREP##/${esc_pbs_singularity_fmriprep}/g" VSC/run_fmriprep.pbs
+        esc_pbs_singularity_mriqc=$(echo $pbs_singularity_mriqc | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##MRIQC##/${esc_pbs_singularity_mriqc}/g" VSC/run_fmriprep.pbs
+        esc_task_command=$(echo $task_command | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+        perl  -pi -e "s/##COMMAND##/${esc_task_command}/g" VSC/run_fmriprep.pbs
 
 
-    kul_echo $pbs_data_file
-    if [ ! -f $pbs_data_file ]; then
-        echo "BIDS_participant,fmriprep_log_p,bids_dir,ncpu_fmriprep,ncpu_fmriprep_ants,mem_mb,fmriprep_options,fmriprep_log" > $pbs_data_file
-    fi 
-    echo "$BIDS_participant,$fmriprep_log_p,$bids_dir,$ncpu_fmriprep,$ncpu_fmriprep_ants,$mem_mb,$fmriprep_options,$fmriprep_log" >> $pbs_data_file
+        kul_echo $pbs_data_file
+        if [ ! -f $pbs_data_file ]; then
+            echo "BIDS_participant,fmriprep_log_p,bids_dir,ncpu_fmriprep,ncpu_fmriprep_ants,mem_mb,fmriprep_options,fmriprep_log" > $pbs_data_file
+        fi 
+        echo "$BIDS_participant,$fmriprep_log_p,$bids_dir,$ncpu_fmriprep,$ncpu_fmriprep_ants,$mem_mb,$fmriprep_options,$fmriprep_log" >> $pbs_data_file
 
 
-fi
-#kul_e2cl "   done fmriprep on participant $BIDS_participant" $log
+    fi
+    #kul_e2cl "   done fmriprep on participant $BIDS_participant" $log
 
 }
 
 # A Function to start freesurfer processing (in parallel)
 function task_freesurfer {
 
-# check if already performed freesurfer
-if [ $freesurfer_store_in_derivatives -eq 1 ];then
-    freesurfer_file_to_check=BIDS/derivatives/freesurfer/${BIDS_participant}_freesurfer_is.done
-else
-    freesurfer_file_to_check=freesurfer/sub-${BIDS_participant}/${BIDS_participant}/scripts/recon-all.done
-fi
-
-if [ ! -f  $freesurfer_file_to_check ]; then
-    
-    freesurfer_log=${preproc}/log/freesurfer/${BIDS_participant}.txt
-    mkdir -p ${preproc}/log/freesurfer
-
-    kul_e2cl " started (in parallel) freesurfer recon-all on participant ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
-    
-    # search if any sessions exist
-    search_sessions=($(find BIDS/sub-${BIDS_participant} -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
-    
-    num_sessions=${#search_sessions[@]}
-    
-    kul_echo "  Freesurfer processing: number T1w data in the BIDS folder: $num_sessions"
-    kul_echo "    notably: ${search_sessions[@]}"
-
-    # make the freesurfer input string
-    freesurfer_invol=""
-    for i in `seq 0 $(($num_sessions-1))`; do
-    
-        freesurfer_invol=" $freesurfer_invol -i ${search_sessions[$i]} "
-
-    done
-
-    #echo $freesurfer_invol
-    
-    # test for options
-    # -useflair
-    fs_use_flair=""
-    if [[ $freesurfer_options =~ "-useflair" ]]; then
-
-        kul_echo "  Option -useflair given"
-
-        # search if any sessions exist
-        search_sessions_flair=($(find BIDS/sub-${BIDS_participant} -type f | grep FLAIR.nii.gz))
-
-        # ####### CHANGE BACK!!!!!
-        #search_sessions_flair=($(find BIDS/sub-${BIDS_participant} -type f | grep ses-1 | grep FLAIR.nii.gz))
-
-        num_sessions_flair=${#search_sessions_flair[@]}
-
-        if [ $num_sessions_flair -gt 0 ]; then 
-        
-            kul_echo "  Freesurfer processing: number of FLAIR data in the BIDS folder: $num_sessions_flair"
-            kul_echo "    notably: ${search_sessions_flair[@]}"
-
-            # make the freesurfer input string
-            freesurfer_invol_flair=""
-            for i in `seq 0 $(($num_sessions-1))`; do
-    
-                freesurfer_invol_flair=" $freesurfer_invol_flair -FLAIR ${search_sessions_flair[$i]} "
-
-            done
-            fs_use_flair=" $freesurfer_invol_flair -FLAIRpial "
-        
-        fi
-
-        #echo $fs_use_flair
-
-    fi
-
-    # -fs_hippoT1T2
-    fs_hippoT1T2=""
-    if [[ $freesurfer_options =~ "-hippocampal-subfields-T1T2" ]]; then
-
-        kul_echo "  Option -hippocampal-subfields-T1T2 given"
-
-        # search if any FLAIR sessions exist
-        search_sessions_flair2=($(find BIDS/sub-${BIDS_participant} -type f | grep FLAIR.nii.gz))
-        num_sessions_flair2=${#search_sessions_flair[@]}
-
-        if [ $num_sessions_flair2 -gt 0 ]; then 
-        
-            kul_echo "  Freesurfer processing: number of FLAIR data in the BIDS folder: $num_sessions_flair"
-            kul_echo "    notably: ${search_sessions_flair[@]}"
-
-            # make the freesurfer input string
-            freesurfer_invol_flair2=""
-            for i in `seq 0 $(($num_sessions-1))`; do
-    
-                freesurfer_invol_flair2=" $freesurfer_invol_flair2 -hippocampal-subfields-T1T2 ${search_sessions_flair2[$i]} FLAIR-${i}"
-
-            done
-            fs_hippoT1T2=" $freesurfer_invol_flair2 -itkthreads $ncpu_freesurfer "
-        
-        fi
-
-        #echo $fs_hippoT1T2
-
-    fi
-
-    #mkdir -p freesurfer
+    # check if already performed freesurfer
     if [ $freesurfer_store_in_derivatives -eq 1 ];then
-        SUBJECTS_DIR="${cwd}/${bids_dir}/derivatives/freesurfer"
-        mkdir -p ${SUBJECTS_DIR} 
-        fs_BIDS_participant="sub-$BIDS_participant"
-        notify_file=${SUBJECTS_DIR}/${BIDS_participant}_freesurfer_is.done
+        freesurfer_file_to_check=BIDS/derivatives/freesurfer/${BIDS_participant}_freesurfer_is.done
     else
-        SUBJECTS_DIR=${cwd}/freesurfer/sub-${BIDS_participant}
-        fs_BIDS_participant=$BIDS_participant
-        notify_file=${SUBJECTS_DIR}_freesurfer_is.done
-        #start clean
-        rm -rf $SUBJECTS_DIR
-        mkdir -p $SUBJECTS_DIR
+        freesurfer_file_to_check=freesurfer/sub-${BIDS_participant}/${BIDS_participant}/scripts/recon-all.done
     fi
 
-    
-    export SUBJECTS_DIR
-
-    #echo $notify_file
-
-    local task_freesurfer_cmd=$(echo "recon-all -subject $fs_BIDS_participant $freesurfer_invol \
-        $fs_use_flair $fs_hippoT1T2 $fs_options_direct -all -openmp $ncpu_freesurfer \
-        -parallel -notify $notify_file > $freesurfer_log 2>&1 ")
-
-    kul_echo "   using cmd: $task_freesurfer_cmd"
-
-    eval $task_freesurfer_cmd &
-    freesurfer_pid="$!"
-    kul_echo "   freesurfer pid is $freesurfer_pid"
-    
-    sleep 2
-
-    #kul_e2cl "   done freesufer on participant $BIDS_participant" $log
-
-else
-
-    freesurfer_pid=-1
-    kul_echo " freesurfer of subjet $BIDS_participant already done, skipping..."
+    if [ ! -f  $freesurfer_file_to_check ]; then
         
-fi
+        freesurfer_log=${log_dir}/freesurfer_${BIDS_participant}.txt
+        #mkdir -p ${preproc}/log/freesurfer
+
+        kul_e2cl " started (in parallel) freesurfer recon-all on participant ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
+        
+        # search if any sessions exist
+        search_sessions=($(find BIDS/sub-${BIDS_participant} -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
+        
+        num_sessions=${#search_sessions[@]}
+        
+        kul_echo "  Freesurfer processing: number T1w data in the BIDS folder: $num_sessions"
+        kul_echo "    notably: ${search_sessions[@]}"
+
+        # make the freesurfer input string
+        freesurfer_invol=""
+        for i in `seq 0 $(($num_sessions-1))`; do
+        
+            freesurfer_invol=" $freesurfer_invol -i ${search_sessions[$i]} "
+
+        done
+
+        #echo $freesurfer_invol
+        
+        # test for options
+        # -useflair
+        fs_use_flair=""
+        if [[ $freesurfer_options =~ "-useflair" ]]; then
+
+            kul_echo "  Option -useflair given"
+
+            # search if any sessions exist
+            search_sessions_flair=($(find BIDS/sub-${BIDS_participant} -type f | grep FLAIR.nii.gz))
+
+            # ####### CHANGE BACK!!!!!
+            #search_sessions_flair=($(find BIDS/sub-${BIDS_participant} -type f | grep ses-1 | grep FLAIR.nii.gz))
+
+            num_sessions_flair=${#search_sessions_flair[@]}
+
+            if [ $num_sessions_flair -gt 0 ]; then 
+            
+                kul_echo "  Freesurfer processing: number of FLAIR data in the BIDS folder: $num_sessions_flair"
+                kul_echo "    notably: ${search_sessions_flair[@]}"
+
+                # make the freesurfer input string
+                freesurfer_invol_flair=""
+                for i in `seq 0 $(($num_sessions-1))`; do
+        
+                    freesurfer_invol_flair=" $freesurfer_invol_flair -FLAIR ${search_sessions_flair[$i]} "
+
+                done
+                fs_use_flair=" $freesurfer_invol_flair -FLAIRpial "
+            
+            fi
+
+            #echo $fs_use_flair
+
+        fi
+
+        # -fs_hippoT1T2
+        fs_hippoT1T2=""
+        if [[ $freesurfer_options =~ "-hippocampal-subfields-T1T2" ]]; then
+
+            kul_echo "  Option -hippocampal-subfields-T1T2 given"
+
+            # search if any FLAIR sessions exist
+            search_sessions_flair2=($(find BIDS/sub-${BIDS_participant} -type f | grep FLAIR.nii.gz))
+            num_sessions_flair2=${#search_sessions_flair[@]}
+
+            if [ $num_sessions_flair2 -gt 0 ]; then 
+            
+                kul_echo "  Freesurfer processing: number of FLAIR data in the BIDS folder: $num_sessions_flair"
+                kul_echo "    notably: ${search_sessions_flair[@]}"
+
+                # make the freesurfer input string
+                freesurfer_invol_flair2=""
+                for i in `seq 0 $(($num_sessions-1))`; do
+        
+                    freesurfer_invol_flair2=" $freesurfer_invol_flair2 -hippocampal-subfields-T1T2 ${search_sessions_flair2[$i]} FLAIR-${i}"
+
+                done
+                fs_hippoT1T2=" $freesurfer_invol_flair2 -itkthreads $ncpu_freesurfer "
+            
+            fi
+
+            #echo $fs_hippoT1T2
+
+        fi
+
+        #mkdir -p freesurfer
+        if [ $freesurfer_store_in_derivatives -eq 1 ];then
+            SUBJECTS_DIR="${cwd}/${bids_dir}/derivatives/freesurfer"
+            mkdir -p ${SUBJECTS_DIR} 
+            fs_BIDS_participant="sub-$BIDS_participant"
+            notify_file=${SUBJECTS_DIR}/${BIDS_participant}_freesurfer_is.done
+        else
+            SUBJECTS_DIR=${cwd}/freesurfer/sub-${BIDS_participant}
+            fs_BIDS_participant=$BIDS_participant
+            notify_file=${SUBJECTS_DIR}_freesurfer_is.done
+            #start clean
+            rm -rf $SUBJECTS_DIR
+            mkdir -p $SUBJECTS_DIR
+        fi
+
+        
+        export SUBJECTS_DIR
+
+        #echo $notify_file
+
+        task_freesurfer_cmd=$(echo "recon-all -subject $fs_BIDS_participant $freesurfer_invol \
+            $fs_use_flair $fs_hippoT1T2 $fs_options_direct -all -openmp $ncpu_freesurfer \
+            -parallel -notify $notify_file") 
+            # > $freesurfer_log 2>&1 ")
+
+        #kul_echo "   using cmd: $task_freesurfer_cmd"
+
+        #eval $task_freesurfer_cmd &
+        #freesurfer_pid="$!"
+        #kul_echo "   freesurfer pid is $freesurfer_pid"
+        
+        #sleep 2
+
+        #kul_e2cl "   done freesufer on participant $BIDS_participant" $log
+
+    else
+
+        #freesurfer_pid=-1
+        kul_echo " freesurfer of subjet $BIDS_participant already done, skipping..."
+            
+    fi
 
 
 }
@@ -476,187 +477,162 @@ fi
 # A function to start KUL_dwiprep processing (in parallel)
 function task_KUL_dwiprep {
 
-# check if already performed KUL_dwiprep
-dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_is_done.log
+    # check if already performed KUL_dwiprep
+    dwiprep_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_is_done.log
+    if [ ! -f  $dwiprep_file_to_check ]; then
 
-#FLAG we still need to implement topup_options
+        dwiprep_log=$log_dir/dwiprep_${BIDS_participant}.txt
+        #mkdir -p ${preproc}/log/dwiprep
 
-if [ ! -f  $dwiprep_file_to_check ]; then
+        #kul_e2cl " started (in parallel) KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
 
-    dwiprep_log=${preproc}/log/dwiprep/dwiprep_${BIDS_participant}.txt
-    mkdir -p ${preproc}/log/dwiprep
+        extra_options_synb0=""
+        if [ "$synbzero_disco_instead_of_topup" -eq 1 ]; then
+            extra_options_synb0=" -b "
+        fi
 
-    kul_e2cl " started (in parallel) KUL_dwiprep on participant ${BIDS_participant}... (using $ncpu_dwiprep cores, logging to $dwiprep_log)" ${log}
+        extra_options_revphase=""
+        if [ "$rev_phase_for_topup_only" -eq 1 ]; then
+            extra_options_revphase=" -r "
+        fi
 
-    extra_options_synb0=""
-    if [ "$synbzero_disco_instead_of_topup" -eq 1 ]; then
-        extra_options_synb0=" -b "
-    fi
+        extra_options_dwi2mask=""
+        if [ "$dwi2mask_method" -gt 0 ]; then
+            extra_options_dwi2mask=" -m $dwi2mask_method "
+        fi
 
-    extra_options_revphase=""
-    if [ "$rev_phase_for_topup_only" -eq 1 ]; then
-        extra_options_revphase=" -r "
-    fi
+        task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} \
+            $extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep \
+            -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1") 
+            # > $dwiprep_log 2>&1 ")
 
-    extra_options_fmapbids=""
-    if [ "$topup_fmap_present_in_bids" -eq 1 ]; then
-        extra_options_fmapbids=" -f "
-    fi
-
-    local task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} $extra_options_fmapbids $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v \
-    > $dwiprep_log 2>&1 ")
-
-    kul_echo "   using cmd: $task_dwiprep_cmd"
-    
-    if [ $make_pbs_files_instead_of_running -eq 0 ]; then
-        # Now we start the parallel job
-        eval $task_dwiprep_cmd &
-        dwiprep_pid="$!"
-        kul_echo " KUL_dwiprep pid is $dwiprep_pid"
-        sleep 2
-    else
-        kul_echo " making a PBS file"
-        mkdir -p VSC
-        cp $kul_main_dir/VSC/master_dwiprep.pbs VSC/run_dwiprep.pbs
-        task_command=$(echo "KUL_dwiprep.sh -p \${BIDS_participant} $extra_options_fmapbids $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v \
-> \$dwiprep_log 2>&1 ")
-        kul_echo $task_command
-        perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_dwiprep.pbs
-        perl  -pi -e "s/##CPU##/${pbs_cpu}/g" VSC/run_dwiprep.pbs
-        perl  -pi -e "s/##MEM##/${pbs_mem}/g" VSC/run_dwiprep.pbs
-        perl  -pi -e "s/##PARTITION##/${pbs_partition}/g" VSC/run_dwiprep.pbs
-        esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-        perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_dwiprep.pbs
-        esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-        perl  -pi -e "s/##WALLTIME##/${esc_pbs_walltime}/g" VSC/run_dwiprep.pbs
-        esc_pbs_singularity_fmriprep=$(echo $pbs_singularity_fmriprep | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-        perl  -pi -e "s/##FMRIPREP##/${esc_pbs_singularity_fmriprep}/g" VSC/run_dwiprep.pbs
-        esc_task_command=$(echo $task_command | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
-        perl  -pi -e "s/##COMMAND##/${esc_task_command}/g" VSC/run_dwiprep.pbs
-        pbs_data_file=VSC/pbs_data_dwiprep.csv
-        kul_echo $pbs_data_file
-        if [ ! -f $pbs_data_file ]; then
-            echo "BIDS_participant, dwiprep_log" > $pbs_data_file
-        fi 
-        echo "$BIDS_participant, $dwiprep_log" >> $pbs_data_file
-
-
-    fi
-
-else
-
-    dwiprep_pid=-1
-    kul_echo " KUL_dwiprep of participant $BIDS_participant already done, skipping..."
+        #kul_echo "   using cmd: $task_dwiprep_cmd"
         
-fi
+        if [ $make_pbs_files_instead_of_running -eq 1 ]; then
+            # Now we start the parallel job
+            #eval $task_dwiprep_cmd &
+            #dwiprep_pid="$!"
+            #kul_echo " KUL_dwiprep pid is $dwiprep_pid"
+            #sleep 2
+        #else
+            kul_echo " making a PBS file"
+            mkdir -p VSC
+            cp $kul_main_dir/VSC/master_dwiprep.pbs VSC/run_dwiprep.pbs
+            task_command=$(echo "KUL_dwiprep.sh -p \${BIDS_participant} \
+    $extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep \
+    -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1 \
+    > \$dwiprep_log 2>&1 ")
+            kul_echo $task_command
+            perl  -pi -e "s/##LP##/${pbs_lp}/g" VSC/run_dwiprep.pbs
+            perl  -pi -e "s/##CPU##/${pbs_cpu}/g" VSC/run_dwiprep.pbs
+            perl  -pi -e "s/##MEM##/${pbs_mem}/g" VSC/run_dwiprep.pbs
+            perl  -pi -e "s/##PARTITION##/${pbs_partition}/g" VSC/run_dwiprep.pbs
+            esc_pbs_email=$(echo $pbs_email | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+            perl  -pi -e "s/##EMAIL##/${esc_pbs_email}/g" VSC/run_dwiprep.pbs
+            esc_pbs_walltime=$(echo $pbs_walltime | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+            perl  -pi -e "s/##WALLTIME##/${esc_pbs_walltime}/g" VSC/run_dwiprep.pbs
+            esc_pbs_singularity_fmriprep=$(echo $pbs_singularity_fmriprep | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+            perl  -pi -e "s/##FMRIPREP##/${esc_pbs_singularity_fmriprep}/g" VSC/run_dwiprep.pbs
+            esc_task_command=$(echo $task_command | sed 's#\([]\!\(\)\#\%\@\*\$\/&\-\=[]\)#\\\1#g')
+            perl  -pi -e "s/##COMMAND##/${esc_task_command}/g" VSC/run_dwiprep.pbs
+            pbs_data_file=VSC/pbs_data_dwiprep.csv
+            kul_echo $pbs_data_file
+            if [ ! -f $pbs_data_file ]; then
+                echo "BIDS_participant, dwiprep_log" > $pbs_data_file
+            fi 
+            echo "$BIDS_participant, $dwiprep_log" >> $pbs_data_file
+
+
+        fi
+
+    else
+
+        dwiprep_pid=-1
+        kul_echo " KUL_dwiprep of participant $BIDS_participant already done, skipping..."
+            
+    fi
 
 }
 
 
 # A Function to start KUL_dwiprep_anat processing
 function task_KUL_dwiprep_anat {
-# check if already performed KUL_dwiprep_anat
-dwiprep_anat_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_anat_is_done.log
-if [ ! -f  $dwiprep_anat_file_to_check ]; then
+    # check if already performed KUL_dwiprep_anat
+    dwiprep_anat_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_anat_is_done.log
+    if [ ! -f  $dwiprep_anat_file_to_check ]; then
 
-    dwiprep_anat_log=${preproc}/log/dwiprep/dwiprep_anat_${BIDS_participant}.txt
+        dwiprep_anat_log=${log_dir}/dwiprep_anat_${BIDS_participant}.txt
 
-    kul_e2cl " performing KUL_dwiprep_anat on subject ${BIDS_participant}... (using $dwiprep_anat_ncpu cores, logging to $dwiprep_anat_log)" ${log}
+        kul_e2cl " performing KUL_dwiprep_anat on subject ${BIDS_participant}... (using $dwiprep_anat_ncpu cores, logging to $dwiprep_anat_log)" ${log}
 
-    KUL_dwiprep_anat.sh -p ${BIDS_participant} -n $dwiprep_anat_ncpu -v \
-        > $dwiprep_anat_log 2>&1 &
+        KUL_dwiprep_anat.sh -p ${BIDS_participant} -n $dwiprep_anat_ncpu -v \
+            > $dwiprep_anat_log 2>&1 &
 
-    dwiprep_anat_pid="$!"
-    kul_echo " KUL_dwiprep_anat pid is $dwiprep_anat_pid"
-else
+        dwiprep_anat_pid="$!"
+        kul_echo " KUL_dwiprep_anat pid is $dwiprep_anat_pid"
+    else
 
-    dwiprep_anat_pid=-1
-    kul_echo " KUL_dwiprep_anat of subjet $BIDS_participant already done, skipping..."
-        
-fi
+        dwiprep_anat_pid=-1
+        kul_echo " KUL_dwiprep_anat of subjet $BIDS_participant already done, skipping..."
+            
+    fi
 }
 
 
 # A Function to start KUL_dwiprep_MNI processing
 function task_KUL_dwiprep_MNI {
+    # check if already performed KUL_dwiprep_MNI
+    dwiprep_MNI_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_MNI_is_done.log
 
-# check if already performed KUL_dwiprep_MNI
-dwiprep_MNI_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_MNI_is_done.log
+    if [ ! -f  $dwiprep_MNI_file_to_check ]; then
+        dwiprep_MNI_log=${log_dir}/dwiprep_MNI_${BIDS_participant}.txt
 
-if [ ! -f  $dwiprep_MNI_file_to_check ]; then
-    dwiprep_MNI_log=${preproc}/log/dwiprep/dwiprep_MNI_${BIDS_participant}.txt
+        kul_e2cl " performing KUL_dwiprep_MNI on subject ${BIDS_participant}... (using $dwiprep_MNI_ncpu cores, logging to $dwiprep_MNI_log)" ${log}
 
-    kul_e2cl " performing KUL_dwiprep_MNI on subject ${BIDS_participant}... (using $dwiprep_MNI_ncpu cores, logging to $dwiprep_MNI_log)" ${log}
+        KUL_dwiprep_MNI.sh -p ${BIDS_participant} -n $dwiprep_MNI_ncpu -v \
+            > $dwiprep_MNI_log 2>&1 &
 
-    KUL_dwiprep_MNI.sh -p ${BIDS_participant} -n $dwiprep_MNI_ncpu -v \
-        > $dwiprep_MNI_log 2>&1 &
-
-    dwiprep_MNI_pid="$!"
-    kul_echo " KUL_dwiprep_MNI pid is $dwiprep_MNI_pid"
-else
-    dwiprep_MNI_pid=-1
-    kul_echo " KUL_dwiprep_MNI of subjet $BIDS_participant already done, skipping..." 
-fi
+        dwiprep_MNI_pid="$!"
+        kul_echo " KUL_dwiprep_MNI pid is $dwiprep_MNI_pid"
+    else
+        dwiprep_MNI_pid=-1
+        kul_echo " KUL_dwiprep_MNI of subjet $BIDS_participant already done, skipping..." 
+    fi
 }
 
-
-# A Function to start KUL_dwiprep_drtdbs processing
-function task_KUL_dwiprep_drtdbs {
-
-# check if already performed KUL_dwiprep_drtdbs
-dwiprep_drtdbs_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_drtdbs_is_done.log
-
-if [ ! -f  $dwiprep_drtdbs_file_to_check ]; then
-
-    dwiprep_drtdbs_log=${preproc}/log/dwiprep/dwiprep_drtdbs_${BIDS_participant}.txt
-
-    kul_e2cl " performing KUL_dwiprep_drtdbs on subject ${BIDS_participant}... (using $ncpu cores, logging to $dwiprep_drtdbs_log)" ${log}
-
-    local task_dwiprep_drtdbs_cmd=$(echo "KUL_dwiprep_drtdbs.sh -p ${BIDS_participant} -n $ncpu -v -o $drtdbs_options -v \
-    > $dwiprep_drtdbs_log 2>&1 ")
-
-    kul_echo "   using cmd: $task_dwiprep_drtdbs_cmd"
-    
-    eval $task_dwiprep_drtdbs_cmd
-
-else
-    kul_echo " KUL_dwiprep_drtdbs of subjet $BIDS_participant already done, skipping..."   
-fi
-
-}
 
 # A Function to start KUL_dwiprep_fibertract processing
 function task_KUL_dwiprep_fibertract {
 
-# check if already performed KUL_dwiprep_drtdbs
-dwiprep_fibertract_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_fibertract_is_done.log
+    # check if already performed KUL_dwiprep_drtdbs
+    dwiprep_fibertract_file_to_check=dwiprep/sub-${BIDS_participant}/dwiprep_fibertract_is_done.log
 
-if [ ! -f  $dwiprep_fibertract_file_to_check ]; then
+    if [ ! -f  $dwiprep_fibertract_file_to_check ]; then
 
-    dwiprep_fibertract_log=${preproc}/log/dwiprep/dwiprep_fibertract_${BIDS_participant}.txt
+        dwiprep_fibertract_log=${log_dir}/dwiprep_fibertract_${BIDS_participant}.txt
 
-    kul_e2cl " performing KUL_dwiprep_fibertract on subject ${BIDS_participant}... (using $dwiprep_fibertract_ncpu cores, logging to $dwiprep_fibertract_log)" ${log}
+        kul_e2cl " performing KUL_dwiprep_fibertract on subject ${BIDS_participant}... (using $dwiprep_fibertract_ncpu cores, logging to $dwiprep_fibertract_log)" ${log}
 
-    fibertract_wb_flag=""
-    #echo $dwiprep_fibertract_whole_brain
-    if [ $dwiprep_fibertract_whole_brain -eq 1 ]; then 
+        fibertract_wb_flag=""
+        #echo $dwiprep_fibertract_whole_brain
+        if [ $dwiprep_fibertract_whole_brain -eq 1 ]; then 
 
-        fibertract_wb_flag=" -f "
+            fibertract_wb_flag=" -f "
 
+        fi
+
+        local task_dwiprep_fibertract_cmd=$(echo "KUL_dwiprep_fibertract.sh -p ${BIDS_participant} \
+            $fibertract_wb_flag -n $dwiprep_fibertract_ncpu -v \
+            -w $dwiprep_fibertract_response_file \
+            -c $dwiprep_fibertract_conf_file  -r $dwiprep_fibertract_rois_file \
+        > $dwiprep_fibertract_log 2>&1 ")
+
+        kul_echo "   using cmd: $task_dwiprep_fibertract_cmd"
+        
+        eval $task_dwiprep_fibertract_cmd
+    else
+        kul_echo " KUL_dwiprep_fibertract of subjet $BIDS_participant already done, skipping..."
     fi
-
-    local task_dwiprep_fibertract_cmd=$(echo "KUL_dwiprep_fibertract.sh -p ${BIDS_participant} \
-        $fibertract_wb_flag -n $dwiprep_fibertract_ncpu -v \
-        -w $dwiprep_fibertract_response_file \
-        -c $dwiprep_fibertract_conf_file  -r $dwiprep_fibertract_rois_file \
-    > $dwiprep_fibertract_log 2>&1 ")
-
-    kul_echo "   using cmd: $task_dwiprep_fibertract_cmd"
-    
-    eval $task_dwiprep_fibertract_cmd
-else
-    kul_echo " KUL_dwiprep_fibertract of subjet $BIDS_participant already done, skipping..."
-fi
 
 }
 
@@ -664,44 +640,44 @@ fi
 # A function to start KUL_synb0 processing (in parallel)
 function task_KUL_synb0 {
 
-# check if already performed KUL_synb0
-synb0_file_to_check=synb0/sub-${BIDS_participant}/synb0_is_done.log
+    # check if already performed KUL_synb0
+    synb0_file_to_check=synb0/sub-${BIDS_participant}/synb0_is_done.log
 
-if [ ! -f  $synb0_file_to_check ]; then
+    if [ ! -f  $synb0_file_to_check ]; then
 
-    synb0_log=${preproc}/log/synb0/synb0_${BIDS_participant}.txt
-    mkdir -p ${preproc}/log/synb0
+        synb0_log=$log_dir/synb0_${BIDS_participant}.txt
+        #mkdir -p ${preproc}/log/synb0
 
-    kul_e2cl " started (in parallel) KUL_synb0 on participant ${BIDS_participant}... (using $ncpu_synb0 cores, logging to $synb0_log)" ${log}
+        kul_e2cl " started (in parallel) KUL_synb0 on participant ${BIDS_participant}... (using $ncpu_synb0 cores, logging to $synb0_log)" ${log}
 
-    if [ "$cleanup_synb0" -eq 1 ]; then
-        extra_options_synb0=" -c "
-    fi
+        if [ "$cleanup_synb0" -eq 1 ]; then
+            extra_options_synb0=" -c "
+        fi
 
-    local task_synb0_cmd=$(echo "KUL_synb0.sh -p ${BIDS_participant} $extra_options_synb0 -n $ncpu_synb0 -v \
-    > $synb0_log 2>&1 ")
+        local task_synb0_cmd=$(echo "KUL_synb0.sh -p ${BIDS_participant} $extra_options_synb0 -n $ncpu_synb0 -v \
+        > $synb0_log 2>&1 ")
 
-    kul_echo "   using cmd: $task_synb0_cmd"
-    
-    if [ $make_pbs_files_instead_of_running -eq 0 ]; then
-        # Now we start the parallel job
-        eval $task_synb0_cmd &
-        synb0_pid="$!"
-        kul_echo " KUL_synb0 pid is $synb0_pid"
-        sleep 2
+        kul_echo "   using cmd: $task_synb0_cmd"
+        
+        if [ $make_pbs_files_instead_of_running -eq 0 ]; then
+            # Now we start the parallel job
+            eval $task_synb0_cmd &
+            synb0_pid="$!"
+            kul_echo " KUL_synb0 pid is $synb0_pid"
+            sleep 2
+        else
+            
+            echo "not yet implemented"
+            # still to do
+
+        fi
+
     else
-        
-        echo "not yet implemented"
-        # still to do
 
+        synb0_pid=-1
+        kul_echo " KUL_dwiprep of participant $BIDS_participant already done, skipping..."
+            
     fi
-
-else
-
-    synb0_pid=-1
-    kul_echo " KUL_dwiprep of participant $BIDS_participant already done, skipping..."
-        
-fi
 
 }
 
@@ -860,8 +836,8 @@ elif [ ! -f $conf ] ; then
 fi 
 
 # ----------- MAIN ----------------------------------------------------------------------------------
-kul_echo "  The script you are running has basename `basename "$0"`, located in dirname $kul_main_dir"
-kul_echo "  The present working directory is `pwd`"
+#kul_echo "  The script you are running has basename `basename "$0"`, located in dirname $kul_main_dir"
+#kul_echo "  The present working directory is `pwd`"
 
 # ---------- SET MAIN DEFAULTS ---
 # set mem_mb for mriqc/fmriprep
@@ -1140,27 +1116,32 @@ if [ $expert -eq 1 ]; then
             fi
             task_counter=$((task_counter+1))   
 
-            #for BIDS_participant in $fmriprep_participants; do
+            for BIDS_participant in $fmriprep_participants; do
                 
                 BIDS_participant=$fmriprep_participants
-                fmriprep_pid=-1
-                waitforprocs=()
-                waitforpids=()
+                #fmriprep_pid=-1
+                #waitforprocs=()
+                #waitforpids=()
 
                 task_fmriprep
+                task_in[$task_counter-2]=$task_fmriprep_cmd
+                task_participant[$task_counter-2]=$BIDS_participant
+                #echo "task_in - instance $task_counter: ${task_in[$task_counter-2]}"
+                
+                #if [ $fmriprep_pid -gt 0 ]; then
+                #    waitforprocs+=("fmriprep")
+                #    waitforpids+=($fmriprep_pid)
+                #fi
 
-                if [ $fmriprep_pid -gt 0 ]; then
-                    waitforprocs+=("fmriprep")
-                    waitforpids+=($fmriprep_pid)
-                fi
+            done
 
-            #done
+            #kul_e2cl "  waiting for fmriprep processes [${waitforpids[@]}] for subject(s) $fmriprep_participants to finish before continuing with further processing... (this can take hours!)... " $log
+            #WaitForTaskCompletion 
 
-            kul_e2cl "  waiting for fmriprep processes [${waitforpids[@]}] for subject(s) $fmriprep_participants to finish before continuing with further processing... (this can take hours!)... " $log
-            WaitForTaskCompletion 
-
-            kul_e2cl " processes [${waitforpids[@]}] for subject(s) $fmriprep_participants have finished" $log
-
+            #kul_e2cl " processes [${waitforpids[@]}] for subject(s) $fmriprep_participants have finished" $log
+            
+            KUL_task_exec $verbose_level "KUL_preproc_all running fmriprep" "fmriprep"
+        
         done
 
     fi
@@ -1233,25 +1214,30 @@ if [ $expert -eq 1 ]; then
             fs_participants=${todo_bids_participants[@]:$i_bids_participant:$freesurfer_simultaneous}
             kul_echo "  going to start freesurfer with $freesurfer_simultaneous participants simultaneously, notably $fs_participants"
         
-            freesurfer_pid=-1
-            waitforprocs=()
-            waitforpids=()
-    
+            #freesurfer_pid=-1
+            #waitforprocs=()
+            #waitforpids=()
+            task_count=0
             for BIDS_participant in $fs_participants; do
                 task_freesurfer
-                if [ $freesurfer_pid -gt 0 ]; then
-                    waitforprocs+=("freesurfer")
-                    waitforpids+=($freesurfer_pid)
-                fi
+                task_in[$task_count]=$task_freesurfer_cmd
+                task_participant[$task_count]=$BIDS_participant
+                ((task_count++))
+                #if [ $freesurfer_pid -gt 0 ]; then
+                #    waitforprocs+=("freesurfer")
+                #    waitforpids+=($freesurfer_pid)
+                #fi
             done 
 
-            kul_e2cl "  waiting for freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
-            WaitForTaskCompletion 
+            #kul_e2cl "  waiting for freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
+            #WaitForTaskCompletion 
 
-            kul_e2cl " freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
-  
-        done
-       
+            #kul_e2cl " freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
+            
+            KUL_task_exec $verbose_level "KUL_preproc_all running freesurfer" "freesurfer"
+
+        done 
+
     fi
 
 
@@ -1271,12 +1257,11 @@ if [ $expert -eq 1 ]; then
 
         rev_phase_for_topup_only=$(grep rev_phase_for_topup_only $conf | grep -v \# | sed 's/[^0-9]//g')
 
-        topup_fmap_present_in_bids=$(grep topup_fmap_present_in_bids $conf | grep -v \# | sed 's/[^0-9]//g')
+        dwi2mask_method=$(grep dwi2mask_method $conf | grep -v \# | cut -d':' -f 2 | sed 's/[^0-9]//g')
 
-        topup_options=$(grep topup_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
         eddy_options=$(grep eddy_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
 
-        dwiprep_ncpu=$(grep dwiprep_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        dwiprep_ncpu=$(grep dwiprep_ncpu $conf | grep -v \# | cut -d':' -f 2 | sed 's/[^0-9]//g')
         ncpu_dwiprep=$dwiprep_ncpu
         
         #get bids_participants
@@ -1288,8 +1273,7 @@ if [ $expert -eq 1 ]; then
         kul_echo "  dwiprep_options: $dwiprep_options"
         kul_echo "  synbzero_disco_instead_of_topup: $synbzero_disco_instead_of_topup"
         kul_echo "  rev_phase_for_topup_only: $rev_phase_for_topup_only"
-        kul_echo "  topup_fmap_present_in_bids: $topup_fmap_present_in_bids"
-        kul_echo "  topup_options: $topup_options"
+        kul_echo "  dwi2mask_method: $dwi2mask_method"
         kul_echo "  eddy_options: $eddy_options"
         kul_echo "  dwiprep_ncpu: $dwiprep_ncpu"
         kul_echo "  BIDS_participants: ${BIDS_subjects[@]}"
@@ -1320,27 +1304,33 @@ if [ $expert -eq 1 ]; then
         for i_bids_participant in $(seq 0 $dwiprep_simultaneous $(($n_subj_todo-1))); do
 
             fs_participants=${todo_bids_participants[@]:$i_bids_participant:$dwiprep_simultaneous}
-            kul_echo "  going to start dwiprep with $dwiprep_simultaneous participants simultaneously, notably $fs_participants"
+            #kul_echo "  going to start dwiprep with $dwiprep_simultaneous participants simultaneously, notably $fs_participants"
 
-            dwiprep_pid=-1
-            waitforprocs=()
-            waitforpids=()
+            #dwiprep_pid=-1
+            #waitforprocs=()
+            #waitforpids=()
+            task_count=0
 
             for BIDS_participant in $fs_participants; do
                 task_KUL_dwiprep
-                if [ $dwiprep_pid -gt 0 ]; then
-                    waitforprocs+=("dwiprep")
-                    waitforpids+=($dwiprep_pid)
-                fi
+                task_in[$task_count]=$task_dwiprep_cmd
+                task_participant[$task_count]=$BIDS_participant
+                ((task_count++))
+                #if [ $dwiprep_pid -gt 0 ]; then
+                #    waitforprocs+=("dwiprep")
+                #    waitforpids+=($dwiprep_pid)
+                #fi
             done 
 
-            kul_e2cl "  waiting for dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
-            WaitForTaskCompletion 
+            #kul_e2cl "  waiting for dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants to finish before continuing with further processing... (this can take hours!)... " $log
+            #WaitForTaskCompletion 
 
-            kul_e2cl " dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
-       
-        done
-       
+            #kul_e2cl " dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
+            
+            KUL_task_exec $verbose_level "KUL_preproc_all running KUL_dwiprep" "dwiprep"
+        
+        done 
+
     fi
 
     #check synb0 and options
@@ -1659,7 +1649,7 @@ else
     # regular mode 
 
  # we read the config file (and it may be csv, tsv or ;-seperated)
- while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options topup_options  eddy_options do_dwiprep_anat anat_options do_dwiprep_fibertract; do
+ while IFS=$'\t,;' read -r BIDS_participant do_mriqc mriqc_options do_fmriprep fmriprep_options do_freesurfer freesurfer_options do_dwiprep dwipreproc_options eddy_options do_dwiprep_anat anat_options do_dwiprep_fibertract; do
     
     
     if [ "$BIDS_participant" = "BIDS_participant" ]; then
@@ -1685,7 +1675,6 @@ else
             echo "    freesurfer_options: $freesurfer_options"
             echo "    do_dwiprep: $do_dwiprep"
             echo "    dwipreproc_options: $dwipreproc_options"
-            echo "    topup_options: $topup_options"
             echo "    eddy_options: $eddy_options"
             echo "    do_dwiprep_anat: $do_dwiprep_anat"
             echo "    anat_options: $anat_options"

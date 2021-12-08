@@ -6,22 +6,17 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 09/11/2018 - alpha version
-v="v0.2 - dd 19/12/2018"
+version="v0.4 - dd 04/12/2021"
 
 # To Do
 #  - register dwi to T1 with ants-syn
 #  - fod calc msmt-5tt in stead of dhollander
 
-# -----------------------------------  MAIN  ---------------------------------------------
-# this script defines a few functions:
-#  - Usage (for information to the novice user)
-#  - kul_e2cl (for logging)
-#
-# this script uses "preprocessing control", i.e. if some steps are already processed it will skip these
 
 kul_main_dir=`dirname "$0"`
 source $kul_main_dir/KUL_main_functions.sh
-cwd=$(pwd)
+# $cwd, mrtrix3new & $log_dir is made in main_functions
+
 non_linear=0 
 
 # FUNCTIONS --------------
@@ -79,7 +74,7 @@ else
         case $OPT in
         p) #participant
             p_flag=1
-            subj=$OPTARG
+            participant=$OPTARG
         ;;
         s) #session
             s_flag=1
@@ -138,43 +133,32 @@ FSLPARALLEL=$ncpu; export FSLPARALLEL
 OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
 
 d=$(date "+%Y-%m-%d_%H-%M-%S")
-log=log/log_${d}.txt
+#log=log/log_${d}.txt
+log=${log_dir}/${script}_${d}.log
 
 # --- MAIN ----------------
 
-# Check mrtrix3 version
-if [ $mrtrix_version_revision_major -eq 2 ]; then
-	mrtrix3new=0
-elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -lt 100 ]; then
-	mrtrix3new=1
-elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -gt 100 ]; then
-	mrtrix3new=2
-else 
-	echo "cannot find correct mrtrix versions - exitting"
-	exit 1
-fi
-
 # start
-bids_subj=BIDS/sub-${subj}
+bids_subj=BIDS/sub-${participant}
 
 # Either a session is given on the command line
 # If not the session(s) need to be determined.
 if [ $s_flag -eq 1 ]; then
 
     # session is given on the command line
-    search_sessions=BIDS/sub-${subj}/ses-${ses}
+    search_sessions=BIDS/sub-${participant}/ses-${ses}
 
 else
 
     # search if any sessions exist
-    search_sessions=($(find BIDS/sub-${subj} -type d | grep dwi))
+    search_sessions=($(find BIDS/sub-${participant} -type d | grep dwi))
 
 fi    
  
 num_sessions=${#search_sessions[@]}
     
-echo "  Number of BIDS sessions: $num_sessions"
-echo "    notably: ${search_sessions[@]}"
+kul_echo "  Number of BIDS sessions: $num_sessions"
+kul_echo "    notably: ${search_sessions[@]}"
 
 
 # ---- BIG LOOP for processing each session
@@ -187,7 +171,7 @@ long_bids_subj=${search_sessions[$i]}
 bids_subj=${long_bids_subj%dwi}
 
 # Create the Directory to write preprocessed data in
-preproc=dwiprep/sub-${subj}/$(basename $bids_subj) 
+preproc=dwiprep/sub-${participant}/$(basename $bids_subj) 
 #echo $preproc
 
 # Directory to put raw mif data in
@@ -197,12 +181,12 @@ raw=${preproc}/raw
 #mkdir -p ${preproc}/raw
 #mkdir -p ${preproc}/log
 
-kul_e2cl " Start processing $bids_subj" ${preproc}/${log}
+kul_echo " Start processing $bids_subj" 
 
 
 cd ${preproc}
 
-kul_e2cl "Welcome to KUL_dwiprep_anat $v - $d" ${log}
+kul_echo "Welcome to KUL_dwiprep_anat $v - $d"
 
 
 
@@ -211,25 +195,24 @@ kul_e2cl "Welcome to KUL_dwiprep_anat $v - $d" ${log}
 mkdir -p T1w
 mkdir -p dwi_reg
 
-fmriprep_subj=fmriprep/"sub-${subj}"
-fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-preproc_T1w.nii.gz"
-fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-brain_mask.nii.gz"
+fmriprep_subj=fmriprep/"sub-${participant}"
+fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${participant}_desc-preproc_T1w.nii.gz"
+fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${participant}_desc-brain_mask.nii.gz"
 ants_anat_tmp=T1w/tmp.nii.gz
 ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
 
 
 # bet the T1w using fmriprep data
 if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
-    kul_e2cl " skull stripping the T1w from fmriprep..." $log
+    kul_echo " skull stripping the T1w from fmriprep..."
 
     fslmaths $fmriprep_anat -mas $fmriprep_anat_mask $ants_anat_tmp
 
     # Transforming the T1w to fmriprep space
-    #xfm_search=($(find ${cwd}/${fmriprep_subj} -type f | grep from-orig_to-T1w_mode-image_xfm))
     xfm_search=($(find ${cwd}/${fmriprep_subj} -type f -name "*from-orig_to-T1w_mode-image_xfm*" ! -name "*gadolinium*" ))
     num_xfm=${#xfm_search[@]}
-    echo "  Xfm files: number : $num_xfm"
-    echo "    notably: ${xfm_search[@]}"
+    kul_echo "  Xfm files: number : $num_xfm"
+    kul_echo "    notably: ${xfm_search[@]}"
 
     if [ $num_xfm -ge 1 ]; then
 
@@ -244,7 +227,7 @@ if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
 
 else
 
-    echo " skull stripping of the T1w already done, skipping..."
+    kul_echo " skull stripping of the T1w already done, skipping..."
 
 fi
 
@@ -254,7 +237,7 @@ ants_type=dwi_reg/rigid
 
 if [ ! -f dwi_reg/rigid_outWarped.nii.gz ]; then
 
-    kul_e2cl " registering the the dmri b0 to the betted T1w image (rigid)..." ${log}
+    kul_echo " registering the the dmri b0 to the betted T1w image (rigid)..."
     antsRegistration --verbose 1 --dimensionality 3 \
         --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
         --interpolation Linear \
@@ -266,7 +249,7 @@ if [ ! -f dwi_reg/rigid_outWarped.nii.gz ]; then
 
 else
 
-    echo " registering the T1w image to  (rigid) already done, skipping..."
+    kul_echo " registering the T1w image to  (rigid) already done, skipping..."
 
 fi
  
@@ -305,7 +288,7 @@ if [ ! -f dwi_preproced_reg2T1w_mask.nii.gz ]; then
 
 
     # create mask of the dwi data (that is registered to the T1w)
-    kul_e2cl "    creating mask of the dwi_preproces_reg2T1w data..." ${log}
+    kul_echo "    creating mask of the dwi_preproces_reg2T1w data..."
     if [ $mrtrix3new -eq 2 ]; then
         dwi2mask hdbet dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
     else
@@ -319,7 +302,7 @@ mkdir -p qa
 
 if [ ! -f qa/dhollander_dec_reg2T1w.mif ]; then
 
-    kul_e2cl "   Calculating FA/dec..." ${log}
+    kul_echo "   Calculating FA/dec..."
     dwi2tensor dwi_preproced_reg2T1w.mif dwi_dt_reg2T1w.mif -force
     tensor2metric dwi_dt_reg2T1w.mif -fa qa/fa_reg2T1w.nii.gz -mask dwi_preproced_reg2T1w_mask.nii.gz -force -nthreads $ncpu
     tensor2metric dwi_dt_reg2T1w.mif -adc qa/adc_reg2T1w.nii.gz -mask dwi_preproced_reg2T1w_mask.nii.gz -force -nthreads $ncpu
@@ -357,7 +340,7 @@ if [ $non_linear -eq 1 ]; then
 
  if [ ! -f dwi_reg/nonlinear_outWarped.nii.gz ]; then
 
-    kul_e2cl " registering the the dmri ADC to the betted T1w image (non-linear)..." ${log}
+    kul_echo " registering the the dmri ADC to the betted T1w image (non-linear)..."
     antsRegistration --dimensionality 3 \
         --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
         -x [${T1_brain_mask},${ADC_nii_brain_mask},NULL] \
@@ -368,7 +351,7 @@ if [ $non_linear -eq 1 ]; then
 
  else
 
-    echo " registering the diffusion data to T1w (non-linear) already done, skipping..."
+    kul_echo " registering the diffusion data to T1w (non-linear) already done, skipping..."
 
  fi
 
@@ -376,7 +359,7 @@ if [ $non_linear -eq 1 ]; then
  # mrtransform the FODs non-linearly
  if [ ! -f dwi_reg/mrtrix_warp_corrected.mif ]; then
 
-    kul_e2cl " converting ants (non-linear) warps to mrtrix format..." ${log}
+    kul_echo " converting ants (non-linear) warps to mrtrix format..."
     input_fod_image=response/dhollander_wmfod_reg2T1w.mif
     template=dwi_preproced_reg2T1w_mask.nii.gz
     ants_warp=dwi_reg/nonlinear_out1Warp.nii.gz
@@ -386,7 +369,7 @@ if [ $non_linear -eq 1 ]; then
 
     for j in {0..2}
     do
-        echo $j
+        #echo $j
         WarpImageMultiTransform 3 dwi_reg/identity_warp${j}.nii dwi_reg/mrtrix_warp${j}.nii -R $template $ants_warp $ants_affine   
     done
 
@@ -400,7 +383,7 @@ if [ $non_linear -eq 1 ]; then
 
  if [ ! -f log/status.mrtransformNL.done ]; then
 
-    kul_e2cl " Applying the non-linear transformation of the dMRI to T1..." ${log}
+    kul_echo " Applying the non-linear transformation of the dMRI to T1..."
 
     if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then    
         mrtransform response/dhollander_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
@@ -421,7 +404,7 @@ if [ $non_linear -eq 1 ]; then
             response/tournier_wmfod_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force         
     fi
 
-    echo "done" > log/status.mrtransformNL.done
+    kul_echo "done" > log/status.mrtransformNL.done
 
  fi
 
@@ -433,18 +416,18 @@ fs_labels=roi/labels_from_FS.nii.gz
 fs_wmlabels=roi/labels_wm_from_FS.nii.gz
 if [ ! -f log/status.freesurfer.done ]; then
 
-    kul_e2cl " Starting with additional freesurfer processing..." ${log}
+    kul_echo " Starting with additional freesurfer processing..."
     # test for location in bids_derivatives
-    #echo ${cwd}/BIDS/derivatives/freesurfer/sub-${subj}
-    if [ -d ${cwd}/BIDS/derivatives/freesurfer/sub-${subj} ]; then 
+    #echo ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
+    if [ -d ${cwd}/BIDS/derivatives/freesurfer/sub-${participant} ]; then 
         fs_subject_dir="${cwd}/BIDS/derivatives/freesurfer"
-        fs_subj="sub-${subj}"
+        fs_subj="sub-${participant}"
     else
-        fs_subject_dir="${cwd}/freesurfer/sub-${subj}"
-        fs_subj=$subj
+        fs_subject_dir="${cwd}/freesurfer/sub-${participant}"
+        fs_subj=$participant
     fi
     fs_loc="${fs_subject_dir}/${fs_subj}"
-    echo " location of freesurfer: $fs_loc"
+    kul_echo " location of freesurfer: $fs_loc"
 
     # create the subcortical wm segmentations
     source $FREESURFER_HOME/SetUpFreeSurfer.sh
@@ -468,14 +451,14 @@ if [ ! -f log/status.freesurfer.done ]; then
     # Transforming the FS aparc to fmriprep space
     xfm_search=($(find ${cwd}/${fmriprep_subj} -type f -name "*from-orig_to-T1w_mode-image_xfm*"))
     num_xfm=${#xfm_search[@]}
-    echo "  Xfm files: number : $num_xfm"
-    echo "    notably: ${xfm_search[@]}"    
+    kul_echo "  Xfm files: number : $num_xfm"
+    kul_echo "    notably: ${xfm_search[@]}"    
 
 
     # NEED TO CHANGE: instead of ommiting first, test if xfm file has no tranform in it
     if [ $num_xfm -ge 1 ]; then
 
-        echo "  Applying antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float"
+        kul_echo "  Applying antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float"
         antsApplyTransforms -i $fs_labels_tmp -o $fs_labels -r $fs_labels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
         antsApplyTransforms -i $fs_wmlabels_tmp -o $fs_wmlabels -r $fs_wmlabels_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
 
@@ -486,7 +469,7 @@ if [ ! -f log/status.freesurfer.done ]; then
 
     fi
 
-    echo "done" > log/status.freesurfer.done
+    touch log/status.freesurfer.done
 
 fi
 
@@ -494,7 +477,7 @@ fi
 mkdir -p 5tt
 if [ ! -f 5tt/5tt2gmwmi.nii.gz ]; then
 
-    kul_e2cl " Performig 5tt..." ${log}
+    kul_echo " Performig 5tt..."
     #5ttgen fsl $ants_anat 5tt/5ttseg.mif -premasked -nocrop -force -nthreads $ncpu 
     #5ttgen freesurfer $fs_aparc 5tt/5ttseg.mif -nocrop -force -nthreads $ncpu
     5ttgen freesurfer $fs_labels 5tt/5ttseg.mif -nocrop -force -nthreads $ncpu
@@ -513,7 +496,7 @@ mkdir -p connectome
 if [ ! -f log/status.labelconvert.done ]; then
     mrtrixdir=$(which mrconvert)
     mrtrixdir=${mrtrixdir%mrtrix3*}/mrtrix3
-    kul_e2cl " Performig labelconvert..." ${log}
+    kul_echo " Performig labelconvert..."
     labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
         $mrtrixdir/share/mrtrix3/labelconvert/fs_default.txt connectome/labelconvert_fs_default.nii.gz -force
     labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
@@ -524,18 +507,18 @@ if [ ! -f log/status.labelconvert.done ]; then
     #    $kul_main_dir/share/fs2behrens_thalamus_seg_right.txt connectome/labelconvert_fs2behrens_thalamus_seg_right.nii.gz -force
     #labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
     #    $kul_main_dir/share/fs2behrens_thalamus_seg_left.txt connectome/labelconvert_fs2behrens_thalamus_seg_left.nii.gz -force   
-    echo "done" > log/status.labelconvert.done
+    touch log/status.labelconvert.done
 
 else
 
-    echo " labelconvert already done, skipping..."
+    kul_echo " labelconvert already done, skipping..."
 
 fi
 
 # Run labelsgmfix (actually FSL FIRST) on the T1w data (usefull for subcortical segmentation)
 if [ ! -f connectome/improved_labels_from_FS.nii.gz ]; then
 
-    kul_e2cl " Performig labelsgmfix (FSL first)..." ${log}
+    kul_echo " Performig labelsgmfix (FSL first)..."
 
     labelsgmfix -premasked $fs_labels T1w/T1w_BrainExtractionBrain.nii.gz $FREESURFER_HOME/FreeSurferColorLUT.txt connectome/improved_labels_from_FS.nii.gz -nocleanup
 
@@ -554,11 +537,11 @@ if [ ! -f connectome/improved_labels_from_FS.nii.gz ]; then
     
 else
 
-    echo " labelsgmfix already done, skipping..."
+    kul_echo " labelsgmfix already done, skipping..."
 
 fi
 
-echo " Finished processing $bids_subj" 
+kul_echo " Finished processing $bids_subj" 
 # ---- END of the BIG loop over sessions
 
 done
@@ -566,7 +549,7 @@ done
 # write a file to indicate that dwiprep_anat runned succesfully
 #   this file will be checked by KUL_preproc_all
 
-echo "done" > ../dwiprep_anat_is_done.log
+touch ../dwiprep_anat_is_done.log
 
-kul_e2cl "Finished " ${log}
+kul_echo "Finished "
 

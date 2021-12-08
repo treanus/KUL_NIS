@@ -9,7 +9,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 # @ Ahmed Radwan - KUL - ahmed.radwan@kuleuven.be
 #
-v="v0.8 - dd 08/09/2020"
+version="v0.9 - dd 29/11/2021"
 
 # Notes
 #  - NOW USES https://github.com/UNFmontreal/Dcm2Bids
@@ -639,7 +639,7 @@ function kul_find_relevant_dicom_file {
 
     # find the search_string in the dicom dump_file            
     # search for search_string in dump_file, find ORIGINAL, remove dicom tags, sort, take first line, remove trailing space 
-    seq_file=$(grep $search_string $dump_file | grep ORIGINAL - | cut -f1 -d"[" | sort | head -n 1 | sed -e 's/[[:space:]]*$//')
+    seq_file=$(grep "$search_string" $dump_file | grep ORIGINAL - | cut -f1 -d"[" | sort | head -n 1 | sed -e 's/[[:space:]]*$//')
 
     if [ "$seq_file" = "" ]; then
 
@@ -1380,7 +1380,7 @@ if [ ! -d BIDS/.bidsignore ];then
     mkdir -p BIDS
     cd BIDS
     dcm2bids_scaffold
-    echo "tmp_dcm2bids/*" > .bidsignore
+    echo "tmp_dcm2bids/*" >> .bidsignore
     echo "*/anat/*SWI*" >> .bidsignore
     echo "*/anat/*MTI*" >> .bidsignore
     echo "*/perf/*asl*" >> .bidsignore
@@ -1394,7 +1394,7 @@ else
 fi
 
 dcm2bids  -d "${tmp}" -p $subj $dcm2bids_session -c $bids_config_json_file \
-    -o $bids_output -l DEBUG --clobber > $dcm2niix_log_file
+    -o $bids_output -l DEBUG --clobber --forceDcm2niix > $dcm2niix_log_file
 
 
 # Multi Echo func needs extra work. dcm2bids does not convert these correctly. "run" needs to be "echo"
