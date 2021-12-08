@@ -1380,7 +1380,7 @@ if [ ! -d BIDS/.bidsignore ];then
     mkdir -p BIDS
     cd BIDS
     dcm2bids_scaffold
-    echo "tmp_dcm2bids/*" > .bidsignore
+    echo "tmp_dcm2bids/*" >> .bidsignore
     echo "*/anat/*SWI*" >> .bidsignore
     echo "*/anat/*MTI*" >> .bidsignore
     echo "*/perf/*asl*" >> .bidsignore
