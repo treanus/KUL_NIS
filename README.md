@@ -96,6 +96,7 @@ This script will analyse a standard block based active fMRI data with a paradigm
 ## Other (under dev)
 
   
-# Who are we
+## Who are we
 Dr. Ahmed Radwan - KUL - ahmed.radwan@kuleuven.be
+
 Prof. Dr. Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
