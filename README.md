@@ -13,28 +13,29 @@ KUL_NIS provides tools:
 	- QSM (in development)
 - for analysis of 
 	- fMRI data
-                - using fmriprep
-                - resting stat analysis using FSL melodic
-                - task based fMRI
+         - using fmriprep
+         - resting stat analysis using FSL melodic
+         - task based fMRI
+
 	- diffusion MRI data
-                - preprocessing using mrtrix3
-                - coregistration to T1w data using synb0-disco and/or Ants
-                - normalisation to MNI space using fmriprep
-                - group fixel based analysis in group template space
+         - preprocessing using mrtrix3
+         - coregistration to T1w data using synb0-disco and/or Ants
+         - normalisation to MNI space using fmriprep
+         - group fixel based analysis in group template space
 	- myelin markers such as:
-		- MRT (magnetisation transfer ratio)
-		- T1/T2 and T1/FLAIR ratio's
+	 - MRT (magnetisation transfer ratio)
+         - T1/T2 and T1/FLAIR ratio's
 	- structural data
-                - coregistration of data to the T1w without Gd
-                - Freesufer parcellation
-                - FastSurfer parcellation
+         - coregistration of data to the T1w without Gd
+         - Freesufer parcellation
+         - FastSurfer parcellation
 - working with KUL_VBG
-        - a pipeline to Freesurfer and FastSurfer in patients with brain lesions (tumour/stroke)
+ - a pipeline to Freesurfer and FastSurfer in patients with brain lesions (tumour/stroke)
 - working with KUL_FWT
-        - an automated csd probabilistic tractography pipeline
+ - an automated csd probabilistic tractography pipeline
 - for conversion of the output of pipelines back to DICOM for use in:
-        - Brainlab Neurosurgery format using Karawun
-        - covertion for a basic pacs system using a MevisLab interface
+ - Brainlab Neurosurgery format using Karawun
+ - covertion for general pacs systems using a MevisLab interface
 
 All scripts (only) work with BIDS data.
 
