@@ -11,7 +11,7 @@ kul_main_dir=`dirname "$0"`
 script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 # $cwd & $log_dir is made in main_functions
-kul_synb0_fork=0
+kul_synb0_fork=1
 
 # FUNCTIONS --------------
 
