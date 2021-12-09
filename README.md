@@ -1,63 +1,101 @@
 # KULeuven Neuro Imaging Suite (KUL_NIS)
 
-KUL_NIS provides tools to analyse (resting/task-based) fMRI, diffusion & structural MRI data.
-Pipelines use many open-source packages.
+KUL_NIS provides tools:
+- for conversion of dicom data to BIDS format of 
+	- T1w (with and without Gd)
+	- T2w 
+	- FLAIR
+	- DIR (double inversion recovery)
+	- ASL (not fully BIDS compatible yet)
+	- MTR
+	- fMRI
+	- dMRI
+	- QSM (in development)
+- for analysis of 
+	- fMRI data
+                - using fmriprep
+                - resting stat analysis using FSL melodic
+                - task based fMRI
+	- diffusion MRI data
+                - preprocessing using mrtrix3
+                - coregistration to T1w data using synb0-disco and/or Ants
+                - normalisation to MNI space using fmriprep
+                - group fixel based analysis in group template space
+	- myelin markers such as:
+		- MRT (magnetisation transfer ratio)
+		- T1/T2 and T1/FLAIR ratio's
+	- structural data
+                - coregistration of data to the T1w without Gd
+                - Freesufer parcellation
+                - FastSurfer parcellation
+- working with KUL_VBG
+        - a pipeline to Freesurfer and FastSurfer in patients with brain lesions (tumour/stroke)
+- working with KUL_FWT
+        - an automated csd probabilistic tractography pipeline
+- for conversion of the output of pipelines back to DICOM for use in:
+        - Brainlab Neurosurgery format using Karawun
+        - covertion for a basic pacs system using a MevisLab interface
+
+All scripts (only) work with BIDS data.
+
+Note that some output data of the analysis pipelines can be converted back to dicom for import into a PACS system (see above).
+
+The pipelines used should work fine with healthy volunteer data, but are being implemented for use with clinical data (tumors, stroke, MS, PD) but have not yet been tested fully with clinical data.
+
+**Any use in a clinical environment is off-label, not FDA aproved, not CE-labeled or approved. Also see the license file please.**
 
 
-It mainly provides automated pipelines to
+## Tools for BIDS data conversion
 
-1/ convert dicom files to the BIDS format
-        - for Siemens, GE and Philips dicom data
-        - for Philips data it includes basic computation of slice-timing and EES/ERT in BIDS format
+### KUL_dcm2bids
+Converts dicom data to BIDS format for multipule MRI vendors. 
+Provides slice-timing, total-readout-time, phase encoding direction & other data for Philips scanners (which is automatically defined for Siemens and GE scanners).
+ 
+### KUL_multisubjects_dcm2bids
+KUL_dcm2bids to convert multiple datasets.
 
-2/ perform mriqc on structural and functional data
+### KUL_bids_summary
+Provides output of multiple parameters of a BIDS dataset, including acquisition date, scanner software verion, etc... readable in google sheets, excel, etc...
+  
+ 
+## Tools for fMRI analysis
 
-3/ perform fmriprep on structural and functional data
+### KUL_preproc_all
+This script allows to start an fmriprep analysis with a config file.
+See 
 
-4/ perform freesurfer on the structural data organised in the BIDS format
+### KUL_fmriproc_spm
 
-5/ perform fastsurfer as an alternative to freesurfer (again in BIDS format)
+This script will analyse a standard block based active fMRI data with a paradigm using 30 seconds BASELIBE followed by 30 seconds TASK epochs.
 
-6/ perform MRtix3 processing on dMRI data with our own developed 'dwiprep' pipeline (using BIDS input)
+### KUL_fmriproc_conn
+ (under development)
+ 
+## Tools for dMRI analysis  
 
-7/ perform qsiprep processing on dMRI data
+### KUL_dwiprep
 
-8/ perform Virtual Brain Grafting to run freesurfer/fastsurfer on brains with large lesions, such as tumours or CVA lesions
-        see: https://github.com/KUL-Radneuron/KUL_VBG
+### KUL_dwiprep_anat
 
-9/ perform MTC (magnetisation transfer contrast or ratio), T1w/T2w and T1/FLAIR ratio computation
-        - using calibration
-        - additionally compute MS lesion load using samseg
+### KUL_dwiprep_MNI
 
-10/ perform automated fiber tractography using a combination of freesurfer/fastsurfer, KUL_VBG, and ifod2 MRtrix
+## Tools for the study of myelin 
 
-11/ run AI tools such as HD-BET and HD-GLIO for automated brain extraction and tumour segmentation
+### Magnetisation Transfer Ratio
 
-12/ provide an automated pipeline to analyse clincal fMRI/dMRI data using:
-        - GLM based fMRI SPM analysis
-        - Melodic based ICA analysis
-        - brain extraction using HD-BET
-        - tumour delinaetion using HD-GLIO
-        - brain parcellation using freesurfer/fastsurfer
-        - automated tractography of all major tracts (own pipeline)
-
-
-
-Depencies:
-        Runs on linux or Osx/MacOs (the latter with some limitations).
-        Needs an NVidia GPU (cuda) for some tools.
-                - see https://github.com/treanus/KUL_Linux_Installation
+### T1/T2 and T1/FLAIR ratio as a myelin marker
 
 
+## Tools for importing results back into dicom and transfer to PACS/BrainLab
 
-Project PI's: Stefan Sunaert
-Contributors: A. Radwan
+### Karawun 
 
-Requires Mrtrix3, FSL, ants, dcm2niix, docker, fmriprep and mriqc
+### MevisLab
 
-@ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 
-### Changes made by AR:
-1- Added KUL_radsyndisco.sh to allow a local run of Synb0DISCO from the fork -> https://github.com/Rad-dude/Synb0-DISCO.git
-2- Added UKBB_fMRI_mod templates (modified from UKBB_fMRI template by warping to MNI space) under /atlasses/Temp_4_KUL_dwiprep
-3- Modified KUL_dwifslpreproc to use local version of synb0disco via KUL_radsyndisco.sh
+## Other (under dev)
+
+  
+# Who are we
+Dr. Ahmed Radwan - KUL - ahmed.radwan@kuleuven.be
+Prof. Dr. Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
