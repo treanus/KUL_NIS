@@ -955,7 +955,6 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
     if [[ ${identifier} == "PD" ]]; then 
         
         kul_find_relevant_dicom_file
-The complete ASL
 
         if [ $seq_found -eq 1 ]; then
 
@@ -963,6 +962,24 @@ The complete ASL
             kul_dcmtags "${seq_file}"
 
             sub_bids_PD='{"dataType": "anat", "modalityLabel": "PD", "criteria": {  
+             "SeriesDescription": "*'${search_string}'*"}}'
+
+            sub_bids_[$bs]=$(echo ${sub_bids_PD} | python -m json.tool)
+
+        fi
+
+    fi
+
+    if [[ ${identifier} == "FGATIR" ]]; then 
+        
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            sub_bids_PD='{"dataType": "anat", "modalityLabel": "FGATIR", "criteria": {  
              "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_PD} | python -m json.tool)
@@ -1383,6 +1400,7 @@ if [ ! -d BIDS/.bidsignore ];then
     echo "tmp_dcm2bids/*" >> .bidsignore
     echo "*/anat/*SWI*" >> .bidsignore
     echo "*/anat/*MTI*" >> .bidsignore
+    echo "*/anat/*FGATIR*" >> .bidsignore
     echo "*/perf/*asl*" >> .bidsignore
     cd ..
 fi
