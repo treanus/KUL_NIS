@@ -292,6 +292,9 @@ function KUL_check_data {
     FLAIR=($(find $bidsdir -name "*FLAIR.nii.gz" -type f ))
     nFLAIR=${#FLAIR[@]}
     echo "  number of FLAIR: $nFLAIR"
+    FGATIR=($(find $bidsdir -name "*FGATIR.nii.gz" -type f ))
+    nFGATIR=${#FGATIR[@]}
+    echo "  number of FGATIR: $nFGATIR"
     T2w=($(find $bidsdir -name "*T2w.nii.gz" -type f ))
     nT2w=${#T2w[@]}
     echo "  number of T2w: $nT2w"
@@ -837,6 +840,12 @@ function KUL_register_anatomical_images {
         if [ $nFLAIR -gt 0 ];then
             source_mri_label="FLAIR"
             source_mri=$FLAIR
+            task_in="KUL_rigid_register"
+            KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "3_register_anat"
+        fi
+        if [ $nFGATIR -gt 0 ];then
+            source_mri_label="FGATIR"
+            source_mri=$FGATIR
             task_in="KUL_rigid_register"
             KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "3_register_anat"
         fi

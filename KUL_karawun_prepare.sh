@@ -165,37 +165,37 @@ elif [ $type -eq 2 ]; then
     tract_name_orig="CSHDP_LT"
     tract_name_final="CSHDP_Left"
     tract_color=2
-    tract_threshold=20
+    tract_threshold=50
     KUL_karawun_get_tract
 
     tract_name_orig="CSHDP_RT"
     tract_name_final="CSHDP_Right"
     tract_color=2
-    tract_threshold=20
+    tract_threshold=50
     KUL_karawun_get_tract
 
     tract_name_orig="CST_LT"
     tract_name_final="CST_Left"
     tract_color=1
-    tract_threshold=20
+    tract_threshold=50
     KUL_karawun_get_tract
 
     tract_name_orig="CST_RT"
     tract_name_final="CST_Right"
     tract_color=1
-    tract_threshold=20
+    tract_threshold=50
     KUL_karawun_get_tract
 
     tract_name_orig="DRT_LT"
     tract_name_final="DRT_Left"
     tract_color=3
-    tract_threshold=10
+    tract_threshold=40
     KUL_karawun_get_tract
 
     tract_name_orig="DRT_RT"
     tract_name_final="DRT_Right"
     tract_color=3
-    tract_threshold=10
+    tract_threshold=40
     KUL_karawun_get_tract
 
 fi
