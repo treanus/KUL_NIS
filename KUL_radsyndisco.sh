@@ -102,7 +102,7 @@ conda activate radsyndisco # or conda virtual env of your choosing
 if [[ ! -f "${radwd}/OUTPUTS/b0_d_nonlin_atlas_2_5.nii.gz" ]]; then
 
     task_in="prepare_input_AR.sh ${radwd}/INPUTS/b0.nii.gz ${radwd}/INPUTS/T1.nii.gz ${radwd}/INPUTS/T1_mask.nii.gz ${sbzd_p2}/atlases/mni_icbm152_t1_tal_nlin_asym_09c.nii.gz \
-    ${sbzd_p2}/atlases/mni_icbm152_t1_tal_nlin_asym_09c_2_5.nii.gz ${radwd}/OUTPUTS 12"
+    ${sbzd_p2}/atlases/mni_icbm152_t1_tal_nlin_asym_09c_2_5.nii.gz ${radwd}/OUTPUTS 64"
 
     task_exec
 
