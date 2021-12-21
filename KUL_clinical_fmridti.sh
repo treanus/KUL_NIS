@@ -600,10 +600,14 @@ function KUL_segment_tumor {
             cp $T2w $hdglioinputdir/T2.nii.gz
             
             # run HD-GLIO-AUTO using docker
-            task_in="docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
-                --mount type=bind,source=$hdgliooutputdir,target=/output \
-                jenspetersen/hd-glio-auto"
-            KUL_task_exec $verbose_level "HD-GLIO-AUTO using docker" "${KUL_LOG_DIR}/2_hdglioauto"
+            if [ ! -f /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py ]; then
+                task_in="docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
+                    --mount type=bind,source=$hdgliooutputdir,target=/output \
+                    jenspetersen/hd-glio-auto"
+            else
+                task_in="python /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py -i $hdglioinputdir -o $hdgliooutputdir"
+            fi
+            KUL_task_exec $verbose_level "HD-GLIO-AUTO using docker" "2_hdglioauto"
 
             # compute some additional output
             task_in="maskfilter $hdgliooutputdir/segmentation.nii.gz dilate $hdgliooutputdir/lesion_dil5.nii.gz -npass 5 -force; \
@@ -613,7 +617,7 @@ function KUL_segment_tumor {
                 mrcalc $hdgliooutputdir/segmentation.nii.gz 2 -eq $globalresultsdir/Anat/lesion_solid_tumour.nii -force" 
                 #mrcalc $globalresultsdir/Anat/lesion.nii $globalresultsdir/Anat/lesion_perilesional_oedema.nii -sub \
                 #    $globalresultsdir/Anat/lesion_solid_tumour.nii -sub $globalresultsdir/Anat/lesion_central_necrosis_or_cyst.nii -force"
-            KUL_task_exec $verbose_level "compute lesion, oedema & solid parts" "${KUL_LOG_DIR}/2_hdglioauto"
+            KUL_task_exec $verbose_level "compute lesion, oedema & solid parts" "2_hdglioauto"
             
         else
             echo "HD-GLIO-AUTO already done"
