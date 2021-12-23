@@ -557,7 +557,7 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
 
     task_in="recon-all -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} \
         -parallel -no-isrunning -make all"
-    KUL_task_exec $verbose_level "FastSurfer part 3: recon-all -make-all" "$KUL_LOG_DIR/FastSurfer"
+    KUL_task_exec $verbose_level "FastSurfer part 3: recon-all -make-all" "FastSurfer"
 
     #exit
 
@@ -604,10 +604,12 @@ function KUL_segment_tumor {
                 task_in="docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
                     --mount type=bind,source=$hdgliooutputdir,target=/output \
                     jenspetersen/hd-glio-auto"
+                hdglio_type="docker"
             else
                 task_in="python /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py -i $hdglioinputdir -o $hdgliooutputdir"
+                hdglio_type="local install"
             fi
-            KUL_task_exec $verbose_level "HD-GLIO-AUTO using docker" "2_hdglioauto"
+            KUL_task_exec $verbose_level "HD-GLIO-AUTO using $hdglio_type" "2_hdglioauto"
 
             # compute some additional output
             task_in="maskfilter $hdgliooutputdir/segmentation.nii.gz dilate $hdgliooutputdir/lesion_dil5.nii.gz -npass 5 -force; \
@@ -640,7 +642,7 @@ function KUL_run_VBG {
                 -o ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -z T1 -b -B 1 -t -P 3 -n $ncpu"
-            KUL_task_exec $verbose_level "KUL_VBG" "$KUL_LOG_DIR/VBG"
+            KUL_task_exec $verbose_level "KUL_VBG" "7_VBG"
             #wait
 
             # Need to update to dev version
@@ -934,11 +936,11 @@ KUL_register_anatomical_images &
 wait
 
 
-# STEP 4 - run SPM & melodic
+# STEP 5 & 6 - run SPM & melodic
 if [ $n_fMRI -gt 0 ];then
     
     task_in="KUL_fmriproc_spm.sh -p $participant"
-    KUL_task_exec $verbose_level "KUL_fmriproc_spm" "4_fmriproc_spm"
+    KUL_task_exec $verbose_level "KUL_fmriproc_spm" "5_fmriproc_spm"
 
     KUL_compute_melodic &
 
@@ -946,31 +948,31 @@ fi
 wait 
 
 
-# STEP 5 - run VBG
+# STEP 7 - run VBG
 if [ $vbg -eq 1 ];then
     KUL_run_VBG 
 fi
 wait
 
 
-# STEP 5 - run SPM/melodic/msbp
+# STEP 8 - run SPM/melodic/msbp
 #KUL_run_fastsurfer
 KUL_run_freesurfer
 wait 
 
 
-# STEP 5 - run SPM/melodic/msbp
+# STEP 9 - run SPM/melodic/msbp
 KUL_run_msbp
 wait
 
 
-# STEP 6 run dwiprep_anat
+# STEP 10 run dwiprep_anat
 task_in="KUL_dwiprep_anat.sh -p $participant -n $ncpu"
 KUL_task_exec $verbose_level "KUL_dwiprep_anat" "6_dwiprep_anat"
 
 
 
-# STEP 6 - run Fun With Tracts
+# STEP 11 - run Fun With Tracts
 if [ $n_dwi -gt 0 ];then
     KUL_run_FWT
 fi
