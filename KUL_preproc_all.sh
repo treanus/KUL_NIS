@@ -227,23 +227,23 @@ function task_fmriprep {
 
     if [ $fmriprep_singularity -eq 1 ]; then 
 
-    mkdir -p ./fmriprep_work_${fmriprep_log_p}
-            
-    local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
-    -B ./fmriprep_work_${fmriprep_log_p}:/work \
-    -B .:/data \
-    -B .:/out \
-    -B ${freesurfer_license}:/opt/freesurfer/license.txt \
-    $KUL_fmriprep_singularity \
-    /data/${bids_dir} \
-    /out \
-    participant \
-    --participant_label ${BIDS_participant} \
-    -w /work \
-    --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
-    --mem $mem_mb \
-    $fmriprep_options \
-    > $fmriprep_log  2>&1") 
+        mkdir -p ./fmriprep_work_${fmriprep_log_p}
+                
+        local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
+        -B ./fmriprep_work_${fmriprep_log_p}:/work \
+        -B .:/data \
+        -B .:/out \
+        -B ${freesurfer_license}:/opt/freesurfer/license.txt \
+        $KUL_fmriprep_singularity \
+        /data/${bids_dir} \
+        /out \
+        participant \
+        --participant_label ${BIDS_participant} \
+        -w /work \
+        --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
+        --mem $mem_mb \
+        $fmriprep_options \
+        > $fmriprep_log  2>&1") 
 
     else
 
@@ -751,6 +751,7 @@ function WaitForTaskCompletion {
 
 # Set some defaults
 silent=1
+verbose_level=1
 ncpu=6
 mem_gb=24
 bids_dir=BIDS
@@ -798,6 +799,7 @@ else
         ;;
         v) #verbose
             silent=0
+            verbose_level=2
         ;;
         e) #expert
             expert=1
@@ -838,6 +840,7 @@ fi
 # ----------- MAIN ----------------------------------------------------------------------------------
 #kul_echo "  The script you are running has basename `basename "$0"`, located in dirname $kul_main_dir"
 #kul_echo "  The present working directory is `pwd`"
+#echo "verbose_level: $verbose_level"
 
 # ---------- SET MAIN DEFAULTS ---
 # set mem_mb for mriqc/fmriprep
@@ -1072,7 +1075,7 @@ if [ $expert -eq 1 ]; then
         kul_echo "  fmriprep_options: $fmriprep_options"
         kul_echo "  fmriprep_ncpu: $fmriprep_ncpu"
         kul_echo "  fmriprep_mem: $fmriprep_mem"
-        kul_echo "  BIDS_participants: ${BIDS_subjects[@]}"
+        kul_echo "  BIDS_participants: $(echo ${BIDS_subjects[@]})"
         kul_echo "  number of BIDS_participants: $n_subj"
         kul_echo "  fmriprep_simultaneous: $fmriprep_simultaneous"
         
@@ -1101,47 +1104,38 @@ if [ $expert -eq 1 ]; then
         
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
-        task_number=1
+        task_number=0
         task_counter=1
 
         for i_bids_participant in $(seq 0 $fmriprep_simultaneous $(($n_subj_todo-1))); do
 
             fmriprep_participants=${todo_bids_participants[@]:$i_bids_participant:$fmriprep_simultaneous}
-            #echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $fmriprep_participants"
-
+            kul_echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $fmriprep_participants"
+            #echo $task_counter
+            #echo $task_number
+            
             pbs_data_file="VSC/pbs_data_fmriprep_job${task_number}.csv"
+            
+            #for BIDS_participant in $fmriprep_participants; do
+                
+                BIDS_participant=$fmriprep_participants
+            
+                task_fmriprep
+                task_in[$task_number]=$task_fmriprep_cmd
+                #echo $BIDS_participant
+                task_participant[$task_number]=${BIDS_participant// /_}
+                #echo ${task_participant[$task_number]}
+                echo "task_in - instance $task_number: ${task_in[$task_number]}"
+            
+            #done
+
             if [ $task_counter -gt $fmriprep_simultaneous_pbs ]; then
                 task_number=$((task_number+1))
                 task_counter=1
             fi
-            task_counter=$((task_counter+1))   
-
-            for BIDS_participant in $fmriprep_participants; do
-                
-                BIDS_participant=$fmriprep_participants
-                #fmriprep_pid=-1
-                #waitforprocs=()
-                #waitforpids=()
-
-                task_fmriprep
-                task_in[$task_counter-2]=$task_fmriprep_cmd
-                task_participant[$task_counter-2]=$BIDS_participant
-                #echo "task_in - instance $task_counter: ${task_in[$task_counter-2]}"
-                
-                #if [ $fmriprep_pid -gt 0 ]; then
-                #    waitforprocs+=("fmriprep")
-                #    waitforpids+=($fmriprep_pid)
-                #fi
-
-            done
-
-            #kul_e2cl "  waiting for fmriprep processes [${waitforpids[@]}] for subject(s) $fmriprep_participants to finish before continuing with further processing... (this can take hours!)... " $log
-            #WaitForTaskCompletion 
-
-            #kul_e2cl " processes [${waitforpids[@]}] for subject(s) $fmriprep_participants have finished" $log
             
             KUL_task_exec $verbose_level "KUL_preproc_all running fmriprep" "fmriprep"
-        
+
         done
 
     fi

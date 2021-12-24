@@ -118,15 +118,14 @@ function KUL_task_exec {
             task_in_name_nospaces="${task_in_name_nospaces_tmp////_}"
             kul_log_file[$local_n_tasks]="$local_main_logdir_participant/"${task_in_name_nospaces}".log"
             kul_errorlog_file[$local_n_tasks]="$local_main_logdir_participant/"${task_in_name_nospaces}".error.log"
+            kul_log_command[$local_n_tasks]="$local_main_logdir_participant/"${task_in_name_nospaces}".command"
         else
             kul_log_file[$local_n_tasks]="$local_main_logdir_participant/"${kul_log_files}.log""
             kul_errorlog_file[$local_n_tasks]="$local_main_logdir_participant/"${kul_log_files}.error.log""
+            kul_log_command[$local_n_tasks]="$local_main_logdir_participant/"${kul_log_files}.command""
         fi
 
         ### STEP 2 - execute the task_in
-        # to
-        # implement multiple task_in (see preproc_all)
-
         if [ $kul_verbose_level -lt 2 ]; then 
 
             #echo "using >"
@@ -162,6 +161,8 @@ function KUL_task_exec {
             echo -e "   The task_in command: ${local_task_in}" | tee -a ${kul_log_file[$local_n_tasks]}
             tput sgr0
         fi
+        # log the command itself
+        echo ${local_task_in} > ${kul_log_command[$local_n_tasks]}
 
         ((local_n_tasks++))
 
@@ -274,6 +275,7 @@ function KUL_task_exec {
 # MAIN FUNCTION - kul_echo ######################################################################################
 # echo loud or silent
 function kul_echo {
+    local info_to_log=$1
     #echo "previous verbose_level: $verbose_level"
     if [[ -z "$verbose_level" ]]; then
         echo "setting verbose_level = 2"
@@ -284,9 +286,9 @@ function kul_echo {
     #fi
     if [ $verbose_level -eq 1 ]; then
         #echo "log: $log"
-        echo "$1" >> ${log}
+        echo ${info_to_log[@]} >> ${log}
     elif [ $verbose_level -eq 2 ]; then
-        echo $1 | tee -a ${log}
+        echo ${info_to_log[@]} | tee -a ${log}
     fi
 }
 
@@ -349,9 +351,10 @@ script_start_time=$SECONDS
 # export KUL_DEBUG=1 in terminal to debug
 if [[ -z "$KUL_DEBUG" ]]; then
     KUL_DEBUG=0
-elif [ $KUL_DEBUG -gt 0 ]; then 
-    echo "KUL_DEBUG is set"
+elif [ $KUL_DEBUG -eq 1 ]; then 
+    echo "KUL_DEBUG is set to $KUL_DEBUG"
 elif [ $KUL_DEBUG -gt 1 ]; then
+    echo "KUL_DEBUG is now set to $KUL_DEBUG"
     set -x
 fi
 
@@ -359,27 +362,6 @@ fi
 
 machine_type=$(uname)
 #echo $machine_type
-
-# Check the mrtrix3 version
-mrtrix_version_major=$(mrconvert | head -1 | cut -d'.' -f1 | cut -d' ' -f2)
-mrtrix_version_minor=$(mrconvert | head -1 | cut -d'.' -f2)
-mrtrix_version_revision_major=$(mrconvert | head -1 | cut -d'.' -f3 | cut -d'-' -f 1)
-mrtrix_version_revision_minor=$(mrconvert | head -1 | cut -d'-' -f2)
-if [ $mrtrix_version_revision_major -eq 2 ]; then
-	mrtrix3new=0
-	kul_echo "you are using an older version of MRTrix3 $mrtrix_version_revision_major"
-	kul_echo "this is not supported. Exitting"
-	exit 1
-elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -lt 100 ]; then
-	mrtrix3new=1
-	kul_echo "you are using a new version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor but not the latest"
-elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -gt 100 ]; then
-	mrtrix3new=2
-	kul_echo "you are using the newest version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor"
-else 
-	kul_echo "cannot find correct mrtrix versions - exitting"
-	exit 1
-fi
 
 
 # -- Set global defaults --
@@ -405,4 +387,25 @@ if [ ! -z "$1" ];then
     #if []
     echo "Welcome to $script, version $version, invoked with parameters $command_line_options"
 
+fi
+
+# Check the mrtrix3 version
+mrtrix_version_major=$(mrconvert | head -1 | cut -d'.' -f1 | cut -d' ' -f2)
+mrtrix_version_minor=$(mrconvert | head -1 | cut -d'.' -f2)
+mrtrix_version_revision_major=$(mrconvert | head -1 | cut -d'.' -f3 | cut -d'-' -f 1)
+mrtrix_version_revision_minor=$(mrconvert | head -1 | cut -d'-' -f2)
+if [ $mrtrix_version_revision_major -eq 2 ]; then
+	mrtrix3new=0
+	kul_echo "you are using an older version of MRTrix3 $mrtrix_version_revision_major"
+	kul_echo "this is not supported. Exitting"
+	exit 1
+elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -lt 100 ]; then
+	mrtrix3new=1
+	kul_echo "you are using a new version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor but not the latest"
+elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -gt 100 ]; then
+	mrtrix3new=2
+	kul_echo "you are using the newest version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor"
+else 
+	kul_echo "cannot find correct mrtrix versions - exitting"
+	exit 1
 fi
