@@ -21,6 +21,7 @@ Work using the following folder organisation (example):
 ## Usage
 
 A typical command for conversion could be:  
+
 `KUL_dcm2bids.sh -p MCI009 -s 001 -d DICOM/MCI_009.zip -c study_config/sequences.txt -v`
 
 
@@ -29,7 +30,7 @@ You need to be in MAIN directory to run this (in the example /DATA/My_Study).
 
 For info about the command just run:
 
-KUL_dcm2bids.sh
+`KUL_dcm2bids.sh`
 
 Note: in stead of a zip file, you can also specify a directory containing dicoms, but the use of a zip file is more foolproof if you have strange characters in filenames.
 
@@ -43,17 +44,15 @@ The KUL_dcm2bids config file describes what data you have acquired on the scanne
 
 A typical config file could look as follows:
 
-`Identifier,search-string,task,mb,pe_dir,acq_label
-T1w,MPRAGE
-
-cT1w,T1_Gd
-FLAIR,3D_FLAIR_mind_study
-func,rsfMRI,rest,8,j,multiTE
-func,tb_fMRI,nback,2,j
-dwi,part1,-,2,j,b2000
-dwi,part2,-,2,j,b4000
-dwi,revphase,-,2,j-,rev`
-
+`Identifier,search-string,task,mb,pe_dir,acq_label  
+T1w,MPRAGE  
+cT1w,T1_Gd  
+FLAIR,3D_FLAIR_mind_study  
+func,rsfMRI,rest,8,j,multiTE  
+func,tb_fMRI,nback,2,j  
+dwi,part1,-,2,j,b2000  
+dwi,part2,-,2,j,b4000  
+dwi,revphase,-,2,j-,rev`  
 
 
 The first column describes the BIDS data type. This is the type of scan that you have acquired, e.g. a "FLAIR", or a "func" for functional MRI data.
