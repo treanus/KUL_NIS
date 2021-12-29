@@ -10,17 +10,17 @@ Use this command to convert dicom files to the BIDS format.
 
 Work using the following folder organisation (example):
 
-/DATA/My_Study is your main directory
-/DATA/My_Study/DICOM is your directory with dicom zip files
-/DATA/My_Study/DICOM/MCI_009.zip (a zip containing all dicom images of participant MCI009, session 1)
-/DATA/My_Study/study_config is your config directory
-/DATAT/My_Study/study_config/sequences.txt is your config file for dcm2bids
+/DATA/My_Study is your main directory  
+/DATA/My_Study/DICOM is your directory with dicom zip files  
+/DATA/My_Study/DICOM/MCI_009.zip (a zip containing all dicom images of participant MCI009, session 1)  
+/DATA/My_Study/study_config is your config directory  
+/DATA/My_Study/study_config/sequences.txt is your config file for dcm2bids  
 
 
 
 ## Usage
 
-A typical command for conversion could be:
+A typical command for conversion could be:  
 `KUL_dcm2bids.sh -p MCI009 -s 001 -d DICOM/MCI_009.zip -c study_config/sequences.txt -v`
 
 
