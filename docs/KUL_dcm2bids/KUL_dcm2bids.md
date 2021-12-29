@@ -12,7 +12,7 @@ Although KUL_dcm2bids works however you organise the data, we suggest to use the
 
 ![Image](KUL_dcm2bids_1.png)
 
-Note that the DICOM folder could have been compressed into 1 zip or tar.gz file. 
+Note that the MCI_009 folder could have been compressed into 1 zip or tar.gz file.   
 Note too that the dicom folder could have contained thousands of dicom files in an unorganised manner.
 
 
