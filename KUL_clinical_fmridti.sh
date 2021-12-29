@@ -292,6 +292,9 @@ function KUL_check_data {
     FLAIR=($(find $bidsdir -name "*FLAIR.nii.gz" -type f ))
     nFLAIR=${#FLAIR[@]}
     echo "  number of FLAIR: $nFLAIR"
+    FGATIR=($(find $bidsdir -name "*FGATIR.nii.gz" -type f ))
+    nFGATIR=${#FGATIR[@]}
+    echo "  number of FGATIR: $nFGATIR"
     T2w=($(find $bidsdir -name "*T2w.nii.gz" -type f ))
     nT2w=${#T2w[@]}
     echo "  number of T2w: $nT2w"
@@ -554,7 +557,7 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
 
     task_in="recon-all -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} \
         -parallel -no-isrunning -make all"
-    KUL_task_exec $verbose_level "FastSurfer part 3: recon-all -make-all" "$KUL_LOG_DIR/FastSurfer"
+    KUL_task_exec $verbose_level "FastSurfer part 3: recon-all -make-all" "FastSurfer"
 
     #exit
 
@@ -597,10 +600,16 @@ function KUL_segment_tumor {
             cp $T2w $hdglioinputdir/T2.nii.gz
             
             # run HD-GLIO-AUTO using docker
-            task_in="docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
-                --mount type=bind,source=$hdgliooutputdir,target=/output \
-                jenspetersen/hd-glio-auto"
-            KUL_task_exec $verbose_level "HD-GLIO-AUTO using docker" "${KUL_LOG_DIR}/2_hdglioauto"
+            if [ ! -f /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py ]; then
+                task_in="docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
+                    --mount type=bind,source=$hdgliooutputdir,target=/output \
+                    jenspetersen/hd-glio-auto"
+                hdglio_type="docker"
+            else
+                task_in="python /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py -i $hdglioinputdir -o $hdgliooutputdir"
+                hdglio_type="local install"
+            fi
+            KUL_task_exec $verbose_level "HD-GLIO-AUTO using $hdglio_type" "2_hdglioauto"
 
             # compute some additional output
             task_in="maskfilter $hdgliooutputdir/segmentation.nii.gz dilate $hdgliooutputdir/lesion_dil5.nii.gz -npass 5 -force; \
@@ -610,7 +619,7 @@ function KUL_segment_tumor {
                 mrcalc $hdgliooutputdir/segmentation.nii.gz 2 -eq $globalresultsdir/Anat/lesion_solid_tumour.nii -force" 
                 #mrcalc $globalresultsdir/Anat/lesion.nii $globalresultsdir/Anat/lesion_perilesional_oedema.nii -sub \
                 #    $globalresultsdir/Anat/lesion_solid_tumour.nii -sub $globalresultsdir/Anat/lesion_central_necrosis_or_cyst.nii -force"
-            KUL_task_exec $verbose_level "compute lesion, oedema & solid parts" "${KUL_LOG_DIR}/2_hdglioauto"
+            KUL_task_exec $verbose_level "compute lesion, oedema & solid parts" "2_hdglioauto"
             
         else
             echo "HD-GLIO-AUTO already done"
@@ -633,7 +642,7 @@ function KUL_run_VBG {
                 -o ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -z T1 -b -B 1 -t -P 3 -n $ncpu"
-            KUL_task_exec $verbose_level "KUL_VBG" "$KUL_LOG_DIR/VBG"
+            KUL_task_exec $verbose_level "KUL_VBG" "7_VBG"
             #wait
 
             # Need to update to dev version
@@ -721,98 +730,6 @@ function KUL_run_FWT {
     fi
 }
 
-function KUL_compute_melodic {
-# run FSL Melodic
-computedir="$kulderivativesdir/sub-$participant/FSL_melodic"
-fmridatadir="$computedir/fmridata"
-scriptsdir="$computedir/scripts"
-fmriprepdir="fmriprep/sub-$participant/func"
-globalresultsdir=$cwd/RESULTS/sub-$participant
-searchtask="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
-
-mkdir -p $fmridatadir
-mkdir -p $computedir/RESULTS
-mkdir -p $globalresultsdir
-
-if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
-    echo "Computing Melodic"
-
-    if [ $silent -eq 1 ] ; then
-        str_silent_melodic=" >> KUL_LOG/sub-${participant}_melodic.log"
-    fi
-
-    tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
-    # we loop over the found tasks
-    for task in ${tasks[@]}; do
-        d1=${task#*_task-}
-        shorttask=${d1%_space*}
-        #echo "$task -- $shorttask"
-        echo " Analysing task $shorttask"
-        fmrifile="${shorttask}${searchtask}"
-        cp $fmriprepdir/*$fmrifile.gz $fmridatadir
-        gunzip $fmridatadir/*$fmrifile.gz
-        fmriresults="$computedir/stats_$shorttask"
-        mkdir -p $fmriresults
-        melodic_in="$fmridatadir/sub-${participant}_task-$fmrifile"
-        # find the TR
-        tr=$(mrinfo $melodic_in -spacing | cut -d " " -f 4)
-        # make model and contrast
-        dyn=$(mrinfo $melodic_in -size | cut -d " " -f 4)
-        t_glm_con="$kul_main_dir/share/FSL/fsl_glm.con"
-        t_glm_mat="$kul_main_dir/share/FSL/fsl_glm_${dyn}dyn.mat"        
-        # set dimensionality and model for rs-/a-fMRI
-        if [[ $shorttask == *"rest"* ]]; then
-            dim="--dim=15"
-            model=""
-        else
-            dim=""
-            model="--Tdes=$t_glm_mat --Tcon=$t_glm_con"
-        fi
-        
-        #melodic -i Melodic/sub-Croes/fmridata/sub-Croes_task-LIP_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii -o test/ --report --Tdes=glm.mat --Tcon=glm.con
-        task_in="melodic -i $melodic_in -o $fmriresults --report --tr=$tr --Oall $model $dim"
-        KUL_task_exec 0
-        kul_log_file=KUL_LOG/sub-${participant}_melodic.log
-        wait
-
-        # now we compare to known networks
-        mkdir -p $fmriresults/kul
-        task_in="fslcc --noabs -p 3 -t .204 $kul_main_dir/atlasses/Local/Sunaert2021/KUL_NIT_networks.nii.gz \
-            $fmriresults/melodic_IC.nii.gz > $fmriresults/kul/kul_networks.txt"
-        KUL_task_exec 0
-        kul_log_file=KUL_LOG/sub-${participant}_melodic.log
-        wait
-
-        while IFS=$' ' read network ic stat; do
-            #echo $network
-            network_name=$(sed "${network}q;d" $kul_main_dir/atlasses/Local/Sunaert2021/KUL_NIT_networks.txt)
-            #echo $network_name
-            icfile="$fmriresults/stats/thresh_zstat${ic}.nii.gz"
-            network_file="$fmriresults/kul/melodic_${network_name}_ic${ic}.nii.gz"
-            #echo $icfile
-            #echo $network_file
-            mrcalc $icfile 2 -gt $icfile -mul $network_file -force
-
-            # since Melodic analysis was in MNI space, we transform back in native space
-            input=$network_file
-            output=$globalresultsdir/Melodic/rsfMRI_${shorttask}_${network_name}_ic${ic}.nii
-            transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
-            find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
-            reference=${find_T1w[0]}
-            #echo "input=$input"
-            #echo "output=$output"
-            #echo "transform=$transform"
-            #echo "reference=$reference"
-            KUL_antsApply_Transform $str_silent_melodic
-        done < $fmriresults/kul/kul_networks.txt
-    done
-    echo "Done computing Melodic"
-    touch KUL_LOG/sub-${participant}_melodic.done
-else
-    echo "Melodic analysis already done"
-fi
-}
-
 
 function KUL_register_anatomical_images {
     check="KUL_LOG/sub-${participant}_anat_reg.done"
@@ -837,6 +754,12 @@ function KUL_register_anatomical_images {
         if [ $nFLAIR -gt 0 ];then
             source_mri_label="FLAIR"
             source_mri=$FLAIR
+            task_in="KUL_rigid_register"
+            KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "3_register_anat"
+        fi
+        if [ $nFGATIR -gt 0 ];then
+            source_mri_label="FGATIR"
+            source_mri=$FGATIR
             task_in="KUL_rigid_register"
             KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "3_register_anat"
         fi
@@ -921,43 +844,44 @@ KUL_register_anatomical_images &
 wait
 
 
-# STEP 4 - run SPM & melodic
+# STEP 5 & 6 - run SPM & melodic
 if [ $n_fMRI -gt 0 ];then
     
     task_in="KUL_fmriproc_spm.sh -p $participant"
-    KUL_task_exec $verbose_level "KUL_fmriproc_spm" "4_fmriproc_spm"
+    KUL_task_exec $verbose_level "KUL_fmriproc_spm" "5_fmriproc_spm"
 
-    KUL_compute_melodic &
+    task_in="KUL_fmriproc_conn.sh -p $participant"
+    KUL_task_exec $verbose_level "KUL_fmriproc_conn" "6_fmriproc_conn"
 
 fi
 wait 
 
 
-# STEP 5 - run VBG
+# STEP 7 - run VBG
 if [ $vbg -eq 1 ];then
     KUL_run_VBG 
 fi
 wait
 
 
-# STEP 5 - run SPM/melodic/msbp
+# STEP 8 - run SPM/melodic/msbp
 #KUL_run_fastsurfer
 KUL_run_freesurfer
 wait 
 
 
-# STEP 5 - run SPM/melodic/msbp
+# STEP 9 - run SPM/melodic/msbp
 KUL_run_msbp
 wait
 
 
-# STEP 6 run dwiprep_anat
+# STEP 10 run dwiprep_anat
 task_in="KUL_dwiprep_anat.sh -p $participant -n $ncpu"
 KUL_task_exec $verbose_level "KUL_dwiprep_anat" "6_dwiprep_anat"
 
 
 
-# STEP 6 - run Fun With Tracts
+# STEP 11 - run Fun With Tracts
 if [ $n_dwi -gt 0 ];then
     KUL_run_FWT
 fi

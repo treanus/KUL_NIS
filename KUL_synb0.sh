@@ -11,7 +11,7 @@ kul_main_dir=`dirname "$0"`
 script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 # $cwd & $log_dir is made in main_functions
-kul_synb0_fork=0
+kul_synb0_fork=1
 
 # FUNCTIONS --------------
 
@@ -186,7 +186,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 		Synb0_T1=${bids_T1_found[0]}
 		echo "The used T1 for synb0-disco is $Synb0_T1"
 
-		cp $Synb0_T1 $synb0_scratch/INPUTS/T1_full.nii.gz
+		cp $Synb0_T1 $synb0_scratch/INPUTS/T1.nii.gz
 
 
 		# extract the B0
@@ -208,6 +208,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 		mrconvert $synb0_scratch/dwi_p1_b0s.mif -coord 3 0 $synb0_scratch/INPUTS/b0.nii.gz -strides -1,+2,+3,+4 
 		test_pe_table=$(mrinfo $synb0_scratch/dwi_p1_b0s.mif -petable)
 		echo "test_pe_table: $test_pe_table"
+		# this will depend on plane of acquisition
 		if [[ $test_pe_table == "" ]]; then
 			pe_axis=$(mrinfo $synb0_scratch/dwi_p1_b0s.mif -property PhaseEncodingAxis)
 			echo "	WARNING! No phase encoding data present in the data, assuming PhaseEncodingAxis $pe_axis"
@@ -217,7 +218,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 			elif [ $pe_axis == "j" ]; then
 				echo "0 1 0 0.05" > $synb0_scratch/INPUTS/acqparams.txt
 				echo "0 1 0 0.00" >> $synb0_scratch/INPUTS/acqparams.txt
-			elif [ $pe_axis == "j" ]; then
+			elif [ $pe_axis == "k" ]; then
 				echo "0 0 1 0.05" > $synb0_scratch/INPUTS/acqparams.txt
 				echo "0 0 1 0.00" >> $synb0_scratch/INPUTS/acqparams.txt
 			fi
@@ -229,17 +230,15 @@ for i in `seq 0 $(($num_sessions-1))`; do
 			echo "${topup_data[0]} ${topup_data[1]} ${topup_data[2]} 0.000" >> $synb0_scratch/INPUTS/acqparams.txt
 		fi
 
-
 		# adjust the FOV of the T1 to match the b0
-		mrgrid $synb0_scratch/INPUTS/b0.nii.gz regrid $synb0_scratch/INPUTS/b0_as_T1.nii.gz \
-			-template $synb0_scratch/INPUTS/T1_full.nii.gz
-		mrgrid -mask $synb0_scratch/INPUTS/b0_as_T1.nii.gz $synb0_scratch/INPUTS/T1_full.nii.gz crop \
-			$synb0_scratch/INPUTS/T1_crop.nii.gz
-		mrgrid $synb0_scratch/INPUTS/T1_crop.nii.gz crop -axis 1 10,10 $synb0_scratch/INPUTS/T1.nii.gz
-		rm $synb0_scratch/INPUTS/T1_crop.nii.gz
-		rm $synb0_scratch/INPUTS/T1_full.nii.gz
-		rm $synb0_scratch/INPUTS/b0_as_T1.nii.gz		
-
+		# mrgrid $synb0_scratch/INPUTS/b0.nii.gz regrid $synb0_scratch/INPUTS/b0_as_T1.nii.gz \
+		# 	-template $synb0_scratch/INPUTS/T1_full.nii.gz
+		# mrgrid -mask $synb0_scratch/INPUTS/b0_as_T1.nii.gz $synb0_scratch/INPUTS/T1_full.nii.gz crop \
+		# 	$synb0_scratch/INPUTS/T1_crop.nii.gz
+		# mrgrid $synb0_scratch/INPUTS/T1_crop.nii.gz crop -axis 1 10,10 $synb0_scratch/INPUTS/T1.nii.gz
+		# rm $synb0_scratch/INPUTS/T1_crop.nii.gz
+		# rm $synb0_scratch/INPUTS/T1_full.nii.gz
+		# rm $synb0_scratch/INPUTS/b0_as_T1.nii.gz
 
 		if [ $kul_synb0_fork -eq 1 ]; then
 

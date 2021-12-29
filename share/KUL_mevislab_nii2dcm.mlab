@@ -9,76 +9,76 @@ module itkImageFileReader {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "609 577 314 453"
+        geometry = "606 686 314 453"
         sizeHint = "314 446"
-        wasOpen = no
+        wasOpen = yes
       }
     }
   }
   fields  {
     instanceName = AnatNifti
-    fileDataType = float
+    fileDataType = double
     autoDetermineDataType = TRUE
     correctSubVoxelShift = TRUE
     fileDimension = 3
     info = "Loading okay."
     numDims = 3
     fileType = TypeNotApplicable
-    componentType = float
+    componentType = double
     pixelType = SCALAR
     loaderType = NiftiImageIO
-    outputMetaDataStr = "ITK_FileNotes : xform matrices modified by CopyXForm (niworkflows v1.3.5).
+    outputMetaDataStr = "ITK_FileNotes : 
 aux_file : 
-bitpix : 16
+bitpix : 64
 cal_max : 0
 cal_min : 0
-datatype : 4
-descrip : xform matrices modified by CopyXForm (niworkflows v1.3.5).
+datatype : 64
+descrip : 
 dim[0] : 3
-dim[1] : 222
-dim[2] : 288
-dim[3] : 288
+dim[1] : 352
+dim[2] : 256
+dim[3] : 256
 dim[4] : 1
 dim[5] : 1
 dim[6] : 1
 dim[7] : 1
-dim_info : 6
+dim_info : 
 intent_code : 0
 intent_name : 
 intent_p1 : 0
 intent_p2 : 0
 intent_p3 : 0
 pixdim[0] : 1
-pixdim[1] : 0.9
-pixdim[2] : 0.888889
-pixdim[3] : 0.888889
-pixdim[4] : 0.0090904
+pixdim[1] : 0.5
+pixdim[2] : 1
+pixdim[3] : 1
+pixdim[4] : 0
 pixdim[5] : 0
 pixdim[6] : 0
 pixdim[7] : 0
 qform_code : 1
-qoffset_x : -117.87
-qoffset_y : -93.2757
-qoffset_z : -180.563
-quatern_b : 0.0869014
-quatern_c : 0.0466982
-quatern_d : -0.00472382
-scl_inter : 281280
-scl_slope : 8.58398
+qoffset_x : -87.4045
+qoffset_y : -110.5
+qoffset_z : -284.021
+quatern_b : 0
+quatern_c : 0
+quatern_d : 0
+scl_inter : 0
+scl_slope : 1
 sform_code : 1
 slice_code : 
 slice_duration : 0
 slice_end : 0
 slice_start : 0
-srow_x : 0.896034 0.0155713 0.0818833 -117.87
-srow_y : -0.00115665 0.875424 -0.154128 -93.2757
-srow_z : -0.0843847 0.153344 0.871587 -180.563
+srow_x : 0.5 0 -0 -87.4045
+srow_y : 0 1 -0 -110.5
+srow_z : 0 0 1 -284.021
 toffset : 0
 vox_offset : 352
 xyzt_units : 
 "
     suppressErrorPosting = FALSE
-    unresolvedFileName = $(NETWORK)/RESULTS/sub-VanDerTaelen/Anat/T1w.nii
+    unresolvedFileName = $(NETWORK)/RESULTS/sub-Debatselier/Anat/FLAIR_reg2_T1w.nii.gz
   }
 }
 module itkImageFileReader {
@@ -87,9 +87,9 @@ module itkImageFileReader {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "926 570 314 455"
-        sizeHint = "314 455"
-        wasOpen = no
+        geometry = "924 694 314 446"
+        sizeHint = "314 446"
+        wasOpen = yes
       }
       window _automatic {
         geometry = "161 267 839 610"
@@ -110,17 +110,17 @@ module itkImageFileReader {
     componentType = float
     pixelType = SCALAR
     loaderType = NiftiImageIO
-    outputMetaDataStr = "ITK_FileNotes : MRtrix version: 3.0.3-296-g8a71cd60
+    outputMetaDataStr = "ITK_FileNotes : MRtrix version: 3.0.3-332-g9db46bed
 aux_file : 
 bitpix : 32
 cal_max : 0
 cal_min : 0
 datatype : 16
-descrip : MRtrix version: 3.0.3-296-g8a71cd60
+descrip : MRtrix version: 3.0.3-332-g9db46bed
 dim[0] : 3
-dim[1] : 222
-dim[2] : 288
-dim[3] : 288
+dim[1] : 185
+dim[2] : 185
+dim[3] : 104
 dim[4] : 1
 dim[5] : 1
 dim[6] : 1
@@ -132,20 +132,20 @@ intent_p1 : 0
 intent_p2 : 0
 intent_p3 : 0
 pixdim[0] : 1
-pixdim[1] : 0.9
-pixdim[2] : 0.888889
-pixdim[3] : 0.888889
+pixdim[1] : 1.3
+pixdim[2] : 1.3
+pixdim[3] : 1.3
 pixdim[4] : 0
 pixdim[5] : 0
 pixdim[6] : 0
 pixdim[7] : 0
 qform_code : 1
-qoffset_x : -117.87
-qoffset_y : -93.2757
-qoffset_z : -180.563
-quatern_b : 0.0869014
-quatern_c : 0.0466982
-quatern_d : -0.00472382
+qoffset_x : -119.581
+qoffset_y : -104.074
+qoffset_z : -211.98
+quatern_b : -0.020816
+quatern_c : 0.00171081
+quatern_d : 0.0011331
 scl_inter : 0
 scl_slope : 1
 sform_code : 1
@@ -153,16 +153,16 @@ slice_code :
 slice_duration : 0
 slice_end : 0
 slice_start : 0
-srow_x : 0.896035 0.0155713 0.0818833 -117.87
-srow_y : -0.00115665 0.875424 -0.154128 -93.2757
-srow_z : -0.0843847 0.153344 0.871587 -180.563
+srow_x : 1.29999 -0.00303801 0.0043858 -119.581
+srow_y : 0.00285283 1.29887 0.0541149 -104.074
+srow_z : -0.00450845 -0.0541048 1.29887 -211.98
 toffset : 0
 vox_offset : 352
 xyzt_units : 
 
 "
     suppressErrorPosting = FALSE
-    unresolvedFileName = $(NETWORK)/RESULTS/sub-VanDerTaelen/SPM/afMRI_Eyes_Closed_GM.nii
+    unresolvedFileName = $(NETWORK)/RESULTS/sub-Debatselier/Tracto/Tract-csd_UF_RT.nii.gz
   }
 }
 module Threshold {
@@ -209,7 +209,7 @@ module RegistrationManual {
   fields  {
     instanceName = RegistrationManual
     layout = LAYOUT_COLUMN
-    position = "4.39226102828979 -9.58705139160156 -42.4932479858398"
+    position = "-0.595497131347656 -16.5 -156.020599365234"
     grayWidth = 0.927500069141388
     grayCenter = 0.387500017881393
     overlayGrayWidth = 0.5
@@ -221,7 +221,7 @@ module RegistrationManual {
     scale = "1 1 1"
     rotation = "0 0 1 0"
     translation = "0 0 0"
-    center = "4.87343404152504 -10.1024059039449 -42.8101759388033"
+    center = "-0.345497131347656 -17 -156.520599365234"
     fillValue = 0
     matrix = "1 0 0 0
 0 1 0 0
@@ -240,9 +240,9 @@ module DirectDicomImport {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "46 588 511 405"
+        geometry = "88 723 511 405"
         sizeHint = "800 373"
-        wasOpen = no
+        wasOpen = yes
       }
       window _automatic {
         geometry = "335 415 1102 600"
@@ -614,7 +614,7 @@ validImage hasIssues fileType voxelType imgExt numVoxels numSlices numTimePoints
     dplWorkaroundValueForImageOrientationPatientTag = ""
     composeOtherFilesMode = Single
     silentTrialFileTypes = ".dat .raw .txt"
-    source = $(NETWORK)/DICOM
+    source = "$(NETWORK)/DICOM/Debaetselier_Frans/Unnamed - 4337/3D_Sag_T2_FLAIR_Cube_1X1X1X__ge_14"
     guiCachePath = ""
   }
 }
@@ -667,8 +667,8 @@ module Scale {
   }
   fields  {
     instanceName = Scale1
-    inputMin = 0
-    inputMax = 562550.9375
+    inputMin = -27.5948718325289
+    inputMax = 2806.23269082513
     updateMode = AutoUpdateMinMaxOn
     useTrueRange = TRUE
     typeSelect = UInt16
@@ -692,7 +692,7 @@ module Scale {
   fields  {
     instanceName = Scale4
     inputMin = 0
-    inputMax = 19.0500049591064
+    inputMax = 525.377807617188
     updateMode = AutoUpdateMinMaxOn
     useTrueRange = TRUE
     typeSelect = UInt16
@@ -724,7 +724,7 @@ module ColorMatrix {
     matrix01 = 0
     matrix02 = 0
     matrix03 = 0
-    matrix10 = 0
+    matrix10 = 1
     matrix11 = 1
     matrix12 = 0
     matrix13 = 0
@@ -779,29 +779,29 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation
-    patientsName = "VAN DER TAELEN^LUC FRANS"
-    patientsBirthDate = 19580121
-    patientID = 61028026
+    patientsName = DEBAETSELIER^FRANS
+    patientsBirthDate = 19450130
+    patientID = 80594609
     patientsSex = M
-    patientsAge = 063Y
+    patientsAge = 076Y
     patientComment = ""
-    studyDate = 20211122
-    acquisitionDate = ""
-    studyDescription = "RAD fmr hersen 37"
-    studyTime = 110506
-    acquisitionTime = ""
-    studyInstanceUID = 1.2.124.113532.80.22201.13880.20211122.101041.190839227
-    accessionNumber = PACS20191112
-    seriesDescription = afMRI_Eyes_Closed_GM_Tresh_3_TRA
-    institutionName = "UZ Leuven"
-    stationName = UZLGFRADPHMR02
-    bodyPartExamined = EYE
-    imageComments = afMRI_Eyes_Closed_GM_Tresh_3_TRA
+    studyDate = 20211119
+    acquisitionDate = 20211119
+    studyDescription = ""
+    studyTime = 103124
+    acquisitionTime = 104724
+    studyInstanceUID = 1.2.840.113619.6.453.171776387607417933813422893171378630545
+    accessionNumber = PACS20179254
+    seriesDescription = Tract-csd_UF_RT_Tresh_3_TRA
+    institutionName = UZ_LEUVEN
+    stationName = UZLGFRADMRPT10
+    bodyPartExamined = HEAD
+    imageComments = Tract-csd_UF_RT_Tresh_3_TRA
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = 664193105
-    contentDate = 20211207
-    contentTime = 114904
+    studyID = 4337
+    contentDate = 20211221
+    contentTime = 181051
   }
 }
 module OrthoReformat3 {
@@ -845,8 +845,8 @@ module Resample3D {
     isotropic = FALSE
     filterAlways = FALSE
     filterAlwaysTolerance = 0
-    zoom = "0.899999916553497 0.888888895511627 0.444444447755814"
-    imageSize = "200 256 128"
+    zoom = "0.5 1 0.5"
+    imageSize = "176 256 128"
     voxelSize = "1 1 2"
     subVoxelShift = "0 0 0"
     useReferenceImage = FALSE
@@ -1010,7 +1010,7 @@ module ColorMatrix {
     matrix01 = 0
     matrix02 = 0
     matrix03 = 0
-    matrix10 = 0
+    matrix10 = 1
     matrix11 = 1
     matrix12 = 0
     matrix13 = 0
@@ -1062,7 +1062,7 @@ module Scale {
   fields  {
     instanceName = Scale3
     inputMin = 0
-    inputMax = 122240
+    inputMax = 137183
     updateMode = AutoUpdateMinMaxOn
     useTrueRange = TRUE
     typeSelect = UInt8
@@ -1078,7 +1078,7 @@ module View2D {
       window _default {
         geometry = "46 120 535 425"
         sizeHint = "400 400"
-        wasOpen = no
+        wasOpen = yes
       }
       window Settings {
         geometry = "603 341 312 499"
@@ -1092,7 +1092,7 @@ module View2D {
     inventorInputOn = TRUE
     inventorOutputOn = FALSE
     view2DExtensionsOn = TRUE
-    startSlice = 78
+    startSlice = 60
     numSlices = 1
     numXSlices = 1
     sliceStep = 1
@@ -1155,29 +1155,29 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation1
-    patientsName = "VAN DER TAELEN^LUC FRANS"
-    patientsBirthDate = 19580121
-    patientID = 61028026
+    patientsName = DEBAETSELIER^FRANS
+    patientsBirthDate = 19450130
+    patientID = 80594609
     patientsSex = M
-    patientsAge = 063Y
+    patientsAge = 076Y
     patientComment = ""
-    studyDate = 20211122
-    acquisitionDate = ""
-    studyDescription = "RAD fmr hersen 37"
-    studyTime = 110506
-    acquisitionTime = ""
-    studyInstanceUID = 1.2.124.113532.80.22201.13880.20211122.101041.190839227
-    accessionNumber = PACS20191112
-    seriesDescription = afMRI_Eyes_Closed_GM_Tresh_3_COR
-    institutionName = "UZ Leuven"
-    stationName = UZLGFRADPHMR02
-    bodyPartExamined = EYE
-    imageComments = afMRI_Eyes_Closed_GM_Tresh_3_COR
+    studyDate = 20211119
+    acquisitionDate = 20211119
+    studyDescription = ""
+    studyTime = 103124
+    acquisitionTime = 104724
+    studyInstanceUID = 1.2.840.113619.6.453.171776387607417933813422893171378630545
+    accessionNumber = PACS20179254
+    seriesDescription = Tract-csd_UF_RT_Tresh_3_COR
+    institutionName = UZ_LEUVEN
+    stationName = UZLGFRADMRPT10
+    bodyPartExamined = HEAD
+    imageComments = Tract-csd_UF_RT_Tresh_3_COR
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = 664193105
-    contentDate = 20211207
-    contentTime = 114904
+    studyID = 4337
+    contentDate = 20211221
+    contentTime = 181051
   }
 }
 module Resample3D {
@@ -1199,8 +1199,8 @@ module Resample3D {
     isotropic = FALSE
     filterAlways = FALSE
     filterAlwaysTolerance = 0
-    zoom = "0.899999916553497 0.888888895511627 0.444444447755814"
-    imageSize = "200 256 128"
+    zoom = "0.5 1 0.5"
+    imageSize = "176 256 128"
     voxelSize = "1 1 2"
     subVoxelShift = "0 0 0"
     useReferenceImage = FALSE
@@ -1214,7 +1214,7 @@ module View2D {
       window _default {
         geometry = "1131 120 534 426"
         sizeHint = "400 400"
-        wasOpen = no
+        wasOpen = yes
       }
     }
   }
@@ -1223,7 +1223,7 @@ module View2D {
     inventorInputOn = TRUE
     inventorOutputOn = FALSE
     view2DExtensionsOn = TRUE
-    startSlice = 63
+    startSlice = 64
     numSlices = 1
     numXSlices = 1
     sliceStep = 1
@@ -1286,29 +1286,29 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation2
-    patientsName = "VAN DER TAELEN^LUC FRANS"
-    patientsBirthDate = 19580121
-    patientID = 61028026
+    patientsName = DEBAETSELIER^FRANS
+    patientsBirthDate = 19450130
+    patientID = 80594609
     patientsSex = M
-    patientsAge = 063Y
+    patientsAge = 076Y
     patientComment = ""
-    studyDate = 20211122
-    acquisitionDate = ""
-    studyDescription = "RAD fmr hersen 37"
-    studyTime = 110506
-    acquisitionTime = ""
-    studyInstanceUID = 1.2.124.113532.80.22201.13880.20211122.101041.190839227
-    accessionNumber = PACS20191112
-    seriesDescription = afMRI_Eyes_Closed_GM_Tresh_3_SAG
-    institutionName = "UZ Leuven"
-    stationName = UZLGFRADPHMR02
-    bodyPartExamined = EYE
-    imageComments = afMRI_Eyes_Closed_GM_Tresh_3_SAG
+    studyDate = 20211119
+    acquisitionDate = 20211119
+    studyDescription = ""
+    studyTime = 103124
+    acquisitionTime = 104724
+    studyInstanceUID = 1.2.840.113619.6.453.171776387607417933813422893171378630545
+    accessionNumber = PACS20179254
+    seriesDescription = Tract-csd_UF_RT_Tresh_3_SAG
+    institutionName = UZ_LEUVEN
+    stationName = UZLGFRADMRPT10
+    bodyPartExamined = HEAD
+    imageComments = Tract-csd_UF_RT_Tresh_3_SAG
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = 664193105
-    contentDate = 20211207
-    contentTime = 114904
+    studyID = 4337
+    contentDate = 20211221
+    contentTime = 181051
   }
 }
 module Resample3D {
@@ -1330,8 +1330,8 @@ module Resample3D {
     isotropic = FALSE
     filterAlways = FALSE
     filterAlwaysTolerance = 0
-    zoom = "0.888888895511627 0.888888895511627 0.449999958276749"
-    imageSize = "256 256 100"
+    zoom = "1 1 0.25"
+    imageSize = "256 256 88"
     voxelSize = "1 1 2"
     subVoxelShift = "0 0 0"
     useReferenceImage = FALSE
@@ -1345,7 +1345,7 @@ module View2D {
       window _default {
         geometry = "585 120 539 426"
         sizeHint = "400 400"
-        wasOpen = no
+        wasOpen = yes
       }
     }
   }
@@ -1354,7 +1354,7 @@ module View2D {
     inventorInputOn = TRUE
     inventorOutputOn = FALSE
     view2DExtensionsOn = TRUE
-    startSlice = 50
+    startSlice = 44
     numSlices = 1
     numXSlices = 1
     sliceStep = 1
@@ -1379,8 +1379,8 @@ module View2D {
     sliceOrigin = "0 0"
     useShaders = TRUE
     useManagedInteraction = FALSE
-    lutCenter = 107.520004272461
-    lutWidth = 236.800018310547
+    lutCenter = 128
+    lutWidth = 256
     annotationOn = TRUE
     annotationMode = ANNO_MODE_AUTO
     annotationSizeMode = ANNO_SHOW_DETAILED
@@ -1404,9 +1404,9 @@ module Comment {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1290 658 230 69"
-        sizeHint = "256 224"
-        wasOpen = no
+        geometry = "1252 841 230 54"
+        sizeHint = "256 209"
+        wasOpen = yes
       }
       window _automatic {
         geometry = "23 440 500 600"
@@ -1426,9 +1426,9 @@ module Comment {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1287 758 412 66"
-        sizeHint = "256 224"
-        wasOpen = no
+        geometry = "1252 930 412 51"
+        sizeHint = "256 209"
+        wasOpen = yes
       }
       window _automatic {
         geometry = "1099 471 500 600"
@@ -1439,7 +1439,7 @@ module Comment {
   }
   fields  {
     instanceName = Task
-    comment = afMRI_Eyes_Closed_GM
+    comment = Tract-csd_UF_RT
   }
 }
 module StringUtils {
@@ -1464,7 +1464,7 @@ module StringUtils {
     instanceName = Task_Treshold
     operationType = Concatenate
     string1 = ""
-    string2 = afMRI_Eyes_Closed_GM
+    string2 = Tract-csd_UF_RT
     string3 = Tresh
     string4 = 3
     string5 = ""
@@ -1507,7 +1507,7 @@ module StringUtils {
   fields  {
     instanceName = Task_Tresh_TRA
     operationType = Concatenate
-    string1 = afMRI_Eyes_Closed_GM_Tresh_3
+    string1 = Tract-csd_UF_RT_Tresh_3
     string2 = _TRA
     string3 = ""
     string4 = ""
@@ -1557,7 +1557,7 @@ module ImageSave {
     comment = MeVisLab
     allowOverwrite = TRUE
     autoFilename = TRUE
-    sourceName = /DATA/dev_MevisLab/PACS/afMRI_Eyes_Closed_GM_Tresh_3_TRA
+    sourceName = /DATA1/fmri_pat_debatselier/PACS/Tract-csd_UF_RT_Tresh_3_TRA
     postfix = ""
     dicomNameUsed = FALSE
     dicomMetaHeader = TRUE
@@ -1603,7 +1603,7 @@ module StringUtils {
   fields  {
     instanceName = Task_Tresh_COR
     operationType = Concatenate
-    string1 = afMRI_Eyes_Closed_GM_Tresh_3
+    string1 = Tract-csd_UF_RT_Tresh_3
     string2 = _COR
     string3 = ""
     string4 = ""
@@ -1653,7 +1653,7 @@ module ImageSave {
     comment = MeVisLab
     allowOverwrite = TRUE
     autoFilename = TRUE
-    sourceName = afMRI_Eyes_Closed_GM_Tresh_3_COR
+    sourceName = Tract-csd_UF_RT_Tresh_3_COR
     postfix = ""
     dicomNameUsed = FALSE
     dicomMetaHeader = TRUE
@@ -1685,9 +1685,9 @@ module Trigger {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "1286 895 333 109"
+        geometry = "1250 1011 333 109"
         sizeHint = "260 227"
-        wasOpen = no
+        wasOpen = yes
       }
       window _automatic {
         geometry = "388 396 500 600"
@@ -1727,7 +1727,7 @@ module ImageSave {
     comment = MeVisLab
     allowOverwrite = TRUE
     autoFilename = TRUE
-    sourceName = /DATA/dev_MevisLab/PACS/afMRI_Eyes_Closed_GM_Tresh_3_SAG
+    sourceName = /DATA1/fmri_pat_debatselier/PACS/Tract-csd_UF_RT_Tresh_3_SAG
     postfix = ""
     dicomNameUsed = FALSE
     dicomMetaHeader = TRUE
@@ -1773,7 +1773,7 @@ module StringUtils {
   fields  {
     instanceName = Task_Tresh_SAG
     operationType = Concatenate
-    string1 = afMRI_Eyes_Closed_GM_Tresh_3
+    string1 = Tract-csd_UF_RT_Tresh_3
     string2 = _SAG
     string3 = ""
     string4 = ""
@@ -1815,7 +1815,7 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit
-    inString = /DATA/dev_MevisLab/RESULTS/sub-VanDerTaelen/SPM/afMRI_Eyes_Closed_GM.nii
+    inString = /DATA1/fmri_pat_debatselier/RESULTS/sub-Debatselier/Tracto/Tract-csd_UF_RT.nii.gz
     separators = RESULTS
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
@@ -1844,9 +1844,9 @@ module StringUtils {
   fields  {
     instanceName = Pathname
     operationType = Concatenate
-    string1 = /DATA/dev_MevisLab/
+    string1 = /DATA1/fmri_pat_debatselier/
     string2 = PACS/
-    string3 = afMRI_Eyes_Closed_GM_Tresh_3_TRA
+    string3 = Tract-csd_UF_RT_Tresh_3_TRA
     string4 = ""
     string5 = ""
     string6 = ""
@@ -1888,9 +1888,9 @@ module StringUtils {
   fields  {
     instanceName = StringUtils2
     operationType = Concatenate
-    string1 = /DATA/dev_MevisLab/
+    string1 = /DATA1/fmri_pat_debatselier/
     string2 = PACS/
-    string3 = afMRI_Eyes_Closed_GM_Tresh_3_COR
+    string3 = Tract-csd_UF_RT_Tresh_3_COR
     string4 = ""
     string5 = ""
     string6 = ""
@@ -1932,9 +1932,9 @@ module StringUtils {
   fields  {
     instanceName = StringUtils1
     operationType = Concatenate
-    string1 = /DATA/dev_MevisLab/
+    string1 = /DATA1/fmri_pat_debatselier/
     string2 = PACS/
-    string3 = afMRI_Eyes_Closed_GM_Tresh_3_SAG
+    string3 = Tract-csd_UF_RT_Tresh_3_SAG
     string4 = ""
     string5 = ""
     string6 = ""
@@ -1974,7 +1974,7 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit1
-    inString = /DATA/dev_MevisLab/RESULTS/sub-VanDerTaelen/SPM/afMRI_Eyes_Closed_GM.nii
+    inString = /DATA1/fmri_pat_debatselier/RESULTS/sub-Debatselier/Tracto/Tract-csd_UF_RT.nii.gz
     separators = RESULTS
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
@@ -2003,7 +2003,7 @@ module StringUtils {
   fields  {
     instanceName = StringUtils
     operationType = Compare
-    string1 = SPM
+    string1 = Tracto
     string2 = SPM
     string3 = ""
     string4 = ""
@@ -2046,9 +2046,9 @@ module BoolInt {
   }
   fields  {
     instanceName = BoolInt
-    boolValue = FALSE
-    invBoolValue = TRUE
-    intValue = 0
+    boolValue = TRUE
+    invBoolValue = FALSE
+    intValue = 1
     offValue = 0
     onValue = 1
     defaultBool = Unchanged
@@ -2100,7 +2100,7 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit3
-    inString = /sub-VanDerTaelen/SPM/afMRI_Eyes_Closed_GM.nii
+    inString = /sub-Debatselier/Tracto/Tract-csd_UF_RT.nii.gz
     separators = "/ .nii"
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
