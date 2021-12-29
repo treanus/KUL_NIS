@@ -8,25 +8,23 @@ Use this command to convert dicom files to the BIDS format.
 
 ## Organise your data first
 
-Work using the following folder organisation (example):
+Although KUL_dcm2bids works however you organise the data, we suggest to use the following folder/data organisation (example):
 
-/DATA/My_Study is your main directory  
-/DATA/My_Study/DICOM is your directory with dicom zip files  
-/DATA/My_Study/DICOM/MCI_009.zip (a zip containing all dicom images of participant MCI009, session 1)  
-/DATA/My_Study/study_config is your config directory  
-/DATA/My_Study/study_config/sequences.txt is your config file for dcm2bids  
+![Image](KUL_dcm2bids_1.png)
 
+Note that the DICOM folder could have been compressed into 1 zip or tar.gz file. 
+Note too that the dicom folder could also have contained thousands if dicom files in an unorganised manner.
 
 
 ## Usage
 
 A typical command for conversion could be:  
 
-`KUL_dcm2bids.sh -p MCI009 -s 001 -d DICOM/MCI_009.zip -c study_config/sequences.txt -v`
+`KUL_dcm2bids.sh -p MCI009 -s 1 -d DICOM/MCI_009/ -e -v -c study_config/sequences.txt`
 
 
 
-You need to be in MAIN directory to run this (in the example /DATA/My_Study).
+You need to be in **main** directory to run this command (in the example /DATA/My_Study). This is also where the BIDS folder will be created. Note that we did ***not*** use an underscore in the participant name (MCI009 not MCI_009, which is not BIDS complient).
 
 For info about the command just run:
 
@@ -40,7 +38,7 @@ And this will output:
 
 Example:
 
-  KUL_dcm2bids.sh -p pat001 -d pat001.zip -c definitions_of_sequences.txt -o BIDS
+  KUL_dcm2bids.sh -p pat001 -d pat001.zip -c definitions_of_sequences.txt
 
 Required arguments:
 
@@ -58,10 +56,15 @@ Optional arguments:
      -v:  verbose 
 ```
 
-Note: in stead of a zip file, you can also specify a directory containing dicoms, but the use of a zip file can be more handy (especially if you have to transfer thousands of them from/to a USB stick e.g.).
+Note: you can  specify a directory containing dicoms, but also use a zip file. The latter can be more handy (especially if you have to transfer thousands of them from/to a USB stick e.g.).
 
 When you converted data (one or multiple subjects and sessions) please use the bids validator to check your BIDS directory.
 
+## Output
+
+Following the example above you will get:
+
+![Image](KUL_dcm2bids_2.png)
 
 
 ## Config file
@@ -113,20 +116,22 @@ The config file requires more information for the data type "dwi" acquired on Ph
 
 Note that the config file ONLY needs the above Columns 4 and 5 on PHILIPS Scanners. Siemens and GE have this encoded in the dicom header.
 
-An example config file can be found in [study_config/sequences.txt](https://github.com/treanus/KUL_NIS/blob/dev/study_config/sequences.txt)
+An example config file can be found in [study_config/sequences.txt](/study_config/sequences.txt)
 
 
 ## Supported images
 
 ### Structural
 
-- T1w, cT1w, FLAIR, T2w: fully BIDS compliant
+- T1w, cT1w, FLAIR, T2w, PDw: fully BIDS compliant
+- FGATIR:  Fast Gray Matter Acquisition T1 Inversion Recovery, this is not yet specified in the BIDS
 - SWI: susceptibility weigthed images that have been processed already on the scanner (minip and phase), this is not yet specified in the BIDS
 - MTI: magnetisation transfer contrast images (a pair of images), this is not yet specified in the BIDS
 
 ### fMRI
 
 - func: both single and multi echo data
+- events.tsv: put these in the study_config file, and use option -e
 - sbref: single band reference 
 - fmap: a field map
 
