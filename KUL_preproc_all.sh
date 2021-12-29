@@ -1106,11 +1106,13 @@ if [ $expert -eq 1 ]; then
         
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
-        task_number=0
-        task_counter=1
+
+        #task_counter=1
 
         for i_bids_participant in $(seq 0 $fmriprep_simultaneous $(($n_subj_todo-1))); do
 
+            echo "i_bids_participant: $i_bids_participant"
+            task_number=0
             fmriprep_participants=${todo_bids_participants[@]:$i_bids_participant:$fmriprep_simultaneous}
             kul_echo " going to start fmriprep with $fmriprep_simultaneous participants simultaneously, notably $fmriprep_participants"
             #echo $task_counter
@@ -1118,9 +1120,7 @@ if [ $expert -eq 1 ]; then
             
             pbs_data_file="VSC/pbs_data_fmriprep_job${task_number}.csv"
             
-            #for BIDS_participant in $fmriprep_participants; do
-                
-                BIDS_participant=$fmriprep_participants
+            for BIDS_participant in $fmriprep_participants; do
             
                 task_fmriprep
                 task_in[$task_number]=$task_fmriprep_cmd
@@ -1128,19 +1128,17 @@ if [ $expert -eq 1 ]; then
                 task_participant[$task_number]=${BIDS_participant// /_}
                 #echo ${task_participant[$task_number]}
                 echo "task_in - instance $task_number: ${task_in[$task_number]}"
+                
+                task_number=$((task_number+1))
             
-            #done
+            done
 
-            if [ $task_counter -gt $fmriprep_simultaneous_pbs ]; then
-                #task_number=$((task_number+1))
-                task_counter=1
-            fi
-            
-            task_number=$((task_number+1))
+            #if [ $task_counter -gt $fmriprep_simultaneous_pbs ]; then
+            #    task_counter=1
+            #fi
+            KUL_task_exec $verbose_level "KUL_preproc_all running fmriprep" "fmriprep"
 
         done
-        
-        KUL_task_exec $verbose_level "KUL_preproc_all running fmriprep" "fmriprep"
     
     fi
 
