@@ -952,7 +952,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
     fi
 
-    if [[ ${identifier} == "PD" ]]; then 
+    if [[ ${identifier} == "PDw" ]]; then 
         
         kul_find_relevant_dicom_file
 
@@ -961,7 +961,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_PD='{"dataType": "anat", "modalityLabel": "PD", "criteria": {  
+            sub_bids_PD='{"dataType": "anat", "modalityLabel": "PDw", "criteria": {  
              "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_PD} | python -m json.tool)

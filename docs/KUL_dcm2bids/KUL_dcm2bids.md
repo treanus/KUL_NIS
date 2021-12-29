@@ -120,7 +120,8 @@ An example config file can be found in [study_config/sequences.txt](https://gith
 
 ### Structural
 
-- T1w, cT1w, FLAIR, T2w: fully BIDS compliant
+- T1w, cT1w, FLAIR, T2w, PDw: fully BIDS compliant
+- FGATIR:  Fast Gray Matter Acquisition T1 Inversion Recovery, this is not yet specified in the BIDS
 - SWI: susceptibility weigthed images that have been processed already on the scanner (minip and phase), this is not yet specified in the BIDS
 - MTI: magnetisation transfer contrast images (a pair of images), this is not yet specified in the BIDS
 
