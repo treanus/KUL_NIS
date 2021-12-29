@@ -246,16 +246,18 @@ function task_fmriprep {
         > $fmriprep_log  2>&1") 
 
     else
-
+        mkdir -p ${cwd}/fmriprep_work
         task_fmriprep_cmd=$(echo "docker run --rm -u $(id -u) \
             -v ${cwd}/${bids_dir}:/data \
             -v ${cwd}:/out \
+            -v ${cwd}/fmriprep_work:/work \
             -v ${freesurfer_license}:/opt/freesurfer/license.txt \
             $fmriprep_filter_mount \
             nipreps/fmriprep:${fmriprep_version} \
             /data /out \
             participant \
             --participant_label ${BIDS_participant} \
+            -w /work \
             --nthreads $ncpu_fmriprep --omp-nthreads $ncpu_fmriprep_ants \
             --mem $mem_mb \
             $fmriprep_options") 
@@ -1130,14 +1132,16 @@ if [ $expert -eq 1 ]; then
             #done
 
             if [ $task_counter -gt $fmriprep_simultaneous_pbs ]; then
-                task_number=$((task_number+1))
+                #task_number=$((task_number+1))
                 task_counter=1
             fi
             
-            KUL_task_exec $verbose_level "KUL_preproc_all running fmriprep" "fmriprep"
+            task_number=$((task_number+1))
 
         done
-
+        
+        KUL_task_exec $verbose_level "KUL_preproc_all running fmriprep" "fmriprep"
+    
     fi
 
 
