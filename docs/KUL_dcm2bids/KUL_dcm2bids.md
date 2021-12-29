@@ -44,15 +44,25 @@ The KUL_dcm2bids config file describes what data you have acquired on the scanne
 
 A typical config file could look as follows:
 
-`Identifier,search-string,task,mb,pe_dir,acq_label  
+```
+Identifier,search-string,task,mb,pe_dir,acq_label  
+
 T1w,MPRAGE  
+
 cT1w,T1_Gd  
+
 FLAIR,3D_FLAIR_mind_study  
+
 func,rsfMRI,rest,8,j,multiTE  
+
 func,tb_fMRI,nback,2,j  
+
 dwi,part1,-,2,j,b2000  
+
 dwi,part2,-,2,j,b4000  
-dwi,revphase,-,2,j-,rev`  
+
+dwi,revphase,-,2,j-,rev
+```  
 
 
 The first column describes the BIDS data type. This is the type of scan that you have acquired, e.g. a "FLAIR", or a "func" for functional MRI data.
@@ -74,8 +84,8 @@ The config file requires more information for the data type "func" acquired on P
 
 - Column 4 = mb: defines the multiband factor used in the GE-EPI sequence
 - Column 5 = pe_dir: defines the phase-encoding direction used in the EPI sequence:
-    for phase-encoding direction AP, fat-shift P: use j
-    for phase-encoding direction AP, fat-shift A: use j-
+  -  for phase-encoding direction AP, fat-shift P: use j
+  -  for phase-encoding direction AP, fat-shift A: use j-
 
 The config file requires more information for the data type "dwi" acquired on Philips scanners:
 
