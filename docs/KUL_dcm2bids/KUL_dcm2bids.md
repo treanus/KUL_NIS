@@ -46,21 +46,13 @@ A typical config file could look as follows:
 
 ```
 Identifier,search-string,task,mb,pe_dir,acq_label  
-
 T1w,MPRAGE  
-
 cT1w,T1_Gd  
-
 FLAIR,3D_FLAIR_mind_study  
-
 func,rsfMRI,rest,8,j,multiTE  
-
 func,tb_fMRI,nback,2,j  
-
 dwi,part1,-,2,j,b2000  
-
 dwi,part2,-,2,j,b4000  
-
 dwi,revphase,-,2,j-,rev
 ```  
 
@@ -94,3 +86,34 @@ The config file requires more information for the data type "dwi" acquired on Ph
 - Column 5 = pe_dir: defines the phase-encoding direction used in the EPI sequence
 
 Note that the config file ONLY needs the above Columns 4 and 5 on PHILIPS Scanners. Siemens and GE have this encoded in the dicom header.
+
+## Supported images
+
+### Structural
+
+- T1w, cT1w, FLAIR, T2w: fully BIDS compliant
+- SWI: susceptibility weigthed images that have been processed already on the scanner (minip and phase), this is not yet specified in the BIDS
+- MTI: magnetisation transfer contrast images (a pair of images), this is not yet specified in the BIDS
+
+### fMRI
+
+- func: both single and multi echo data
+- sbref: single band reference 
+- fmap: a field map
+
+### DWI
+
+- dwi: diffusion MRI
+
+### ASL
+
+- ASL: arterial spin labeling, images that have already been processed on the MR scanner (a rCVF map), this is not what is specified in the BIDS convention (those are native images)
+
+
+## Depedencies
+
+Internally KUL_dcm2bids uses:
+- [dcm2bids](https://github.com/UNFmontreal/Dcm2Bids)
+- [dcm2niix](https://github.com/rordenlab/dcm2niix)
+
+These could be installed using [KUL_Linux_Installation](https://github.com/treanus/KUL_Linux_Installation)
