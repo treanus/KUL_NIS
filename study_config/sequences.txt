@@ -10,8 +10,8 @@ func,MB_mTE,rest,4,j,multiTE
 sbref,mTE_SBREF,rest,4,j,multiTE
 func,MB2_hand,HAND,2,j
 func,MB2_lip,LIP,2,j
-func,MB2_taal,TAAL,2,j
-sbref,MB2_SBREF,HAND LIP TAAL,1,j
+func,MB2_language,LANGUAGE,2,j
+sbref,MB2_SBREF,HAND LIP LANGUAGE,1,j
 dwi,p1_b1200,-,3,j-,b1200
 dwi,p2_b0,-,3,j-,b0
 dwi,p3_b2500,-,3,j-,b2500

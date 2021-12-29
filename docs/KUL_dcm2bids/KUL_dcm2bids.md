@@ -32,7 +32,33 @@ For info about the command just run:
 
 `KUL_dcm2bids.sh`
 
-Note: in stead of a zip file, you can also specify a directory containing dicoms, but the use of a zip file is more foolproof if you have strange characters in filenames.
+
+And this will output:
+
+```
+...more info above
+
+Example:
+
+  KUL_dcm2bids.sh -p pat001 -d pat001.zip -c definitions_of_sequences.txt -o BIDS
+
+Required arguments:
+
+     -d:  dicom_zip_file (the zip or tar.gz containing all your dicoms, or directory containing dicoms)
+     -p:  participant (anonymised name of the subject in bids convention)
+     -c:  definitions of sequences (T1w=MPRAGE,dwi=seq, etc..., see above)
+
+Optional arguments:
+
+     -o:  bids directory
+     -s:  session (for longitudinal study with multiple timepoints)
+     -t:  temporary directory (default = /tmp)
+     -e:  copy task-*_events.tsv from config to BIDS dir
+     -a:  further anonymise the subject by using pydeface (takes much longer)
+     -v:  verbose 
+```
+
+Note: in stead of a zip file, you can also specify a directory containing dicoms, but the use of a zip file can be more handy (especially if you have to transfer thousands of them from/to a USB stick e.g.).
 
 When you converted data (one or multiple subjects and sessions) please use the bids validator to check your BIDS directory.
 
@@ -45,7 +71,7 @@ The KUL_dcm2bids config file describes what data you have acquired on the scanne
 A typical config file could look as follows:
 
 ```
-Identifier,search-string,task,mb,pe_dir,acq_label  
+#Identifier,search-string,task,mb,pe_dir,acq_label  
 T1w,MPRAGE  
 cT1w,T1_Gd  
 FLAIR,3D_FLAIR_mind_study  
@@ -86,6 +112,9 @@ The config file requires more information for the data type "dwi" acquired on Ph
 - Column 5 = pe_dir: defines the phase-encoding direction used in the EPI sequence
 
 Note that the config file ONLY needs the above Columns 4 and 5 on PHILIPS Scanners. Siemens and GE have this encoded in the dicom header.
+
+An example config file can be found in [study_config/sequences.txt](https://github.com/treanus/KUL_NIS/blob/dev/study_config/sequences.txt)
+
 
 ## Supported images
 
