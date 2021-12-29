@@ -26,7 +26,7 @@ KUL_NIS provides tools:
          - normalisation to MNI space using fmriprep
          - group fixel based analysis in group template space
 	- myelin markers such as:
-	 - MRT (magnetisation transfer ratio)
+		 - MRT (magnetisation transfer ratio)
          - T1/T2 and T1/FLAIR ratio's
 	- structural data
          - coregistration of data to the T1w without Gd
@@ -54,7 +54,7 @@ The pipelines used should work fine with healthy volunteer data, but are being i
 
 ## Tools for BIDS data conversion
 
-### [KUL_dcm2bids](/docs/KUL_dcm2bids/KUL_dcm2bids)
+### [KUL_dcm2bids](/docs/KUL_dcm2bids/KUL_dcm2bids.md)
 Converts dicom data to BIDS format for multipule MRI vendors. 
 Provides slice-timing, total-readout-time, phase encoding direction & other data for Philips scanners (which is automatically defined for Siemens and GE scanners).
 Click the link in the header above for more information.
