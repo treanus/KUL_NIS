@@ -24,7 +24,7 @@ A typical command for conversion could be:
 
 
 
-You need to be in **main** directory to run this command (in the example /DATA/My_Study). This is also where the BIDS folder will be created. Note that we did ***not*** use an underscore in the participant name (MCI009 not MCI_009, which is not BIDS complient).
+You need to be in **main** directory to run this command (in the example /DATA/My_Study). This is also where the BIDS folder will be created. Note that we did ***not*** use an underscore in the participant name (MCI009 not MCI_009, which is not BIDS compliant).
 
 For info about the command just run:
 
@@ -56,7 +56,7 @@ Optional arguments:
      -v:  verbose 
 ```
 
-Note: you can  specify a directory containing dicoms, but also use a zip file. The latter can be more handy (especially if you have to transfer thousands of them from/to a USB stick e.g.).
+Note: you can  specify a directory containing dicoms, but also use a zip or tar.gz file. The latter can be more handy (especially if you have to transfer thousands of them from/to a USB stick e.g.).
 
 When you converted data (one or multiple subjects and sessions) please use the bids validator to check your BIDS directory.
 
