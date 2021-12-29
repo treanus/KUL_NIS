@@ -144,9 +144,9 @@ function KUL_compute_melodic {
     # run FSL Melodic
     echo "Computing Melodic"
 
-    if [ $silent -eq 1 ] ; then
-        str_silent_melodic=" >> KUL_LOG/sub-${participant}_melodic.log"
-    fi
+    #if [ $silent -eq 1 ] ; then
+    #    str_silent_melodic=" >> KUL_LOG/sub-${participant}_melodic.log"
+    #fi
 
     tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
     # we loop over the found tasks

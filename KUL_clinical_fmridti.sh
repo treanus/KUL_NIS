@@ -730,98 +730,6 @@ function KUL_run_FWT {
     fi
 }
 
-function KUL_compute_melodic {
-# run FSL Melodic
-computedir="$kulderivativesdir/sub-$participant/FSL_melodic"
-fmridatadir="$computedir/fmridata"
-scriptsdir="$computedir/scripts"
-fmriprepdir="fmriprep/sub-$participant/func"
-globalresultsdir=$cwd/RESULTS/sub-$participant
-searchtask="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
-
-mkdir -p $fmridatadir
-mkdir -p $computedir/RESULTS
-mkdir -p $globalresultsdir
-
-if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
-    echo "Computing Melodic"
-
-    if [ $silent -eq 1 ] ; then
-        str_silent_melodic=" >> KUL_LOG/sub-${participant}_melodic.log"
-    fi
-
-    tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
-    # we loop over the found tasks
-    for task in ${tasks[@]}; do
-        d1=${task#*_task-}
-        shorttask=${d1%_space*}
-        #echo "$task -- $shorttask"
-        echo " Analysing task $shorttask"
-        fmrifile="${shorttask}${searchtask}"
-        cp $fmriprepdir/*$fmrifile.gz $fmridatadir
-        gunzip $fmridatadir/*$fmrifile.gz
-        fmriresults="$computedir/stats_$shorttask"
-        mkdir -p $fmriresults
-        melodic_in="$fmridatadir/sub-${participant}_task-$fmrifile"
-        # find the TR
-        tr=$(mrinfo $melodic_in -spacing | cut -d " " -f 4)
-        # make model and contrast
-        dyn=$(mrinfo $melodic_in -size | cut -d " " -f 4)
-        t_glm_con="$kul_main_dir/share/FSL/fsl_glm.con"
-        t_glm_mat="$kul_main_dir/share/FSL/fsl_glm_${dyn}dyn.mat"        
-        # set dimensionality and model for rs-/a-fMRI
-        if [[ $shorttask == *"rest"* ]]; then
-            dim="--dim=15"
-            model=""
-        else
-            dim=""
-            model="--Tdes=$t_glm_mat --Tcon=$t_glm_con"
-        fi
-        
-        #melodic -i Melodic/sub-Croes/fmridata/sub-Croes_task-LIP_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii -o test/ --report --Tdes=glm.mat --Tcon=glm.con
-        task_in="melodic -i $melodic_in -o $fmriresults --report --tr=$tr --Oall $model $dim"
-        KUL_task_exec 0
-        kul_log_file=KUL_LOG/sub-${participant}_melodic.log
-        wait
-
-        # now we compare to known networks
-        mkdir -p $fmriresults/kul
-        task_in="fslcc --noabs -p 3 -t .204 $kul_main_dir/atlasses/Local/Sunaert2021/KUL_NIT_networks.nii.gz \
-            $fmriresults/melodic_IC.nii.gz > $fmriresults/kul/kul_networks.txt"
-        KUL_task_exec 0
-        kul_log_file=KUL_LOG/sub-${participant}_melodic.log
-        wait
-
-        while IFS=$' ' read network ic stat; do
-            #echo $network
-            network_name=$(sed "${network}q;d" $kul_main_dir/atlasses/Local/Sunaert2021/KUL_NIT_networks.txt)
-            #echo $network_name
-            icfile="$fmriresults/stats/thresh_zstat${ic}.nii.gz"
-            network_file="$fmriresults/kul/melodic_${network_name}_ic${ic}.nii.gz"
-            #echo $icfile
-            #echo $network_file
-            mrcalc $icfile 2 -gt $icfile -mul $network_file -force
-
-            # since Melodic analysis was in MNI space, we transform back in native space
-            input=$network_file
-            output=$globalresultsdir/Melodic/rsfMRI_${shorttask}_${network_name}_ic${ic}.nii
-            transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
-            find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
-            reference=${find_T1w[0]}
-            #echo "input=$input"
-            #echo "output=$output"
-            #echo "transform=$transform"
-            #echo "reference=$reference"
-            KUL_antsApply_Transform $str_silent_melodic
-        done < $fmriresults/kul/kul_networks.txt
-    done
-    echo "Done computing Melodic"
-    touch KUL_LOG/sub-${participant}_melodic.done
-else
-    echo "Melodic analysis already done"
-fi
-}
-
 
 function KUL_register_anatomical_images {
     check="KUL_LOG/sub-${participant}_anat_reg.done"
@@ -942,7 +850,8 @@ if [ $n_fMRI -gt 0 ];then
     task_in="KUL_fmriproc_spm.sh -p $participant"
     KUL_task_exec $verbose_level "KUL_fmriproc_spm" "5_fmriproc_spm"
 
-    KUL_compute_melodic &
+    task_in="KUL_fmriproc_conn.sh -p $participant"
+    KUL_task_exec $verbose_level "KUL_fmriproc_conn" "6_fmriproc_conn"
 
 fi
 wait 
