@@ -54,7 +54,7 @@ The pipelines used should work fine with healthy volunteer data, but are being i
 
 ## Tools for BIDS data conversion
 
-### [KUL_dcm2bids](/docs/KUL_dcm2bids/KUL_dcm2bids)
+### [KUL_dcm2bids](/docs/KUL_dcm2bids/KUL_dcm2bids.md)
 Converts dicom data to BIDS format for multipule MRI vendors. 
 Provides slice-timing, total-readout-time, phase encoding direction & other data for Philips scanners (which is automatically defined for Siemens and GE scanners).
 Click the link in the header above for more information.
