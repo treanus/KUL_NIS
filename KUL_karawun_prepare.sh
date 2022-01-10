@@ -37,6 +37,7 @@ Optional arguments:
      -t:  processing type
         type 1: (DEFAULT) prepare for tumor patient
         type 2: prepare for a DBS patient
+     -a:  use the ACT output
      -v:  show output from commands
 
 USAGE
@@ -51,6 +52,7 @@ USAGE
 silent=1 # default if option -v is not given
 ncpu=15
 type=1
+act_type=0
 
 # Set required options
 p_flag=0
@@ -61,7 +63,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:v" OPT; do
+	while getopts "p:t:va" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -73,6 +75,9 @@ else
 		;;
         v) #verbose
 			silent=0
+		;;
+        a) #ACT
+			act_type=1
 		;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -107,13 +112,18 @@ if [ $silent -eq 1 ] ; then
     ants_verbose=0
 fi
 
+if [ $act_type -eq 1 ] ; then
+    ACT="_ACT"
+else
+    ACT=""
+fi
 
 #----- functions
 
 function KUL_karawun_get_tract {
-    cp BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_BT_iFOD2.tck \
+    cp BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_BT${ACT}_iFOD2.tck \
         Karawun/sub-${participant}/tck/${tract_name_final}.tck
-    mrgrid BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_map_BT_iFOD2.nii.gz \
+    mrgrid BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_map_BT${ACT}_iFOD2.nii.gz \
         regrid -template Karawun/sub-${participant}/T1w.nii.gz \
         - | mrcalc - ${tract_threshold} -gt ${tract_color} -mul \
         Karawun/sub-${participant}/labels/${tract_name_final}_center.nii.gz -force
@@ -165,13 +175,13 @@ elif [ $type -eq 2 ]; then
     tract_name_orig="CSHDP_LT"
     tract_name_final="CSHDP_Left"
     tract_color=2
-    tract_threshold=50
+    tract_threshold=20
     KUL_karawun_get_tract
 
     tract_name_orig="CSHDP_RT"
     tract_name_final="CSHDP_Right"
     tract_color=2
-    tract_threshold=50
+    tract_threshold=20
     KUL_karawun_get_tract
 
     tract_name_orig="CST_LT"

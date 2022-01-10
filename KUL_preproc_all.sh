@@ -105,14 +105,14 @@ function task_mriqc_participant {
     mriqc_act="${log_dir}/mriqc_${mriqc_log_p}_act"
     #mkdir -p ${preproc}/log/mriqc
 
-    kul_e2cl " started (in parallel) mriqc on participant(s) $BIDS_participant (with options $mriqc_options, using $ncpu_mriqc cores, logging to $mriqc_log)" $log
+    #kul_e2cl " started (in parallel) mriqc on participant(s) $BIDS_participant (with options $mriqc_options, using $ncpu_mriqc cores, logging to $mriqc_log)" $log
 
     if [ $mriqc_singularity -eq 1 ]; then 
 
     mkdir -p ./mriqc
     mkdir -p ./mriqc_work_${mriqc_log_p}
 
-    local task_mriqc_cmd=$(echo "singularity run --cleanenv \
+    task_mriqc_cmd=$(echo "singularity run --cleanenv \
     -B ${cwd}:/work \
     $KUL_mriqc_singularity \
     --participant_label $BIDS_participant \
@@ -124,33 +124,46 @@ function task_mriqc_participant {
 
     else
 
-    mkdir ${cwd}/mriqc_home
-    local task_mriqc_cmd=$(echo "docker run -u $(id -u) --tmpfs /run --tmpfs /tmp --rm \
-    -v ${cwd}/mriqc_home:/home/bidsapp/ \
-    -v ${cwd}/${bids_dir}:/data -v ${cwd}/mriqc:/out \
-    poldracklab/mriqc:latest \
+    mkdir -p ${cwd}/mriqc
+
+    #local task_mriqc_cmd=$(echo "docker run -u $(id -u) --tmpfs /run --tmpfs /tmp --rm \
+    #-v ${cwd}/mriqc_home:/home/bidsapp/ \
+    #-v ${cwd}/${bids_dir}:/data -v ${cwd}/mriqc:/out \
+    #poldracklab/mriqc:latest \
+    #--participant_label $BIDS_participant \
+    #$mriqc_options \
+    #--n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
+    #/data /out participant \
+    #> $mriqc_log 2>&1 ") 
+
+    task_mriqc_cmd=$(echo "docker run --rm -u $(id -u) \
+    -v ${cwd}/${bids_dir}:/data \
+    -v ${cwd}/mriqc:/out \
+    nipreps/mriqc:latest \
     --participant_label $BIDS_participant \
     $mriqc_options \
-    --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb --no-sub \
-    /data /out participant \
-    > $mriqc_log 2>&1 ") 
-    rm -rf ${cwd}/mriqc_home
+    --n_procs $ncpu_mriqc --ants-nthreads $ncpu_mriqc_ants --mem_gb $mem_gb \
+    /data /out participant")
+    #> $mriqc_log 2>&1 ") 
+    
+    
+    #rm -rf ${cwd}/mriqc_home
     
     fi
 
-    kul_echo "   using cmd: $task_mriqc_cmd"
+    #kul_echo "   using cmd: $task_mriqc_cmd"
 
     # now we start the parallel job
-    if [ $make_pbs_files_instead_of_running -eq 0 ]; then
+    if [ $make_pbs_files_instead_of_running -eq 1 ]; then
 
-        eval $task_mriqc_cmd &
-        mriqc_pid="$!"
-        kul_echo " mriqc pid is $mriqc_pid"
-
-        sleep 2
+        #eval $task_mriqc_cmd &
+        #mriqc_pid="$!"
+        #kul_echo " mriqc pid is $mriqc_pid"
+        #kul_echo "making mriqc_cmd"
+        #sleep 2
         #psrecord $mriqc_pid --log $mriqc_act.txt --plot $mriqc_act.png --interval 30 &
 
-    else
+    #else
 
         kul_echo " making a PBS file"
         mkdir -p VSC
@@ -987,42 +1000,40 @@ if [ $expert -eq 1 ]; then
         done
 
         kul_echo "  mriqc was already done for participant(s) ${already_done[@]}"
-        
+
         # submit the jobs (and split them in chucks)
         n_subj_todo=${#todo_bids_participants[@]}
-        task_number=1
-        task_counter=1
-         
+
         for i_bids_participant in $(seq 0 $mriqc_simultaneous $(($n_subj_todo-1))); do
 
+            #echo "i_bids_participant: $i_bids_participant"
+            task_number=0
             mriqc_participants=${todo_bids_participants[@]:$i_bids_participant:$mriqc_simultaneous}
-            #echo " going to start mriqc with $mriqc_simultaneous participants simultaneously, notably $mriqc_participants"
-
-            pbs_data_file="VSC/pbs_data_mriqc_job${task_number}.csv"
-            if [ $task_counter -gt $mriqc_simultaneous_pbs ]; then
+            kul_echo " going to start mriqc with $mriqc_simultaneous participants simultaneously, notably $mriqc_participants"
+            #echo $task_counter
+            #echo $task_number
+            
+            for BIDS_participant in $mriqc_participants; do
+            
+                task_mriqc_participant
+                #echo "task_mriqc_cmd: $task_mriqc_cmd"
+                task_in[$task_number]=$task_mriqc_cmd
+                #echo $BIDS_participant
+                task_participant[$task_number]=${BIDS_participant// /_}
+                #echo ${task_participant[$task_number]}
+                echo "task_in - instance $task_number: ${task_in[$task_number]}"
+                
                 task_number=$((task_number+1))
-                task_counter=1
-            fi
-            task_counter=$((task_counter+1))
+            
+            done
 
-            BIDS_participant=$mriqc_participants
-            mriqc_pid=-1
-            waitforprocs=()
-            waitforpids=()
-
-            task_mriqc_participant
-
-            if [ $mriqc_pid -gt 0 ]; then
-                waitforprocs+=("mriqc")
-                waitforpids+=($mriqc_pid)
-            fi
-        
-            kul_e2cl " waiting for processes [${waitforpids[@]}] for subject(s) $mriqc_participants to finish before continuing with further processing... (this can take hours!)... " $log
-            WaitForTaskCompletion 
-
-            kul_e2cl " processes [${waitforpids[@]}] for subject(s) $mriqc_participants have finished" $log
+            #if [ $task_counter -gt $fmriprep_simultaneous_pbs ]; then
+            #    task_counter=1
+            #fi
+            KUL_task_exec $verbose_level "KUL_preproc_all running mriqc" "mriqc"
 
         done
+        
     fi
 
 
