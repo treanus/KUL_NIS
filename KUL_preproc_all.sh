@@ -238,6 +238,15 @@ function task_fmriprep {
 
     #kul_e2cl " started (in parallel) fmriprep on participant ${BIDS_participant}... (with options $fmriprep_options, using $ncpu_fmriprep cores, logging to $fmriprep_log)" ${log}
 
+    # add 'fmriprep' to output path for fmriprep version 21
+    if [ $fmriprep_version_major -gt 20 ]; then
+        echo "You are using fmriprep v21 or higher"
+        output_extra="/fmriprep"
+        mkdir -p ${cwd}${output_extra}
+    else
+        output_extra=""
+    fi
+
     if [ $fmriprep_singularity -eq 1 ]; then 
 
         mkdir -p ./fmriprep_work_${fmriprep_log_p}
@@ -245,7 +254,7 @@ function task_fmriprep {
         local task_fmriprep_cmd=$(echo "singularity run --cleanenv \
         -B ./fmriprep_work_${fmriprep_log_p}:/work \
         -B .:/data \
-        -B .:/out \
+        -B .${output_extra}:/out \
         -B ${freesurfer_license}:/opt/freesurfer/license.txt \
         $KUL_fmriprep_singularity \
         /data/${bids_dir} \
@@ -262,7 +271,7 @@ function task_fmriprep {
         mkdir -p ${cwd}/fmriprep_work
         task_fmriprep_cmd=$(echo "docker run --rm -u $(id -u) \
             -v ${cwd}/${bids_dir}:/data \
-            -v ${cwd}:/out \
+            -v ${cwd}${output_extra}:/out \
             -v ${cwd}/fmriprep_work:/work \
             -v ${freesurfer_license}:/opt/freesurfer/license.txt \
             $fmriprep_filter_mount \
@@ -1052,6 +1061,8 @@ if [ $expert -eq 1 ]; then
             fmriprep_version=latest
         fi 
 
+        fmriprep_version_major=$(echo $fmriprep_version | cut -d'.' -f 1)
+        
         fmriprep_options=$(grep fmriprep_options $conf | grep -v \# | cut -d':' -f 2-1000)
         
         fmriprep_bids_filter_file=$(grep fmriprep_bids_filter_file $conf | grep -v \# | cut -d':' -f 2-1000)

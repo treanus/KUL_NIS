@@ -710,7 +710,7 @@ function KUL_run_FWT {
         -c $cwd/study_config/${config} \
         -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
         -o $kulderivativesdir/sub-${participant}/FWT \
-        -T 4 -a iFOD2 \
+        -T 1 -a iFOD2 \
         -f 1 \
         -Q -S \
         -n $ncpu"

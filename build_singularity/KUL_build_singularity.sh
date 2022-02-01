@@ -15,4 +15,4 @@ sudo docker run --privileged -t --rm \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v ${cwd}:/output \
     singularityware/docker2singularity \
-    poldracklab/${what_to_build}
+    nipreps/${what_to_build}
