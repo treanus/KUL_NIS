@@ -12,8 +12,8 @@ version="v0.4 - dd 04/12/2021"
 #  - register dwi to T1 with ants-syn
 #  - fod calc msmt-5tt in stead of dhollander
 
-
-kul_main_dir=`dirname "$0"`
+kul_main_dir=$(dirname "$0")
+script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 # $cwd, mrtrix3new & $log_dir is made in main_functions
 
@@ -169,6 +169,7 @@ cd $cwd
 long_bids_subj=${search_sessions[$i]}
 #echo $long_bids_subj
 bids_subj=${long_bids_subj%dwi}
+#echo $bids_subj
 
 # Create the Directory to write preprocessed data in
 preproc=dwiprep/sub-${participant}/$(basename $bids_subj) 
@@ -195,9 +196,21 @@ kul_echo "Welcome to KUL_dwiprep_anat $v - $d"
 mkdir -p T1w
 mkdir -p dwi_reg
 
-fmriprep_subj=fmriprep/"sub-${participant}"
-fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${participant}_desc-preproc_T1w.nii.gz"
-fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${participant}_desc-brain_mask.nii.gz"
+if [[ "$bids_subj" == *"ses-"* ]]; then
+    local_ses_tmp=${bids_subj#*ses-}
+    local_ses=${local_ses_tmp%/}
+    #echo "local_ses = $local_ses"
+    fmriprep_subj=fmriprep/"sub-${participant}/ses-${local_ses}"
+    fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${participant}_ses-${local_ses}_desc-preproc_T1w.nii.gz"
+    fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${participant}_ses-${local_ses}_desc-brain_mask.nii.gz"
+else
+    fmriprep_subj=fmriprep/"sub-${participant}"
+    fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${participant}*_desc-preproc_T1w.nii.gz"
+    fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${participant}*_desc-brain_mask.nii.gz" 
+fi
+echo $fmriprep_subj
+echo $fmriprep_anat
+echo $fmriprep_anat_mask
 ants_anat_tmp=T1w/tmp.nii.gz
 ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
 ants_mask=T1w/T1w_mask.nii.gz
@@ -223,6 +236,7 @@ if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
     else
 
         mv $ants_anat_tmp $ants_anat
+        cp $fmriprep_anat_mask $ants_mask
 
     fi
 
@@ -291,7 +305,7 @@ if [ ! -f dwi_preproced_reg2T1w_mask.nii.gz ]; then
     # create mask of the dwi data (that is registered to the T1w)
     kul_echo "    creating mask of the dwi_preproces_reg2T1w data..."
     if [ $mrtrix3new -eq 2 ]; then
-        dwi2mask hdbet dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
+        dwi2mask legacy dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
     else
         dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
     fi
