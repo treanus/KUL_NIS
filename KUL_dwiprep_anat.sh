@@ -196,7 +196,10 @@ kul_echo "Welcome to KUL_dwiprep_anat $v - $d"
 mkdir -p T1w
 mkdir -p dwi_reg
 
-if [[ "$bids_subj" == *"ses-"* ]]; then
+echo "bids_subj: $bids_subj"
+echo "num_sessions: $num_sessions"
+
+if [[ "$bids_subj" == *"ses-"* ]] && [ $num_sessions -gt 1 ]; then
     local_ses_tmp=${bids_subj#*ses-}
     local_ses=${local_ses_tmp%/}
     #echo "local_ses = $local_ses"

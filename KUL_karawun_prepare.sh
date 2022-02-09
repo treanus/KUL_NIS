@@ -199,13 +199,13 @@ elif [ $type -eq 2 ]; then
     tract_name_orig="DRT_LT"
     tract_name_final="DRT_Left"
     tract_color=3
-    tract_threshold=40
+    tract_threshold=20
     KUL_karawun_get_tract
 
     tract_name_orig="DRT_RT"
     tract_name_final="DRT_Right"
     tract_color=3
-    tract_threshold=40
+    tract_threshold=20
     KUL_karawun_get_tract
 
 fi
