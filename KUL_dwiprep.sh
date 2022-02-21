@@ -44,6 +44,7 @@ Optional arguments:
 	 -s:  session (BIDS session)
 	 -n:  number of cpu for parallelisation (default 6)
 	 -b:  use Synb0-DISCO instead of topup (requires docker)
+	 -c:  use shardrecon instead of eddy
 	 -e:  options to pass to eddy (default "--slm=linear --repol")
 	 -v:  show output from mrtrix commands (0=silent, 1=normal, 2=verbose; default=1)
 	 -r:  use reverse phase data only for topup and not for further processing
@@ -58,8 +59,8 @@ Documentation:
 		1/ contactenation of different dMRI datasets accounting for differential intensity scaling using dwicat
 		2/ dwidenoise
 		3/ mrdegibs
-		4/ dwifslpreproc, either using topup or synb0-disco
-		5/ dwibiascorrect
+		4/ dwifslpreproc or shard-recon, either using topup or synb0-disco
+		5/ dwibiascorrects
 		6/ upsampling to an isotropic resolution of 1.3 mm 
 		7/ creation of dwi_mask
 		8/ response estimation

@@ -310,7 +310,7 @@ function KUL_check_data {
         echo "No T1w (without Gd) found. Fmriprep will not run."
         echo " Is the BIDS dataset correct?"
         read -p "Are you sure you want to continue? (y/n)? " answ
-        if [[ ! "$answ" == "n" ]]; then
+        if [[ "$answ" == "n" ]]; then
             exit 1
         fi
     fi 
@@ -321,7 +321,7 @@ function KUL_check_data {
             echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
             echo " At least one is missing. Is the BIDS dataset correct?"
             read -p "Are you sure you want to continue? (y/n)? " answ
-            if [[ ! "$answ" == "n" ]]; then
+            if [[ "$answ" == "n" ]]; then
                 exit 1
             fi
         fi
@@ -589,7 +589,7 @@ function KUL_segment_tumor {
         hdgliooutputdir="$kulderivativesdir/sub-${participant}/hdglio/output"
         
         # only run if not yet done
-        if [ ! -f "$globalresultsdir/Anat/lesion_central_necrosis_or_cyst.nii" ]; then
+        if [ ! -f "$globalresultsdir/Anat/lesion.nii" ]; then
 
             # prepare the inputs
             mkdir -p $hdglioinputdir
@@ -782,6 +782,21 @@ function KUL_register_anatomical_images {
     fi
 }
 
+function KUL_clear_cT1w {
+    
+    # a funtion to remove the cT1w (gadolinium enhanced T1w) away since it conflicts during msbp
+    clear_cT1w_outputdir="$kulderivativesdir/sub-${participant}/cT1w"
+    mkdir -p $clear_cT1w_outputdir
+
+    if [ $ncT1w -gt 0 ]; then
+        source_mri="${cT1w%*.nii.gz}*"
+        if [ -f $cT1w ]; then
+            mv $source_mri $clear_cT1w_outputdir 
+        fi
+    fi
+
+}
+
 
 # --- MAIN ---
 
@@ -842,6 +857,9 @@ fi
 # STEP 4 - regsiter all anatomical other data to the T1w without contrast
 KUL_register_anatomical_images &
 wait
+
+# STEP 4b - get rid of the Gadolinium T1w image
+KUL_clear_cT1w
 
 
 # STEP 5 & 6 - run SPM & melodic
