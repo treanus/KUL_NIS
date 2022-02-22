@@ -515,6 +515,11 @@ function task_KUL_dwiprep {
             extra_options_synb0=" -b "
         fi
 
+        extra_options_shard=""
+        if [ "$shard_recon" -eq 1 ]; then
+            extra_options_shard=" -c "
+        fi
+
         extra_options_revphase=""
         if [ "$rev_phase_for_topup_only" -eq 1 ]; then
             extra_options_revphase=" -r "
@@ -526,7 +531,7 @@ function task_KUL_dwiprep {
         fi
 
         task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} \
-            $extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep \
+            $extra_options_dwi2mask $extra_options_synb0 $extra_options_shard $extra_options_revphase -n $ncpu_dwiprep \
             -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1") 
             # > $dwiprep_log 2>&1 ")
 
@@ -1273,6 +1278,8 @@ if [ $expert -eq 1 ]; then
         
         synbzero_disco_instead_of_topup=$(grep synbzero_disco_instead_of_topup $conf | grep -v \# | sed 's/[^0-9]//g')
 
+        shard_recon=$(grep shard_recon $conf | grep -v \# | sed 's/[^0-9]//g')
+        
         rev_phase_for_topup_only=$(grep rev_phase_for_topup_only $conf | grep -v \# | sed 's/[^0-9]//g')
 
         dwi2mask_method=$(grep dwi2mask_method $conf | grep -v \# | cut -d':' -f 2 | sed 's/[^0-9]//g')
@@ -1290,6 +1297,7 @@ if [ $expert -eq 1 ]; then
 
         kul_echo "  dwiprep_options: $dwiprep_options"
         kul_echo "  synbzero_disco_instead_of_topup: $synbzero_disco_instead_of_topup"
+        kul_echo "  shard_recon: $shard_recon"
         kul_echo "  rev_phase_for_topup_only: $rev_phase_for_topup_only"
         kul_echo "  dwi2mask_method: $dwi2mask_method"
         kul_echo "  eddy_options: $eddy_options"
