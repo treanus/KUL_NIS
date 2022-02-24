@@ -225,7 +225,7 @@ function KUL_register_anatomical_images {
     target_mri=$T1w
     registeroutputdir="$kulderivativesdir/antsregister"
     mkdir -p $registeroutputdir
-    ln -s $cwd/$T1w $kulderivativesdir/T1w.nii.gz
+    ln -sf $cwd/$T1w $kulderivativesdir/T1w.nii.gz
 
     if [ $ncT1w -gt 0 ];then
         source_mri_label="cT1w"
@@ -274,7 +274,7 @@ function KUL_register_anatomical_images {
 
 KUL_check_data
 
-kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute/sub-$participant/KUL_register_rigid
+kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute/sub-$participant/KUL_anat_register_rigid
 mkdir -p $kulderivativesdir
 
 

@@ -204,7 +204,7 @@ function KUL_biascorrect_anat_images {
 
 KUL_check_data
 
-kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute/sub-$participant/KUL_biascorrect
+kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute/sub-$participant/KUL_anat_biascorrect
 mkdir -p $kulderivativesdir
 
 

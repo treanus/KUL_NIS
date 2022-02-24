@@ -35,6 +35,7 @@ Required arguments:
 
 Optional arguments:
 
+     -R:  open mrview with results
      -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
 
 USAGE
@@ -50,6 +51,7 @@ silent=1 # default if option -v is not given
 ants_verbose=1
 ncpu=15
 verbose_level=1
+result=0
 
 # Set required options
 p_flag=0
@@ -61,15 +63,15 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:n:v:" OPT; do
+	while getopts "p:v:R" OPT; do
 
 		case $OPT in
 		p) #participant
 			participant=$OPTARG
             p_flag=1
 		;;
-        n) #ncpu
-			ncpu=$OPTARG
+        R) #results
+			result=1
 		;;
         v) #verbose
             verbose_level=$OPTARG
@@ -131,7 +133,7 @@ function KUL_antsApply_Transform {
 function KUL_check_data {
     
     echo -e "\n\nAn overview of the bias corrected derivatives data:"
-    bidsdir="BIDS/derivatives/KUL_compute/sub-$participant/KUL_register_rigid"
+    bidsdir="BIDS/derivatives/KUL_compute/sub-$participant/KUL_anat_register_rigid"
     if [ ! -d $bidsdir ]; then
         echo "No suitable data found in the derivatives folder"
         echo "Run KUL_anat_biascorrect and KUL_anat_register_rigid first"
@@ -155,11 +157,7 @@ function KUL_check_data {
     if [ $nT1w -lt 1 ] || [ $ncT1w -lt 1 ] || [ $nT2w -lt 1 ] || [ $nT1w -lt 1 ]; then
         echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
         echo " At least one is missing. Check the derivatives folder"
-        
-        read -p "Are you sure you want to continue? (y/n)? " answ
-        if [[ "$answ" == "n" ]]; then
-            exit 1
-        fi
+        exit 1
     fi
 
 
@@ -174,11 +172,14 @@ function KUL_hd_glio_auto {
     
     # check if it needs to be performed
 
-    hdglioinputdir="$kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/hdglio/input"
-    hdgliooutputdir="$kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/hdglio"
+    hdglioinputdir="$kulderivativesdir/hdglio/input"
+    hdgliooutputdir="$kulderivativesdir/hdglio"
+    hdglio_output1=$hdgliooutputdir/output/lesion_perilesional_tissue
+    hdglio_output2=$hdgliooutputdir/output/lesion_solid_tissue
+    hdglio_output3=$hdgliooutputdir/output/lesion_total
     
     # only run if not yet done
-    if [ ! -f "$hdgliooutputdir/lesion_solid_tumour.nii.gz" ]; then
+    if [ ! -f ${hdglio_output3}.nii.gz ]; then
 
         # prepare the inputs
         mkdir -p $hdglioinputdir
@@ -201,12 +202,34 @@ function KUL_hd_glio_auto {
         KUL_task_exec $verbose_level "HD-GLIO-AUTO using $hdglio_type" "hdglioauto"
 
         # compute some additional output
-        task_in="maskfilter $hdgliooutputdir/output/segmentation.nii.gz dilate $hdgliooutputdir/output/lesion_dil5.nii.gz -npass 5 -nthreads $ncpu -force; \
-            maskfilter $hdgliooutputdir/output/lesion_dil5.nii.gz fill $hdgliooutputdir/output/lesion_dil5_fill.nii.gz -nthreads $ncpu -force; \
-            maskfilter $hdgliooutputdir/output/lesion_dil5_fill.nii.gz erode $hdgliooutputdir/lesion_total.nii.gz -npass 5 -nthreads $ncpu -force; \
-            mrcalc $hdgliooutputdir/output/segmentation.nii.gz 1 -eq $hdgliooutputdir/lesion_perilesional_tissue.nii.gz -force; \
-            mrcalc $hdgliooutputdir/output/segmentation.nii.gz 2 -eq $hdgliooutputdir/lesion_solid_tumour.nii.gz -force" 
-        KUL_task_exec $verbose_level "compute lesion, perilesion zone & solid parts" "hdglioauto"
+
+        hdglio_segmentation=$hdgliooutputdir/output/segmentation.nii.gz
+
+        lesion_type_found=$(mrstats -output max $hdglio_segmentation)
+        #echo $lesion_type_found
+        
+        if [ $lesion_type_found -ge 1 ];then
+
+            kul_echo "hd-glio-auto found $hdglio_output1"
+            mrcalc $hdglio_segmentation 1 -eq - | maskfilter - dilate -npass 5 -nthreads $ncpu ${hdglio_output1}_dil5.nii.gz -force
+            maskfilter ${hdglio_output1}_dil5.nii.gz fill ${hdglio_output1}_dil5_fill.nii.gz -nthreads $ncpu -force
+            maskfilter ${hdglio_output1}_dil5_fill.nii.gz erode ${hdglio_output1}.nii.gz -npass 5 -nthreads $ncpu -force
+            cp ${hdglio_output1}.nii.gz ${hdglio_output3}.nii.gz
+
+        elif [ $lesion_type_found -eq 2 ];then
+
+            kul_echo "hd-glio-auto found $hdglio_output2"
+            mrcalc $hdglio_segmentation 2 -eq - | maskfilter - dilate -npass 5 -nthreads $ncpu ${hdglio_output2}_dil5.nii.gz -force
+            maskfilter ${hdglio_output2}_dil5.nii.gz fill ${hdglio_output2}_dil5_fill.nii.gz -nthreads $ncpu -force
+            maskfilter ${hdglio_output2}_dil5_fill.nii.gz erode ${hdglio_output2}.nii.gz -npass 5 -nthreads $ncpu -force
+            
+            mrcalc $hdglio_segmentation 2 -le - | maskfilter - dilate -npass 5 -nthreads $ncpu ${hdglio_output3}_dil5.nii.gz -force
+            maskfilter ${hdglio_output2}_dil5.nii.gz fill ${hdglio_output3}_dil5_fill.nii.gz -nthreads $ncpu -force
+            maskfilter ${hdglio_output2}_dil5_fill.nii.gz erode ${hdglio_output3}.nii.gz -npass 5 -nthreads $ncpu -force
+        
+        fi
+        
+        #KUL_task_exec $verbose_level "compute lesion, perilesion zone & solid parts" "hdglioauto"
         
     else
         echo "Already done HD-GLIO-AUTO"
@@ -218,33 +241,47 @@ function KUL_resseg {
     
     # Segmentation of the tumor resection cavity using resseg
     
-    resseginputdir="$kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/resseg/input"
-    ressegoutputdir="$kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/resseg/output"
+    resseginputdir1="$kulderivativesdir/resseg/input1"
+    resseginputdir2="$kulderivativesdir/resseg/input2"
+    ressegoutputdir="$kulderivativesdir/resseg/output"
     
     resseginput="T1"
 
     # only run if not yet done
-    if [ ! -f "$ressegoutputdir/${resseginput}_cavity.nii.gz" ]; then
+    if [ ! -f "$ressegoutputdir/${resseginput}_cavity2.nii.gz" ]; then
         
         echo "Running resseg"
         
         # prepare the inputs
-        mkdir -p $resseginputdir
+        mkdir -p $resseginputdir1
+        mkdir -p $resseginputdir2
         mkdir -p $ressegoutputdir
 
-        cp $T1w $resseginputdir/${resseginput}.nii.gz
+        cp $T1w $resseginputdir1/${resseginput}.nii.gz
 
-        # run resseg
+        # run resseg 1st time
         eval "$(conda shell.bash hook)"
         conda activate resseg
         resseg-mni -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
             -r $ressegoutputdir/${resseginput}_reg2mni.nii.gz \
-            $resseginputdir/${resseginput}.nii.gz
-        resseg -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
-            -o $ressegoutputdir/${resseginput}_cavity.nii.gz \
-            $resseginputdir/${resseginput}.nii.gz
+            $resseginputdir1/${resseginput}.nii.gz
+        resseg -a 3 -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
+            -o $ressegoutputdir/${resseginput}_cavity1.nii.gz \
+            $resseginputdir1/${resseginput}.nii.gz
         conda deactivate
-    
+
+        # run resseg 2nd time
+        hdgliooutputdir="$kulderivativesdir/hdglio"
+        # make a betted T1 as input
+        maskfilter $hdgliooutputdir/output/mask.nii.gz dilate - -npass 15 | mrcalc $resseginputdir1/${resseginput}.nii.gz - -mul $resseginputdir2/${resseginput}.nii.gz -force
+        eval "$(conda shell.bash hook)"
+        conda activate resseg
+        resseg -a 3 -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
+            -o $ressegoutputdir/${resseginput}_cavity2.nii.gz \
+            $resseginputdir2/${resseginput}.nii.gz
+        conda deactivate
+
+
     else
         echo "Already done resseg"
     fi
@@ -256,9 +293,9 @@ function KUL_fast {
     # Segmentation of the image using FSL FAST
     
     echo "Running FSL FAST"
-    fastinputdir="$kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/fast/input"
-    fastoutputdir="$kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/fast/output"
-    hdgliooutputdir="$kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/hdglio/output"
+    fastinputdir="$kulderivativesdir/fast/input"
+    fastoutputdir="$kulderivativesdir/fast/output"
+    hdgliooutputdir="$kulderivativesdir/hdglio/output"
 
     # only run if not yet done
     if [ ! -f "$fastoutputdir/fast_seg.nii.gz" ]; then
@@ -285,7 +322,6 @@ function KUL_fast {
 
 function KUL_fastsurfer {
 
-    fastsurferoutputdir="$kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/fastsurfer"
     if [ ! -f $fastsurferoutputdir/$participant/mri/aparc.DKTatlas+aseg.deep.mgz ]; then
         echo "Running segmentation-only fastsufer"
         my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
@@ -301,60 +337,214 @@ function KUL_fastsurfer {
 # --- MAIN ---
 
 # STEP 1 - Check to input data
-kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute
+kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_anat_segment_tumor
 mkdir -p $kulderivativesdir
+globalresultsdir=$cwd/RESULTS/sub-$participant
+mkdir -p $globalresultsdir/Lesion
+mkdir -p $globalresultsdir/Anat
+
+# setup
+fastsurferoutputdir="$kulderivativesdir/fastsurfer"
+input_hdglioauto1=$kulderivativesdir/hdglio/output/lesion_total.nii.gz
+input_hdglioauto2=$kulderivativesdir/hdglio/output/lesion_perilesional_tissue.nii.gz
+input_hdglioauto3=$kulderivativesdir/hdglio/output/lesion_solid_tissue.nii.gz
+input_resseg1=$kulderivativesdir/resseg/output/T1_cavity1.nii.gz
+input_resseg2=$kulderivativesdir/resseg/output/T1_cavity2.nii.gz
+input_fastsurfer=$fastsurferoutputdir/$participant/mri/aparc.DKTatlas+aseg.deep.mgz
+
+local_output_hdglio1=$kulderivativesdir/sub-${participant}_hdglio_lesion_total.nii.gz
+local_output_hdglio2=$kulderivativesdir/sub-${participant}_hdglio_lesion_perilesional_tissue.nii.gz
+local_output_hdglio3=$kulderivativesdir/sub-${participant}_hdglio_lesion_solid_tissue.nii.gz
+global_output_hdglio1=$globalresultsdir/Lesion/sub-${participant}_hdglio_lesion_total.nii.gz
+global_output_hdglio2=$globalresultsdir/Lesion/sub-${participant}_hdglio_lesion_perilesional_tissue.nii.gz
+global_output_hdglio3=$globalresultsdir/Lesion/sub-${participant}_hdglio_lesion_solid_tissue.nii.gz
+
+resseg_output=$kulderivativesdir/sub-${participant}_resseg_cavity_clean.nii.gz
+fastsurferoutput=$kulderivativesdir/sub-${participant}_fastsurfer_ventricles.nii.gz
+
+mrview_hdglio2=0
+mrview_hdglio3=0
 
 # Check if fMRI and/or dwi data are present and/or to redo some processing
 KUL_check_data
 
-# STEP 2 - run HD-GLIO-AUTO
-KUL_hd_glio_auto
+if [ $result -eq 0 ]; then
+    # Get the data from KUL_anat_register_rigid
+    ln -sf $cwd/BIDS/derivatives/KUL_compute/sub-$participant/KUL_anat_register_rigid/*.gz $globalresultsdir/Anat
 
-# STEP 3 - run resseg
-KUL_resseg
+    # STEP 2 - run HD-GLIO-AUTO
+    KUL_hd_glio_auto
 
-# STEP 4 - run Fastsurfer
-KUL_fastsurfer
+    # STEP 3 - run resseg
+    KUL_resseg
 
-# STEP 5 - make final segmentations
-#  HD-GLIO-AUTO nicely segments the tumor and perilesion tissue, but misses any surgical resection cavity
-#  resseg find the surgical resection cavity, but overestimates and mislabels ventricles as cavity
-#  Fastsurfer identifies the ventricles
+    # STEP 4 - run Fastsurfer
+    KUL_fastsurfer
 
-echo "Running final segmentations"
+    # STEP 5 - make final segmentations
+    #  HD-GLIO-AUTO nicely segments the tumor and perilesion tissue, but misses any surgical resection cavity
+    #  resseg find the surgical resection cavity, but overestimates and mislabels ventricles as cavity
+    #  Fastsurfer identifies the ventricles
 
-input_hdglioauto=$hdgliooutputdir/lesion_total.nii.gz
-input_resseg=$ressegoutputdir/T1_cavity.nii.gz
-input_fastsurfer=$fastsurferoutputdir/$participant/mri/aparc.DKTatlas+aseg.deep.mgz
-outputdir=$kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor
+    echo "Running final segmentations"
 
-# get the CSF from fastsurfer
-mrgrid $input_fastsurfer regrid -template $input_hdglioauto $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/fastsurfer.nii.gz -interp nearest -force
-mrcalc $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/fastsurfer.nii.gz \
-    4 -eq $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/ventricle1.nii.gz -force
-maskfilter $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/ventricle1.nii.gz connect \
-    $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/ventricle1c.nii.gz -nthreads $ncpu -force
-mrcalc $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/fastsurfer.nii.gz \
-    43 -eq $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/ventricle2.nii.gz -force
-maskfilter $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/ventricle2.nii.gz connect \
-    $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/ventricle2c.nii.gz -nthreads $ncpu -force
-mrcalc $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/ventricle1c.nii.gz \
-    $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/ventricle2c.nii.gz -add \
-    $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/ventricles.nii.gz -force
+    # link outputs
+    ln -sf $input_hdglioauto1 $local_output_hdglio1
+    ln -sf $input_hdglioauto1 $global_output_hdglio1
 
-# subtract hdglio-lesion-total and csf from resseg 
-mrcalc $input_resseg $input_hdglioauto -subtract 0.9 -gt $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/resseg_subtracted.nii.gz -force
-mrcalc $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/resseg_subtracted.nii.gz \
-    $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/ventricles.nii.gz -subtract 0.9 -gt \
-    $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/resseg_subtracted_no_ventricles.nii.gz -force
+    if [ -f $input_hdglioauto2 ]; then
+        ln -sf $input_hdglioauto2 $local_output_hdglio2
+        ln -sf $input_hdglioauto2 $global_output_hdglio2
+        mrview_hdglio2=1
+    fi
 
-maskfilter $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/resseg_subtracted_no_ventricles.nii.gz clean \
-    $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/sub-participant_lesion_cavity.nii.gz -nthreads $ncpu -force
+    if [ -f $input_hdglioauto3 ]; then
+        ln -sf $input_hdglioauto3 $local_output_hdglio3
+        ln -sf $input_hdglioauto3 $global_output_hdglio3
+        mrview_hdglio3=1
+    fi
 
-# compute the whole lesion 
-mrcalc $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/sub-participant_lesion_cavity.nii.gz \
-    $input_hdglioauto -add \
-    $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/sub-participant_lesion_full.nii.gz -force
-cp $input_hdglioauto $kulderivativesdir/sub-${participant}/KUL_anat_segment_tumor/sub-participant_lesion_solid.nii.gz
+
+    # get the CSF from fastsurfer 
+
+    # regrid fastsurfer to T1w space, get L and R ventricle and add them
+    mrgrid $input_fastsurfer regrid -template $input_hdglioauto1 \
+        $kulderivativesdir/sub-${participant}_fastsurfer_labels.nii.gz -interp nearest -force
+    mrcalc $kulderivativesdir/sub-${participant}_fastsurfer_labels.nii.gz \
+        4 -eq $kulderivativesdir/ventricle1.nii.gz -force
+    mrcalc $kulderivativesdir/sub-${participant}_fastsurfer_labels.nii.gz \
+        43 -eq $kulderivativesdir/ventricle2.nii.gz -force
+    mrcalc $kulderivativesdir/ventricle1.nii.gz \
+        $kulderivativesdir/ventricle2.nii.gz -add \
+        $fastsurferoutput -force
+    rm -rf $kulderivativesdir/ventricle1.nii.gz \
+        $kulderivativesdir/ventricle2.nii.gz
+    ln -sf $fastsurferoutput $globalresultsdir/Lesion/
+
+    # Correct RESSEG
+    # 1st try to determine if the 2 resseg runs overlap
+    # subtract hdglio-lesion-total and csf from resseg 
+    #   and clean
+
+    # calculate the overlap between the 2 resseg runs
+    mrcalc $input_resseg1 $input_resseg2 -add $kulderivativesdir/resseg/T1_cavity_combined.nii.gz -force
+    cav_overlap=$(mrstats $kulderivativesdir/resseg/T1_cavity_combined.nii.gz -output max)
+
+    if [ $cav_overlap -lt 2 ]; then
+        # there is no overlap, we discard resseg output
+        resseg_keep=""
+        resseg_use=0
+    else
+        # there seems to be overlap, let's keep #1
+        resseg_keep=$input_resseg1
+        resseg_use=1
+
+        ln -sf $resseg_keep $kulderivativesdir/sub-${participant}_resseg_cavity1_noclean.nii.gz
+
+        # now compute resseg - hd_glio - csf
+        mrcalc $resseg_keep $input_hdglioauto1 -subtract 0.9 -gt \
+            $kulderivativesdir/resseg/resseg_subtracted.nii.gz -force
+        mrcalc $kulderivativesdir/resseg/resseg_subtracted.nii.gz \
+            $fastsurferoutput -subtract 0.9 -gt \
+            $kulderivativesdir/resseg/resseg_subtracted_no_ventricles.nii.gz -force
+        maskfilter $kulderivativesdir/resseg/resseg_subtracted_no_ventricles.nii.gz clean \
+            $resseg_output -nthreads $ncpu -force
+        ln -s $resseg_output $globalresultsdir/Lesion/sub-${participant}_resseg_cavity.nii.gz
+    fi 
+
+
+    # compute a refined whole lesion + cavity
+    if [ $resseg_use -eq 1 ]; then
+        mrcalc $resseg_output \
+            $input_hdglioauto1 -add \
+            $kulderivativesdir/tmp_lesion_full.nii.gz -force
+
+    else
+
+        ln -sf $input_hdglioauto1 \
+            $kulderivativesdir/tmp_lesion_full.nii.gz
+
+    fi
+
+    maskfilter $kulderivativesdir/tmp_lesion_full.nii.gz dilate \
+        $kulderivativesdir/tmp_lesion_full_dil.nii.gz -npass 5 -force
+    maskfilter $kulderivativesdir/tmp_lesion_full_dil.nii.gz connect \
+        $kulderivativesdir/tmp_lesion_full_dil_connect.nii.gz -force
+    maskfilter $kulderivativesdir/tmp_lesion_full_dil_connect.nii.gz erode \
+        $kulderivativesdir/sub-${participant}_lesion_full.nii.gz  -force
+
+    #rm -rf $kulderivativesdir/tmp_*.nii.gz
+    ln -sf $kulderivativesdir/sub-${participant}_lesion_full.nii.gz \
+        $globalresultsdir/Lesion/sub-${participant}_lesion_full.nii.gz
+
+else 
+
+    if [ -f $resseg_output ];then
+        resseg_use=1
+    else
+        resseg_use=0
+    fi
+    mrview_exit=""
+
+fi
+
+# create a figure
+rm -f $globalresultsdir/Lesion/tmp*.png
+
+underlay=$globalresultsdir/Anat/FLAIR_reg2_T1w.nii.gz
+underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF)}')
+
+mrview_hdglio2_overlay=""
+mrview_hdglio3_overlay=""
+if [ $mrview_hdglio2 -eq 1 ]; then
+    mrview_hdglio2_overlay="-overlay.load $local_output_hdglio2 -overlay.opacity 0.5 -overlay.colour 0,1,1"
+fi
+
+if [ $mrview_hdglio3 -eq 1 ]; then
+    mrview_hdglio3_overlay="-overlay.load $local_output_hdglio3 -overlay.opacity 0.5 -overlay.colour 0,0,1"
+fi
+
+if [ $resseg_use -eq 1 ]; then
+    mrview_resseg_overlay="-overlay.load $resseg_output -overlay.opacity 0.5 -overlay.colour 0,255,0"
+fi
+
+
+if [ $result -eq 0 ]; then
+    i=0
+    voxel_index="-capture.folder $globalresultsdir/Lesion -capture.prefix tmp -noannotations "
+    while [ $i -lt $underlay_slices ]
+    do
+        #echo Number: $i
+        voxel_index="$voxel_index -voxel 0,0,$i -capture.grab"
+        let "i+=7" 
+    done
+    mode_plane="-mode 1 -plane 2"
+    mrview_exit="-exit"
+else
+    voxel_index=""
+    mode_plane="-mode 2"
+    mrview_exit=""
+fi
+#echo $voxel_index
+
+cmd="mrview -load $underlay 
+    $mode_plane \
+    -overlay.load $globalresultsdir/Lesion/sub-${participant}_lesion_full.nii.gz -overlay.opacity 0.5 -overlay.colour 255,255,0 \
+    -overlay.load $local_output_hdglio1 -overlay.opacity 0.5 -overlay.colour 85,0,255 \
+    $mrview_hdglio2_overlay \
+    $mrview_hdglio3_overlay \
+    -overlay.load $fastsurferoutput -overlay.opacity 0.5 -overlay.colour 0,85,127 \
+    $mrview_resseg_overlay \
+    $voxel_index \
+    -force \
+    $mrview_exit"
+#echo $cmd
+eval $cmd
+
+if [ $result -eq 0 ];then
+
+    montage $globalresultsdir/Lesion/tmp*.png -mode Concatenate $globalresultsdir/Lesion/sub-${participant}_tumor_segment.png
+    rm -f $globalresultsdir/Lesion/tmp*.png
+fi
 
 echo "Finished"
