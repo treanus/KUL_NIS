@@ -208,7 +208,13 @@ function KUL_hd_glio_auto {
         lesion_type_found=$(mrstats -output max $hdglio_segmentation)
         #echo $lesion_type_found
         
-        if [ $lesion_type_found -ge 1 ];then
+        if [ $lesion_type_found -ea 0 ];then
+
+            kul_echo "hd-glio-auto did not find a lesion"
+            # output an empty lesion mask
+            mrcalc $hdglio_segmentation 1 -eq ${hdglio_output3}.nii.gz
+
+        elif [ $lesion_type_found -ge 1 ];then
 
             kul_echo "hd-glio-auto found $hdglio_output1"
             mrcalc $hdglio_segmentation 1 -eq - | maskfilter - dilate -npass 5 -nthreads $ncpu ${hdglio_output1}_dil5.nii.gz -force
@@ -364,6 +370,11 @@ fastsurferoutput=$kulderivativesdir/sub-${participant}_fastsurfer_ventricles.nii
 
 mrview_hdglio2=0
 mrview_hdglio3=0
+
+if [ -f $globalresultsdir/Lesion/sub-${participant}_tumor_segment.png ];then
+    echo "Already done."
+    exit
+fi
 
 # Check if fMRI and/or dwi data are present and/or to redo some processing
 KUL_check_data

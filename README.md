@@ -32,6 +32,7 @@ KUL_NIS provides tools:
          - coregistration of data to the T1w without Gd
          - Freesufer parcellation
          - FastSurfer parcellation
+		 - Tumor segmentation
 
 - to work easily with KUL_VBG
 	- a pipeline that enables to run Freesurfer and FastSurfer in patients with (large) brain lesions (tumour/stroke)
@@ -64,7 +65,12 @@ KUL_dcm2bids to convert multiple datasets at once.
 
 ### KUL_bids_summary
 Provides output of multiple parameters of a BIDS dataset, including acquisition date, scanner software verion, etc... readable in google sheets, excel, etc...
-  
+
+
+## Tools for structural analysis
+
+### [KUL_anat_segment_tumor](/docs/KUL_anat_segment_tumor/KUL_anat_segment_tumor.md)
+This script segments pre- or post-operative brain tumor lesions and/or resection cavities using a combination of AI tools hd-glio-auto, resseg and fastsurfer.
  
 ## Tools for fMRI analysis
 
