@@ -67,11 +67,21 @@ KUL_dcm2bids to convert multiple datasets at once.
 Provides output of multiple parameters of a BIDS dataset, including acquisition date, scanner software verion, etc... readable in google sheets, excel, etc...
 
 
+
 ## Tools for structural analysis
+
+### KUL_anat_biascorrect
+This script performs Ants N4 bias correction on the structural images of a participant in the BIDS folder.
+Run KUL_anat_biascorrect.sh to see information.
+
+### KUL_anat_register_rigid
+This script rigidly registers structural images in the BIDS folder to the T1w (without contrast) in the BIDS folder.
 
 ### [KUL_anat_segment_tumor](/docs/KUL_anat_segment_tumor/KUL_anat_segment_tumor.md)
 This script segments pre- or post-operative brain tumor lesions and/or resection cavities using a combination of AI tools hd-glio-auto, resseg and fastsurfer.
  
+
+
 ## Tools for fMRI analysis
 
 ### KUL_preproc_all
