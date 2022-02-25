@@ -208,7 +208,7 @@ function KUL_hd_glio_auto {
         lesion_type_found=$(mrstats -output max $hdglio_segmentation)
         #echo $lesion_type_found
         
-        if [ $lesion_type_found -ea 0 ];then
+        if [ $lesion_type_found -eq 0 ];then
 
             kul_echo "hd-glio-auto did not find a lesion"
             # output an empty lesion mask
