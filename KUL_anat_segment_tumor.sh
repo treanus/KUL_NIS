@@ -371,7 +371,7 @@ fastsurferoutput=$kulderivativesdir/sub-${participant}_fastsurfer_ventricles.nii
 mrview_hdglio2=0
 mrview_hdglio3=0
 
-if [ -f $globalresultsdir/Lesion/sub-${participant}_tumor_segment.png ];then
+if [ -f $globalresultsdir/Lesion/sub-${participant}_tumor_segment.png ] && [ $result -eq 0 ];then
     echo "Already done."
     exit
 fi
