@@ -58,7 +58,7 @@ A cuda compatible GPU with at least 6GB memory.
 
 Internally KUL_anat_segment_tumor uses:
 - [hd-glio-auto](https://github.com/NeuroAI-HD/HD-GLIO-AUTO)
-- [resseg](https://github.com/fepegar/resseg)
+- [resseg](https://github.com/fepegar/resseg) & run pip install antspyx in the env
 - [fastsurfer](https://github.com/Deep-MI/FastSurfer)
 - [mrtix3](https://www.mrtrix.org/)
 
