@@ -12,8 +12,8 @@ Although KUL_dcm2bids works however you organise the data, we suggest to use the
 
 ![Image](KUL_dcm2bids_1.png)
 
-Note that the DICOM folder could have been compressed into 1 zip or tar.gz file. 
-Note too that the dicom folder could also have contained thousands if dicom files in an unorganised manner.
+Note that the MCI_009 folder could have been compressed into 1 zip or tar.gz file.   
+Note too that the dicom folder could have contained thousands of dicom files in an unorganised manner.
 
 
 ## Usage
@@ -24,7 +24,7 @@ A typical command for conversion could be:
 
 
 
-You need to be in **main** directory to run this command (in the example /DATA/My_Study). This is also where the BIDS folder will be created. Note that we did ***not*** use an underscore in the participant name (MCI009 not MCI_009, which is not BIDS complient).
+You need to be in **main** directory to run this command (in the example /DATA/My_Study). This is also where the BIDS folder will be created. Note that we did ***not*** use an underscore in the participant name (MCI009 not MCI_009, which is not BIDS compliant).
 
 For info about the command just run:
 
@@ -56,7 +56,7 @@ Optional arguments:
      -v:  verbose 
 ```
 
-Note: you can  specify a directory containing dicoms, but also use a zip file. The latter can be more handy (especially if you have to transfer thousands of them from/to a USB stick e.g.).
+Note: you can  specify a directory containing dicoms, but also use a zip or tar.gz file. The latter can be more handy (especially if you have to transfer thousands of them from/to a USB stick e.g.).
 
 When you converted data (one or multiple subjects and sessions) please use the bids validator to check your BIDS directory.
 

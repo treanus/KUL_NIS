@@ -289,10 +289,13 @@ for i in `seq 0 $(($num_sessions-1))`; do
 				mrgrid - pad -axis 1 0,5 $synb0_scratch/OUTPUTS/topup_fieldcoef_clean.nii.gz
 			fieldmap2copy=$synb0_scratch/OUTPUTS/topup_fieldcoef_clean.nii.gz
 		else
-			fieldmap2copy=$synb0_scratch/OUTPUTS/topup_fieldcoef.nii.gz
+			fieldcoef2copy=$synb0_scratch/OUTPUTS/topup_fieldcoef.nii.gz
+			fieldmap2copy=$synb0_scratch//OUTPUTS/topup_fieldmap.nii.gz
 		fi
-		cp $fieldmap2copy \
+		cp $fieldcoef2copy \
 			$bids_target/topup_fieldcoef.nii.gz
+		cp $fieldmap2copy \
+			$bids_target/topup_fieldmap.nii.gz
 		cp $synb0_scratch/OUTPUTS/topup_movpar.txt \
 			$bids_target/topup_movpar.txt
 

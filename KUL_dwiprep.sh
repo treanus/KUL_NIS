@@ -44,6 +44,7 @@ Optional arguments:
 	 -s:  session (BIDS session)
 	 -n:  number of cpu for parallelisation (default 6)
 	 -b:  use Synb0-DISCO instead of topup (requires docker)
+	 -c:  use shard-recon instead of eddy
 	 -e:  options to pass to eddy (default "--slm=linear --repol")
 	 -v:  show output from mrtrix commands (0=silent, 1=normal, 2=verbose; default=1)
 	 -r:  use reverse phase data only for topup and not for further processing
@@ -58,8 +59,8 @@ Documentation:
 		1/ contactenation of different dMRI datasets accounting for differential intensity scaling using dwicat
 		2/ dwidenoise
 		3/ mrdegibs
-		4/ dwifslpreproc, either using topup or synb0-disco
-		5/ dwibiascorrect
+		4/ dwifslpreproc or shard-recon, either using topup or synb0-disco
+		5/ dwibiascorrects
 		6/ upsampling to an isotropic resolution of 1.3 mm 
 		7/ creation of dwi_mask
 		8/ response estimation
@@ -82,6 +83,7 @@ synb0=0
 total_errorcount=0
 dwipreproc_options="dhollander"
 dwi2mask_method=3
+shard=0
 
 # Specify additional options for FSL eddy
 eddy_options="--slm=linear --repol"
@@ -98,7 +100,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:d:e:m:v:rb" OPT; do
+	while getopts "p:s:n:d:e:m:v:rbc" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -129,6 +131,9 @@ else
 		;;
 		b) #use SynB0-DISCO
 			synb0=1
+		;;
+		c) #shard
+			shard=1
 		;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -442,9 +447,6 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		# motion and distortion correction using rpe_header
 		kul_echo "Start part 2 of preprocessing: dwipreproc (this takes time!)..."
 
-		# Make the directory for the output of eddy_qc
-		mkdir -p eddy_qc/raw
-
 		# prepare for Synb0-disco
 		if [ $synb0 -eq 1 ]; then
 				
@@ -508,14 +510,66 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
 			mrcat raw/b0s_pe*.mif dwi/se_epi_for_topup.mif -force
 
+			# if shard-recon is the motion-correction algo, and there is reverse phase info, run topup first
+			if [ $shard -eq 1 ] && [ $synb0 -eq 0 ]; then
+
+				kul_echo "running topup for shard-recon"
+				mkdir -p shard
+				mrconvert dwi/se_epi_for_topup.mif shard/topup_in.nii -strides -1,+2,+3,+4 -export_pe_table shard/topup_datain.txt -force
+
+				# Check if the input has an uneven number fo slices, than use another topup config.
+				# see https://www.jiscmail.ac.uk/cgi-bin/wa-jisc.exe?A2=FSL;899f842a.2008
+				topupin_num_slices=$(mrinfo -size shard/topup_in.nii | cut -d' ' -f 3)
+				kul_echo "Number of slices in topupin data: $topupin_num_slices"
+
+				if [ $((topupin_num_slices%2)) -eq 1 ]; then
+				
+					topup_cfg=b02b0_1.cnf
+
+				else
+
+					topup_cfg=b02b0.cnf
+
+				fi
+
+				task_in="topup --imain=shard/topup_in.nii \
+					--datain=shard/topup_datain.txt \
+					--out=shard/field \
+					--fout=shard/fieldmap.nii.gz \
+					--config=$topup_cfg --verbose"
+				#	--subsamp=1,1,1,1,1,1,1,1,1 \
+            	#	--miter=10,10,10,10,10,20,20,30,30 \
+            	#	--lambda=0.00033,0.000067,0.0000067,0.000001,0.00000033,0.000000033,0.0000000033,0.000000000033,0.00000000000067"
+
+				KUL_task_exec $verbose_level "kul_dwiprep part 3: topup for shard-recon" "3_topup_shard"
+
+
+			elif [ $shard -eq 1 ] && [ $synb0 -eq 1 ]; then
+				
+				#  in case of synb0
+				if [ $s_flag -eq 1 ];then
+					dwifslprep_ses="ses-${ses}/"
+				else
+					dwifslprep_ses=""
+				fi
+
+				#echo ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${dwifslprep_ses}synb0/topup_fieldmap.nii.gz
+				cp ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${dwifslprep_ses}synb0/topup_fieldmap.nii.gz \
+					shard/fieldmap.nii.gz
+
+			fi
+
 		fi
 
 		kul_echo "mrtrix3new: $mrtrix3new"
 		kul_echo "synb0: $synb0"
+		kul_echo "shard: $shard"
 		kul_echo "rev_only_topup: $rev_only_topup"
+		kul_echo "n_pe: $n_pe"
+
 
 		# Set the options for dwifslpreproc
-		if [ $synb0 -eq 1 ]; then
+		if [ $synb0 -eq 1 ] && [ $shard -eq 0 ]; then
 
 			#  in case of synb0
 			if [ $s_flag -eq 1 ];then
@@ -525,11 +579,19 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			fi
 			dwifslpreproc_option="-topup_files ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${dwifslprep_ses}synb0/topup_"
 		
-		elif [ $n_pe -gt 1 ]; then
+		elif [ $synb0 -eq 0 ] && [ $shard -eq 0 ] && [ $n_pe -gt 1 ]; then
 		
 			#  in case a se_epi is given for tupop (a large number of b0)
 			dwifslpreproc_option="-se_epi dwi/se_epi_for_topup.mif -align_seepi"
 		
+		elif [ $shard -eq 1 ] && [ $n_pe -gt 1 ]; then
+
+			shard_fieldmap="-fieldmap shard/fieldmap.nii.gz"
+
+		elif [ $shard -eq 1 ] && [ $n_pe -eq 1 ]; then	
+
+			shard_fieldmap=""
+
 		else
 
 			# otherwise run the standard
@@ -537,13 +599,52 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		
 		fi
 
-		# Now run dwifslpreproc
+		# Now run dwifslpreproc of shard-recon
 		# note: maybe add -eddy_mask
-		task_in="dwifslpreproc ${dwifslpreproc_option} -rpe_header \
-				-eddyqc_all eddy_qc/raw -eddy_options \"${full_eddy_options} \" -force -nthreads $ncpu -nocleanup \
-				dwi/degibbs.mif dwi/geomcorr.mif"
-		KUL_task_exec $verbose_level "kul_dwiprep part 3: motion and distortion correction" "3_dwifslpreproc"
 
+		if [ $shard -eq 1 ]; then
+			
+			mkdir -p shard
+
+			task_in1="mrinfo dwi/degibbs.mif -export_grad_mrtrix shard/grad.b -force"
+			num_shells_tmp=($(mrinfo dwi/degibbs.mif -shell_bvalues))
+			num_shells=${$#num_shells_tmp[@]}
+
+			if [ $num_shells -eq 2 ]; then
+				lmax=""
+				rlmax="-rlmax 2,2"
+			elif [ $num_shells -eq 3 ]; then
+				lmax=""
+				rlmax="-rlmax 4,2,0"
+			elif [ $num_shells -eq 6 ]; then
+				lmax="-lmax 0,4,4,6,8,8"
+				rlmax=""
+			fi
+
+			task_in2="dwimotioncorrect dwi/degibbs.mif shard/postmc-mssh.mif $shard_fieldmap \
+				-mask dwi/dwi_orig_mask.nii.gz \
+				$lmax $rlmax -mb 3 -sorder 1,0 -export_motion shard/motion.txt -export_weights shard/sliceweights.txt \
+				-force -nocleanup -nthreads $ncpu"
+			
+
+			task_in3="mssh2amp shard/postmc-mssh.mif shard/grad.b dwi/geomcorr.mif -nonnegative"
+
+			task_in="$task_in1;$task_in2;$task_in3"
+			KUL_task_exec $verbose_level "kul_dwiprep part 3: shard-recon" "3_shard-recon"
+
+			#motionstats motion.txt sliceweights.txt -sorder 1,0 -plot
+		
+		else
+			
+			# Make the directory for the output of eddy_qc
+			mkdir -p eddy_qc/raw
+			
+			task_in="dwifslpreproc ${dwifslpreproc_option} -rpe_header \
+					-eddyqc_all eddy_qc/raw -eddy_options \"${full_eddy_options} \" -force -nthreads $ncpu -nocleanup \
+					dwi/degibbs.mif dwi/geomcorr.mif"
+			KUL_task_exec $verbose_level "kul_dwiprep part 3: motion and distortion correction" "3_dwifslpreproc"
+		
+		fi
 
 		# create an intermediate mask of the dwi data
 		kul_echo "creating intermediate mask of the dwi data..."
@@ -558,6 +659,10 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		if [ ! command -v eddy_quad &> /dev/null ]; then
 
 			kul_echo "Eddy_quad skipped (which was not found in the path)"
+
+		elif [ $shard -eq 1 ]; then
+
+			kul_echo "shard-recon qa is coming soon"
 
 		else
 

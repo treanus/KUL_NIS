@@ -157,6 +157,11 @@ elif [ $type -eq 3 ]; then
     vbg=0
 fi
 
+
+# GLOBAL defs
+globalresultsdir=$cwd/RESULTS/sub-$participant
+
+
 # The BACKUP and clean option
 if [ $bc -eq 1 ]; then
     # clean some stuff
@@ -204,6 +209,146 @@ fi
 
 # The make RESULTS option
 if [ $results -eq 1 ];then
+
+    resultsdir_png="$globalresultsdir/figures"
+    mkdir -p $resultsdir_png
+    rm -fr $globalresultsdir/figures/*
+
+    mrview_tracts[0]="Tract-csd_CST_LT"
+    mrview_rgb[0]="173,216,230"
+    mrview_tracts[1]="Tract-csd_CST_RT"
+    mrview_rgb[1]="0,0,254"
+    mrview_tracts[2]="Tract-csd_AF_all_LT"
+    mrview_rgb[2]="254,0,0"
+    mrview_tracts[3]="Tract-csd_AF_all_RT"
+    mrview_rgb[3]="0,254,0"
+    mrview_tracts[4]="Tract-csd_CCing_LT"
+    mrview_rgb[4]="254,254,0"
+    mrview_tracts[5]="Tract-csd_CCing_RT"
+    mrview_rgb[5]="254,165,0"
+    mrview_tracts[6]="Tract-csd_TCing_LT"
+    mrview_rgb[6]="254,254,0"
+    mrview_tracts[7]="Tract-csd_TCing_RT"
+    mrview_rgb[7]="254,165,0"
+    mrview_tracts[8]="Tract-csd_FAT_LT"
+    mrview_rgb[8]="254,165,0"
+    mrview_tracts[9]="Tract-csd_FAT_RT"
+    mrview_rgb[9]="254,254,0"
+    mrview_tracts[10]="Tract-csd_ILF_LT"
+    mrview_rgb[10]="0,0,254"
+    mrview_tracts[11]="Tract-csd_ILF_RT"
+    mrview_rgb[11]="173,216,200"
+    mrview_tracts[12]="Tract-csd_IFOF_LT"
+    mrview_rgb[12]="191,64,191"
+    mrview_tracts[13]="Tract-csd_IFOF_RT"
+    mrview_rgb[13]="255,192,203"
+    mrview_tracts[14]="Tract-csd_UF_LT"
+    mrview_rgb[14]="0,200,0"
+    mrview_tracts[15]="Tract-csd_UF_RT"
+    mrview_rgb[15]="200,0,0"
+    mrview_tracts[16]="Tract-csd_OR_occlobe_LT"
+    mrview_rgb[16]="50,200,100"
+    mrview_tracts[17]="Tract-csd_OR_occlobe_RT"
+    mrview_rgb[17]="200,50,100"
+
+    result_type=0
+
+    underlay=$globalresultsdir/Anat/cT1w_reg2_T1w.nii.gz
+
+    mrview_resolution=1024
+
+    for tract_set_i in {0..18..2}; do
+
+        if [ $tract_set_i -lt 18 ]; then
+            tract_set=(${mrview_tracts[@]:$tract_set_i:2})
+            tractname=${tract_set[0]:0:-3}
+            tract_i=tract_set_i
+            #echo $tractname 
+        else
+            tract_set=(${mrview_tracts[@]})
+            tractname="ALL"
+            tract_i=0
+        fi
+
+        mrview_tck=""
+        
+        for tract in ${tract_set[@]}; do 
+            echo $tract_set_i
+            echo "$tract ${mrview_rgb[$tract_i]}"
+            if [ -f $globalresultsdir/Tracto/${tract}.tck ]; then
+                mrview_tck="$mrview_tck -tractography.load $globalresultsdir/Tracto/${tract}.tck -tractography.colour ${mrview_rgb[$tract_i]}"
+            fi
+            tract_i=$(($tract_i+1))
+        done
+        
+        echo $mrview_tck
+
+
+
+
+        ori[0]="TRA"
+        ori[1]="SAG"
+        ori[2]="COR"
+
+        for orient in ${ori[@]}; do
+
+            if [[ "$orient" == "TRA" ]]; then
+                underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF)}')
+            elif [[ "$orient" == "SAG" ]]; then
+                underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-2)}')
+            else
+                underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-1)}')
+            fi
+        
+
+            if [ $result_type -eq 0 ]; then
+                i=0
+                echo ${tractname}_${orient}
+                mkdir -p $resultsdir_png/${tractname}_${orient}
+                voxel_index="-capture.folder $resultsdir_png/${tractname}_${orient} -capture.prefix ${tractname}_${orient} -noannotations "
+                while [ $i -lt $underlay_slices ]
+                do
+                    #echo Number: $i
+                    if [[ "$orient" == "TRA" ]]; then
+                        voxel_index="$voxel_index -voxel 0,0,$i -capture.grab"
+                        plane=2
+                    elif [[ "$orient" == "SAG" ]]; then
+                        voxel_index="$voxel_index -voxel $i,0,0 -capture.grab"
+                        plane=0
+                    else
+                        voxel_index="$voxel_index -voxel 0,$i,0 -capture.grab"
+                        plane=1
+                    fi    
+                    let "i+=1" 
+                done
+                mode_plane="-mode 1 -plane $plane"
+                mrview_exit="-exit"
+            else
+                voxel_index=""
+                mode_plane="-mode 2"
+                mrview_exit=""
+            fi
+            #echo $voxel_index
+
+        
+
+            cmd="mrview -size $mrview_resolution,$mrview_resolution
+                -load $underlay \
+                $mode_plane \
+                -tractography.lighting 1 \
+                -tractography.slab 0.5 \
+                $mrview_tck \
+                $voxel_index \
+                -force \
+                $mrview_exit"
+            #echo $cmd
+            eval $cmd
+        
+        done
+    
+    done
+
+    exit
 
     ### under development 
     results_final_output="RESULTS/sub-${participant}/${participant}4silvia/for_PACS"
@@ -310,7 +455,7 @@ function KUL_check_data {
         echo "No T1w (without Gd) found. Fmriprep will not run."
         echo " Is the BIDS dataset correct?"
         read -p "Are you sure you want to continue? (y/n)? " answ
-        if [[ ! "$answ" == "n" ]]; then
+        if [[ "$answ" == "n" ]]; then
             exit 1
         fi
     fi 
@@ -321,7 +466,7 @@ function KUL_check_data {
             echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
             echo " At least one is missing. Is the BIDS dataset correct?"
             read -p "Are you sure you want to continue? (y/n)? " answ
-            if [[ ! "$answ" == "n" ]]; then
+            if [[ "$answ" == "n" ]]; then
                 exit 1
             fi
         fi
@@ -589,7 +734,7 @@ function KUL_segment_tumor {
         hdgliooutputdir="$kulderivativesdir/sub-${participant}/hdglio/output"
         
         # only run if not yet done
-        if [ ! -f "$globalresultsdir/Anat/lesion_central_necrosis_or_cyst.nii" ]; then
+        if [ ! -f "$globalresultsdir/Anat/lesion.nii" ]; then
 
             # prepare the inputs
             mkdir -p $hdglioinputdir
@@ -782,6 +927,21 @@ function KUL_register_anatomical_images {
     fi
 }
 
+function KUL_clear_cT1w {
+    
+    # a funtion to remove the cT1w (gadolinium enhanced T1w) away since it conflicts during msbp
+    clear_cT1w_outputdir="$kulderivativesdir/sub-${participant}/cT1w"
+    mkdir -p $clear_cT1w_outputdir
+
+    if [ $ncT1w -gt 0 ]; then
+        source_mri="${cT1w%*.nii.gz}*"
+        if [ -f $cT1w ]; then
+            mv $source_mri $clear_cT1w_outputdir 
+        fi
+    fi
+
+}
+
 
 # --- MAIN ---
 
@@ -792,7 +952,6 @@ KUL_check_participant
 
 kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute
 mkdir -p $kulderivativesdir
-globalresultsdir=$cwd/RESULTS/sub-$participant
 mkdir -p $globalresultsdir/Anat
 mkdir -p $globalresultsdir/SPM
 mkdir -p $globalresultsdir/Melodic
@@ -842,6 +1001,9 @@ fi
 # STEP 4 - regsiter all anatomical other data to the T1w without contrast
 KUL_register_anatomical_images &
 wait
+
+# STEP 4b - get rid of the Gadolinium T1w image
+KUL_clear_cT1w
 
 
 # STEP 5 & 6 - run SPM & melodic
