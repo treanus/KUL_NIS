@@ -199,7 +199,7 @@ mkdir -p dwi_reg
 echo "bids_subj: $bids_subj"
 echo "num_sessions: $num_sessions"
 
-if [[ "$bids_subj" == *"ses-"* ]] && [ $num_sessions -gt 10 ]; then
+if [[ "$bids_subj" == *"ses-"* ]] && [ $num_sessions -eq 1 ]; then
     local_ses_tmp=${bids_subj#*ses-}
     local_ses=${local_ses_tmp%/}
     #echo "local_ses = $local_ses"
