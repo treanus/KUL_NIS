@@ -171,7 +171,14 @@ if [[ $TOPUP -eq 1 ]]; then
 
         task_exec
 
-        task_in="topup -v --imain=${radwd}/OUTPUTS/b0_all.nii.gz --datain=${radwd}/INPUTS/acqparams.txt --config=b02b0.cnf --iout=${radwd}/OUTPUTS/b0_all_topup.nii.gz --out=${radwd}/OUTPUTS/topup --subsamp=1,1,1,1,1,1,1,1,1 --miter=10,10,10,10,10,20,20,30,30 --lambda=0.00033,0.000067,0.0000067,0.000001,0.00000033,0.000000033,0.0000000033,0.000000000033,0.00000000000067 --scale=0"
+        task_in="topup -v --imain=${radwd}/OUTPUTS/b0_all.nii.gz \
+            --datain=${radwd}/INPUTS/acqparams.txt --config=b02b0.cnf \
+            --iout=${radwd}/OUTPUTS/b0_all_topup.nii.gz --out=${radwd}/OUTPUTS/topup \
+            --fout=${radwd}/OUTPUTS/topup_fieldmap.nii.gz
+            --subsamp=1,1,1,1,1,1,1,1,1 \
+            --miter=10,10,10,10,10,20,20,30,30 \
+            --lambda=0.00033,0.000067,0.0000067,0.000001,0.00000033,0.000000033,0.0000000033,0.000000000033,0.00000000000067 \
+            --scale=0"
 
         task_exec
 

@@ -157,7 +157,7 @@ function KUL_check_data {
     if [ $nT1w -lt 1 ] || [ $ncT1w -lt 1 ] || [ $nT2w -lt 1 ] || [ $nT1w -lt 1 ]; then
         echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
         echo " At least one is missing. Check the derivatives folder"
-        exit 1
+        #exit 1
     fi
 
 

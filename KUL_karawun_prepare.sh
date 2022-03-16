@@ -123,6 +123,16 @@ fi
 function KUL_karawun_get_tract {
     cp BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_BT${ACT}_iFOD2.tck \
         Karawun/sub-${participant}/tck/${tract_name_final}.tck
+
+    if [ $type -eq 1 ]; then
+
+        num_tck=$(tckstats -quiet -output count Karawun/sub-${participant}/tck/${tract_name_final}.tck)
+        echo $num_tck
+        tract_threshold=$(( num_tck*1/3/100 ))
+        echo $tract_threshold
+
+    fi
+
     mrgrid BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_map_BT${ACT}_iFOD2.nii.gz \
         regrid -template Karawun/sub-${participant}/T1w.nii.gz \
         - | mrcalc - ${tract_threshold} -gt ${tract_color} -mul \
@@ -146,15 +156,111 @@ mrcalc RESULTS/sub-${participant}/Anat/T1w.nii 100 -div Karawun/sub-${participan
 
 if [ $type -eq 1 ]; then
 
+    tract_name_orig="AF_all_LT"
+    tract_name_final="Arcutate_Fasc_Left"
+    tract_color=1
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="AF_all_RT"
+    tract_name_final="Arcutate_Fasc_Right"
+    tract_color=2
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="CST_LT"
+    tract_name_final="Corticospinal_Tract_Left"
+    tract_color=3
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="CST_RT"
+    tract_name_final="Corticospinal_Tract_Right"
+    tract_color=4
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="CCing_LT"
+    tract_name_final="Cingulum_cing_Left"
+    tract_color=5
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="TCing_LT"
+    tract_name_final="Cingulum_temporal_Left"
+    tract_color=5
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="CCing_RT"
+    tract_name_final="Cingulum_cing_Right"
+    tract_color=6
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="TCing_RT"
+    tract_name_final="Cingulum_temporal_Right"
+    tract_color=6
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="FAT_LT"
+    tract_name_final="FrontalAslant_Tract_Left"
+    tract_color=7
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="FAT_RT"
+    tract_name_final="FrontalAslant_Tract_Right"
+    tract_color=8
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="IFOF_LT"
+    tract_name_final="IFOF_Left"
+    tract_color=9
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="IFOF_RT"
+    tract_name_final="IFOF_Right"
+    tract_color=10
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="ILF_LT"
+    tract_name_final="InferiorLongitudinal_Fasc_Left"
+    tract_color=11
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="ILF_RT"
+    tract_name_final="InferiorLongitudinal_Fasc_Right"
+    tract_color=12
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="UF_LT"
+    tract_name_final="Uncinate_Fasc_Left"
+    tract_color=13
+    tract_threshold=20
+    KUL_karawun_get_tract
+
+    tract_name_orig="UF_RT"
+    tract_name_final="Uncinate_Fasc_Right"
+    tract_color=14
+    tract_threshold=20
+    KUL_karawun_get_tract
+
     tract_name_orig="OR_occlobe_LT"
     tract_name_final="Occiptal_Radition_Left"
-    tract_color=2
+    tract_color=15
     tract_threshold=20
     KUL_karawun_get_tract
     
     tract_name_orig="OR_occlobe_RT"
     tract_name_final="Occiptal_Radition_Right"
-    tract_color=2
+    tract_color=16
     tract_threshold=20
     KUL_karawun_get_tract
 

@@ -199,7 +199,7 @@ mkdir -p dwi_reg
 echo "bids_subj: $bids_subj"
 echo "num_sessions: $num_sessions"
 
-if [[ "$bids_subj" == *"ses-"* ]] && [ $num_sessions -gt 1 ]; then
+if [[ "$bids_subj" == *"ses-"* ]] && [ $num_sessions -gt 10 ]; then
     local_ses_tmp=${bids_subj#*ses-}
     local_ses=${local_ses_tmp%/}
     #echo "local_ses = $local_ses"
@@ -208,12 +208,13 @@ if [[ "$bids_subj" == *"ses-"* ]] && [ $num_sessions -gt 1 ]; then
     fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${participant}_ses-${local_ses}_desc-brain_mask.nii.gz"
 else
     fmriprep_subj=fmriprep/"sub-${participant}"
-    fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${participant}*_desc-preproc_T1w.nii.gz"
-    fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${participant}*_desc-brain_mask.nii.gz" 
+    fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${participant}_desc-preproc_T1w.nii.gz"
+    fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${participant}_desc-brain_mask.nii.gz" 
 fi
 echo $fmriprep_subj
 echo $fmriprep_anat
 echo $fmriprep_anat_mask
+
 ants_anat_tmp=T1w/tmp.nii.gz
 ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
 ants_mask=T1w/T1w_mask.nii.gz

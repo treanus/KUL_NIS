@@ -515,13 +515,45 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
 				kul_echo "running topup for shard-recon"
 				mkdir -p shard
-				mrconvert dwi/se_epi_for_topup.mif shard/topup_in.nii -strides -1,+2,+3,+4 -export_pe_table shard/topup_datain.txt
-				task_in="topup --imain=shard/topup_in.nii --datain=shard/topup_datain.txt --out=field --fout=shard/fieldmap.nii.gz \
-					--config=/usr/local/fsl/etc/flirtsch/b02b0.cnf --verbose"
+				mrconvert dwi/se_epi_for_topup.mif shard/topup_in.nii -strides -1,+2,+3,+4 -export_pe_table shard/topup_datain.txt -force
+
+				# Check if the input has an uneven number fo slices, than use another topup config.
+				# see https://www.jiscmail.ac.uk/cgi-bin/wa-jisc.exe?A2=FSL;899f842a.2008
+				topupin_num_slices=$(mrinfo -size shard/topup_in.nii | cut -d' ' -f 3)
+				kul_echo "Number of slices in topupin data: $topupin_num_slices"
+
+				if [ $((topupin_num_slices%2)) -eq 1 ]; then
+				
+					topup_cfg=b02b0_1.cnf
+
+				else
+
+					topup_cfg=b02b0.cnf
+
+				fi
+
+				task_in="topup --imain=shard/topup_in.nii \
+					--datain=shard/topup_datain.txt \
+					--out=shard/field \
+					--fout=shard/fieldmap.nii.gz \
+					--config=$topup_cfg --verbose"
+				#	--subsamp=1,1,1,1,1,1,1,1,1 \
+            	#	--miter=10,10,10,10,10,20,20,30,30 \
+            	#	--lambda=0.00033,0.000067,0.0000067,0.000001,0.00000033,0.000000033,0.0000000033,0.000000000033,0.00000000000067"
+
 				KUL_task_exec $verbose_level "kul_dwiprep part 3: topup for shard-recon" "3_topup_shard"
 
-			elif [ $shard -eq 1 ] && [ $synb0 -eq 1 ]; then
 
+			elif [ $shard -eq 1 ] && [ $synb0 -eq 1 ]; then
+				
+				#  in case of synb0
+				if [ $s_flag -eq 1 ];then
+					dwifslprep_ses="ses-${ses}/"
+				else
+					dwifslprep_ses=""
+				fi
+
+				#echo ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${dwifslprep_ses}synb0/topup_fieldmap.nii.gz
 				cp ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${dwifslprep_ses}synb0/topup_fieldmap.nii.gz \
 					shard/fieldmap.nii.gz
 
@@ -533,9 +565,11 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		kul_echo "synb0: $synb0"
 		kul_echo "shard: $shard"
 		kul_echo "rev_only_topup: $rev_only_topup"
+		kul_echo "n_pe: $n_pe"
+
 
 		# Set the options for dwifslpreproc
-		if [ $synb0 -eq 1 ]; then
+		if [ $synb0 -eq 1 ] && [ $shard -eq 0 ]; then
 
 			#  in case of synb0
 			if [ $s_flag -eq 1 ];then
@@ -545,11 +579,19 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			fi
 			dwifslpreproc_option="-topup_files ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${dwifslprep_ses}synb0/topup_"
 		
-		elif [ $n_pe -gt 1 ]; then
+		elif [ $synb0 -eq 0 ] && [ $shard -eq 0 ] && [ $n_pe -gt 1 ]; then
 		
 			#  in case a se_epi is given for tupop (a large number of b0)
 			dwifslpreproc_option="-se_epi dwi/se_epi_for_topup.mif -align_seepi"
 		
+		elif [ $shard -eq 1 ] && [ $n_pe -gt 1 ]; then
+
+			shard_fieldmap="-fieldmap shard/fieldmap.nii.gz"
+
+		elif [ $shard -eq 1 ] && [ $n_pe -eq 1 ]; then	
+
+			shard_fieldmap=""
+
 		else
 
 			# otherwise run the standard
@@ -564,12 +606,26 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			
 			mkdir -p shard
 
-			task_in1="mrinfo dwi/degibbs.mif -export_grad_mrtrix shard/grad.b"
+			task_in1="mrinfo dwi/degibbs.mif -export_grad_mrtrix shard/grad.b -force"
+			num_shells_tmp=($(mrinfo dwi/degibbs.mif -shell_bvalues))
+			num_shells=${$#num_shells_tmp[@]}
 
-			task_in2="dwimotioncorrect dwi/degibbs.mif shard/postmc-mssh.mif -fieldmap shard/fieldmap.nii.gz \
+			if [ $num_shells -eq 2 ]; then
+				lmax=""
+				rlmax="-rlmax 2,2"
+			elif [ $num_shells -eq 3 ]; then
+				lmax=""
+				rlmax="-rlmax 4,2,0"
+			elif [ $num_shells -eq 6 ]; then
+				lmax="-lmax 0,4,4,6,8,8"
+				rlmax=""
+			fi
+
+			task_in2="dwimotioncorrect dwi/degibbs.mif shard/postmc-mssh.mif $shard_fieldmap \
 				-mask dwi/dwi_orig_mask.nii.gz \
-				-lmax 0,4,4,6,8,8 -rlmax 4,2,0 -mb 3 -sorder 1,0 -export_motion shard/motion.txt -export_weights shard/sliceweights.txt \
+				$lmax $rlmax -mb 3 -sorder 1,0 -export_motion shard/motion.txt -export_weights shard/sliceweights.txt \
 				-force -nocleanup -nthreads $ncpu"
+			
 
 			task_in3="mssh2amp shard/postmc-mssh.mif shard/grad.b dwi/geomcorr.mif -nonnegative"
 

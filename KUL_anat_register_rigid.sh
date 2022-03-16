@@ -33,10 +33,17 @@ Required arguments:
 
      -p:  participant name
 
+    OR
+
+     -t:  target image
+     -s:  source image
+
 Optional arguments:
 
      -s:  session
      -c:  use the bias corrected images as input (from KUL_anat_biascorrect.sh)
+     -i:  interpolation type (1=BSpline, 2=NearestNeighbor; default=1)
+     -o:  apply the transformation to other images
      -n:  number of cpu to use (default 15)
      -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
 
@@ -54,6 +61,10 @@ ants_verbose=1
 ncpu=15
 verbose_level=1
 bc_in=0
+interpolation=1
+target=""
+source=""
+other=""
 
 # Set required options
 p_flag=0
@@ -65,15 +76,24 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:n:v:c" OPT; do
+	while getopts "p:t:s:i:o:n:v:c" OPT; do
 
 		case $OPT in
 		p) #participant
 			participant=$OPTARG
             p_flag=1
 		;;
-        t) #type
-			type=$OPTARG
+        t) #target
+			target=$OPTARG
+		;;
+        s) #source
+			source=$OPTARG
+		;;
+        i) #interpolation
+			interpolation=$OPTARG
+		;;
+        o) #other
+			other=($OPTARG)
 		;;
         n) #ncpu
 			ncpu=$OPTARG
@@ -103,11 +123,27 @@ else
 fi
 
 # check for required options
-if [ $p_flag -eq 0 ] ; then
-	echo
-	echo "Option -p is required: give the BIDS name of the participant." >&2
-	echo
-	exit 2
+if [ ! "$source" == "" ]; then
+
+    direct=1
+
+else
+
+    direct=0
+
+    if [ $p_flag -eq 0 ] ; then
+        echo
+        echo "Option -p is required: give the BIDS name of the participant." >&2
+        echo
+        exit 2
+    fi
+
+fi
+
+if [ $interpolation -eq 1 ]; then
+    interpolation_type="BSpline"
+elif [ $interpolation -eq 1 ]; then
+    interpolation_type="NearestNeighbor"
 fi
 
 KUL_LOG_DIR="KUL_LOG/${script}/sub-${participant}"
@@ -132,7 +168,7 @@ function KUL_antsApply_Transform {
         -o $output \
         -r $reference \
         -t $transform \
-        -n Linear
+        -n $interpolation_type
 }
 
 
@@ -205,12 +241,12 @@ function KUL_check_data {
 }
 
 function KUL_rigid_register {
-    warp_field="${registeroutputdir}/${source_mri_label}_reg2_T1w"
-    output_mri="${kulderivativesdir}/${source_mri_label}_reg2_T1w.nii.gz"
+    warp_field="${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}"
+    output_mri="${kulderivativesdir}/${source_mri_label}_reg2_${target_mri_label}.nii.gz"
     #echo "Rigidly registering $source_mri to $target_mri"
     antsRegistration --verbose $ants_verbose --dimensionality 3 \
     --output [$warp_field,$output_mri] \
-    --interpolation BSpline \
+    --interpolation $interpolation_type \
     --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
     --initial-moving-transform [$target_mri,$source_mri,1] \
     --transform Rigid[0.1] \
@@ -223,6 +259,7 @@ function KUL_rigid_register {
 function KUL_register_anatomical_images {
 
     target_mri=$T1w
+    target_mri_label="T1w"
     registeroutputdir="$kulderivativesdir/antsregister"
     mkdir -p $registeroutputdir
     ln -sf $cwd/$T1w $kulderivativesdir/T1w.nii.gz
@@ -272,13 +309,51 @@ function KUL_register_anatomical_images {
 
 # STEP 1 - SETUP
 
-KUL_check_data
+if [ $direct -eq 0 ]; then
 
-kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute/sub-$participant/KUL_anat_register_rigid
-mkdir -p $kulderivativesdir
+    KUL_check_data
+
+    kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute/sub-$participant/KUL_anat_register_rigid
+    mkdir -p $kulderivativesdir
 
 
-# STEP 2 - register all anatomical other data to the T1w without contrast
-KUL_register_anatomical_images
+    # STEP 2 - register all anatomical other data to the T1w without contrast
+    KUL_register_anatomical_images
+
+else
+
+    source_mri_label_tmp=$(basename $source)
+    source_mri_label=${source_mri_label_tmp%%.*}
+    #echo $source_mri_label
+    source_mri=$source
+    target_mri_label_tmp=$(basename $target)
+    target_mri_label=${target_mri_label_tmp%%.*}
+    #echo $target_mri_label
+    target_mri=$target
+
+    echo "Rigidly registering $source_mri_label to $target_mri_label (interpolation=$interpolation_type)"
+
+    kulderivativesdir=$(pwd)
+    registeroutputdir=$(pwd)
+
+    KUL_rigid_register
+    
+    if [ ${#other[@]} -gt 0 ]; then
+
+        for other_image in ${other[@]}; do
+
+            input=$other_image
+            output_tmp=$(basename $other_image)
+            output="${output_tmp%%.*}_reg2_${target_mri_label}.nii.gz"
+            transform="${warp_field}0GenericAffine.mat"
+            echo  $transform
+            reference=$target_mri
+            KUL_antsApply_Transform
+
+        done
+
+    fi
+
+fi
 
 echo "Finished"
