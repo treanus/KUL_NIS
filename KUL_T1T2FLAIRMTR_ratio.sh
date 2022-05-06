@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Sarah Cappelle & Stefan Sunaert
 # 22/12/2020 - v1.0
 # 18/02/2021 - v1.1 (adding calibration)
@@ -15,12 +15,12 @@
 #  create masked brain images using HD-BET
 #  calibrate the images according to Ganzetti
 #  compute a T1FLAIR_ratio, a T1T2_ratio and a MTR
-v="1.1"
+version="1.2"
 
-kul_main_dir=`dirname "$0"`
-script=$0
+kul_main_dir=$(dirname "$0")
+script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
-cwd=$(pwd)
+# $cwd & $log_dir is made in main_functions
 
 # FUNCTIONS --------------
 
@@ -529,6 +529,8 @@ for test_T1w in ${T1w[@]}; do
                 # PART 4 - run fastsurfer (optional)      
                 if [ $deel -ge 4 ] && [ $fastsurf -gt 0 ]; then
                     mkdir -p $outdir/fs
+                    #export FREESURFER_HOME=/usr/local/KUL_apps/freesurfer6
+                    #source $FREESURFER_HOME/SetUpFreeSurfer.sh
                     if [ ! -f $outdir/fs/$base/mri/aparc.DKTatlas+aseg.deep.mgz ]; then
                         if [ $fastsurf -eq 1 ]; then
                             echo "  running full fastsufer"
@@ -536,7 +538,7 @@ for test_T1w in ${T1w[@]}; do
                                 --sid $base --sd $outdir/fs \
                                 --t1 $test_T1w \
                                 --fs_license $FS_LICENSE \
-                                --vol_segstats --py python --parallel --threads $ncpu $fs_silent"
+                                --vol_segstats --py python --parallel  --ignore_fs_version --threads $ncpu $fs_silent"
                         elif [ $fastsurf -eq 2 ]; then
                             echo "  running segmentation-with-CC & stats fastsufer"
                             my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
