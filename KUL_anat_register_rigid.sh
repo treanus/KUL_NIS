@@ -31,19 +31,25 @@ Example:
 
 Required arguments:
 
-     -p:  participant name
+     -p:  participant name 
+        (in this case a rigid registration is performed of all structural images in the BIDS folder to the T1w)
 
     OR
 
      -t:  target image
      -s:  source image
+        (in this case just 2 images are registered - rigidly or non-rigidly)
+
 
 Optional arguments:
 
      -s:  session
      -c:  use the bias corrected images as input (from KUL_anat_biascorrect.sh)
+     -m:  mask the inputs (1=source & target, 2=source only, 3=target only)
+     -w:  register non-rigidly using antsRegistrationSyN
+     -d:  output directory
      -i:  interpolation type (1=BSpline, 2=NearestNeighbor; default=1)
-     -o:  apply the transformation to other images
+     -o:  apply the transformation to other images (put these between "")
      -n:  number of cpu to use (default 15)
      -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
 
@@ -65,6 +71,10 @@ interpolation=1
 target=""
 source=""
 other=""
+warp2mni=0
+output_dir=""
+od=0
+mask=0
 
 # Set required options
 p_flag=0
@@ -76,7 +86,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:s:i:o:n:v:c" OPT; do
+	while getopts "p:t:s:i:o:n:v:d:m:cw" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -89,11 +99,18 @@ else
         s) #source
 			source=$OPTARG
 		;;
+        d) #output_dir
+			output_dir=$OPTARG
+            od=1
+		;;
         i) #interpolation
 			interpolation=$OPTARG
 		;;
         o) #other
 			other=($OPTARG)
+		;;
+        m) #mask
+			mask=$OPTARG
 		;;
         n) #ncpu
 			ncpu=$OPTARG
@@ -103,6 +120,9 @@ else
 		;;
         c) #bc-input
             bc_in=1
+		;;
+        w) #warp2mni
+            warp2mni=1
 		;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -142,7 +162,7 @@ fi
 
 if [ $interpolation -eq 1 ]; then
     interpolation_type="BSpline"
-elif [ $interpolation -eq 1 ]; then
+elif [ $interpolation -eq 2 ]; then
     interpolation_type="NearestNeighbor"
 fi
 
@@ -162,12 +182,14 @@ elif [ $verbose_level -eq 2 ] ; then
 fi
 
 function KUL_antsApply_Transform {
+
+    echo "interpolation_type: $interpolation_type"
     antsApplyTransforms -d 3 --float 1 \
         --verbose 1 \
         -i $input \
         -o $output \
         -r $reference \
-        -t $transform \
+        $transform \
         -n $interpolation_type
 }
 
@@ -241,6 +263,7 @@ function KUL_check_data {
 }
 
 function KUL_rigid_register {
+
     warp_field="${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}"
     output_mri="${kulderivativesdir}/${source_mri_label}_reg2_${target_mri_label}.nii.gz"
     #echo "Rigidly registering $source_mri to $target_mri"
@@ -254,6 +277,55 @@ function KUL_rigid_register {
     --convergence [1000x500x250x100,1e-6,10] \
     --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
     #echo "Done rigidly registering $source_mri to $target_mri"
+
+}
+
+function KUL_warp2MNI {
+
+    echo "source_mri2: $source_mri2"
+    echo "target_mri2: $target_mri2"
+    echo "outputwarp: $outputwarp"
+
+    local dim=3
+    local its=10000x111110x11110
+    local percentage=0.3
+    local syn="100x100x50,-0.01,5"
+    #local nm=${D}${nm1}_fixed_${nm2}_moving_setting_is_${mysetting}   # construct output prefix
+    local nm=$outputwarp
+
+    my_cmd="antsRegistration -d $dim -r [ $f, $m ,1 ]  \
+                        -m mattes[  $f, $m , 1 , 32, regular, $percentage ] \
+                         -t translation[ 0.1 ] \
+                         -c [ $its,1.e-8,20 ]  \
+                        -s 4x2x1vox  \
+                        -f 6x4x2 -l 1 \
+                        -m mattes[  $f, $m , 1 , 32, regular, $percentage ] \
+                         -t rigid[ 0.1 ] \
+                         -c [ $its,1.e-8,20 ]  \
+                        -s 4x2x1vox  \
+                        -f 3x2x1 -l 1 \
+                        -m mattes[  $f, $m , 1 , 32, regular, $percentage ] \
+                         -t affine[ 0.1 ] \
+                         -c [ $its,1.e-8,20 ]  \
+                        -s 4x2x1vox  \
+                        -f 3x2x1 -l 1 \
+                        -m mattes[  $f, $m , 0.5 , 32 ] \
+                        -m cc[  $f, $m , 0.5 , 4 ] \
+                         -t SyN[ .20, 3, 0 ] \
+                         -c [ $syn ]  \
+                        -s 1x0.5x0vox  \
+                        -f 4x2x1 -l 1 -u 1 -z 1 \
+                       -o [ ${nm},${nm}_diff.nii.gz,${nm}_inv.nii.gz]"
+
+    #antsApplyTransforms -d $dim -i $m -r $f -n linear -t ${nm}1Warp.nii.gz -t ${nm}0GenericAffine.mat -o ${nm}_warped.nii.gz
+
+    my_cmd="antsRegistrationSyN.sh -d 3 -f ${target_mri2} -m ${source_mri2} \
+        -o ${outputwarp} -n ${ncpu} -j 1 -t s $fs_silent"
+    eval $my_cmd
+
+    antsApplyTransforms -d $dim -i ${source_mri2} -r ${target_mri2} -n BSpline  \
+        -t ${outputwarp}1Warp.nii.gz -t ${outputwarp}0GenericAffine.mat -o ${outputwarp}.nii.gz
+
 }
 
 function KUL_register_anatomical_images {
@@ -331,22 +403,93 @@ else
     #echo $target_mri_label
     target_mri=$target
 
-    echo "Rigidly registering $source_mri_label to $target_mri_label (interpolation=$interpolation_type)"
-
     kulderivativesdir=$(pwd)
-    registeroutputdir=$(pwd)
+    if [ $od -eq 1 ]; then
+        registeroutputdir=$output_dir
+    else
+        registeroutputdir=$(pwd)
+    fi
 
-    KUL_rigid_register
+    run_hdbet=0
+    if [ $warp2mni -eq 1 ]; then
+
+        outputwarp=${registeroutputdir}/${source_mri_label}_warp2_${target_mri_label}
+        outputwarp_test="${outputwarp}Warped.nii.gz"
+
+        if [ ! -f $outputwarp_test ]; then
+            run_hdbet=1
+        fi
     
+    else
+
+        run_hdbet=1
+
+    fi
+
+    if [ $run_hdbet -eq 1 ]; then
+        if [ $mask -eq 0 ]; then
+            echo "no masking"
+            source_mri2=${source_mri}
+            target_mri2=${target_mri}
+        elif [ $mask -eq 1 ]; then
+            hd-bet -i $source  -o /tmp/${source_mri_label}_brain.nii.gz
+            hd-bet -i $target  -o /tmp/${target_mri_label}_brain.nii.gz
+            source_mri2=/tmp/${source_mri_label}_brain.nii.gz
+            target_mri2=/tmp/${target_mri_label}_brain.nii.gz
+        elif [ $mask -eq 2 ]; then
+            hd-bet -i $source  -o /tmp/${source_mri_label}_brain.nii.gz
+            source_mri2=/tmp/${source_mri_label_mri_label}_brain.nii.gz
+            target_mri2=${target_mri}
+        elif [ $mask -eq 3 ]; then
+            hd-bet -i $target  -o /tmp/${target_mri_label}_brain.nii.gz
+            source_mri2=${source_mri}
+            target_mri2=/tmp/${target_mri_label}_brain.nii.gz
+        fi
+    fi
+    
+
+
+    # KIND OF REGISTRATION - rigid or non-rigid?
+    if [ $warp2mni -eq 1 ]; then
+
+        #outputwarp=${registeroutputdir}/${source_mri_label}_warp2_${target_mri_label}
+        #outputwarp_test="${outputwarp}Warped.nii.gz"
+
+        if [ ! -f $outputwarp_test ]; then
+
+            echo "Warping non-rigidly $source_mri_label to $target_mri_label (interpolation=$interpolation_type)"
+            mkdir -p $registeroutputdir
+        
+            KUL_warp2MNI
+
+        else
+            echo "Warping already done, skipping"
+        fi
+
+    else
+
+        echo "Rigidly registering $source_mri_label to $target_mri_label (interpolation=$interpolation_type)"
+        KUL_rigid_register
+    
+
+    fi
+
     if [ ${#other[@]} -gt 0 ]; then
 
         for other_image in ${other[@]}; do
 
             input=$other_image
             output_tmp=$(basename $other_image)
-            output="${output_tmp%%.*}_reg2_${target_mri_label}.nii.gz"
-            transform="${warp_field}0GenericAffine.mat"
-            echo  $transform
+            output="$registeroutputdir/${output_tmp%%.*}_reg2_${target_mri_label}.nii.gz"
+            
+            if [ $warp2mni -eq 1 ]; then
+
+                transform="-t ${outputwarp}1Warp.nii.gz -t ${outputwarp}0GenericAffine.mat"
+            
+            else
+                transform="-t ${warp_field}0GenericAffine.mat "
+            fi
+            #echo  $transform
             reference=$target_mri
             KUL_antsApply_Transform
 
