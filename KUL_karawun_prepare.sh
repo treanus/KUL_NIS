@@ -305,7 +305,7 @@ elif [ $type -eq 2 ]; then
     tract_name_orig="DRT_LT"
     tract_name_final="DRT_Left"
     tract_color=3
-    tract_threshold=100
+    tract_threshold=200
     KUL_karawun_get_tract
 
     tract_name_orig="DRT_RT"
