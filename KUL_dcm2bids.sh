@@ -23,11 +23,10 @@ export LANG=us.UTF-8
 #  - kul_e2cl from KUL_main_functions (for logging)
 #  - kul_dcmtags (for reading specific parameters from dicom header)
 
-# source general functions
-kul_main_dir=`dirname "$0"`
-script=`basename "$0"`
-source "${kul_main_dir}/KUL_main_functions.sh"
-cwd=$(pwd)
+kul_main_dir=$(dirname "$0")
+script=$(basename "$0")
+source $kul_main_dir/KUL_main_functions.sh
+# $cwd & $log_dir is made in main_functions
 
 # BEGIN LOCAL FUNCTIONS --------------
 
