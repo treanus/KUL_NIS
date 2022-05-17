@@ -23,6 +23,7 @@ export LANG=us.UTF-8
 #  - kul_e2cl from KUL_main_functions (for logging)
 #  - kul_dcmtags (for reading specific parameters from dicom header)
 
+# source general functions
 kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
@@ -116,6 +117,7 @@ Optional arguments:
      -t:  temporary directory (default = /tmp)
      -e:  copy task-*_events.tsv from config to BIDS dir
      -a:  further anonymise the subject by using pydeface (takes much longer)
+     -x:  expert mode
      -v:  verbose 
 
 USAGE
@@ -178,6 +180,7 @@ function kul_dcmtags {
     
     # 0/ Read out standard tags for logging
     local seriesdescr=$(dcminfo "$dcm_file" -tag 0008 103E | cut -c 13-)
+    local protocolname=$(dcminfo "$dcm_file" -tag 0008 1030 | cut -c 13-)
     local manufacturer=$(dcminfo "$dcm_file" -tag 0008 0070 | cut -c 13-)
     local software=$(dcminfo "$dcm_file" -tag 0018 1020 | cut -c 13-)
     local imagetype=$(dcminfo "$dcm_file" -tag 0008 0008 2>/dev/null | cut -c 13- | head -n 1)
@@ -634,11 +637,11 @@ function kul_dcmtags {
 
 function kul_find_relevant_dicom_file {
 
-    kul_e2cl "  Searching for ${identifier} using search_string $search_string" $log
+    kul_e2cl "  Searching for ${identifier} using search_string $grepss" $log
 
     # find the search_string in the dicom dump_file            
     # search for search_string in dump_file, find ORIGINAL, remove dicom tags, sort, take first line, remove trailing space 
-    seq_file=$(grep "$search_string" $dump_file | grep ORIGINAL - | cut -f1 -d"[" | sort | head -n 1 | sed -e 's/[[:space:]]*$//')
+    seq_file=$(grep "$grepss" $dump_file | grep ORIGINAL - | cut -f1 -d"[" | sort | head -n 1 | sed -e 's/[[:space:]]*$//')
 
     if [ "$seq_file" = "" ]; then
 
@@ -677,6 +680,7 @@ events_flag=0
 n_sbref_tasks=0
 silent=1
 anon=0
+xpert=0
 
 if [ "$#" -lt 4 ]; then
     Usage >&2
@@ -684,7 +688,7 @@ if [ "$#" -lt 4 ]; then
 
 else
 
-    while getopts "c:d:p:o:s:t:aveh" OPT; do
+    while getopts "c:d:p:o:s:t:avehx" OPT; do
 
         case $OPT in
         d) #dicom_zip_file
@@ -709,6 +713,9 @@ else
         ;;
         a) #pydeface
             anon=1
+        ;;
+        a) #xpert
+            xpert=1
         ;;
         v) #verbose
             silent=0
@@ -866,7 +873,7 @@ fi
 echo hello > $dump_file
 
 task(){
-    dcm1=$(dcminfo "$dcm_file" -tag 0008 103E -tag 0008 0008 -tag 0008 0070 -nthreads 4 2>/dev/null | tr -s '\n' ' ')
+    dcm1=$(dcminfo "$dcm_file" -tag 0008 103E -tag 0018 1030 -tag 0008 0008 -tag 0008 0070 -nthreads 4 2>/dev/null | tr -s '\n' ' ')
     echo "$dcm_file" $dcm1 >> $dump_file
 }
 
@@ -887,12 +894,20 @@ kul_e2cl "    done reading dicom tags of $dcm" $log
 
 declare -a sub_bids
 
-while IFS=, read identifier search_string task mb pe_dir acq_label; do
+while IFS=, read identifier search_string task mb pe_dir acq_label expert_ss; do
 
     bs=$(( $bs + 1))
 
-
  if [[ ! ${identifier} == \#* ]]; then
+
+    echo "grepss: $grepss"
+
+    if [ $xpert -eq 1 ]; then
+        ss=${search_string}
+    else
+        ss=${expert_ss}
+    fi
+    echo "ss: $ss"
 
     if [[ ${identifier} == "T1w" ]]; then 
         
@@ -903,8 +918,17 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_T1='{"dataType": "anat", "modalityLabel": "T1w", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*"}}'
+            # add an acq_label if any
+            if [ "$acq_label" = "" ];then
+                sub_bids_acq=""
+            else
+                sub_bids_acq=", \"customlabels\": \"acq-${acq_label}\" "
+            fi
+            echo $sub_bids_acq
+
+            sub_bids_T1="{ \"dataType\": \"anat\", \"modalityLabel\": \"T1w\", \"criteria\": $ss $sub_bids_acq}"
+
+            echo $sub_bids_T1
 
             sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
 
@@ -921,11 +945,10 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_T1='{"dataType": "anat", "modalityLabel": "T1w", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*"},
-            "customLabels": "ce-gadolinium",
-            "sidecarChanges": {"KUL_dcm2bids": "yes","ContrastBolusIngredient": "gadolinium"}
-            }'
+            sub_bids_T1="{\"dataType\": \"anat\", \"modalityLabel\": \"T1w\", \"criteria\": $ss ,
+            \"customLabels\": \"ce-gadolinium\",
+            \"sidecarChanges\": {\"KUL_dcm2bids\": \"yes\",\"ContrastBolusIngredient\": \"gadolinium\"}
+            }"
 
             sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
 
@@ -942,8 +965,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_T2='{"dataType": "anat", "modalityLabel": "T2w", "criteria": { 
-             "SeriesDescription": "*'${search_string}'*"}}'
+            sub_bids_T2="{\"dataType\": \"anat\", \"modalityLabel\": \"T2w\", \"criteria\": $ss }"
 
             sub_bids_[$bs]=$(echo ${sub_bids_T2} | python -m json.tool)
 
@@ -960,8 +982,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_PD='{"dataType": "anat", "modalityLabel": "PDw", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*"}}'
+            sub_bids_PD="{\"dataType\": \"anat\", \"modalityLabel\": \"PDw\", \"criteria\": $ss }"
 
             sub_bids_[$bs]=$(echo ${sub_bids_PD} | python -m json.tool)
 
@@ -978,8 +999,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_PD='{"dataType": "anat", "modalityLabel": "FGATIR", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*"}}'
+            sub_bids_PD="{\"dataType\": \"anat\", \"modalityLabel\": \"FGATIR\", \"criteria\": $ss }"
 
             sub_bids_[$bs]=$(echo ${sub_bids_PD} | python -m json.tool)
 
@@ -996,8 +1016,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_SWI='{"dataType": "anat", "modalityLabel": "SWI", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*"}}'
+            sub_bids_SWI="{\"dataType\": \"anat\", \"modalityLabel\": \"SWI\", \"criteria\": $ss }"
 
             sub_bids_[$bs]=$(echo ${sub_bids_SWI} | python -m json.tool)
 
@@ -1014,9 +1033,8 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_SWI='{"dataType": "anat", "modalityLabel": "MTI", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*","ImageType": [
-                "ORIGINAL","PRIMARY","M","FFE","M","FFE"]}}'
+            sub_bids_SWI="{\"dataType\": \"anat\", \"modalityLabel\": \"MTI\", \"criteria\": $ss, \"ImageType\": [
+                \"ORIGINAL\",\"PRIMARY\",\"M\",\"FFE\",\"M\",\"FFE\"]}}"
 
             sub_bids_[$bs]=$(echo ${sub_bids_SWI} | python -m json.tool)
 
@@ -1035,7 +1053,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
             sub_bids_SWI='{"dataType": "perf", "modalityLabel": "asl", 
                 "criteria": {  
-                    "SeriesDescription": "*'${search_string}'*",
+                    "ProtocolName": "*'${search_string}'*",
                     "ImageType": [
                         "ORIGINAL","PRIMARY","PERFUSION","NONE","REAL"
                     ]}}'
@@ -1056,7 +1074,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_FL='{"dataType": "anat", "modalityLabel": "FLAIR", "criteria": { 
-             "SeriesDescription": "*'${search_string}'*"}}'
+             "ProtocolName": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_FL} | python -m json.tool)
 
@@ -1079,7 +1097,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
                 "modalityLabel": "magnitude",
                 "criteria": 
                     {
-                    "SeriesDescription": "*'${search_string}'*",
+                    "ProtocolName": "*'${search_string}'*",
                     "EchoNumber": 1
                     }
             }'
@@ -1093,7 +1111,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
                 "modalityLabel": "fieldmap",
                 "criteria": 
                     {
-                    "SeriesDescription": "'*${search_string}'*",
+                    "ProtocolName": "'*${search_string}'*",
                     "EchoNumber": 2
                     },
                 "sidecarChanges":
@@ -1126,9 +1144,9 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # remove any whitespaces
             task_nospace="$(echo -e "${task}" | tr -d '[:space:]')"
 
-            sub_bids_fu1='{"dataType": "func","modalityLabel": 
-            "bold","criteria": {"SeriesDescription": "*'${search_string}'*"},
-            "customLabels": "task-'${task_nospace}''
+            sub_bids_fu1="{\"dataType\": \"func\",\"modalityLabel\": 
+            \"bold\",\"criteria\": $ss,
+            \"customLabels\": \"task-${task_nospace}"
 
             # add an acq_label if any
             if [ "$acq_label" = "" ];then
@@ -1185,6 +1203,11 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             
 
             fi
+            echo ${sub_bids_fu1}
+            echo ${sub_bids_fu1b}
+            echo ${sub_bids_fu1c}
+            echo ${sub_bids_fu2}
+            echo ${sub_bids_fu3}
 
             sub_bids_[$bs]=$(echo ${sub_bids_fu1}${sub_bids_fu1b}${sub_bids_fu1c}${sub_bids_fu2}${sub_bids_fu3} | python -m json.tool)
 
@@ -1209,7 +1232,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             #echo $sbref_task1
 
             sub_bids_sb1='{"dataType": "func","modalityLabel": 
-            "sbref","criteria": {"SeriesDescription": "*'${search_string}'*"}, 
+            "sbref","criteria": {"ProtocolName": "*'${search_string}'*"}, 
             "customLabels": "task-'${sbref_task1}''
             
             if [ "$acq_label" = "" ];then
@@ -1283,7 +1306,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_dw1='{"dataType": "dwi","modalityLabel": "dwi",
-            "criteria": {"SeriesDescription": "*'${search_string}'*"},'
+            "criteria": {"ProtocolName": "*'${search_string}'*"},'
 
 
             if [ "$acq_label" = "" ];then
@@ -1396,11 +1419,11 @@ if [ ! -d BIDS/.bidsignore ];then
     mkdir -p BIDS
     cd BIDS
     dcm2bids_scaffold
-    echo "tmp_dcm2bids/*" > .bidsignore
-    echo "**/anat/*SWI*" >> .bidsignore
-    echo "**/anat/*MTI*" >> .bidsignore
-    echo "**/anat/*FGATIR*" >> .bidsignore
-    echo "**/perf/*asl*" >> .bidsignore
+    echo "tmp_dcm2bids/*" >> .bidsignore
+    echo "*/anat/*SWI*" >> .bidsignore
+    echo "*/anat/*MTI*" >> .bidsignore
+    echo "*/anat/*FGATIR*" >> .bidsignore
+    echo "*/perf/*asl*" >> .bidsignore
     cd ..
 fi
 

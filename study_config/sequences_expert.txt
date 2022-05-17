@@ -1,0 +1,6 @@
+#Identifier,search-string,task,mb,pe_dir,acq_label,expert-search-string
+T1w,3DTFE\\b,-,-,-,highres,{"ProtocolName": "*3DTFE"}
+T1w,3DTFE_short\\b,-,-,-,short,{"ProtocolName": "*3DTFE_short"}
+T2w,T2,-,-,-,-,{"ProtocolName": "*T2*"}
+func,rsfMRI_TR1\\b,rest,3,j,full,{"ProtocolName": "*rsfMRI_TR1"}
+func,rsfMRI_TR1_rev_phase\\b,rest,3,j-,revphase,{"ProtocolName": "*rsfMRI_TR1_rev_phase"}
