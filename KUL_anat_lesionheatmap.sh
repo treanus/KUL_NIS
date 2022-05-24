@@ -42,6 +42,7 @@ Required arguments:
 
 Optional arguments:
 
+     -c:  use the VBG output instead of native lesioned brains for MNI registration
      -n:  number of cpu to use (default 15)
      -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
 
@@ -59,6 +60,7 @@ ants_verbose=1
 ncpu=15
 verbose_level=1
 run_all=0
+use_vbg=0 
 
 # Set required options
 p_flag=0
@@ -70,7 +72,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:a:n:v:" OPT; do
+	while getopts "p:a:n:v:c" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -79,6 +81,9 @@ else
 		;;
         a) #all
 			run_all=$OPTARG
+		;;
+        c) #use_vbg
+			use_vbg=1
 		;;
         n) #ncpu
 			ncpu=$OPTARG
@@ -145,53 +150,73 @@ for participant in ${participants[@]}; do
     lesion1_test="RESULTS/sub-${participant}/Lesionmap/sub-${participant}_lesion_and_cavity_corr1.nii.gz"
     if [ -f $lesion1_test ]; then 
         lesion1=$lesion1_test
+        lesion1_label=lesion_and_cavity_corr1
     else
         lesion1="RESULTS/sub-${participant}/Lesion/sub-${participant}_lesion_and_cavity.nii.gz"
+        lesion1_label=lesion_and_cavity
     fi
+
     lesion1a_test="RESULTS/sub-${participant}/Lesionmap/sub-${participant}_lesion_and_cavity_corr2.nii.gz"
     if [ -f $lesion1a_test ]; then 
         lesion1a=$lesion1a_test
+        lesion1a_label=lesion_and_cavity_corr2
     else
-        lesion1a=""
+        lesion1a=$lesion1
+        lesion1a_label=$lesion1_label
     fi
+
     lesion2_test="RESULTS/sub-${participant}/Lesion/sub-${participant}_hdglio_lesion_perilesional_tissue_corr1.nii.gz"
     if [ -f $lesion2_test ]; then 
         lesion2=$lesion2_test
+        lesion2_label=hdglio_lesion_perilesional_tissue_corr1
     else
         lesion2="RESULTS/sub-${participant}/Lesion/sub-${participant}_hdglio_lesion_perilesional_tissue.nii.gz"
+        lesion2_label=hdglio_lesion_perilesional_tissue
     fi
+
     lesion3_test="RESULTS/sub-${participant}/Lesion/sub-${participant}_hdglio_lesion_total_corr1.nii.gz"
     if [ -f $lesion3_test ]; then 
-        lesion2=$lesion3_test
+        lesion3=$lesion3_test
+        lesion3_label=hdglio_lesion_total_corr1
     else
         lesion3="RESULTS/sub-${participant}/Lesion/sub-${participant}_hdglio_lesion_total.nii.gz"
+        lesion3_label=hdglio_lesion_total
     fi
+
     lesion4_test="RESULTS/sub-${participant}/Lesion/sub-${participant}_resseg_cavity_only_corr1.nii.gz"
     if [ -f $lesion4_test ]; then 
         lesion4=$lesion4_test
+        lesion4_label=resseg_cavity_only_corr1
     else
         lesion4="RESULTS/sub-${participant}/Lesion/sub-${participant}_resseg_cavity_only.nii.gz"
+        lesion4_label=resseg_cavity_only
+    fi
+
+    if [ $use_vbg -eq 1 ]; then
+        T1w=VBG_out/output_VBG/sub-${participant}/sub-${participant}_T1_nat_filled.nii.gz
+    else
+        T1w=BIDS/sub-${participant}/ses-study/anat/sub-${participant}_ses-study_T1w.nii.gz
     fi
 
     KUL_anat_register.sh \
         -t /usr/local/KUL_apps/KUL_NIS/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
-        -s BIDS/sub-${participant}/ses-study/anat/sub-${participant}_ses-study_T1w.nii.gz \
+        -s $T1w \
         -d $wd \
         -w -m 1 -i 2 \
         -o "$lesion1 $lesion1a $lesion2 $lesion3 $lesion4"
 
     map_d="BIDS/derivatives/KUL_compute/sub-${participant}/KUL_anat_register_mni/"
-    map1="$map_d/sub-${participant}_lesion_and_cavity_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
-    map1a="$map_d/sub-${participant}_lesion_and_cavity2_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
-    map2="$map_d/sub-${participant}_hdglio_lesion_perilesional_tissue_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
-    map3="$map_d/sub-${participant}_hdglio_lesion_total_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
-    map4="$map_d/sub-${participant}_resseg_cavity_only_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
+    map1="$map_d/sub-${participant}_${lesion1_label}_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
+    map1a="$map_d/sub-${participant}_${lesion1a_label}_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
+    map2="$map_d/sub-${participant}_${lesion2_label}_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
+    map3="$map_d/sub-${participant}_${lesion3_label}_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
+    map4="$map_d/sub-${participant}_${lesion4_label}_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
     
     if [ -f $map1 ]; then 
         heat1="$heat1 $map1 "
     fi
     if [ -f $map1a ]; then 
-        heat1="$heat1 $map1a "
+        heat1a="$heat1a $map1a "
     fi
     if [ -f $map2 ]; then 
         heat2="$heat2 $map2 "
@@ -207,11 +232,12 @@ done
 
 kulderivativesdir=BIDS/derivatives/KUL_compute/KUL_anat_lesionheatmap
 mkdir -p $kulderivativesdir
-mrmath $heat1 sum $kulderivativesdir/lesionheatmap_lesion_and_cavity.nii.gz
-mrmath $heat1a sum $kulderivativesdir/lesionheatmap_lesion_and_cavity2.nii.gz
-mrmath $heat2 sum $kulderivativesdir/lesionheatmap_hdglio_lesion_perilesional_tissue.nii.gz
-mrmath $heat3 sum $kulderivativesdir/lesionheatmap_hdglio_lesion_total.nii.gz
-mrmath $heat4 sum $kulderivativesdir/lesionheatmap_resseg_cavity_only.nii.gz
+mrmath $heat1 sum $kulderivativesdir/lesionheatmap_lesion_and_cavity1.nii.gz -force
+echo $heat1a
+mrmath $heat1a sum $kulderivativesdir/lesionheatmap_lesion_and_cavity2.nii.gz -force
+mrmath $heat2 sum $kulderivativesdir/lesionheatmap_hdglio_lesion_perilesional_tissue.nii.gz -force
+mrmath $heat3 sum $kulderivativesdir/lesionheatmap_hdglio_lesion_total.nii.gz -force
+mrmath $heat4 sum $kulderivativesdir/lesionheatmap_resseg_cavity_only.nii.gz -force
 
 
 echo "Finished"
