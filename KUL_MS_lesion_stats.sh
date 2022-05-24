@@ -1,15 +1,15 @@
-#!/bin/bash -e
+#!/bin/bash
 # Sarah Cappelle & Stefan Sunaert
 # 19/01/2021
 # This script is the first part of Sarah's Study1
 # This script computes a MS lesion map using freesurfer samseg
 # 
-v="0.9"
+version="0.9"
 
-kul_main_dir=`dirname "$0"`
-script="$0"
+kul_main_dir=$(dirname "$0")
+script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
-cwd=$(pwd)
+# $cwd & $log_dir is made in main_functions
 
 # FUNCTIONS --------------
 
