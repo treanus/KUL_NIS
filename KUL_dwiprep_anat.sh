@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash 
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 # Requires Mrtrix3, FSL, ants
@@ -43,6 +43,7 @@ Required arguments:
 Optional arguments:
 
      -s:  session (of the participant)
+     -m:  keep mean T1w of all sessions
      -n:  number of cpu for parallelisation
      -v:  show output from mrtrix commands
 
@@ -58,6 +59,7 @@ USAGE
 # Set defaults
 ncpu=6
 silent=1
+mT1w=0
 
 # Set required options
 p_flag=0
@@ -69,7 +71,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "p:n:s:vh" OPT; do
+    while getopts "p:n:s:vmh" OPT; do
 
         case $OPT in
         p) #participant
@@ -82,6 +84,9 @@ else
         ;;
         n) #parallel
             ncpu=$OPTARG
+        ;;
+        m) #mean
+            mT1w=1
         ;;
         v) #verbose
             silent=0
@@ -231,14 +236,15 @@ if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
     kul_echo "  Xfm files: number : $num_xfm"
     kul_echo "    notably: ${xfm_search[@]}"
 
-    if [ $num_xfm -ge 1 ]; then
+    if [ $num_xfm -ge 1 ] && [ $mT1w -eq 0 ]; then
 
         antsApplyTransforms -i $ants_anat_tmp -o $ants_anat -r $ants_anat_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
         antsApplyTransforms -i $fmriprep_anat_mask -o $ants_mask -r $ants_anat_tmp -n NearestNeighbor -t ${xfm_search[$i]} --float
         rm -rf $ants_anat_tmp
 
     else
-
+        
+        echo "keeping mean"
         mv $ants_anat_tmp $ants_anat
         cp $fmriprep_anat_mask $ants_mask
 
