@@ -148,6 +148,12 @@ for participant in ${participants[@]}; do
     else
         lesion1="RESULTS/sub-${participant}/Lesion/sub-${participant}_lesion_and_cavity.nii.gz"
     fi
+    lesion1a_test="RESULTS/sub-${participant}/Lesionmap/sub-${participant}_lesion_and_cavity_corr2.nii.gz"
+    if [ -f $lesion1a_test ]; then 
+        lesion1a=$lesion1a_test
+    else
+        lesion1a=""
+    fi
     lesion2_test="RESULTS/sub-${participant}/Lesion/sub-${participant}_hdglio_lesion_perilesional_tissue_corr1.nii.gz"
     if [ -f $lesion2_test ]; then 
         lesion2=$lesion2_test
@@ -172,16 +178,20 @@ for participant in ${participants[@]}; do
         -s BIDS/sub-${participant}/ses-study/anat/sub-${participant}_ses-study_T1w.nii.gz \
         -d $wd \
         -w -m 1 -i 2 \
-        -o "$lesion1 $lesion2 $lesion3 $lesion4"
+        -o "$lesion1 $lesion1a $lesion2 $lesion3 $lesion4"
 
     map_d="BIDS/derivatives/KUL_compute/sub-${participant}/KUL_anat_register_mni/"
     map1="$map_d/sub-${participant}_lesion_and_cavity_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
+    map1a="$map_d/sub-${participant}_lesion_and_cavity2_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
     map2="$map_d/sub-${participant}_hdglio_lesion_perilesional_tissue_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
     map3="$map_d/sub-${participant}_hdglio_lesion_total_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
     map4="$map_d/sub-${participant}_resseg_cavity_only_reg2_mni_icbm152_t1_tal_nlin_sym_09a.nii.gz"
     
     if [ -f $map1 ]; then 
         heat1="$heat1 $map1 "
+    fi
+    if [ -f $map1a ]; then 
+        heat1="$heat1 $map1a "
     fi
     if [ -f $map2 ]; then 
         heat2="$heat2 $map2 "
@@ -198,6 +208,7 @@ done
 kulderivativesdir=BIDS/derivatives/KUL_compute/KUL_anat_lesionheatmap
 mkdir -p $kulderivativesdir
 mrmath $heat1 sum $kulderivativesdir/lesionheatmap_lesion_and_cavity.nii.gz
+mrmath $heat1a sum $kulderivativesdir/lesionheatmap_lesion_and_cavity2.nii.gz
 mrmath $heat2 sum $kulderivativesdir/lesionheatmap_hdglio_lesion_perilesional_tissue.nii.gz
 mrmath $heat3 sum $kulderivativesdir/lesionheatmap_hdglio_lesion_total.nii.gz
 mrmath $heat4 sum $kulderivativesdir/lesionheatmap_resseg_cavity_only.nii.gz
