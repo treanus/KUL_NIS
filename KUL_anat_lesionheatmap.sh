@@ -142,12 +142,32 @@ for participant in ${participants[@]}; do
 
     # register to MNI
     wd=$cwd/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_anat_register_mni
-    lesion1="RESULTS/sub-${participant}/Lesion/sub-${participant}_lesion_and_cavity.nii.gz"
-    lesion2="RESULTS/sub-${participant}/Lesion/sub-${participant}_hdglio_lesion_perilesional_tissue.nii.gz"
-    lesion3="RESULTS/sub-${participant}/Lesion/sub-${participant}_hdglio_lesion_total.nii.gz"
-    lesion4="RESULTS/sub-${participant}/Lesion/sub-${participant}_resseg_cavity_only.nii.gz"
+    lesion1_test="RESULTS/sub-${participant}/Lesionmap/sub-${participant}_lesion_and_cavity_corr1.nii.gz"
+    if [ -f $lesion1_test ]; then 
+        lesion1=$lesion1_test
+    else
+        lesion1="RESULTS/sub-${participant}/Lesion/sub-${participant}_lesion_and_cavity.nii.gz"
+    fi
+    lesion2_test="RESULTS/sub-${participant}/Lesion/sub-${participant}_hdglio_lesion_perilesional_tissue_corr1.nii.gz"
+    if [ -f $lesion2_test ]; then 
+        lesion2=$lesion2_test
+    else
+        lesion2="RESULTS/sub-${participant}/Lesion/sub-${participant}_hdglio_lesion_perilesional_tissue.nii.gz"
+    fi
+    lesion3_test="RESULTS/sub-${participant}/Lesion/sub-${participant}_hdglio_lesion_total_corr1.nii.gz"
+    if [ -f $lesion3_test ]; then 
+        lesion2=$lesion3_test
+    else
+        lesion3="RESULTS/sub-${participant}/Lesion/sub-${participant}_hdglio_lesion_total.nii.gz"
+    fi
+    lesion4_test="RESULTS/sub-${participant}/Lesion/sub-${participant}_resseg_cavity_only_corr1.nii.gz"
+    if [ -f $lesion4_test ]; then 
+        lesion4=$lesion4_test
+    else
+        lesion4="RESULTS/sub-${participant}/Lesion/sub-${participant}_resseg_cavity_only.nii.gz"
+    fi
 
-    KUL_anat_register_rigid.sh \
+    KUL_anat_register.sh \
         -t /usr/local/KUL_apps/KUL_NIS/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
         -s BIDS/sub-${participant}/ses-study/anat/sub-${participant}_ses-study_T1w.nii.gz \
         -d $wd \
