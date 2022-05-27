@@ -26,7 +26,7 @@ Usage:
 
 Example:
 
-  `basename $0` -p JohnDoe 
+  `basename $0` -p JohnDoe -t 3 -r 40
 
 Required arguments:
 
@@ -36,7 +36,9 @@ Optional arguments:
 
      -t:  processing type
         type 1: (DEFAULT) prepare for tumor patient
-        type 2: prepare for a DBS patient
+        type 2: prepare for a ET DBS patient (DRT)
+        type 3: prepare for a Parkinson DBS patient (CSHDP)
+     -r:  use a relative treshold (in percent of tract density)
      -a:  use the ACT output
      -v:  show output from commands
 
@@ -53,6 +55,8 @@ silent=1 # default if option -v is not given
 ncpu=15
 type=1
 act_type=0
+relative=0
+treshold=0 
 
 # Set required options
 p_flag=0
@@ -63,7 +67,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:va" OPT; do
+	while getopts "p:t:r:va" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -72,6 +76,10 @@ else
 		;;
         t) #type
 			type=$OPTARG
+		;;
+        r) #relative threshold
+            relative=1
+			threshold=$OPTARG
 		;;
         v) #verbose
 			silent=0
@@ -130,6 +138,15 @@ function KUL_karawun_get_tract {
         echo $num_tck
         tract_threshold=$(( num_tck*1/3/100 ))
         echo $tract_threshold
+
+    fi
+
+    if [ $relative -eq 1 ]; then
+
+        num_tck=$(tckstats -quiet -output count Karawun/sub-${participant}/tck/${tract_name_final}.tck)
+        echo "$tract_name_final has $num_tck streamlines"
+        tract_threshold=$(( num_tck*threshold/tract_corr_threshold/100 ))
+        echo "The compute threshold is: $tract_threshold (with a correction of $tract_corr_threshold)"
 
     fi
 
@@ -266,6 +283,36 @@ if [ $type -eq 1 ]; then
 
 elif [ $type -eq 2 ]; then
 
+    tract_name_orig="CST_LT"
+    tract_name_final="CST_Left"
+    tract_color=1
+    tract_threshold=50
+    tract_corr_threshold=3
+    KUL_karawun_get_tract
+
+    tract_name_orig="CST_RT"
+    tract_name_final="CST_Right"
+    tract_color=1
+    tract_threshold=50
+    tract_corr_threshold=3
+    KUL_karawun_get_tract
+
+    tract_name_orig="DRT_LT"
+    tract_name_final="DRT_Left"
+    tract_color=3
+    tract_threshold=20
+    tract_corr_threshold=1
+    KUL_karawun_get_tract
+
+    tract_name_orig="DRT_RT"
+    tract_name_final="DRT_Right"
+    tract_color=3
+    tract_threshold=20
+    tract_corr_threshold=1
+    KUL_karawun_get_tract
+
+elif [ $type -eq 3 ]; then
+
     tract_name_orig="CSHDP_LT"
     voi_name_final="DISTAL_STN_MOTOR_Left"
     voi_color=3
@@ -282,36 +329,28 @@ elif [ $type -eq 2 ]; then
     tract_name_final="CSHDP_Left"
     tract_color=2
     tract_threshold=40
+    tract_corr_threshold=1
     KUL_karawun_get_tract
 
     tract_name_orig="CSHDP_RT"
     tract_name_final="CSHDP_Right"
     tract_color=2
     tract_threshold=40
+    tract_corr_threshold=1
     KUL_karawun_get_tract
 
     tract_name_orig="CST_LT"
     tract_name_final="CST_Left"
     tract_color=1
     tract_threshold=50
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="CST_RT"
     tract_name_final="CST_Right"
     tract_color=1
     tract_threshold=50
-    KUL_karawun_get_tract
-
-    tract_name_orig="DRT_LT"
-    tract_name_final="DRT_Left"
-    tract_color=3
-    tract_threshold=200
-    KUL_karawun_get_tract
-
-    tract_name_orig="DRT_RT"
-    tract_name_final="DRT_Right"
-    tract_color=3
-    tract_threshold=300
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
 fi
