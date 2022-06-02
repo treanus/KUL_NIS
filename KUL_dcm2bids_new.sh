@@ -922,7 +922,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label expert_ss; do
             if [ "$acq_label" = "" ];then
                 sub_bids_acq=""
             else
-                sub_bids_acq=", \"customlabels\": \"acq-${acq_label}\" "
+                sub_bids_acq=", \"customLabels\": \"acq-${acq_label}\" "
             fi
             echo $sub_bids_acq
 
@@ -1091,32 +1091,32 @@ while IFS=, read identifier search_string task mb pe_dir acq_label expert_ss; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
             
-            sub_bids_fm1='
+            sub_bids_fm1="
             {
-                "dataType": "fmap",
-                "modalityLabel": "magnitude",
-                "criteria": 
+                \"dataType\": \"fmap\",
+                \"modalityLabel\": \"magnitude\",
+                \"criteria\": 
                     {
-                    "ProtocolName": "*'${search_string}'*",
-                    "EchoNumber": 1
+                    \"ProtocolName\": \"*${search_string}*\",
+                    \"ImageType\": [\"ORIGINAL\", \"PRIMARY\", \"M\", \"FFE\", \"M\", \"FFE\"]
                     }
-            }'
+            }"
             
             #echo $sub_bids_fm1
             sub_bids_fm1a=$(echo ${sub_bids_fm1} | python -m json.tool)
             
-            sub_bids_fm2='
+            sub_bids_fm2="
             {
-                "dataType": "fmap",
-                "modalityLabel": "fieldmap",
-                "criteria": 
+                \"dataType\": \"fmap\",
+                \"modalityLabel\": \"fieldmap\",
+                \"criteria\": 
                     {
-                    "ProtocolName": "'*${search_string}'*",
-                    "EchoNumber": 2
+                    \"ProtocolName\": \"*${search_string}*\",
+                    \"ImageType\": [\"ORIGINAL\", \"PRIMARY\", \"B0 MAP\", \"B0\", \"UNSPECIFIED\", \"FIELDMAPHZ\"]
                     },
-                "sidecarChanges":
-                {"Units": "Hz","IntendedFor": "##REPLACE_ME_INTENDED_FOR##"}
-            }'
+                \"sidecarChanges\":
+                {\"Units\": \"Hz\",\"IntendedFor\": \"##REPLACE_ME_INTENDED_FOR##\"}
+            }"
             
             #echo $sub_bids_fm2
             sub_bids_fm2a=$(echo ${sub_bids_fm2} | python -m json.tool)
@@ -1482,10 +1482,16 @@ fi
 
 if [[ ${fmap_task} ]] ; then 
 
+    if [[ ${sess} = "" ]] ; then 
+        ses_long=""
+    else
+        ses_long="/ses-${sess}"  
+    fi
+
     for intended_task in "${intended_tasks_array[@]}"; do
         #echo $intended_task
         #echo $cwd
-        search_runs_of_task=($(find ${cwd}/${bids_output}/sub-${subj}/func -type f | grep task-${intended_task} | grep nii.gz))
+        search_runs_of_task=($(find ${cwd}/${bids_output}/sub-${subj}${ses_long}/func -type f | grep task-${intended_task} | grep nii.gz))
         #echo ${search_runs_of_task[@]}
 
         n_runs=${#search_runs_of_task[@]}
@@ -1520,7 +1526,7 @@ if [[ ${fmap_task} ]] ; then
                     
     else
 
-        perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" ${bids_output}/sub-${subj}/ses-${sess}/fmap/sub-${subj}_fieldmap.json
+        perl  -pi -e "s/\"##REPLACE_ME_INTENDED_FOR##\"/${full_intended_for_string}/g" ${bids_output}/sub-${subj}/ses-${sess}/fmap/sub-${subj}_ses-${sess}_fieldmap.json
                     
     fi
 

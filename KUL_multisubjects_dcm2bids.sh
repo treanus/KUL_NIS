@@ -211,7 +211,7 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
         #if [ ! -d $bids_dir_to_check ]; then
 
             kul_e2cl "Performing KUL_dcm2bids.sh -d $dcmdir/$dicom_zip -p $BIDS_participant -c $config_file -o $bids_output -s "${session}" " $log
-            KUL_dcm2bids.sh -d $dcmdir/$dicom_zip -p $BIDS_participant -c $config_file -o $bids_output -s $session
+            KUL_dcm2bids_new.sh -d $dcmdir/$dicom_zip -p $BIDS_participant -c $config_file -o $bids_output -s $session -x
         
         #else
         
