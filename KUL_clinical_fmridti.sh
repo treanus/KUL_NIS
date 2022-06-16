@@ -45,6 +45,9 @@ Optional arguments:
      -n:  number of cpu to use (default 15)
      -r:  redo certain steps (program will ask)
      -R:  make results ready
+        type 1: use cT1w as underlay
+        type 2: use FLAIR as underlay
+        type 3: Use T1w as underlay
      -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
 
 USAGE
@@ -75,7 +78,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:RBr" OPT; do
+	while getopts "p:t:d:n:v:R:Br" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -99,7 +102,7 @@ else
 			redo=1
 		;;
         R) #make results
-			results=1
+			results=$OPTARG
 		;;
         v) #verbose
             verbose_level=$OPTARG
@@ -208,10 +211,12 @@ if [ $bc -eq 1 ]; then
 fi
 
 # The make RESULTS option
-if [ $results -eq 1 ];then
+if [ $results -gt 0 ];then
 
     resultsdir_png="$globalresultsdir/figures"
     mkdir -p $resultsdir_png
+    resultsdir_dcm="$globalresultsdir/DCM"
+    mkdir -p $resultsdir_dcm
     rm -fr $globalresultsdir/figures/*
 
     mrview_tracts[0]="Tract-csd_CST_LT"
@@ -253,9 +258,21 @@ if [ $results -eq 1 ];then
 
     result_type=0
 
-    underlay=$globalresultsdir/Anat/cT1w_reg2_T1w.nii.gz
+    if [ $result -eq 1 ]; then
 
-    mrview_resolution=1024
+        underlay=$globalresultsdir/Anat/cT1w_reg2_T1w.nii.gz
+    
+    elif [ $result -eq 2 ]; then
+
+        underlay=$globalresultsdir/Anat/FLAIR_reg2_T1w.nii.gz
+    
+    else
+
+        underlay=$globalresultsdir/Anat/T1w.nii
+    
+    fi
+
+    mrview_resolution=256
 
     for tract_set_i in {0..18..2}; do
 
@@ -266,7 +283,7 @@ if [ $results -eq 1 ];then
             #echo $tractname 
         else
             tract_set=(${mrview_tracts[@]})
-            tractname="ALL"
+            tractname="Tract-csd_ALL"
             tract_i=0
         fi
 
@@ -348,26 +365,6 @@ if [ $results -eq 1 ];then
     
     done
 
-    exit
-
-    ### under development 
-    results_final_output="RESULTS/sub-${participant}/${participant}4silvia/for_PACS"
-    mkdir -p $results_final_output
-    #SPM
-    read -p "Which SPM results (.e.g. TAAL_run-2) " answ_spm
-    read -p "Which SPM threshold (.e.g. 7.5) " answ_thr
-    SPM_orig="RESULTS/sub-${participant}/SPM/SPM_${answ_spm}.nii"
-    SPM_output="${results_final_output}/tbfMRI_${answ_spm}_thr${answ_thr}.nii"
-    mrcalc $SPM_orig $answ_thr -gt $SPM_orig -mul $SPM_output
-    exit
-
-    #Melodic
-    melodic_network="visual"
-    melodic_thr=3
-    melodic_orig="RESULTS/sub-${participant}/Melodic/melodic*${Melodic_network}*.nii"
-    melodic_output="${results_final_output}/rsfMRI_visual_thr${melodic_thr}.nii"
-    mrmath $melodic_orig mean - | \
-        mrcalc - $melodic_thr -gt - -mul $melodic_output
     exit
 
 fi
@@ -1028,8 +1025,8 @@ wait
 
 # STEP 8 - run SPM/melodic/msbp
 #KUL_run_fastsurfer
-KUL_run_freesurfer
-wait 
+#KUL_run_freesurfer # let msbp also do FS
+#wait 
 
 
 # STEP 9 - run SPM/melodic/msbp
