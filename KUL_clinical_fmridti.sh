@@ -213,12 +213,6 @@ fi
 # The make RESULTS option
 if [ $results -gt 0 ];then
 
-    resultsdir_png="$globalresultsdir/figures"
-    mkdir -p $resultsdir_png
-    resultsdir_dcm="$globalresultsdir/DCM"
-    mkdir -p $resultsdir_dcm
-    rm -fr $globalresultsdir/figures/*
-
     mrview_tracts[0]="Tract-csd_CST_LT"
     mrview_rgb[0]="173,216,230"
     mrview_tracts[1]="Tract-csd_CST_RT"
@@ -258,21 +252,30 @@ if [ $results -gt 0 ];then
 
     result_type=0
 
-    if [ $result -eq 1 ]; then
+    if [ $results -eq 1 ]; then
 
         underlay=$globalresultsdir/Anat/cT1w_reg2_T1w.nii.gz
+        resultsdir_png="$globalresultsdir/figures"
     
-    elif [ $result -eq 2 ]; then
+    elif [ $results -eq 2 ]; then
 
         underlay=$globalresultsdir/Anat/FLAIR_reg2_T1w.nii.gz
-    
+        resultsdir_png="$globalresultsdir/figures"
+
     else
 
         underlay=$globalresultsdir/Anat/T1w.nii
-    
+        resultsdir_png="$globalresultsdir/figures"
+
     fi
 
     mrview_resolution=256
+
+    rm -fr $resultsdir_png
+    mkdir -p $resultsdir_png
+    resultsdir_dcm="$globalresultsdir/DCM"
+    mkdir -p $resultsdir_dcm
+    
 
     for tract_set_i in {0..18..2}; do
 
