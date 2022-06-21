@@ -10,9 +10,9 @@ module DirectDicomImport {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "800 485 800 395"
-        sizeHint = "800 395"
-        wasOpen = no
+        geometry = "976 752 800 373"
+        sizeHint = "800 373"
+        wasOpen = yes
       }
     }
   }
@@ -379,7 +379,7 @@ validImage hasIssues fileType voxelType imgExt numVoxels numSlices numTimePoints
     dplWorkaroundValueForImageOrientationPatientTag = ""
     composeOtherFilesMode = Single
     silentTrialFileTypes = ".dat .raw .txt"
-    source = $(NETWORK)/DICOM
+    source = "$(NETWORK)/DICOM/Sleeckx_Jeremy_Jozef/Rad_Mr_Hersen_77 - PACS21746169/SmartBrain_101"
     guiCachePath = ""
   }
 }
@@ -404,7 +404,7 @@ module Compose3DFrom2DFiles {
     instanceName = Compose3DFrom2DFiles
     dirPath = ""
     searchPattern = "***"
-    currentFile = /DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/Tract-csd_UF_TRA//Tract-csd_UF_TRA0287.png
+    currentFile = $(NETWORK)/RESULTS/sub-sleeckx/figures/Tract-csd_UF_TRA/Tract-csd_UF_TRA0287.png
     readRaw = FALSE
     rawX = 1
     rawY = 1
@@ -424,7 +424,7 @@ module DicomSetPatientInformation {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "410 520 644 413"
+        geometry = "55 359 644 413"
         sizeHint = "644 413"
         wasOpen = no
       }
@@ -437,29 +437,29 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation
-    patientsName = "KNOCKAERT^JORDY LAURENT"
-    patientsBirthDate = 19950804
-    patientID = 63005372
+    patientsName = "SLEECKX^JEREMY JOZEF"
+    patientsBirthDate = 19731213
+    patientID = 60064437
     patientsSex = M
-    patientsAge = 026Y
+    patientsAge = 048Y
     patientComment = ""
-    studyDate = 20220613
+    studyDate = 20220620
     acquisitionDate = ""
-    studyDescription = "RAD fmr hersen 37"
-    studyTime = 101902
+    studyDescription = "RAD mr hersen 77"
+    studyTime = 110356
     acquisitionTime = ""
-    studyInstanceUID = 1.2.40.0.13.1.337434788242929072503611588032433869657
-    accessionNumber = PACS21691787
+    studyInstanceUID = 1.2.124.113532.80.22201.13880.20220620.102000.148684342
+    accessionNumber = PACS21746169
     seriesDescription = ""
-    institutionName = UZLeuven
-    stationName = UZLGRADPHMR08
-    bodyPartExamined = BRAIN
+    institutionName = "UZ Leuven"
+    stationName = UZLGFRADPHMR02
+    bodyPartExamined = EYE
     imageComments = ""
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = PACS21691787
-    contentDate = 20220616
-    contentTime = 105923
+    studyID = PACS21746169
+    contentDate = 20220621
+    contentTime = 180821
   }
 }
 module ImageSave {
@@ -469,7 +469,7 @@ module ImageSave {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "577 497 1126 524"
+        geometry = "485 485 1126 524"
         sizeHint = "448 524"
         wasOpen = no
       }
@@ -520,7 +520,7 @@ module View2D {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "84 225 545 468"
+        geometry = "974 211 545 468"
         sizeHint = "400 400"
         wasOpen = yes
       }
@@ -581,8 +581,8 @@ module StringSplit {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "115 286 500 746"
-        sizeHint = "500 746"
+        geometry = "628 290 500 739"
+        sizeHint = "500 739"
         wasOpen = no
       }
       window _automatic {
@@ -609,7 +609,7 @@ module Counter {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "24 778 636 276"
+        geometry = "297 218 636 276"
         sizeHint = "636 276"
         wasOpen = yes
       }
@@ -640,8 +640,8 @@ module FileDirectory {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "686 462 562 585"
-        sizeHint = "551 585"
+        geometry = "346 546 562 570"
+        sizeHint = "551 570"
         wasOpen = yes
       }
       window _automatic {
@@ -653,7 +653,7 @@ module FileDirectory {
   }
   fields  {
     instanceName = FiguresDirectory
-    rootPath = /DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures
+    rootPath = /home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures
     recursive = FALSE
     maxRecursionDepth = -1
     fileType = Dirs
@@ -686,16 +686,16 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit1
-    inString = "/DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/ALL_TRA/
-/DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/Tract-csd_AF_all_TRA/
-/DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/Tract-csd_CCing_TRA/
-/DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/Tract-csd_CST_TRA/
-/DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/Tract-csd_FAT_TRA/
-/DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/Tract-csd_IFOF_TRA/
-/DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/Tract-csd_ILF_TRA/
-/DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/Tract-csd_OR_occlobe_TRA/
-/DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/Tract-csd_TCing_TRA/
-/DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/Tract-csd_UF_TRA/"
+    inString = "/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_AF_all_TRA/
+/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_ALL_TRA/
+/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_CCing_TRA/
+/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_CST_TRA/
+/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_FAT_TRA/
+/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_IFOF_TRA/
+/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_ILF_TRA/
+/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_OR_occlobe_TRA/
+/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_TCing_TRA/
+/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_UF_TRA/"
     separators = ""
     trimWhitespace = TRUE
     selectedSubStringIndex = 10
@@ -709,7 +709,7 @@ module View2D {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "647 356 1140 796"
+        geometry = "1215 176 821 575"
         sizeHint = "400 400"
         wasOpen = no
       }
@@ -720,7 +720,7 @@ module View2D {
     inventorInputOn = TRUE
     inventorOutputOn = FALSE
     view2DExtensionsOn = TRUE
-    startSlice = 186
+    startSlice = 119
     numSlices = 1
     numXSlices = 1
     sliceStep = 1
@@ -779,7 +779,7 @@ module ImageLoad {
   }
   fields  {
     instanceName = ImageLoad
-    filename = /DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/DCM/ALL_TRA.dcm
+    filename = /media/KUL/DATA1/STEFAN/fmri_pat_sleeckx/RESULTS/sub-sleeckx/DCM/Tract-csd_CST_SAG.dcm
     autoLoad = TRUE
     readRaw = FALSE
     rawX = 1
@@ -804,7 +804,7 @@ module Compose3DFrom2DFiles {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "229 409 424 535"
+        geometry = "265 675 424 535"
         sizeHint = "424 535"
         wasOpen = no
       }
@@ -819,7 +819,7 @@ module Compose3DFrom2DFiles {
     instanceName = Compose3DFrom2DFiles1
     dirPath = _SAG
     searchPattern = "***"
-    currentFile = /DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/Tract-csd_UF_SAG/Tract-csd_UF_SAG0199.png
+    currentFile = $(NETWORK)/RESULTS/sub-sleeckx/figures/Tract-csd_UF_SAG/Tract-csd_UF_SAG0221.png
     readRaw = FALSE
     rawX = 1
     rawY = 1
@@ -852,29 +852,29 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation1
-    patientsName = "KNOCKAERT^JORDY LAURENT"
-    patientsBirthDate = 19950804
-    patientID = 63005372
+    patientsName = "SLEECKX^JEREMY JOZEF"
+    patientsBirthDate = 19731213
+    patientID = 60064437
     patientsSex = M
-    patientsAge = 026Y
+    patientsAge = 048Y
     patientComment = ""
-    studyDate = 20220613
+    studyDate = 20220620
     acquisitionDate = ""
-    studyDescription = "RAD fmr hersen 37"
-    studyTime = 101902
+    studyDescription = "RAD mr hersen 77"
+    studyTime = 110356
     acquisitionTime = ""
-    studyInstanceUID = 1.2.40.0.13.1.337434788242929072503611588032433869657
-    accessionNumber = PACS21691787
-    seriesDescription = ALL_TRA
-    institutionName = UZLeuven
-    stationName = UZLGRADPHMR08
-    bodyPartExamined = BRAIN
+    studyInstanceUID = 1.2.124.113532.80.22201.13880.20220620.102000.148684342
+    accessionNumber = PACS21746169
+    seriesDescription = ""
+    institutionName = "UZ Leuven"
+    stationName = UZLGFRADPHMR02
+    bodyPartExamined = EYE
     imageComments = ""
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = PACS21691787
-    contentDate = 20220616
-    contentTime = 200749
+    studyID = PACS21746169
+    contentDate = 20220621
+    contentTime = 180821
   }
 }
 module ImageSave {
@@ -1012,8 +1012,8 @@ module StringUtils {
         wasOpen = no
       }
       window _default {
-        geometry = "902 464 411 370"
-        sizeHint = "411 370"
+        geometry = "1914 311 395 361"
+        sizeHint = "395 361"
         wasOpen = no
       }
     }
@@ -1136,7 +1136,7 @@ module Compose3DFrom2DFiles {
     instanceName = Compose3DFrom2DFiles2
     dirPath = _COR
     searchPattern = "***"
-    currentFile = /DATA/fmri_pat_knockaert2/RESULTS/sub-knockaert/figures/Tract-csd_UF_COR/Tract-csd_UF_COR0287.png
+    currentFile = $(NETWORK)/RESULTS/sub-sleeckx/figures/Tract-csd_UF_COR/Tract-csd_UF_COR0287.png
     readRaw = FALSE
     rawX = 1
     rawY = 1
@@ -1156,7 +1156,7 @@ module DicomSetPatientInformation {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "410 520 644 413"
+        geometry = "1688 302 644 413"
         sizeHint = "644 413"
         wasOpen = no
       }
@@ -1169,29 +1169,29 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation2
-    patientsName = "KNOCKAERT^JORDY LAURENT"
-    patientsBirthDate = 19950804
-    patientID = 63005372
+    patientsName = "SLEECKX^JEREMY JOZEF"
+    patientsBirthDate = 19731213
+    patientID = 60064437
     patientsSex = M
-    patientsAge = 026Y
+    patientsAge = 048Y
     patientComment = ""
-    studyDate = 20220613
+    studyDate = 20220620
     acquisitionDate = ""
-    studyDescription = "RAD fmr hersen 37"
-    studyTime = 101902
+    studyDescription = ""
+    studyTime = 110356
     acquisitionTime = ""
-    studyInstanceUID = 1.2.40.0.13.1.337434788242929072503611588032433869657
-    accessionNumber = PACS21691787
-    seriesDescription = ALL_TRA
-    institutionName = UZLeuven
-    stationName = UZLGRADPHMR08
-    bodyPartExamined = BRAIN
+    studyInstanceUID = 1.2.124.113532.80.22201.13880.20220620.102000.148684342
+    accessionNumber = PACS21746169
+    seriesDescription = ""
+    institutionName = "UZ Leuven"
+    stationName = UZLGFRADPHMR02
+    bodyPartExamined = EYE
     imageComments = ""
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = PACS21691787
-    contentDate = 20220616
-    contentTime = 205213
+    studyID = PACS21746169
+    contentDate = 20220621
+    contentTime = 180821
   }
 }
 module ImageSave {
@@ -1201,9 +1201,9 @@ module ImageSave {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "1282 528 448 524"
+        geometry = "1790 359 454 524"
         sizeHint = "448 524"
-        wasOpen = yes
+        wasOpen = no
       }
       window _automatic {
         geometry = "165 231 1001 600"
@@ -1248,7 +1248,7 @@ module ImageSave {
 }
 module StringUtils {
   internal  {
-    frame = "1277 389 104 72"
+    frame = "1253 397 104 72"
     moduleGroupName = ""
     showNetworkPanel = true
     windows  {
@@ -1258,8 +1258,8 @@ module StringUtils {
         wasOpen = no
       }
       window _default {
-        geometry = "792 573 411 361"
-        sizeHint = "411 361"
+        geometry = "1473 500 395 361"
+        sizeHint = "395 361"
         wasOpen = no
       }
     }
@@ -1334,12 +1334,66 @@ module StringUtils {
     inPos2 = 0
   }
 }
+module StringSplit {
+  internal  {
+    frame = "1105 413 96 56"
+    moduleGroupName = ""
+    windows  {
+      window _default {
+        geometry = "1630 378 500 739"
+        sizeHint = "500 739"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "1333 170 500 600"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringSplit4
+    inString = _SAG
+    separators = /
+    trimWhitespace = TRUE
+    selectedSubStringIndex = 0
+    searchSubstring = ""
+    searchIgnoreCase = FALSE
+  }
+}
+module StringSplit {
+  internal  {
+    frame = "1409 397 96 56"
+    moduleGroupName = ""
+    windows  {
+      window _default {
+        geometry = "303 275 500 739"
+        sizeHint = "500 739"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "1333 170 500 600"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringSplit5
+    inString = _COR
+    separators = /
+    trimWhitespace = TRUE
+    selectedSubStringIndex = 0
+    searchSubstring = ""
+    searchIgnoreCase = FALSE
+  }
+}
 connections  {
   Compose3DFrom2DFiles.dirPath = StringSplit1.selectedSubString
   Compose3DFrom2DFiles.create3D = Counter.performStep
   DicomSetPatientInformation.input0 = Compose3DFrom2DFiles.output0
   DicomSetPatientInformation.input1 = DirectDicomImport.output0
-  DicomSetPatientInformation.seriesDescription = StringSplit.subString5
+  DicomSetPatientInformation.seriesDescription = StringSplit.subString8
   ImageSave.input0 = DicomSetPatientInformation.output0
   ImageSave.startTask = Compose3DFrom2DFiles.create3D
   ImageSave.filename = StringUtils2.result
@@ -1353,6 +1407,7 @@ connections  {
   Compose3DFrom2DFiles1.create3D = Counter.performStep
   DicomSetPatientInformation1.input0 = Compose3DFrom2DFiles1.output0
   DicomSetPatientInformation1.input1 = DirectDicomImport.output0
+  DicomSetPatientInformation1.seriesDescription = StringSplit4.subString8
   ImageSave1.input0 = DicomSetPatientInformation1.output0
   ImageSave1.filename = StringUtils3.result
   ImageSave1.save = Compose3DFrom2DFiles1.create3D
@@ -1367,11 +1422,14 @@ connections  {
   Compose3DFrom2DFiles2.create3D = Counter.performStep
   DicomSetPatientInformation2.input0 = Compose3DFrom2DFiles2.output0
   DicomSetPatientInformation2.input1 = DirectDicomImport.output0
+  DicomSetPatientInformation2.seriesDescription = StringSplit5.subString8
   ImageSave2.input0 = DicomSetPatientInformation2.output0
   ImageSave2.filename = StringUtils5.result
   ImageSave2.save = Compose3DFrom2DFiles2.create3D
   StringUtils4.string1 = StringSplit3.subString0
   StringUtils5.string1 = StringSplit2.subString0
   StringUtils5.string3 = StringSplit2.subString1
+  StringSplit4.inString = Compose3DFrom2DFiles1.dirPath
+  StringSplit5.inString = Compose3DFrom2DFiles2.dirPath
 }
 networkModel = ""
