@@ -35,7 +35,7 @@ num_mri=${#search_mri[@]}
 echo "Number of nifti data in the BIDS folder: $num_mri"
 #echo ${search_mri[@]}
 
-echo -e "MRI-scan, Subject, Session, Type, Scan, Site, Manufacturer, Model, Software, Coil, MagneticFieldStrength, SeriesDescription, SeriesNumber, AcquisitionType, TE, TR, DIM, Dim_x, Dim_y, Dim_z, Dynamics, ETL" > $output 
+echo -e "MRI-scan, Subject, Session, Type, Scan, Site, Manufacturer, Model, Software, Coil, MagneticFieldStrength, SeriesDescription, SeriesNumber, AcquisitionType, TE, TR, TI, DIM, Dim_x, Dim_y, Dim_z, Dynamics, ETL" > $output 
 
 for i in `seq 0 $(($num_mri-1))`; do
     
@@ -90,6 +90,9 @@ for i in `seq 0 $(($num_mri-1))`; do
     TR=$(grep -w RepetitionTime  $json | cut -d: -f2 | cut -d, -f 1)
     echo "TR: $TR"
 
+    TI=$(grep \"InversionTime\"  $json | cut -d: -f2 | cut -d, -f 1 | tr -d '"')
+    echo "InversionTime: $TI"
+
     dim=$(mrinfo $mri -ndim)
     echo "Dimensions: $dim"
 
@@ -103,7 +106,7 @@ for i in `seq 0 $(($num_mri-1))`; do
 
     echo -e "$mri, $sub, $ses, $type, $scan, $site, $manufacturer \
        , $model, $soft, $coil, $MagneticFieldStrength, $SeriesDescription, $SeriesNumber \
-       , $AcquisitionType, $TE, $TR, $dim, $dim_x, $dim_y, $dim_z, $dynamics, $ETL" >> $output 
+       , $AcquisitionType, $TE, $TR, $TI, $dim, $dim_x, $dim_y, $dim_z, $dynamics, $ETL" >> $output 
 
 done
 
