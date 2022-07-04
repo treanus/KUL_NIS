@@ -230,7 +230,7 @@ function KUL_check_data {
     elif [ $bc_in -eq 1 ]; then
 
         echo -e "\n\nAn overview of the bias corrected derivatives data:"
-        bidsdir="BIDS/derivatives/KUL_compute/sub-$participant/KUL_biascorrect"
+        bidsdir="BIDS/derivatives/KUL_compute/sub-$participant/KUL_anat_biascorrect"
         T1w=($(find $bidsdir -name "T1w_bc.nii.gz" -type f ))
         nT1w=${#T1w[@]}
         echo "  number of non-contrast T1w: $nT1w"
