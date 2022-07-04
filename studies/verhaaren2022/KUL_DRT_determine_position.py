@@ -143,7 +143,7 @@ for root, dirs, files in os.walk(bidsdir):
                                 CM = ndimage.measurements.center_of_mass(img_data)
                                 print(CM)
                                 #print(round(CM[0]))
-                                cmd = 'echo "' + base_name + ',' + ses + ',' + side+ ',' + \
+                                cmd = 'echo "' + base_name + ', CM,' + ses + ',' + side+ ',' + \
                                     str(CM[0]) + ',' +  str(CM[1]) + ',' + str(CM[2]) + '" >> ' + results_csv
                                 print(cmd)
                                 out = os.popen(cmd).read().strip()
@@ -157,6 +157,24 @@ for root, dirs, files in os.walk(bidsdir):
 
                                 new_img = nib.Nifti1Image(new_img_data, img.affine, img.header)
                                 nib.save(new_img, CM_image)
+                                
+
+                                # find the voxel with most streamlines
+                                mp = ndimage.measurements.maximum_position(img_data)
+                                print(mp)
+                                cmd = 'echo "' + base_name + ', mp,' + ses + ',' + side+ ',' + \
+                                    str(mp[0]) + ',' +  str(mp[1]) + ',' + str(mp[2]) + '" >> ' + results_csv
+                                print(cmd)
+                                out = os.popen(cmd).read().strip()
+                                print(out)
+
+                                mp_image = os.path.join(outdir, dir, base_name) + '_DRT_' + side + \
+                                    '_ses-' + ses + '_mp.nii.gz'
+                                new_img_data = np.zeros(img.header.get_data_shape())
+                                new_img_data[round(mp[0]), round(mp[1]), round(mp[2])] = i
+
+                                new_img = nib.Nifti1Image(new_img_data, img.affine, img.header)
+                                nib.save(new_img, mp_image)
                                 i = i + 1
 
                                 # make an outline
