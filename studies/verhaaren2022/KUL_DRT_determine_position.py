@@ -26,7 +26,7 @@ outdir = args.dest
 #print(outdir)
 
 results_csv = os.path.join(outdir) + 'Results_DRT.csv'
-cmd = 'echo "base_name, ses, side, CMx, CMy, CMz" > ' + results_csv
+cmd = 'echo "base_name, type, ses, side, CMx, CMy, CMz" > ' + results_csv
 print(cmd)
 out = os.popen(cmd).read().strip()
 print(out)
@@ -187,7 +187,7 @@ for root, dirs, files in os.walk(bidsdir):
                             
                             else: 
                                 print('No DRT found!')
-                                cmd = 'echo "' + base_name + ',' + ses + ',' + side+ ',Nan, NaN, NaN" >> ' + results_csv
+                                cmd = 'echo "' + base_name + ',' + ses + ',' + side+ ',NaN, NaN, NaN" >> ' + results_csv
                                 print(cmd)
                                 out = os.popen(cmd).read().strip()
                                 print(out)
