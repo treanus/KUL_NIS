@@ -26,7 +26,7 @@ outdir = args.dest
 #print(outdir)
 
 results_csv = os.path.join(outdir) + 'Results_DRT.csv'
-cmd = 'echo "base_name, type, ses, side, CMx, CMy, CMz" > ' + results_csv
+cmd = 'echo "base_name, type, ses, side, count, CMx, CMy, CMz" > ' + results_csv
 print(cmd)
 out = os.popen(cmd).read().strip()
 print(out)
@@ -122,6 +122,15 @@ for root, dirs, files in os.walk(bidsdir):
                                 out = os.popen(cmd).read().strip()
                                 print(out)
                                 
+                                # find the number of streamlines
+                                tck = os.path.join('.','BIDS','derivatives','KUL_compute',base_name,'ses-' + ses,'FWT', base_name + \
+                                '_TCKs_output','DRT_' + side + '_output', 'DRT_' + side + '_fin_BT_iFOD2.tck')
+                                cmd = 'tckstats -output count ' + tck 
+                                print(cmd)
+                                out = os.popen(cmd).read().strip()
+                                count = out.splitlines()[0]
+                                print(count)
+
                                 # regrid to HR T1W
                                 regrid = os.path.join(outdir, dir, base_name) + '_DRT_' + side + '_ses-' + ses + '_map_regrid.nii.gz'
                                 cmd = 'mrgrid -force ' + drt + ' regrid -template ' + plane + ' ' + regrid 
@@ -143,12 +152,12 @@ for root, dirs, files in os.walk(bidsdir):
                                 CM = ndimage.measurements.center_of_mass(img_data)
                                 print(CM)
                                 #print(round(CM[0]))
-                                cmd = 'echo "' + base_name + ', CM,' + ses + ',' + side+ ',' + \
+                                cmd = 'echo "' + base_name + ', CM,' + ses + ',' + side + ',' + count + ',' + \
                                     str(CM[0]) + ',' +  str(CM[1]) + ',' + str(CM[2]) + '" >> ' + results_csv
                                 print(cmd)
                                 out = os.popen(cmd).read().strip()
                                 print(out)
-
+                                
                                 #print(img.header.get_data_shape())
                                 CM_image = os.path.join(outdir, dir, base_name) + '_DRT_' + side + \
                                     '_ses-' + ses + '_cm.nii.gz'
@@ -162,7 +171,7 @@ for root, dirs, files in os.walk(bidsdir):
                                 # find the voxel with most streamlines
                                 mp = ndimage.measurements.maximum_position(img_data)
                                 print(mp)
-                                cmd = 'echo "' + base_name + ', mp,' + ses + ',' + side+ ',' + \
+                                cmd = 'echo "' + base_name + ', mp,' + ses + ',' + side + ',' + count + ',' + \
                                     str(mp[0]) + ',' +  str(mp[1]) + ',' + str(mp[2]) + '" >> ' + results_csv
                                 print(cmd)
                                 out = os.popen(cmd).read().strip()
@@ -187,7 +196,7 @@ for root, dirs, files in os.walk(bidsdir):
                             
                             else: 
                                 print('No DRT found!')
-                                cmd = 'echo "' + base_name + ',' + ses + ',' + side+ ',NaN, NaN, NaN" >> ' + results_csv
+                                cmd = 'echo "' + base_name + ',' + ses + ',' + side + ',' + 'NaN,NaN, NaN, NaN" >> ' + results_csv
                                 print(cmd)
                                 out = os.popen(cmd).read().strip()
                                 print(out)
