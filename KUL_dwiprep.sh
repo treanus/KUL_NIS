@@ -639,7 +639,17 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			# Make the directory for the output of eddy_qc
 			mkdir -p eddy_qc/raw
 			
-			task_in="dwifslpreproc ${dwifslpreproc_option} -rpe_header \
+			# for some old studies, the header info is not available
+			# in that case one can set an environment variable 
+			# e.g. export KUL_dwiprep_custom_dwifslpreproc="-rpe_none -pe_dir ap"
+			# it is entirely up to the user to set the correct parameters
+			if [ -z $KUL_dwiprep_custom_dwifslpreproc ]; then
+				default_dwifslpreproc="-rpe_header"
+			else
+				default_dwifslpreproc=$KUL_dwiprep_custom_dwifslpreproc
+			fi
+
+			task_in="dwifslpreproc ${dwifslpreproc_option} $default_dwifslpreproc \
 					-eddyqc_all eddy_qc/raw -eddy_options \"${full_eddy_options} \" -force -nthreads $ncpu -nocleanup \
 					dwi/degibbs.mif dwi/geomcorr.mif"
 			KUL_task_exec $verbose_level "kul_dwiprep part 3: motion and distortion correction" "3_dwifslpreproc"

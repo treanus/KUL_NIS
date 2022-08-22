@@ -47,7 +47,8 @@ Optional arguments:
      -R:  make results ready
         type 1: use cT1w as underlay
         type 2: use FLAIR as underlay
-        type 3: Use T1w as underlay
+        type 3: use SWI as underlay
+        type 4: Use T1w as underlay
      -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
 
 USAGE
@@ -249,6 +250,10 @@ if [ $results -gt 0 ];then
     mrview_rgb[16]="50,200,100"
     mrview_tracts[17]="Tract-csd_OR_occlobe_RT"
     mrview_rgb[17]="200,50,100"
+    mrview_tracts[18]="Tract-csd_MdLF_LT"
+    mrview_rgb[18]="150,200,10"
+    mrview_tracts[19]="Tract-csd_MdLF_RT"
+    mrview_rgb[19]="200,150,10"
 
     result_type=0
 
@@ -260,6 +265,11 @@ if [ $results -gt 0 ];then
     elif [ $results -eq 2 ]; then
 
         underlay=$globalresultsdir/Anat/FLAIR_reg2_T1w.nii.gz
+        resultsdir_png="$globalresultsdir/figures"
+
+    elif [ $results -eq 3 ]; then
+
+        underlay=$globalresultsdir/Anat/SWI_reg2_T1w.nii.gz
         resultsdir_png="$globalresultsdir/figures"
 
     else
@@ -277,9 +287,9 @@ if [ $results -gt 0 ];then
     mkdir -p $resultsdir_dcm
     
 
-    for tract_set_i in {0..18..2}; do
+    for tract_set_i in {0..20..2}; do
 
-        if [ $tract_set_i -lt 18 ]; then
+        if [ $tract_set_i -lt 20 ]; then
             tract_set=(${mrview_tracts[@]:$tract_set_i:2})
             tractname=${tract_set[0]:0:-3}
             tract_i=tract_set_i
