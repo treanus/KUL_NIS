@@ -278,7 +278,7 @@ function kul_echo {
     local info_to_log=$1
     #echo "previous verbose_level: $verbose_level"
     if [[ -z "$verbose_level" ]]; then
-        echo "setting verbose_level = 2"
+        #echo "setting verbose_level = 2"
         verbose_level=2
     fi
     #if [ $silent -eq 0 ];then

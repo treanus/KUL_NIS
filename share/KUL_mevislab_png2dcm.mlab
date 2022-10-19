@@ -10,7 +10,7 @@ module DirectDicomImport {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "976 752 800 373"
+        geometry = "426 766 800 373"
         sizeHint = "800 373"
         wasOpen = yes
       }
@@ -379,7 +379,7 @@ validImage hasIssues fileType voxelType imgExt numVoxels numSlices numTimePoints
     dplWorkaroundValueForImageOrientationPatientTag = ""
     composeOtherFilesMode = Single
     silentTrialFileTypes = ".dat .raw .txt"
-    source = "$(NETWORK)/DICOM/Sleeckx_Jeremy_Jozef/Rad_Mr_Hersen_77 - PACS21746169/SmartBrain_101"
+    source = ""
     guiCachePath = ""
   }
 }
@@ -404,7 +404,7 @@ module Compose3DFrom2DFiles {
     instanceName = Compose3DFrom2DFiles
     dirPath = ""
     searchPattern = "***"
-    currentFile = $(NETWORK)/RESULTS/sub-sleeckx/figures/Tract-csd_UF_TRA/Tract-csd_UF_TRA0287.png
+    currentFile = $(NETWORK)/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_UF_TRA/Tract-csd_UF_TRA0287.png
     readRaw = FALSE
     rawX = 1
     rawY = 1
@@ -437,29 +437,29 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation
-    patientsName = "SLEECKX^JEREMY JOZEF"
-    patientsBirthDate = 19731213
-    patientID = 60064437
-    patientsSex = M
-    patientsAge = 048Y
+    patientsName = ""
+    patientsBirthDate = ""
+    patientID = ""
+    patientsSex = ""
+    patientsAge = ""
     patientComment = ""
-    studyDate = 20220620
+    studyDate = ""
     acquisitionDate = ""
-    studyDescription = "RAD mr hersen 77"
-    studyTime = 110356
+    studyDescription = ""
+    studyTime = ""
     acquisitionTime = ""
-    studyInstanceUID = 1.2.124.113532.80.22201.13880.20220620.102000.148684342
-    accessionNumber = PACS21746169
+    studyInstanceUID = ""
+    accessionNumber = ""
     seriesDescription = ""
-    institutionName = "UZ Leuven"
-    stationName = UZLGFRADPHMR02
-    bodyPartExamined = EYE
+    institutionName = ""
+    stationName = ""
+    bodyPartExamined = ""
     imageComments = ""
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = PACS21746169
-    contentDate = 20220621
-    contentTime = 180821
+    studyID = ""
+    contentDate = 20221019
+    contentTime = 204843
   }
 }
 module ImageSave {
@@ -520,7 +520,7 @@ module View2D {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "974 211 545 468"
+        geometry = "1146 216 545 468"
         sizeHint = "400 400"
         wasOpen = yes
       }
@@ -609,7 +609,7 @@ module Counter {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "297 218 636 276"
+        geometry = "1347 830 636 276"
         sizeHint = "636 276"
         wasOpen = yes
       }
@@ -622,7 +622,7 @@ module Counter {
   }
   fields  {
     instanceName = Counter
-    currentValue = 10
+    currentValue = 11
     minValue = -1
     maxValue = 11
     startValue = -1
@@ -640,7 +640,7 @@ module FileDirectory {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "346 546 562 570"
+        geometry = "434 160 562 570"
         sizeHint = "551 570"
         wasOpen = yes
       }
@@ -653,7 +653,7 @@ module FileDirectory {
   }
   fields  {
     instanceName = FiguresDirectory
-    rootPath = /home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures
+    rootPath = /home/stefan/DATA0/fmri_pat_test/RESULTS/sub-test/Tracto_figures_cT1w
     recursive = FALSE
     maxRecursionDepth = -1
     fileType = Dirs
@@ -686,19 +686,20 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit1
-    inString = "/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_AF_all_TRA/
-/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_ALL_TRA/
-/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_CCing_TRA/
-/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_CST_TRA/
-/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_FAT_TRA/
-/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_IFOF_TRA/
-/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_ILF_TRA/
-/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_OR_occlobe_TRA/
-/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_TCing_TRA/
-/home/stefan/DATA1/fmri_pat_sleeckx/RESULTS/sub-sleeckx/figures/Tract-csd_UF_TRA/"
+    inString = "/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_AF_all_TRA/
+/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_ALL_TRA/
+/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_CCing_TRA/
+/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_CST_TRA/
+/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_FAT_TRA/
+/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_IFOF_TRA/
+/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_ILF_TRA/
+/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_MdLF_TRA/
+/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_OR_occlobe_TRA/
+/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_TCing_TRA/
+/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_UF_TRA/"
     separators = ""
     trimWhitespace = TRUE
-    selectedSubStringIndex = 10
+    selectedSubStringIndex = 11
     searchSubstring = ""
     searchIgnoreCase = FALSE
   }
@@ -709,7 +710,7 @@ module View2D {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1215 176 821 575"
+        geometry = "1548 822 821 575"
         sizeHint = "400 400"
         wasOpen = no
       }
@@ -720,7 +721,7 @@ module View2D {
     inventorInputOn = TRUE
     inventorOutputOn = FALSE
     view2DExtensionsOn = TRUE
-    startSlice = 119
+    startSlice = 213
     numSlices = 1
     numXSlices = 1
     sliceStep = 1
@@ -779,7 +780,7 @@ module ImageLoad {
   }
   fields  {
     instanceName = ImageLoad
-    filename = /media/KUL/DATA1/STEFAN/fmri_pat_sleeckx/RESULTS/sub-sleeckx/DCM/Tract-csd_CST_SAG.dcm
+    filename = $(NETWORK)/RESULTS/sub-Verpoorten/PACS/Tracto_cT1w/Tract-csd_ALL_TRA.dcm
     autoLoad = TRUE
     readRaw = FALSE
     rawX = 1
@@ -819,7 +820,7 @@ module Compose3DFrom2DFiles {
     instanceName = Compose3DFrom2DFiles1
     dirPath = _SAG
     searchPattern = "***"
-    currentFile = $(NETWORK)/RESULTS/sub-sleeckx/figures/Tract-csd_UF_SAG/Tract-csd_UF_SAG0221.png
+    currentFile = $(NETWORK)/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_UF_SAG/Tract-csd_UF_SAG0199.png
     readRaw = FALSE
     rawX = 1
     rawY = 1
@@ -852,29 +853,29 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation1
-    patientsName = "SLEECKX^JEREMY JOZEF"
-    patientsBirthDate = 19731213
-    patientID = 60064437
-    patientsSex = M
-    patientsAge = 048Y
+    patientsName = ""
+    patientsBirthDate = ""
+    patientID = ""
+    patientsSex = ""
+    patientsAge = ""
     patientComment = ""
-    studyDate = 20220620
+    studyDate = ""
     acquisitionDate = ""
-    studyDescription = "RAD mr hersen 77"
-    studyTime = 110356
+    studyDescription = ""
+    studyTime = ""
     acquisitionTime = ""
-    studyInstanceUID = 1.2.124.113532.80.22201.13880.20220620.102000.148684342
-    accessionNumber = PACS21746169
+    studyInstanceUID = ""
+    accessionNumber = ""
     seriesDescription = ""
-    institutionName = "UZ Leuven"
-    stationName = UZLGFRADPHMR02
-    bodyPartExamined = EYE
+    institutionName = ""
+    stationName = ""
+    bodyPartExamined = ""
     imageComments = ""
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = PACS21746169
-    contentDate = 20220621
-    contentTime = 180821
+    studyID = ""
+    contentDate = 20221019
+    contentTime = 204843
   }
 }
 module ImageSave {
@@ -935,8 +936,8 @@ module StringSplit {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "37 574 607 913"
-        sizeHint = "500 764"
+        geometry = "37 466 607 888"
+        sizeHint = "500 739"
         wasOpen = no
       }
       window _automatic {
@@ -1012,7 +1013,7 @@ module StringUtils {
         wasOpen = no
       }
       window _default {
-        geometry = "1914 311 395 361"
+        geometry = "142 657 1240 556"
         sizeHint = "395 361"
         wasOpen = no
       }
@@ -1022,7 +1023,7 @@ module StringUtils {
     instanceName = StringUtils2
     operationType = Concatenate
     string1 = ""
-    string2 = DCM
+    string2 = PACS/Tracto
     string3 = ""
     string4 = _TRA
     string5 = .dcm
@@ -1056,8 +1057,8 @@ module StringUtils {
         wasOpen = no
       }
       window _default {
-        geometry = "1103 648 411 370"
-        sizeHint = "411 370"
+        geometry = "1044 731 1089 361"
+        sizeHint = "395 361"
         wasOpen = no
       }
     }
@@ -1066,7 +1067,7 @@ module StringUtils {
     instanceName = StringUtils3
     operationType = Concatenate
     string1 = ""
-    string2 = DCM
+    string2 = PACS/Tracto
     string3 = ""
     string4 = _SAG
     string5 = .dcm
@@ -1108,7 +1109,7 @@ module StringSplit {
   fields  {
     instanceName = StringSplit2
     inString = ""
-    separators = figures
+    separators = Tracto_figures
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
     searchSubstring = ""
@@ -1136,7 +1137,7 @@ module Compose3DFrom2DFiles {
     instanceName = Compose3DFrom2DFiles2
     dirPath = _COR
     searchPattern = "***"
-    currentFile = $(NETWORK)/RESULTS/sub-sleeckx/figures/Tract-csd_UF_COR/Tract-csd_UF_COR0287.png
+    currentFile = $(NETWORK)/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_UF_COR/Tract-csd_UF_COR0287.png
     readRaw = FALSE
     rawX = 1
     rawY = 1
@@ -1169,29 +1170,29 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation2
-    patientsName = "SLEECKX^JEREMY JOZEF"
-    patientsBirthDate = 19731213
-    patientID = 60064437
-    patientsSex = M
-    patientsAge = 048Y
+    patientsName = ""
+    patientsBirthDate = ""
+    patientID = ""
+    patientsSex = ""
+    patientsAge = ""
     patientComment = ""
-    studyDate = 20220620
+    studyDate = ""
     acquisitionDate = ""
     studyDescription = ""
-    studyTime = 110356
+    studyTime = ""
     acquisitionTime = ""
-    studyInstanceUID = 1.2.124.113532.80.22201.13880.20220620.102000.148684342
-    accessionNumber = PACS21746169
+    studyInstanceUID = ""
+    accessionNumber = ""
     seriesDescription = ""
-    institutionName = "UZ Leuven"
-    stationName = UZLGFRADPHMR02
-    bodyPartExamined = EYE
+    institutionName = ""
+    stationName = ""
+    bodyPartExamined = ""
     imageComments = ""
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = PACS21746169
-    contentDate = 20220621
-    contentTime = 180821
+    studyID = ""
+    contentDate = 20221019
+    contentTime = 204843
   }
 }
 module ImageSave {
@@ -1302,8 +1303,8 @@ module StringUtils {
         wasOpen = no
       }
       window _default {
-        geometry = "530 568 411 361"
-        sizeHint = "411 361"
+        geometry = "530 568 1240 586"
+        sizeHint = "395 361"
         wasOpen = no
       }
     }
@@ -1312,7 +1313,7 @@ module StringUtils {
     instanceName = StringUtils5
     operationType = Concatenate
     string1 = ""
-    string2 = DCM
+    string2 = PACS/Tracto
     string3 = ""
     string4 = _COR
     string5 = .dcm

@@ -169,7 +169,7 @@ mkdir -p Karawun/sub-${participant}/labels
 mkdir -p Karawun/sub-${participant}/tck
 mkdir -p Karawun/sub-${participant}/DICOM
 
-mrcalc RESULTS/sub-${participant}/Anat/T1w.nii 100 -div Karawun/sub-${participant}/T1w.nii.gz -force
+mrcalc RESULTS/sub-${participant}/Anat/T1w.nii.gz 100 -div Karawun/sub-${participant}/T1w.nii.gz -force
 
 if [ $type -eq 1 ]; then
 
@@ -177,108 +177,126 @@ if [ $type -eq 1 ]; then
     tract_name_final="Arcutate_Fasc_Left"
     tract_color=1
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="AF_all_RT"
     tract_name_final="Arcutate_Fasc_Right"
     tract_color=2
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="CST_LT"
     tract_name_final="Corticospinal_Tract_Left"
     tract_color=3
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="CST_RT"
     tract_name_final="Corticospinal_Tract_Right"
     tract_color=4
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="CCing_LT"
     tract_name_final="Cingulum_cing_Left"
     tract_color=5
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="TCing_LT"
     tract_name_final="Cingulum_temporal_Left"
     tract_color=5
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="CCing_RT"
     tract_name_final="Cingulum_cing_Right"
     tract_color=6
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="TCing_RT"
     tract_name_final="Cingulum_temporal_Right"
     tract_color=6
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="FAT_LT"
     tract_name_final="FrontalAslant_Tract_Left"
     tract_color=7
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="FAT_RT"
     tract_name_final="FrontalAslant_Tract_Right"
     tract_color=8
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="IFOF_LT"
     tract_name_final="IFOF_Left"
     tract_color=9
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="IFOF_RT"
     tract_name_final="IFOF_Right"
     tract_color=10
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="ILF_LT"
     tract_name_final="InferiorLongitudinal_Fasc_Left"
     tract_color=11
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="ILF_RT"
     tract_name_final="InferiorLongitudinal_Fasc_Right"
     tract_color=12
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="UF_LT"
     tract_name_final="Uncinate_Fasc_Left"
     tract_color=13
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="UF_RT"
     tract_name_final="Uncinate_Fasc_Right"
     tract_color=14
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="OR_occlobe_LT"
     tract_name_final="Occiptal_Radition_Left"
     tract_color=15
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
     
     tract_name_orig="OR_occlobe_RT"
     tract_name_final="Occiptal_Radition_Right"
     tract_color=16
     tract_threshold=20
+    tract_corr_threshold=3
     KUL_karawun_get_tract
 
 elif [ $type -eq 2 ]; then

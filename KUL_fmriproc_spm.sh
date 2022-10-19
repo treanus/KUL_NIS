@@ -350,7 +350,7 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
     # cleanup
     rm -rf $fmridatadir
 
-    #touch KUL_LOG/sub-${participant}_SPM.done
+    touch KUL_LOG/sub-${participant}_SPM.done
     echo "Done computing SPM"
 else
     echo "SPM analysis already done"

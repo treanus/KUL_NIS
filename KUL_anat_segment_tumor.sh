@@ -385,10 +385,13 @@ if [ $result -eq 0 ]; then
     if [ $hdglio_type_found -le 2 ];then
 
         kul_echo "hd-glio-auto found $hdglio_output1"
-        mrcalc $hdglio_segmentation 1 -eq - | maskfilter - dilate -npass 5 -nthreads $ncpu - | \
+        #echo $hdglio_type_found
+        cmd="mrcalc $hdglio_segmentation 1 -eq - | maskfilter - dilate -npass 25 -nthreads $ncpu - | \
         maskfilter - fill - -nthreads $ncpu | \
-        maskfilter - erode ${hdglio_output1} -npass 5 -nthreads $ncpu -force
-        
+        maskfilter - erode ${hdglio_output1} -npass 25 -nthreads $ncpu -force"
+        #echo $cmd
+        eval $cmd 
+
         cp ${hdglio_output1} ${hdglio_output3}
         
         ln -sf $hdglio_output1 $local_output_hdglio1
@@ -401,10 +404,13 @@ if [ $result -eq 0 ]; then
     if [ $hdglio_type_found -eq 2 ];then
 
         kul_echo "hd-glio-auto found $hdglio_output2"
-        mrcalc $hdglio_segmentation 2 -eq - | maskfilter - dilate -npass 5 -nthreads - | \
+        #echo $hdglio_type_found
+        cmd="mrcalc $hdglio_segmentation 2 -eq - | maskfilter - dilate -npass 25 -nthreads $ncpu - | \
         maskfilter - fill - -nthreads $ncpu | \
-        maskfilter - erode ${hdglio_output2} -npass 5 -nthreads $ncpu -force
-        
+        maskfilter - erode ${hdglio_output2} -npass 25 -nthreads $ncpu -force"
+        #echo $cmd
+        eval $cmd
+
         mrcalc ${hdglio_output1} ${hdglio_output2} -add 0.9 -gt ${hdglio_output3} -force
         mrcalc ${hdglio_output3} ${hdglio_output2} -subtract 0.9 -gt ${hdglio_output1} -force
         
@@ -543,6 +549,8 @@ if [ -f $fastsurferoutput ]; then
     mrview_ventricles_overlay="-overlay.load $fastsurferoutput -overlay.opacity 0.4 -overlay.colour 0,85,127 -overlay.threshold_min 0.1"
 fi
 
+
+if 0; then
 if [ $result -eq 0 ]; then
     i=0
     voxel_index="-capture.folder $globalresultsdir/Lesion -capture.prefix tmp -noannotations "
@@ -560,6 +568,7 @@ else
     mrview_exit=""
 fi
 #echo $voxel_index
+
 
 cmd="mrview -load $underlay 
     $mode_plane \
@@ -579,5 +588,16 @@ if [ $result -eq 0 ];then
     montage $globalresultsdir/Lesion/tmp*.png -mode Concatenate $globalresultsdir/Lesion/sub-${participant}_tumor_segment.png
     rm -f $globalresultsdir/Lesion/tmp*.png
 fi
+fi
+
+config_mrview=study_config/mrview_overlay_segment_tumor.txt
+overlays="$mrview_hdglio1_overlay $mrview_hdglio2_overlay $mrview_ventricles_overlay $mrview_resseg_overlay"
+echo $overlays > $config_mrview
+KUL_mrview_figure.sh -p ${participant} \
+    -u $underlay -o $config_mrview \
+    -d $globalresultsdir/Lesion \
+    -f tumor_segment \
+    -t 2 -v $verbose_level
+
 
 echo "Finished"

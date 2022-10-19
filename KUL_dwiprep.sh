@@ -290,6 +290,20 @@ function kul_dwi2mask {
 	
 }
 
+function kul_mrview_figure {
+
+	capture="-capture.folder $capture_dir -capture.prefix $capture_prefix -noannotations -capture.grab"
+	cmd="mrview -load $underlay 
+		$mode_plane \
+		$overlay \
+		$capture \
+		-force \
+		$mrview_exit"
+	echo $cmd
+	eval $cmd
+
+}
+
 # --- MAIN ----------------
 # start
 bids_participant=BIDS/sub-${participant}
@@ -473,11 +487,11 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		# read the pe table of the b0s of dwi_orig.mif
 		IFS=$'\n'
 		pe=($(dwiextract dwi_orig.mif -bzero - | mrinfo -petable -))
-		#echo "pe: $pe"
+		echo "pe: $pe"
 		# count how many b0s there are
 		n_pe=$(echo ${#pe[@]})
-		#echo "n_pe: $n_pe"
-
+		echo "n_pe: $n_pe"
+		
 
 		# in case there is a reverse phase information
 		if [ $n_pe -gt 1 ]; then
@@ -487,13 +501,13 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			dwiextract dwi_orig.mif -bzero - | mrconvert - -coord 3 0 raw/b0s_pe0.mif -force
 			# get the pe_scheme of the first b0
 			previous_pe=$(echo ${pe[0]})
-
+			
 			# read over the following b0s, and only keep 1 with a new b0 scheme
 
 			for i in `seq 1 $(($n_pe-1))`; do
 
 				current_pe=$(echo ${pe[$i]})
-
+				echo "current_pe: $curre"
 				if [ $previous_pe = $current_pe ]; then
 					kul_echo "previous_pe=$previous_pe, current_pe=$current_pe"
 					kul_echo "same pe scheme, skip"
@@ -647,6 +661,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 				default_dwifslpreproc="-rpe_header"
 			else
 				default_dwifslpreproc=$KUL_dwiprep_custom_dwifslpreproc
+				dwifslpreproc_option=""
 			fi
 
 			task_in="dwifslpreproc ${dwifslpreproc_option} $default_dwifslpreproc \
@@ -847,6 +862,31 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
 	fi
 
+	# make some QA figures
+	if [ ! -f qa/fa.png ]; then
+		mode_plane="-mode 2"
+		overlay=""
+		capture_dir="qa"
+		mrview_exit="-exit"
+		
+		underlays="raw/b0s_pe*.mif"
+		for f in $underlays; do
+			underlay=$f
+			if [ -f $underlay ]; then
+				capture_prefix=$(basename -s .mif $f)
+				kul_mrview_figure
+			fi
+		done
+		
+		underlay="qa/fa_orig.nii.gz"
+		capture_prefix="fa_orig_"
+		kul_mrview_figure
+
+		underlay="qa/fa.nii.gz"
+		capture_prefix="fa_"
+		kul_mrview_figure
+
+	fi
 
 	# We finished processing current session
 	# write a "done" log file for this session
