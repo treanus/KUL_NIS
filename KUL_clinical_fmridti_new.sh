@@ -1127,6 +1127,7 @@ mkdir -p $globalresultsdir/Melodic
 mkdir -p $globalresultsdir/Tracto
 mkdir -p $globalresultsdir/PACS/fMRI
 mkdir -p $cwd/RESULTS
+mkdir -p $cwd/REPORT
 
 if [ $KUL_DEBUG -gt 0 ]; then 
     echo "kulderivativesdir: $kulderivativesdir"

@@ -158,7 +158,7 @@ function KUL_mrview {
         $mrview_annotations \
         $mrview_capture \
         $mrview_exit"
-    echo $cmd
+    #echo $cmd
     eval $cmd
 
 }
