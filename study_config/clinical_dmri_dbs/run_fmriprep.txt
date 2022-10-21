@@ -1,0 +1,38 @@
+# KUL_Neuro_Imaging_Tools
+#  this is the config file for KUL_preproc_all
+
+# Here you specify which subjects to process
+#  this is the participant name (can be without 'sub-')
+#  separate them by a space
+#  KUL_preproc_all checks what has been done already, but this check is rudimentary, thus
+#	if a processing step failed or was interupted, 
+# 	or you scanned an extra session you need to delete the results and redo processing
+
+BIDS_participants: 
+
+
+# fmriprep processing
+#  options: see the fmriprep documentation
+#	in most cases it is useful to set options
+#	e.g. --anat_only in case you have no fmri data
+#	e.g. --longitudinal when you have multiple session
+#  ncpu: don't set iths too high (n<8 is safe)
+#  mem: see your docker preferences
+#	for anat only, it uses +/- 1 GB per T1w or FLAIR
+#	can be much higher if you have e.g. multi-echo resting state fMRI
+#  simultaneous: defines how many subjects to process simultaneously (e.g. on the VSC-HPC)
+#	if you have x cpu's, set it to x/ncpu
+#	but also take into account memory usage: if mem is 1GB per subject and your pc has 8GB of RAM, set to 8 max
+do_fmriprep: 1
+fmriprep_version: 20.2.7
+fmriprep_options: 
+fmriprep_bids_filter_file: study_config/bids_filter_no_gadolinium.json
+fmriprep_ncpu: 40
+fmriprep_mem: 120
+fmriprep_simultaneous: 1
+
+
+# specify here if you want preproc_all to exit after doing mriqc, fmriprep, freesurfer and/or dwiprep
+#  i.e. before starting dwiprep_anat
+#  this can be usefull if you process data in seperate steps, e.g. on the VSC-HPC
+exit_after: 1

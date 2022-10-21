@@ -1,0 +1,32 @@
+# KUL_Neuro_Imaging_Tools
+#  this is the config file for KUL_preproc_all
+
+# Here you specify which subjects to process
+#  this is the participant name (can be without 'sub-')
+#  separate them by a space
+#  KUL_preproc_all checks what has been done already, but this check is rudimentary, thus
+#	if a processing step failed or was interupted, 
+# 	or you scanned an extra session you need to delete the results and redo processing
+
+BIDS_participants: 
+
+# dwiprep processing
+#  options: look at the our webpage (in most cases leaving empty is fine)
+#  synbzero_disco_instead_of_topup: 1 for using it (see webpage)
+#  rev_phase_for_topup_only: 1 for using the rev_phase images only for topup
+#  ncpu: numer of cpu's to use for each subject 
+#  simultaneous: defines how many subjects to process simultaneously
+do_dwiprep: 1
+dwiprep_options: dhollander
+synbzero_disco_instead_of_topup: 0
+rev_phase_for_topup_only: 1
+dwi2mask_method: 3
+eddy_options: --slm=linear --repol
+dwiprep_ncpu: 40
+dwiprep_simultaneous: 1
+
+
+# specify here if you want preproc_all to exit after doing mriqc, fmriprep, freesurfer and/or dwiprep
+#  i.e. before starting dwiprep_anat
+#  this can be usefull if you process data in seperate steps, e.g. on the VSC-HPC
+exit_after: 1

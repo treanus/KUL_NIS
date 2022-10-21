@@ -550,44 +550,10 @@ if [ -f $fastsurferoutput ]; then
 fi
 
 
-if 0; then
 if [ $result -eq 0 ]; then
-    i=0
-    voxel_index="-capture.folder $globalresultsdir/Lesion -capture.prefix tmp -noannotations "
-    while [ $i -lt $underlay_slices ]
-    do
-        #echo Number: $i
-        voxel_index="$voxel_index -voxel 0,0,$i -capture.grab"
-        let "i+=7" 
-    done
-    mode_plane="-mode 1 -plane 2"
-    mrview_exit="-exit"
+    fig2f="-t 2"
 else
-    voxel_index=""
-    mode_plane="-mode 2"
-    mrview_exit=""
-fi
-#echo $voxel_index
-
-
-cmd="mrview -load $underlay 
-    $mode_plane \
-    $mrview_global_output_full \
-    $mrview_hdglio1_overlay \
-    $mrview_hdglio2_overlay \
-    $mrview_ventricles_overlay \
-    $mrview_resseg_overlay \
-    $voxel_index \
-    -force \
-    $mrview_exit"
-#echo $cmd
-eval $cmd
-
-if [ $result -eq 0 ];then
-
-    montage $globalresultsdir/Lesion/tmp*.png -mode Concatenate $globalresultsdir/Lesion/sub-${participant}_tumor_segment.png
-    rm -f $globalresultsdir/Lesion/tmp*.png
-fi
+    fig2f=""
 fi
 
 config_mrview=study_config/mrview_overlay_segment_tumor.txt
@@ -597,7 +563,8 @@ KUL_mrview_figure.sh -p ${participant} \
     -u $underlay -o $config_mrview \
     -d $globalresultsdir/Lesion \
     -f tumor_segment \
-    -t 2 -v $verbose_level
+    $fig2f \
+    -v $verbose_level
 
 
 echo "Finished"
