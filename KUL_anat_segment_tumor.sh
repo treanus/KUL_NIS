@@ -155,8 +155,8 @@ function KUL_check_data {
     # check hd-glio-auto requirements
 
     if [ $nT1w -lt 1 ] || [ $ncT1w -lt 1 ] || [ $nT2w -lt 1 ] || [ $nT1w -lt 1 ]; then
-        echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
-        echo " At least one is missing. Check the derivatives folder"
+        kul_echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
+        kul_echo " At least one is missing. Check the derivatives folder"
         #exit 1
     fi
 
@@ -171,7 +171,7 @@ function KUL_hd_glio_auto {
     # Segmentation of the tumor using HD-GLIO-AUTO
     
     # only run if not yet done
-    echo ${hdgliooutputdir}/output/segmentation.nii.gz
+
     if [ ! -f ${hdgliooutputdir}/output/segmentation.nii.gz ]; then
 
         # prepare the inputs
@@ -195,7 +195,7 @@ function KUL_hd_glio_auto {
         KUL_task_exec $verbose_level "HD-GLIO-AUTO using $hdglio_type" "hdglioauto"
         
     else
-        echo "Already done HD-GLIO-AUTO"
+        kul_echo "Already done HD-GLIO-AUTO"
     fi
 
 }
@@ -213,7 +213,7 @@ function KUL_resseg {
     # only run if not yet done
     if [ ! -f "$ressegoutputdir/${resseginput}_cavity2.nii.gz" ]; then
         
-        echo "Running resseg"
+        kul_echo "Running resseg"
         
         # prepare the inputs
         mkdir -p $resseginputdir1
@@ -225,12 +225,15 @@ function KUL_resseg {
         # run resseg 1st time
         eval "$(conda shell.bash hook)"
         conda activate resseg
-        resseg-mni -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
-            -r $ressegoutputdir/${resseginput}_reg2mni.nii.gz \
-            $resseginputdir1/${resseginput}.nii.gz
-        resseg -a 3 -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
-            -o $ressegoutputdir/${resseginput}_cavity1.nii.gz \
-            $resseginputdir1/${resseginput}.nii.gz
+            task_in="resseg-mni -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
+                -r $ressegoutputdir/${resseginput}_reg2mni.nii.gz \
+                $resseginputdir1/${resseginput}.nii.gz"
+            KUL_task_exec $verbose_level "resseg running mni" "resseg_mni"
+
+            task_in="resseg -a 3 -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
+                -o $ressegoutputdir/${resseginput}_cavity1.nii.gz \
+                $resseginputdir1/${resseginput}.nii.gz"
+            KUL_task_exec $verbose_level "resseg run 1" "resseg_run1"
         conda deactivate
 
         # run resseg 2nd time
@@ -239,9 +242,10 @@ function KUL_resseg {
         maskfilter $hdgliooutputdir/output/mask.nii.gz dilate - -npass 15 -nthreads $ncpu | mrcalc $resseginputdir1/${resseginput}.nii.gz - -mul $resseginputdir2/${resseginput}.nii.gz -force
         eval "$(conda shell.bash hook)"
         conda activate resseg
-        resseg -a 3 -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
-            -o $ressegoutputdir/${resseginput}_cavity2.nii.gz \
-            $resseginputdir2/${resseginput}.nii.gz
+            task_in="resseg -a 3 -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
+                -o $ressegoutputdir/${resseginput}_cavity2.nii.gz \
+                $resseginputdir2/${resseginput}.nii.gz"
+            KUL_task_exec $verbose_level "resseg run 2" "resseg_run2"
         conda deactivate
 
 
@@ -255,7 +259,7 @@ function KUL_fast {
     
     # Segmentation of the image using FSL FAST
     
-    echo "Running FSL FAST"
+    kul_echo "Running FSL FAST"
     fastinputdir="$kulderivativesdir/fast/input"
     fastoutputdir="$kulderivativesdir/fast/output"
     hdgliooutputdir="$kulderivativesdir/hdglio/output"
@@ -286,14 +290,14 @@ function KUL_fast {
 function KUL_fastsurfer {
 
     if [ ! -f $fastsurferoutputdir/$participant/mri/aparc.DKTatlas+aseg.deep.mgz ]; then
-        echo "Running segmentation-only fastsufer"
-        my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
+        kul_echo "Running segmentation-only fastsufer"
+        task_in="$FASTSURFER_HOME/run_fastsurfer.sh \
             --sid $participant --sd $fastsurferoutputdir \
             --t1 $cwd/$T1w \
             --seg_only --py python --ignore_fs_version"
-        eval $my_cmd
+        KUL_task_exec $verbose_level "Running FastSurfer" "Fastsurfer"
     else
-        echo "Already run Fastsurfer"
+        kul_echo "Already run Fastsurfer"
     fi
 }
 
@@ -365,7 +369,7 @@ if [ $result -eq 0 ]; then
     #  resseg find the surgical resection cavity, but overestimates and mislabels ventricles as cavity
     #  Fastsurfer identifies the ventricles
 
-    echo "Running final segmentations"
+    kul_echo "Running final segmentations"
 
     # compute some additional output
 
@@ -468,7 +472,7 @@ if [ $result -eq 0 ]; then
         if [ $resseg_use -eq 0 ]; then
             # Oeps, resseg did not find anything
             # we keep nothing
-            echo "Sorry, nothing found, we exit here. Perform a manual segmentation please."
+            kul_echo "Sorry, nothing found, we exit here. Perform a manual segmentation please."
             exit
 
         else 
@@ -567,4 +571,4 @@ KUL_mrview_figure.sh -p ${participant} \
     -v $verbose_level
 
 
-echo "Finished"
+kul_echo "Finished"

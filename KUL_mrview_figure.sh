@@ -185,12 +185,12 @@ fi
 if [ -z "$output_dir" ]; then 
 
     underlay_name_tmp=$(basename $mrview_underlay)
-    echo "underlay_name_tmp: $underlay_name_tmp"
+    #echo "underlay_name_tmp: $underlay_name_tmp"
     underlay_name=${underlay_name_tmp%%.nii.gz}
     output_dir=$cwd/RESULTS/sub-$participant/View/$underlay_name
 
 fi
-echo "output_dir: $output_dir"
+#echo "output_dir: $output_dir"
 
 
 # Check overlay 
@@ -201,7 +201,7 @@ if [ -z "$overlay" ]; then
 
 elif [[ "$overlay" == *".txt" ]]; then
 
-    echo "found txt file"
+    #echo "found txt file"
     base_overlay="$overlay"
     mrview_overlay=$(cat $overlay)
     
@@ -212,8 +212,8 @@ else
     base_overlay=${base_overlay_tmp%%.nii.gz}
     
 fi
-echo "mrview_overlay: $mrview_overlay"
-echo "base_overlay: $base_overlay"
+#echo "mrview_overlay: $mrview_overlay"
+#echo "base_overlay: $base_overlay"
 
 
 # Chech out file name
@@ -233,11 +233,11 @@ else
     final_output_file="sub-${participant}_$output_file"
 fi
 mkdir -p $final_output_dir
-echo "Setting final_output_dir: $final_output_dir"
-echo "Final output filename: $final_output_file"
+#echo "Setting final_output_dir: $final_output_dir"
+#echo "Final output filename: $final_output_file"
 
 # Check the view mode or set default
-echo "view_type: $view"
+#echo "view_type: $view"
 if [ $view -eq 0 ]; then
 
     mrview_mode="-mode 2"
@@ -268,7 +268,7 @@ elif [ $view -eq 1 ]; then
         fi
     
         i=0
-        echo ${orient}
+        #echo ${orient}
         mkdir -p $final_output_dir/${orient}
         voxel_index=""
         while [ $i -lt $underlay_slices ]
@@ -301,7 +301,7 @@ elif [ $view -eq 2 ]; then
     mrview_annotations="-noannotations"
 
     underlay_slices=$(mrinfo $mrview_underlay -size | awk '{print $(NF)}')
-    echo "underlay_slices: $underlay_slices"
+    #echo "underlay_slices: $underlay_slices"
     voxel_index=""
     i=0
     while [ $i -lt $underlay_slices ]
