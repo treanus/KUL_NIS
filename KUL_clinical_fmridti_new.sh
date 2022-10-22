@@ -279,7 +279,7 @@ if [ $results -gt 0 ];then
         mrview_rgb[18]="0.6,0.784,0.04"
         mrview_tracts[19]="Tract-csd_MdLF_RT"
         mrview_rgb[19]="0.784,0.6,0.04"
-        ntracts=19
+        ntracts=20
 
     elif [ $type -eq 5 ];then
 
@@ -287,10 +287,10 @@ if [ $results -gt 0 ];then
         mrview_rgb[0]="0.678,0.847,0.902"
         mrview_tracts[1]="Tract-csd_CST_RT"
         mrview_rgb[1]="0,0,1"
-        mrview_tracts[0]="Tract-csd_DRT_LT"
-        mrview_rgb[0]="1,0,0.23"
-        mrview_tracts[1]="Tract-csd_DRT_RT"
-        mrview_rgb[1]="0.23,0,1"
+        mrview_tracts[2]="Tract-csd_DRT_LT"
+        mrview_rgb[2]="1,0,0.23"
+        mrview_tracts[3]="Tract-csd_DRT_RT"
+        mrview_rgb[3]="0.23,1,0"
         ntracts=4
 
     elif [ $type -eq 6 ];then
@@ -299,16 +299,15 @@ if [ $results -gt 0 ];then
         mrview_rgb[0]="0.678,0.847,0.902"
         mrview_tracts[1]="Tract-csd_CST_RT"
         mrview_rgb[1]="0,0,1"
-        mrview_tracts[0]="Tract-csd_CSHDP_LT"
-        mrview_rgb[0]="0,0.12,0.20"
-        mrview_tracts[1]="Tract-csd_CSHDP_RT"
-        mrview_rgb[1]="0.23,0.12,1"
+        mrview_tracts[2]="Tract-csd_CSHDP_LT"
+        mrview_rgb[2]="0,0.12,0.20"
+        mrview_tracts[3]="Tract-csd_CSHDP_RT"
+        mrview_rgb[3]="0.23,0.12,1"
         ntracts=4
 
     fi
 
-    let "ntracts+=1" 
-    echo "ntracts: $ntracts"
+    #echo "ntracts: $ntracts"
     result_type=0
 
     if [ $results -eq 1 ]; then
@@ -390,7 +389,8 @@ if [ $results -gt 0 ];then
                 i=0
                 echo "Making ${tractname}_${orient} on $(basename $underlay)"
                 mkdir -p $resultsdir_png/${tractname}_${orient}
-                voxel_index="-capture.folder $resultsdir_png/${tractname}_${orient} -capture.prefix ${tractname}_${orient} -noannotations "
+                voxel_index="-capture.folder $resultsdir_png/${tractname}_${orient} \
+                    -capture.prefix ${tractname}_${orient} -noannotations -orientationlabel 1"
                 while [ $i -lt $underlay_slices ]
                 do
                     #echo Number: $i
@@ -1221,19 +1221,24 @@ fi
 # STEP 13 - call yourself to make tractography figures
 fig_check=${cwd}/KUL_LOG/sub-${participant}_figures.done
 if [ ! -f $fig_check ]; then
-    if [ $ncT1w -gt 0 ]; then 
-        KUL_clinical_fmridti_new.sh -p $participant -R 1 
+    echo $type
+    echo $ncT1w
+    if [ $ncT1w -gt 0 ]  || [ $ncT1w -eq -1 ]; then 
+        KUL_clinical_fmridti_new.sh -p $participant -t $type -R 1 
     fi
+    echo $nFLAIR
     if [ $nFLAIR -gt 0 ]; then 
-        KUL_clinical_fmridti_new.sh -p $participant -R 2
+        KUL_clinical_fmridti_new.sh -p $participant -t $type -R 2
     fi
     if [ $nSWI -gt 0 ]; then 
-        KUL_clinical_fmridti_new.sh -p $participant -R 3
+        KUL_clinical_fmridti_new.sh -p $participant -t $type -R 3
     fi
-    if [ $nT1w -gt 0 ] && [ $ncT1w -eq 0 ] && [ $nFLAIR -eq 0 ]; then 
-        KUL_clinical_fmridti_new.sh -p $participant -R 4
+    if [ $nT1w -gt 0 ] && [ $ncT1w -lt 1 ] && [ $nFLAIR -eq 0 ]; then 
+        KUL_clinical_fmridti_new.sh -p $participant -t $type -R 4
     fi
     touch $fig_check
+else 
+    echo "Firgures already done"
 fi
 
 
