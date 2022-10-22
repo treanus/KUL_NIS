@@ -1221,12 +1221,12 @@ fi
 # STEP 13 - call yourself to make tractography figures
 fig_check=${cwd}/KUL_LOG/sub-${participant}_figures.done
 if [ ! -f $fig_check ]; then
-    echo $type
-    echo $ncT1w
+    #echo $type
+    #echo $ncT1w
     if [ $ncT1w -gt 0 ]  || [ $ncT1w -eq -1 ]; then 
         KUL_clinical_fmridti_new.sh -p $participant -t $type -R 1 
     fi
-    echo $nFLAIR
+    #echo $nFLAIR
     if [ $nFLAIR -gt 0 ]; then 
         KUL_clinical_fmridti_new.sh -p $participant -t $type -R 2
     fi
