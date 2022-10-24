@@ -2,7 +2,8 @@
 # Sarah Cappelle & Stefan Sunaert
 # 22/12/2020 - v1.0
 # 18/02/2021 - v1.1 (adding calibration)
-# This script is the first part of Sarah's Study1
+# 24/10/2022 - v1.2 (accepted for publication)
+# 
 # This script computes a T1/T2, T1/FLAIR and MTC (magnetisation transfer contrast) ratio
 # 
 # This scripts follows the rationales of 
