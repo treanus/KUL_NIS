@@ -185,7 +185,7 @@ fi
 
 # GLOBAL defs
 globalresultsdir=$cwd/RESULTS/sub-$participant
-
+derivativesdir=${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}
 
 function KUL_scaffold {
 
@@ -201,7 +201,7 @@ function KUL_scaffold {
         cp ${kul_main_dir}/study_config/clinical_fmri_dmri/* $cwd/clinical_sub-${participant}/study_config
     fi
     exit 0
-s
+
 }
 
 # Scaffold
@@ -302,9 +302,9 @@ if [ $results -gt 0 ];then
         mrview_tracts[1]="Tract-csd_CST_RT"
         mrview_rgb[1]="0,0,1"
         mrview_tracts[2]="Tract-csd_CSHDP_LT"
-        mrview_rgb[2]="0,0.12,0.20"
+        mrview_rgb[2]="0.23,0.12,0"
         mrview_tracts[3]="Tract-csd_CSHDP_RT"
-        mrview_rgb[3]="0.23,0.12,1"
+        mrview_rgb[3]="1,0.12,0.20"
         ntracts=4
 
     fi
@@ -449,9 +449,9 @@ function KUL_check_redo {
                 echo $answ
                 echo "rm ${cwd}/KUL_LOG/sub-${participant}_anat_*.done"
                 rm -f ${cwd}/KUL_LOG/sub-${participant}_anat_*.done >/dev/null 2>&1
-                rm -rf ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_anat_biascorrect >/dev/null 2>&1
-                rm -rf ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_anat_register_rigid >/dev/null 2>&1
-                rm -rf ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_anat_segment_tumor >/dev/null 2>&1
+                rm -rf $derivativesdir/KUL_anat_biascorrect >/dev/null 2>&1
+                rm -rf $derivativesdir/KUL_anat_register_rigid >/dev/null 2>&1
+                rm -rf $derivativesdir/KUL_anat_segment_tumor >/dev/null 2>&1
             fi
         fi
         read -p "Redo: fmriprep? (y/n) " answ
@@ -468,7 +468,7 @@ function KUL_check_redo {
             echo "rm ${cwd}/KUL_LOG/sub-${participant}_run_dwiprep.txt"
             rm -f ${cwd}/KUL_LOG/sub-${participant}_run_dwiprep.txt >/dev/null 2>&1
             rm -rf ${cwd}/dwiprep/sub-${participant} >/dev/null 2>&1
-            rm -rf ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/synb0 >/dev/null 2>&1
+            rm -rf $derivativesdir/synb0 >/dev/null 2>&1
         fi
         read -p "Redo: SPM? (y/n) " answ
         if [[ "$answ" == "y" ]]; then
@@ -476,7 +476,7 @@ function KUL_check_redo {
             echo "rm ${cwd}/KUL_LOG/sub-${participant}_SPM.done"
             rm -f ${cwd}/KUL_LOG/sub-${participant}_SPM.done >/dev/null 2>&1
             rm -f ${cwd}/RESULTS/sub-${participant}/Melodic/* >/dev/null 2>&1
-            rm -fr ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/SPM/* >/dev/null 2>&1
+            rm -fr $derivativesdir/SPM/* >/dev/null 2>&1
         fi
         read -p "Redo: Melodic? (y/n) " answ
         if [[ "$answ" == "y" ]]; then
@@ -484,14 +484,14 @@ function KUL_check_redo {
             echo "rm ${cwd}/KUL_LOG/sub-${participant}_melodic.done"
             rm -f ${cwd}/KUL_LOG/sub-${participant}_melodic.done >/dev/null 2>&1
             rm -f ${cwd}/RESULTS/sub-${participant}/SPM/* >/dev/null 2>&1
-            rm -fr ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/FSL_melodic/* >/dev/null 2>&1
+            rm -fr $derivativesdir/FSL_melodic/* >/dev/null 2>&1
         fi
         read -p "Redo: KUL_VBG? (y/n) " answ
         if [[ "$answ" == "y" ]]; then
             echo $answ
             echo "rm ${cwd}/KUL_LOG/sub-${participant}_VBG.log"
             rm -f ${cwd}/KUL_LOG/sub-${participant}_VBG.log >/dev/null 2>&1
-            rm -fr ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/* >/dev/null 2>&1
+            rm -fr $derivativesdir/KUL_VBG/* >/dev/null 2>&1
         fi
         read -p "Redo: msbp? (y/n) " answ
         if [[ "$answ" == "y" ]]; then
@@ -507,7 +507,7 @@ function KUL_check_redo {
             echo $answ
             echo "rm ${cwd}/KUL_LOG/sub-${participant}_FWT.done"
             rm -f ${cwd}/KUL_LOG/sub-${participant}_FWT.done >/dev/null 2>&1
-            rm -fr ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_FWT/* >/dev/null 2>&1
+            rm -fr $derivativesdir/KUL_FWT/* >/dev/null 2>&1
         fi
     fi
 }
@@ -581,23 +581,24 @@ function KUL_check_data {
         fi
     fi 
 
+    # check the cT1w
+    if [ $ncT1w -eq -1 ]; then
+        echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
+        echo " At least one is missing."
+        echo " The contrast T1w has been moved to the derivatives folder, due to previous processing."
+        read -p "Do you want to restore it? (y/n)? " answ
+        if [[ "$answ" == "y" ]]; then
+            cp -f $kulderivativesdir/sub-${participant}/cT1w/sub-${participant}_ce-gadolinium_T1w.* $bidsdir/anat
+            cT1w=($(find $bidsdir -name "*T1w.nii.gz" -name "*gadolinium*" -type f ))
+            ncT1w=${#cT1w[@]}
+        fi
+    fi
+
     # check hd-glio-auto requirements
     if [ $hdglio -eq 1 ]; then
         if [ $nT1w -lt 1 ] || [ $ncT1w -lt 1 ] || [ $nT2w -lt 1 ] || [ $nT1w -lt 1 ]; then
-            if [ $ncT1w -eq -1 ]; then
-                echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
-                echo " At least one is missing."
-                echo " The contrast T1w has been moved to the derivatives folder, due to previous processing."
-                read -p "Do you want to restore it? (y/n)? " answ
-                if [[ "$answ" == "y" ]]; then
-                    cp -f $kulderivativesdir/sub-${participant}/cT1w/sub-${participant}_ce-gadolinium_T1w.* $bidsdir/anat
-                    cT1w=($(find $bidsdir -name "*T1w.nii.gz" -name "*gadolinium*" -type f ))
-                    ncT1w=${#cT1w[@]}
-                fi
-            else
-                echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
-                echo " At least one is missing. Is the BIDS dataset correct?"
-            fi
+            echo "For running hd-glio-auto a T1w, cT1w, T2w and FLAIR are required."
+            echo " At least one is missing. Is the BIDS dataset correct?"
             read -p "Are you sure you want to continue? (y/n)? " answ
             if [[ "$answ" == "n" ]]; then
                 exit 1
@@ -686,14 +687,6 @@ function KUL_run_dwiprep {
             rm -f KUL_LOG/sub-${participant}_run_dwiprep.txt.bck
             
             KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_dwiprep.txt 
-
-            if [ -f dwiprep/sub-${participant}/sub-${participant}/qa/sub-${participant}_T1w_with_fa.png ]; then
-                cp -f dwiprep/sub-${participant}/sub-${participant}/qa/sub-${participant}_T1w_with_fa.png \
-                    REPORT/sub-${participant}_02_T1w_with_fa.png
-                cp -f dwiprep/sub-${participant}/sub-${participant}/qa/sub-${participant}_T1w_brain_with_fa.png \
-                    REPORT/sub-${participant}_02_T1w_brain_with_fa.png
-                cp -f dwiprep/sub-${participant}/sub-${participant}/eddy_qc/quad/qc.pdf REPORT/sub-${participant}_02_eddy_qc.pdf
-            fi
             
         else
             echo "Dwiprep already done"
@@ -727,13 +720,13 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
     kul_log_file="KUL_LOG/sub-${participant}_run_fastsurfer.txt"
 
     fs_output="${cwd}/BIDS/derivatives/freesurfer"
-    #output_d="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/FastSurfer"
+    #output_d="$derivativesdir/FastSurfer"
     #str_op="${output_d}/${participant}"
     #fasu_output="${str_op}fastsurfer"
-    fasu_output="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/FastSurfer"
+    fasu_output="$derivativesdir/FastSurfer"
     #T1_4_parc="${str_op}_T1_nat_4parc.mgz"
     if [ $vbg -eq 1 ];then
-        T1_4_parc=${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-Casier_T1_nat_4parc.mgz
+        T1_4_parc=$derivativesdir/KUL_VBG/output_VBG/sub-${participant}/sub-Casier_T1_nat_4parc.mgz
     else
         T1_4_parc="${cwd}/$T1w"
     fi
@@ -833,7 +826,7 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
     fi
 
     #fs_output="${cwd}/BIDS/derivatives/freesurfer"
-    #fasu_output="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/FastSurfer"
+    #fasu_output="$derivativesdir/FastSurfer"
     
 
     # time to copy the surfaces and labels from FaSu to FS dirtask_exec
@@ -898,20 +891,20 @@ function KUL_run_VBG {
     if [ $vbg -gt 0 ]; then
         if [ $vbg -eq 1 ]; then
             vbg_extra_axial=""
-            vbg_lesion="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_anat_segment_tumor/sub-${participant}_lesion_and_cavity.nii.gz"
+            vbg_lesion="$derivativesdir/KUL_anat_segment_tumor/sub-${participant}_lesion_and_cavity.nii.gz"
         elif [ $vbg -eq 2 ]; then
             vbg_extra_axial="-E"
-            vbg_lesion="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_anat_segment_tumor/sub-${participant}_lesion_and_cavity.nii.gz"
+            vbg_lesion="$derivativesdir/KUL_anat_segment_tumor/sub-${participant}_lesion_and_cavity.nii.gz"
         elif [ $vbg -eq 3 ]; then
             vbg_extra_axial=""
             vbg_lesion="${cwd}/RESULTS/sub-${participant}/Lesion/lesion.nii.gz"
         fi
 
-        vbg_test="${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_T1_nat_filled.nii.gz"
+        vbg_test="$derivativesdir/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_T1_nat_filled.nii.gz"
         if [[ ! -f $vbg_test ]]; then
             echo "Computing KUL_VBG"
             mkdir -p ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
-            mkdir -p ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG
+            mkdir -p $derivativesdir/KUL_VBG
             
             # See to it that freesurfer 6 is used
             export FREESURFER_HOME=/usr/local/KUL_apps/freesurfer_6.0.0
@@ -923,14 +916,14 @@ function KUL_run_VBG {
 
             task_in="KUL_VBG.sh -S ${participant} \
                 -l $vbg_lesion \
-                -o ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-                -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
+                -o $derivativesdir/KUL_VBG \
+                -m $derivativesdir/KUL_VBG \
                 $vbg_extra_axial \
                 -z T1 -b -B 1 -t -P 1 -n $ncpu"
             KUL_task_exec $verbose_level "KUL_VBG" "7_VBG"
 
             # copy the output of VBG to the derivatives freesurfer directory
-            cp -r ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant} \
+            cp -r $derivativesdir/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant} \
                 BIDS/derivatives/freesurfer/
 
             # add to the report
@@ -980,45 +973,47 @@ function KUL_run_msbp {
 }
 
 function KUL_run_FWT {
-    config="tracks_list.txt"
-    if [ ! -f KUL_LOG/sub-${participant}_FWT.done ]; then
+    if [ $n_dwi -gt 0 ];then
+        config="tracks_list.txt"
+        if [ ! -f KUL_LOG/sub-${participant}_FWT.done ]; then
 
-        task_in="KUL_FWT_make_VOIs.sh -p ${participant} \
-        -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
-        -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
-        -c $cwd/study_config/${config} \
-        -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-        -o $kulderivativesdir/sub-${participant}/FWT \
-        -n $ncpu"
-        KUL_task_exec $verbose_level "KUL_FWT voi generation" "12_FWTvoi"
+            task_in="KUL_FWT_make_VOIs.sh -p ${participant} \
+            -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
+            -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
+            -c $cwd/study_config/${config} \
+            -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
+            -o $kulderivativesdir/sub-${participant}/FWT \
+            -n $ncpu"
+            KUL_task_exec $verbose_level "KUL_FWT voi generation" "12_FWTvoi"
 
 
-        task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
-        -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
-        -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
-        -c $cwd/study_config/${config} \
-        -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
-        -o $kulderivativesdir/sub-${participant}/FWT \
-        -T 1 -a iFOD2 \
-        -f 1 \
-        -Q -S \
-        -n $ncpu"
-        KUL_task_exec $verbose_level "KUL_FWT tract generation" "12_FWTtck"
+            task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
+            -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
+            -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
+            -c $cwd/study_config/${config} \
+            -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
+            -o $kulderivativesdir/sub-${participant}/FWT \
+            -T 1 -a iFOD2 \
+            -f 1 \
+            -Q -S \
+            -n $ncpu"
+            KUL_task_exec $verbose_level "KUL_FWT tract generation" "12_FWTtck"
 
-        rm -fr $globalresultsdir/Tracto/*
-        mcp -o "$kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*_fin_map_BT_iFOD2.nii.gz" \
-            "$globalresultsdir/Tracto/Tract-csd_#2.nii.gz"
-        mcp -o "$kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*_fin_BT_iFOD2.tck" \
-            "$globalresultsdir/Tracto/Tract-csd_#2.tck"
-        pdfunite $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
-        
-        # add to report
-        cp -f RESULTS/sub-${participant}/Tracto/Tracts_Summary.pdf REPORT/sub-${participant}_06_Tract_Summary.pdf
+            rm -fr $globalresultsdir/Tracto/*
+            mcp -o "$kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*_fin_map_BT_iFOD2.nii.gz" \
+                "$globalresultsdir/Tracto/Tract-csd_#2.nii.gz"
+            mcp -o "$kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*_fin_BT_iFOD2.tck" \
+                "$globalresultsdir/Tracto/Tract-csd_#2.tck"
+            pdfunite $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
+            
+            # add to report
+            cp -f RESULTS/sub-${participant}/Tracto/Tracts_Summary.pdf REPORT/sub-${participant}_06_Tract_Summary.pdf
 
-        touch KUL_LOG/sub-${participant}_FWT.done
-        
-    else
-        echo "FWT already done"
+            touch KUL_LOG/sub-${participant}_FWT.done
+            
+        else
+            echo "FWT already done"
+        fi
     fi
 }
 
@@ -1106,6 +1101,66 @@ function KUL_fmriproc {
 
 }
 
+function KUL_run_dwiprep_anat {
+
+    dwi_anat_check=${cwd}/KUL_LOG/sub-${participant}_dwiprep_anat.done
+    if [ ! -f $dwi_anat_check ]; then
+        task_in="KUL_dwiprep_anat.sh -p $participant -n $ncpu"
+        KUL_task_exec $verbose_level "KUL_dwiprep_anat" "11_dwiprep_anat"
+
+        if [ -f dwiprep/sub-${participant}/sub-${participant}/qa/sub-${participant}_T1w_with_fa.png ]; then
+            cp -f dwiprep/sub-${participant}/sub-${participant}/qa/sub-${participant}_T1w_with_fa.png \
+                REPORT/sub-${participant}_02_T1w_with_fa.png
+            cp -f dwiprep/sub-${participant}/sub-${participant}/qa/sub-${participant}_T1w_brain_with_fa.png \
+                REPORT/sub-${participant}_02_T1w_brain_with_fa.png
+            cp -f dwiprep/sub-${participant}/sub-${participant}/eddy_qc/quad/qc.pdf REPORT/sub-${participant}_02_eddy_qc.pdf
+        fi
+
+        touch $dwi_anat_check
+    fi
+
+}
+
+function KUL_run_cT1w_subtraction {
+
+    cT1w_subt_check=${cwd}/KUL_LOG/sub-${participant}_cT1w_subtraction.done
+    if [ ! -f $cT1w_subt_check ]; then
+        if [ $nT1w -gt 0 ] && [ $ncT1w -gt 0 ]; then
+            echo "Creating T1w subtraction image"
+            mkdir -p $derivativesdir/cT1w_subtraction
+            # get the mask
+            cp -f fmriprep/sub-$participant/anat/sub-${participant}_desc-brain_mask.nii.gz $derivativesdir/cT1w_subtraction/brain_mask.nii.gz
+            # get the lesion & exclude the tumor if any
+            #echo $hdglio
+            if [ $hdglio -eq 1 ];then
+                if [  -f "$globalresultsdir/Lesion/sub-${participant}_lesion_and_cavity.nii.gz" ]; then
+                    mrcalc $derivativesdir/cT1w_subtraction/brain_mask.nii.gz $globalresultsdir/Lesion/sub-${participant}_lesion_and_cavity.nii.gz \
+                        -sub $derivativesdir/cT1w_subtraction/brain_final_mask.nii.gz -force
+                    tomatch=$derivativesdir/cT1w_subtraction/brain_final_mask.nii.gz
+                else
+                    tomatch=$derivativesdir/cT1w_subtraction/brain_mask.nii.gz
+                fi
+            else
+                tomatch=$derivativesdir/cT1w_subtraction/brain_mask.nii.gz
+            fi
+            # historgam match the cT1w and T1w
+            mrhistmatch linear \
+                -mask_input $tomatch \
+                -mask_target $tomatch \
+                $globalresultsdir/Anat/T1w.nii.gz $globalresultsdir/Anat/cT1w_reg2_T1w.nii.gz \
+                $globalresultsdir/Anat/T1w_matched2_cT1w.nii.gz -force
+            # subtract them    
+            mrcalc $globalresultsdir/Anat/cT1w_reg2_T1w.nii.gz $globalresultsdir/Anat/T1w_matched2_cT1w.nii.gz -sub \
+                $globalresultsdir/Anat/cT1w_T1w_subtracted.nii.gz -force
+            touch $cT1w_subt_check
+        fi
+    else
+        echo "T1w subtraction already done"    
+    fi
+
+}
+
+
 # --- MAIN ---
 # Prepare for sending to pacs.
 cp -f $kul_main_dir/share/KUL_mevislab_* .
@@ -1179,12 +1234,15 @@ KUL_run_dwiprep &
 
 wait
 
+# STEP 6 - generate Gd contrast T1w subtraction
+KUL_run_cT1w_subtraction
 
-# STEP 6 - get rid of the Gadolinium T1w image
+
+# STEP 7 - get rid of the Gadolinium T1w image since it may conflict with msbp
 KUL_clear_cT1w
 
 
-# STEP 7 & 8 - run SPM & melodic
+# STEP 8 - run SPM & melodic
 KUL_fmriproc
 
 
@@ -1206,18 +1264,12 @@ wait
 
 
 # STEP 11 run dwiprep_anat
-dwi_anat_check=${cwd}/KUL_LOG/sub-${participant}_dwiprep_anat.done
-if [ ! -f $dwi_anat_check ]; then
-    task_in="KUL_dwiprep_anat.sh -p $participant -n $ncpu"
-    KUL_task_exec $verbose_level "KUL_dwiprep_anat" "11_dwiprep_anat"
-    touch $dwi_anat_check
-fi
+KUL_run_dwiprep_anat
 
 
 # STEP 12 - run Fun With Tracts
-if [ $n_dwi -gt 0 ];then
-    KUL_run_FWT
-fi
+KUL_run_FWT
+
 
 
 # STEP 13 - call yourself to make tractography figures
