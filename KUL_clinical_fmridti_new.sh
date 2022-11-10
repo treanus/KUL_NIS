@@ -193,7 +193,7 @@ function KUL_scaffold {
     mkdir -p $cwd/clinical_sub-${participant}/DICOM
     mkdir -p $cwd/clinical_sub-${participant}/study_config
     rm -fr $cwd/clinical_sub-${participant}/study_config/*
-    if [ $type -gt 4 ]; then
+    if [ $type -lt 4 ]; then
         echo "Setting up for a tumor/epilepsy/... patient"
         cp ${kul_main_dir}/study_config/clinical_dmri_dbs/* $cwd/clinical_sub-${participant}/study_config
     else
