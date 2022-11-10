@@ -160,11 +160,14 @@ function KUL_compute_melodic {
         gunzip $fmridatadir/*$fmrifile.gz
         fmriresults="$computedir/stats_$shorttask"
         mkdir -p $fmriresults
-        melodic_in="$fmridatadir/sub-${participant}_task-$fmrifile"
+        # edited by AR 04/11/2022
+        melodic_in_1="$fmridatadir/sub-${participant}_task-$fmrifile"
         # find the TR
-        tr=$(mrinfo $melodic_in -spacing | cut -d " " -f 4)
+        # edited by AR 04/11/2022
+        tr=$(mrinfo $melodic_in_1 -spacing | cut -d " " -f 4)
         # make model and contrast
-        dyn=$(mrinfo $melodic_in -size | cut -d " " -f 4)
+        # edited by AR 04/11/2022
+        dyn=$(mrinfo $melodic_in_1 -size | cut -d " " -f 4)
         t_glm_con="$kul_main_dir/share/FSL/fsl_glm.con"
         t_glm_mat="$kul_main_dir/share/FSL/fsl_glm_${dyn}dyn.mat"        
         # set dimensionality and model for rs-/a-fMRI
@@ -175,17 +178,27 @@ function KUL_compute_melodic {
             dim=""
             model="--Tdes=$t_glm_mat --Tcon=$t_glm_con"
         fi
+
+        # edited by AR 04/11/2022
+        melodic_in_2="$(dirname ${melodic_in_1})/$(basename ${melodic_in_1} .nii.gz)_smooth_3mm.nii.gz"
+
+        # edited by AR 04/11/2022
+        # temporary smoothing solution for now, better to use FSL susan
+        if [[ ! -f "${melodic_in_2}" ]]; then
+            fslmaths ${melodic_in_1} -s 3 ${melodic_in_2}
+        fi
         
+        # edited by AR 04/11/2022
         #melodic -i Melodic/sub-Croes/fmridata/sub-Croes_task-LIP_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii -o test/ --report --Tdes=glm.mat --Tcon=glm.con
-        task_in="melodic -i $melodic_in -o $fmriresults --report --tr=$tr --Oall $model $dim"
-        KUL_task_exec $verbose_level "Running melodic on $melodic_in" "1_melodic"
+        task_in="melodic -i $melodic_in_2 -o $fmriresults --report --tr=$tr --Oall $model $dim"
+        KUL_task_exec $verbose_level "Running melodic on $melodic_in_2" "1_melodic"
 
-
+        # edited by AR 04/11/2022
         # now we compare to known networks
         mkdir -p $fmriresults/kul
         task_in="fslcc --noabs -p 3 -t .204 $kul_main_dir/atlasses/Local/Sunaert2021/KUL_NIT_networks.nii.gz \
             $fmriresults/melodic_IC.nii.gz > $fmriresults/kul/kul_networks.txt"
-        KUL_task_exec $verbose_level "Running fslcc for $melodic_in" "2_fslcc"
+        KUL_task_exec $verbose_level "Running fslcc for $melodic_in_2" "2_fslcc"
 
 
         while IFS=$' ' read network ic stat; do
