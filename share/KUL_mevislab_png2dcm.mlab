@@ -10,7 +10,7 @@ module DirectDicomImport {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "426 766 800 373"
+        geometry = "347 799 800 373"
         sizeHint = "800 373"
         wasOpen = yes
       }
@@ -379,7 +379,7 @@ validImage hasIssues fileType voxelType imgExt numVoxels numSlices numTimePoints
     dplWorkaroundValueForImageOrientationPatientTag = ""
     composeOtherFilesMode = Single
     silentTrialFileTypes = ".dat .raw .txt"
-    source = ""
+    source = $(NETWORK)/DICOM/SmartBrain_101
     guiCachePath = ""
   }
 }
@@ -402,9 +402,9 @@ module Compose3DFrom2DFiles {
   }
   fields  {
     instanceName = Compose3DFrom2DFiles
-    dirPath = ""
+    dirPath = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_TRA/
     searchPattern = "***"
-    currentFile = $(NETWORK)/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_UF_TRA/Tract-csd_UF_TRA0287.png
+    currentFile = $(NETWORK)/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_UF_TRA/Tract-csd_UF_TRA0287.png
     readRaw = FALSE
     rawX = 1
     rawY = 1
@@ -424,7 +424,7 @@ module DicomSetPatientInformation {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "55 359 644 413"
+        geometry = "998 200 805 413"
         sizeHint = "644 413"
         wasOpen = no
       }
@@ -450,7 +450,7 @@ module DicomSetPatientInformation {
     acquisitionTime = ""
     studyInstanceUID = ""
     accessionNumber = ""
-    seriesDescription = ""
+    seriesDescription = Tract-csd_AF_all_TRA
     institutionName = ""
     stationName = ""
     bodyPartExamined = ""
@@ -458,8 +458,8 @@ module DicomSetPatientInformation {
     seriesNumber = 1000
     acquisitionNumber = 1
     studyID = ""
-    contentDate = 20221019
-    contentTime = 204843
+    contentDate = 20221110
+    contentTime = 100347
   }
 }
 module ImageSave {
@@ -520,7 +520,7 @@ module View2D {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1146 216 545 468"
+        geometry = "1152 289 545 468"
         sizeHint = "400 400"
         wasOpen = yes
       }
@@ -581,7 +581,7 @@ module StringSplit {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "628 290 500 739"
+        geometry = "194 297 500 739"
         sizeHint = "500 739"
         wasOpen = no
       }
@@ -594,7 +594,7 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit
-    inString = ""
+    inString = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_TRA/
     separators = /
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
@@ -609,7 +609,7 @@ module Counter {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "1347 830 636 276"
+        geometry = "1200 886 636 276"
         sizeHint = "636 276"
         wasOpen = yes
       }
@@ -622,7 +622,7 @@ module Counter {
   }
   fields  {
     instanceName = Counter
-    currentValue = 11
+    currentValue = -1
     minValue = -1
     maxValue = 11
     startValue = -1
@@ -640,7 +640,7 @@ module FileDirectory {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "434 160 562 570"
+        geometry = "563 188 562 570"
         sizeHint = "551 570"
         wasOpen = yes
       }
@@ -653,7 +653,7 @@ module FileDirectory {
   }
   fields  {
     instanceName = FiguresDirectory
-    rootPath = /home/stefan/DATA0/fmri_pat_test/RESULTS/sub-test/Tracto_figures_cT1w
+    rootPath = /home/stefan/DATA0/sub-test/RESULTS/sub-test/Tracto_figures_FLAIR
     recursive = FALSE
     maxRecursionDepth = -1
     fileType = Dirs
@@ -686,20 +686,20 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit1
-    inString = "/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_AF_all_TRA/
-/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_ALL_TRA/
-/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_CCing_TRA/
-/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_CST_TRA/
-/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_FAT_TRA/
-/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_IFOF_TRA/
-/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_ILF_TRA/
-/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_MdLF_TRA/
-/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_OR_occlobe_TRA/
-/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_TCing_TRA/
-/home/stefan/DATA0/fmri_pat_verpoorten/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_UF_TRA/"
+    inString = "/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_ALL_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_CCing_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_CST_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_FAT_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_IFOF_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_ILF_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_MdLF_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_OR_occlobe_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_TCing_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_UF_TRA/"
     separators = ""
     trimWhitespace = TRUE
-    selectedSubStringIndex = 11
+    selectedSubStringIndex = 0
     searchSubstring = ""
     searchIgnoreCase = FALSE
   }
@@ -721,7 +721,7 @@ module View2D {
     inventorInputOn = TRUE
     inventorOutputOn = FALSE
     view2DExtensionsOn = TRUE
-    startSlice = 213
+    startSlice = 0
     numSlices = 1
     numXSlices = 1
     sliceStep = 1
@@ -746,8 +746,8 @@ module View2D {
     sliceOrigin = "0 0"
     useShaders = TRUE
     useManagedInteraction = FALSE
-    lutCenter = 127.5
-    lutWidth = 255
+    lutCenter = 1
+    lutWidth = 1
     annotationOn = TRUE
     annotationMode = ANNO_MODE_AUTO
     annotationSizeMode = ANNO_SHOW_DETAILED
@@ -818,9 +818,9 @@ module Compose3DFrom2DFiles {
   }
   fields  {
     instanceName = Compose3DFrom2DFiles1
-    dirPath = _SAG
+    dirPath = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_SAG
     searchPattern = "***"
-    currentFile = $(NETWORK)/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_UF_SAG/Tract-csd_UF_SAG0199.png
+    currentFile = $(NETWORK)/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_UF_SAG/Tract-csd_UF_SAG0199.png
     readRaw = FALSE
     rawX = 1
     rawY = 1
@@ -866,7 +866,7 @@ module DicomSetPatientInformation {
     acquisitionTime = ""
     studyInstanceUID = ""
     accessionNumber = ""
-    seriesDescription = ""
+    seriesDescription = Tract-csd_AF_all_SAG
     institutionName = ""
     stationName = ""
     bodyPartExamined = ""
@@ -874,8 +874,8 @@ module DicomSetPatientInformation {
     seriesNumber = 1000
     acquisitionNumber = 1
     studyID = ""
-    contentDate = 20221019
-    contentTime = 204843
+    contentDate = 20221110
+    contentTime = 100347
   }
 }
 module ImageSave {
@@ -949,7 +949,7 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit3
-    inString = ""
+    inString = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_TRA/
     separators = _TRA
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
@@ -978,7 +978,7 @@ module StringUtils {
   fields  {
     instanceName = StringUtils1
     operationType = Concatenate
-    string1 = ""
+    string1 = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all
     string2 = _SAG
     string3 = .dcm
     string4 = ""
@@ -1022,9 +1022,9 @@ module StringUtils {
   fields  {
     instanceName = StringUtils2
     operationType = Concatenate
-    string1 = ""
+    string1 = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/
     string2 = PACS/Tracto
-    string3 = ""
+    string3 = _FLAIR/Tract-csd_AF_all
     string4 = _TRA
     string5 = .dcm
     string6 = ""
@@ -1066,9 +1066,9 @@ module StringUtils {
   fields  {
     instanceName = StringUtils3
     operationType = Concatenate
-    string1 = ""
+    string1 = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/
     string2 = PACS/Tracto
-    string3 = ""
+    string3 = _FLAIR/Tract-csd_AF_all
     string4 = _SAG
     string5 = .dcm
     string6 = ""
@@ -1108,7 +1108,7 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit2
-    inString = ""
+    inString = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all
     separators = Tracto_figures
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
@@ -1135,9 +1135,9 @@ module Compose3DFrom2DFiles {
   }
   fields  {
     instanceName = Compose3DFrom2DFiles2
-    dirPath = _COR
+    dirPath = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_COR
     searchPattern = "***"
-    currentFile = $(NETWORK)/RESULTS/sub-Verpoorten/Tracto_figures_cT1w/Tract-csd_UF_COR/Tract-csd_UF_COR0287.png
+    currentFile = $(NETWORK)/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_UF_COR/Tract-csd_UF_COR0287.png
     readRaw = FALSE
     rawX = 1
     rawY = 1
@@ -1183,7 +1183,7 @@ module DicomSetPatientInformation {
     acquisitionTime = ""
     studyInstanceUID = ""
     accessionNumber = ""
-    seriesDescription = ""
+    seriesDescription = Tract-csd_AF_all_COR
     institutionName = ""
     stationName = ""
     bodyPartExamined = ""
@@ -1191,8 +1191,8 @@ module DicomSetPatientInformation {
     seriesNumber = 1000
     acquisitionNumber = 1
     studyID = ""
-    contentDate = 20221019
-    contentTime = 204843
+    contentDate = 20221110
+    contentTime = 100347
   }
 }
 module ImageSave {
@@ -1268,7 +1268,7 @@ module StringUtils {
   fields  {
     instanceName = StringUtils4
     operationType = Concatenate
-    string1 = ""
+    string1 = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all
     string2 = _COR
     string3 = .dcm
     string4 = ""
@@ -1312,9 +1312,9 @@ module StringUtils {
   fields  {
     instanceName = StringUtils5
     operationType = Concatenate
-    string1 = ""
+    string1 = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/
     string2 = PACS/Tracto
-    string3 = ""
+    string3 = _FLAIR/Tract-csd_AF_all
     string4 = _COR
     string5 = .dcm
     string6 = ""
@@ -1354,7 +1354,7 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit4
-    inString = _SAG
+    inString = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_SAG
     separators = /
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
@@ -1381,7 +1381,7 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit5
-    inString = _COR
+    inString = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_COR
     separators = /
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
@@ -1394,7 +1394,7 @@ connections  {
   Compose3DFrom2DFiles.create3D = Counter.performStep
   DicomSetPatientInformation.input0 = Compose3DFrom2DFiles.output0
   DicomSetPatientInformation.input1 = DirectDicomImport.output0
-  DicomSetPatientInformation.seriesDescription = StringSplit.subString8
+  DicomSetPatientInformation.seriesDescription = StringSplit.lastSubString
   ImageSave.input0 = DicomSetPatientInformation.output0
   ImageSave.startTask = Compose3DFrom2DFiles.create3D
   ImageSave.filename = StringUtils2.result
@@ -1408,7 +1408,7 @@ connections  {
   Compose3DFrom2DFiles1.create3D = Counter.performStep
   DicomSetPatientInformation1.input0 = Compose3DFrom2DFiles1.output0
   DicomSetPatientInformation1.input1 = DirectDicomImport.output0
-  DicomSetPatientInformation1.seriesDescription = StringSplit4.subString8
+  DicomSetPatientInformation1.seriesDescription = StringSplit4.lastSubString
   ImageSave1.input0 = DicomSetPatientInformation1.output0
   ImageSave1.filename = StringUtils3.result
   ImageSave1.save = Compose3DFrom2DFiles1.create3D
@@ -1423,7 +1423,7 @@ connections  {
   Compose3DFrom2DFiles2.create3D = Counter.performStep
   DicomSetPatientInformation2.input0 = Compose3DFrom2DFiles2.output0
   DicomSetPatientInformation2.input1 = DirectDicomImport.output0
-  DicomSetPatientInformation2.seriesDescription = StringSplit5.subString8
+  DicomSetPatientInformation2.seriesDescription = StringSplit5.lastSubString
   ImageSave2.input0 = DicomSetPatientInformation2.output0
   ImageSave2.filename = StringUtils5.result
   ImageSave2.save = Compose3DFrom2DFiles2.create3D
