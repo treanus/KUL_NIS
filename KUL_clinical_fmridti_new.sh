@@ -281,7 +281,11 @@ if [ $results -gt 0 ];then
         mrview_rgb[18]="0.6,0.784,0.04"
         mrview_tracts[19]="Tract-csd_MdLF_RT"
         mrview_rgb[19]="0.784,0.6,0.04"
-        ntracts=20
+        mrview_tracts[20]="Tract-csd_ML_LT"
+        mrview_rgb[20]="0,0.5,0.04"
+        mrview_tracts[21]="Tract-csd_ML_RT"
+        mrview_rgb[21]="0,0.5,0.5"
+        ntracts=22
 
     elif [ $type -eq 5 ];then
 
@@ -1292,7 +1296,7 @@ if [ ! -f $fig_check ]; then
     fi
     touch $fig_check
 else 
-    echo "Firgures already done"
+    echo "Figures already done"
 fi
 
 
