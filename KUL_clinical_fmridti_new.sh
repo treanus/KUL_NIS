@@ -86,7 +86,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:R:Brs" OPT; do
+	while getopts "p:t:d:n:v:RBrs" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -446,12 +446,13 @@ function KUL_check_redo {
         if [ $type -lt 3 ];then
             read -p "Redo: tumor segmentation? (y/n) " answ
             if [[ "$answ" == "y" ]]; then
-                echo $answ
-                echo "rm ${cwd}/KUL_LOG/sub-${participant}_anat_*.done"
-                rm -f ${cwd}/KUL_LOG/sub-${participant}_anat_*.done >/dev/null 2>&1
+                #echo $answ
+                #echo "rm ${cwd}/KUL_LOG/sub-${participant}_anat_*.done"
+                rm -rf ${cwd}/KUL_LOG/sub-${participant}_anat_*.done >/dev/null 2>&1
                 rm -rf $derivativesdir/KUL_anat_biascorrect >/dev/null 2>&1
                 rm -rf $derivativesdir/KUL_anat_register_rigid >/dev/null 2>&1
                 rm -rf $derivativesdir/KUL_anat_segment_tumor >/dev/null 2>&1
+                rm -rf $globalresultsdir/Lesion/sub-${participant}_lesion_and_cavity.nii.gz
             fi
         fi
         read -p "Redo: fmriprep? (y/n) " answ
