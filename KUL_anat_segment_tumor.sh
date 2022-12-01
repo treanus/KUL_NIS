@@ -177,10 +177,10 @@ function KUL_hd_glio_auto {
         # prepare the inputs
         mkdir -p $hdglioinputdir
         mkdir -p $hdgliooutputdir/output
-        ln -s $cwd/$T1w $hdglioinputdir/T1.nii.gz
-        ln -s $cwd/$cT1w $hdglioinputdir/CT1.nii.gz
-        ln -s $cwd/$FLAIR $hdglioinputdir/FLAIR.nii.gz
-        ln -s $cwd/$T2w $hdglioinputdir/T2.nii.gz
+        cp -f $cwd/$T1w $hdglioinputdir/T1.nii.gz
+        cp -f $cwd/$cT1w $hdglioinputdir/CT1.nii.gz
+        cp -f $cwd/$FLAIR $hdglioinputdir/FLAIR.nii.gz
+        cp -f $cwd/$T2w $hdglioinputdir/T2.nii.gz
         
         # run HD-GLIO-AUTO using docker
         if [ ! -f /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py ]; then
