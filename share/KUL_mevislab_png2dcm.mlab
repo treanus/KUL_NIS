@@ -3,163 +3,21 @@ mevislabVersion = 3.4.3
 network  {
   watchlist = ""
 }
-module itkImageFileReader {
-  internal  {
-    frame = "741 1185 136 64"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "904 686 314 453"
-        sizeHint = "314 446"
-        wasOpen = yes
-      }
-    }
-  }
-  fields  {
-    instanceName = AnatNifti
-    fileDataType = "unsigned int8"
-    autoDetermineDataType = TRUE
-    correctSubVoxelShift = TRUE
-    fileDimension = 3
-    info = " Could not create IO object for file /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/Anat/cT1w_reg2_T1w.nii.gz
-The file doesn't exist. 
-Filename = /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/Anat/cT1w_reg2_T1w.nii.gz
- Loaded data may be undefined."
-    numDims = 0
-    fileType = TypeNotApplicable
-    componentType = ""
-    pixelType = UNKNOWNPIXELTYPE
-    loaderType = ""
-    outputMetaDataStr = ""
-    suppressErrorPosting = FALSE
-    unresolvedFileName = $(NETWORK)/RESULTS/sub-test/Anat/cT1w_reg2_T1w.nii.gz
-  }
-}
-module itkImageFileReader {
-  internal  {
-    frame = "901 1189 136 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "1220 686 314 446"
-        sizeHint = "314 446"
-        wasOpen = yes
-      }
-      window _automatic {
-        geometry = "161 267 839 610"
-        sizeHint = "260 227"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = fMRINifti
-    fileDataType = "unsigned int8"
-    autoDetermineDataType = TRUE
-    correctSubVoxelShift = TRUE
-    fileDimension = 3
-    info = " Could not create IO object for file /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
-The file doesn't exist. 
-Filename = /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
- Loaded data may be undefined."
-    numDims = 0
-    fileType = TypeNotApplicable
-    componentType = ""
-    pixelType = UNKNOWNPIXELTYPE
-    loaderType = ""
-    outputMetaDataStr = ""
-    suppressErrorPosting = FALSE
-    unresolvedFileName = $(NETWORK)/RESULTS/sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
-  }
-}
-module Threshold {
-  internal  {
-    frame = "917 997 88 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "899 430 297 298"
-        sizeHint = "259 298"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "621 399 500 600"
-        sizeHint = "262 217"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Threshold
-    threshold = 8
-    relativeThreshold = FALSE
-    comparisonOperator = Greater
-    conditionTrueWriteValue = ImgOrig
-    userConditionTrueValue = 12
-    conditionFalseWriteValue = UserDef
-    userConditionFalseValue = 0
-  }
-}
-module RegistrationManual {
-  internal  {
-    frame = "893 1101 136 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "117 245 686 616"
-        sizeHint = "686 616"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = RegistrationManual
-    layout = LAYOUT_COLUMN
-    position = "-3.06254482269287 -26.1464099884033 17.6899700164795"
-    grayWidth = 0.927500069141388
-    grayCenter = 0.387500017881393
-    overlayGrayWidth = 0.5
-    overlayGrayCenter = 0.5
-    referenceColor = "1 1 1"
-    overlayColor = "1 0 0"
-    overlayMode = BLEND_BLEND
-    interactive = TRUE
-    scale = "1 1 1"
-    rotation = "0 0 1 0"
-    translation = "0 0 0"
-    center = "0 0 0"
-    fillValue = 0
-    matrix = "1 0 0 0
-0 1 0 0
-0 0 1 0
-0 0 0 1"
-    setBothTimepoints = FALSE
-    timepoint = 0
-    zoomMode = VIEW2D_AUTO_ZOOM
-    zoomModeParameter = 1
-  }
-}
 module DirectDicomImport {
   internal  {
-    frame = "561 1189 160 56"
+    frame = "821 701 168 56"
     moduleGroupName = ""
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "389 689 511 405"
+        geometry = "347 799 800 373"
         sizeHint = "800 373"
         wasOpen = yes
       }
-      window _automatic {
-        geometry = "335 415 1102 600"
-        sizeHint = "262 217"
-        wasOpen = no
-      }
     }
   }
   fields  {
-    instanceName = SmartBrain
+    instanceName = DirectDicomImport
     tagDumpSize = 10000
     dumpPrivateTagValues = FALSE
     numShownBinaryEntries = 8
@@ -176,8 +34,8 @@ module DirectDicomImport {
     preferCacheBeforeImport = FALSE
     clearAfterImport = FALSE
     clearSingleFrameCacheAfterImport = TRUE
-    maxTreeCachedMBs = 250
-    maxTagCachedMBs = 80
+    maxTreeCachedMBs = 1000
+    maxTagCachedMBs = 500
     editDicomCacheSize = FALSE
     useResultCaching = FALSE
     suppressedFilesAndSuffixes = ".mlab .db .log .lst .xml .rar .zip .img .exe .ini .inf .jxr .ndpi .svn-base .vmu entries all-wcprops .DDI-SMF-TreeCacheFile.dcm"
@@ -525,161 +383,54 @@ validImage hasIssues fileType voxelType imgExt numVoxels numSlices numTimePoints
     guiCachePath = ""
   }
 }
-module ColorMatrix {
+module Compose3DFrom2DFiles {
   internal  {
-    frame = "785 597 96 56"
+    frame = "717 557 168 56"
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "744 442 498 201"
-        sizeHint = "498 201"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = ColorMatrix1
-    dimensionSelect = 3D
-    matrix00 = 1.5
-    matrix01 = 0
-    matrix02 = 0
-    matrix03 = 0
-    matrix10 = 1.5
-    matrix11 = 1
-    matrix12 = 0
-    matrix13 = 0
-    matrix20 = 1.5
-    matrix21 = 0
-    matrix22 = 1
-    matrix23 = 0
-    matrix30 = 0
-    matrix31 = 0
-    matrix32 = 0
-    matrix33 = 1
-    autoApply = TRUE
-  }
-}
-module Scale {
-  internal  {
-    frame = "697 853 192 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "831 380 266 367"
-        sizeHint = "256 367"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Scale1
-    inputMin = -3621.11075747516
-    inputMax = 87284.1874274464
-    updateMode = AutoUpdateMinMaxOn
-    useTrueRange = TRUE
-    typeSelect = UInt16
-    outputMin = 0
-    outputMax = 65536
-  }
-}
-module Scale {
-  internal  {
-    frame = "889 853 192 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "724 534 265 340"
-        sizeHint = "249 340"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Scale4
-    inputMin = 0
-    inputMax = 28.3227977752686
-    updateMode = AutoUpdateMinMaxOn
-    useTrueRange = TRUE
-    typeSelect = UInt16
-    outputMin = 0
-    outputMax = 65536
-  }
-}
-module ColorMatrix {
-  internal  {
-    frame = "917 597 104 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "706 637 498 201"
-        sizeHint = "498 201"
+        geometry = "634 657 424 535"
+        sizeHint = "424 535"
         wasOpen = no
       }
       window _automatic {
-        geometry = "1135 194 500 600"
+        geometry = "1062 495 894 600"
         sizeHint = "260 227"
         wasOpen = no
       }
     }
   }
   fields  {
-    instanceName = ColorMatrix2
-    dimensionSelect = 3D
-    matrix00 = 0.5
-    matrix01 = 0
-    matrix02 = 0
-    matrix03 = 0
-    matrix10 = 1
-    matrix11 = 1
-    matrix12 = 0
-    matrix13 = 0
-    matrix20 = 0
-    matrix21 = 0
-    matrix22 = 1
-    matrix23 = 0
-    matrix30 = 0
-    matrix31 = 0
-    matrix32 = 0
-    matrix33 = 1
-    autoApply = TRUE
-  }
-}
-module Arithmetic2 {
-  internal  {
-    frame = "849 485 96 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "807 655 375 105"
-        sizeHint = "370 105"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Arithmetic2
-    function = Add
-    outputImageSize = InvalidateOutputIfSizesDiffer
-    constant = 0
-    autoReplicate = FALSE
+    instanceName = Compose3DFrom2DFiles
+    dirPath = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_TRA/
+    searchPattern = "***"
+    currentFile = $(NETWORK)/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_UF_TRA/Tract-csd_UF_TRA0287.png
+    readRaw = FALSE
+    rawX = 1
+    rawY = 1
+    rawZ = 1
+    rawC = 1
+    rawT = 1
+    rawU = 1
+    rawDataType = "unsigned int8"
+    rawByteOrder = LittleEndian
+    rawPlanarConfig = Contiguous
+    rawDataOffset = 0
   }
 }
 module DicomSetPatientInformation {
   internal  {
-    frame = "929 5 176 56"
+    frame = "773 229 184 56"
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "502 525 644 394"
-        sizeHint = "644 394"
+        geometry = "998 200 805 413"
+        sizeHint = "644 413"
         wasOpen = no
       }
       window _automatic {
-        geometry = "498 281 500 600"
-        sizeHint = "262 217"
+        geometry = "846 349 500 600"
+        sizeHint = "260 227"
         wasOpen = no
       }
     }
@@ -699,298 +450,79 @@ module DicomSetPatientInformation {
     acquisitionTime = ""
     studyInstanceUID = ""
     accessionNumber = ""
-    seriesDescription = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_TRA
+    seriesDescription = Tract-csd_AF_all_TRA
     institutionName = ""
     stationName = ""
     bodyPartExamined = ""
-    imageComments = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_TRA
+    imageComments = ""
     seriesNumber = 1000
     acquisitionNumber = 1
     studyID = ""
-    contentDate = 20221021
-    contentTime = 104248
+    contentDate = 20221110
+    contentTime = 100347
   }
 }
-module OrthoReformat3 {
+module ImageSave {
   internal  {
-    frame = "853 205 120 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "1144 622 272 256"
-        sizeHint = "272 256"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = OrthoReformat3
-    useGlobalInputImage = TRUE
-    applyModifyPatientOrientationMatrix = FALSE
-    modifyPatientOrientationMatrix = "1 0 0 0
-0 1 0 0
-0 0 1 0
-0 0 0 1"
-  }
-}
-module Resample3D {
-  internal  {
-    frame = "973 101 104 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "1960 321 339 340"
-        sizeHint = "339 340"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Resample3D
-    keep = "Voxel size"
-    filter = Lanczos_3
-    isotropic = FALSE
-    filterAlways = FALSE
-    filterAlwaysTolerance = 0
-    zoom = "0.899999976158142 0.888842821121216 0.444421410560608"
-    imageSize = "180 256 128"
-    voxelSize = "1 1 2"
-    subVoxelShift = "0 0 0"
-    useReferenceImage = FALSE
-  }
-}
-module OrthoView2D {
-  internal  {
-    frame = "669 -259 120 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "1155 380 1093 833"
-        sizeHint = "400 436"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = OrthoView2D
-    inventorInputOn = TRUE
-    inventorOutputOn = FALSE
-    synchronizePosition = TRUE
-    layout = LAYOUT_CUBE_EQUAL
-    filterMode = FILTER_LINEAR
-    synchronizeZoom = TRUE
-    synchronizePanning = FALSE
-    useGlobalInputImage = TRUE
-    snapToCenter = FALSE
-    alternCubeLayout = FALSE
-    timePoint = 0
-    useManagedInteraction = FALSE
-    enableSlicing = TRUE
-    borderOn = TRUE
-    borderColor = "0.899999976158142 0.899999976158142 0.899999976158142"
-    grayWidth = 1
-    grayCenter = 0.5
-    annotationOn = TRUE
-    annotationSizeMode = ANNO_SHOW_DETAILED
-    annotationFontSize = ANNO_SIZE_AUTO
-    valueHighPrecision = TRUE
-    annoCoords = Voxel
-    showCurrentPos = TRUE
-    worldPosition = "46.3453598022461 -36.0897521972656 34.1195983886719"
-    coloredMode = FALSE
-  }
-}
-module itkSimpleContourExtractorImageFilter {
-  internal  {
-    frame = "1089 773 224 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "1133 308 591 486"
-        sizeHint = "467 486"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = itkSimpleContourExtractorImageFilter
-    updateMode = AutoUpdate
-    applyMode = AutoApply
-    minValue = 0
-    maxValue = 1
-    applyMinMax = FALSE
-    autoSetMinMax = TRUE
-    clampOutImageValues = FALSE
-    lowerOutSideMode = UserValue
-    upperOutSideMode = UserValue
-    lowerOutSideValue = 6
-    upperOutSideValue = 7
-    inputForegroundValue = 0
-    inputBackgroundValue = 1
-    outputForegroundValue = 1
-    outputBackgroundValue = 0
-    radius = "1 1 1 0 0 0"
-    coordinateTolerance = 1e-06
-    directionTolerance = 1e-06
-  }
-}
-module IntervalThreshold {
-  internal  {
-    frame = "1133 853 120 72"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "38 642 532 352"
-        sizeHint = "532 352"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "1029 441 500 600"
-        sizeHint = "262 217"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = IntervalThresh
-    lowerType = UserDef
-    innerType = UserDef
-    upperType = UserDef
-    centerWidthSet = FALSE
-    threshCenter = 18.5756568908691
-    threshWidth = 21.1513137817383
-    threshMin = 8
-    threshMax = 29.1513137817383
-    lowerUserValue = 0
-    innerUserValue = 1
-    upperUserValue = 0
-    changeMinMax = FALSE
-    changedMin = -100000
-    changedMax = 100000
-  }
-}
-module Scale {
-  internal  {
-    frame = "1105 685 192 72"
+    frame = "857 69 96 72"
     moduleGroupName = ""
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "1423 793 272 367"
-        sizeHint = "256 367"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Scale2
-    inputMin = 0
-    inputMax = 1
-    updateMode = AutoUpdateMinMaxOn
-    useTrueRange = TRUE
-    typeSelect = UInt16
-    outputMin = 0
-    outputMax = 65000
-  }
-}
-module ColorMatrix {
-  internal  {
-    frame = "1149 597 104 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "291 699 498 201"
-        sizeHint = "498 201"
+        geometry = "485 485 1126 524"
+        sizeHint = "448 524"
         wasOpen = no
       }
       window _automatic {
-        geometry = "777 263 500 600"
+        geometry = "1133 338 1001 600"
         sizeHint = "260 227"
         wasOpen = no
       }
     }
   }
   fields  {
-    instanceName = ColorMatrix3
-    dimensionSelect = 3D
-    matrix00 = 0
-    matrix01 = 0
-    matrix02 = 0
-    matrix03 = 0
-    matrix10 = 1
-    matrix11 = 1
-    matrix12 = 0
-    matrix13 = 0
-    matrix20 = 1
-    matrix21 = 0
-    matrix22 = 1
-    matrix23 = 0
-    matrix30 = 0
-    matrix31 = 0
-    matrix32 = 0
-    matrix33 = 1
-    autoApply = TRUE
-  }
-}
-module Arithmetic2 {
-  internal  {
-    frame = "929 389 96 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "807 655 375 105"
-        sizeHint = "370 105"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Arithmetic21
-    function = Add
-    outputImageSize = InvalidateOutputIfSizesDiffer
-    constant = 0
-    autoReplicate = FALSE
-  }
-}
-module Scale {
-  internal  {
-    frame = "849 293 192 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "724 534 265 340"
-        sizeHint = "249 340"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Scale3
-    inputMin = 0
-    inputMax = 130535
-    updateMode = AutoUpdateMinMaxOn
-    useTrueRange = TRUE
-    typeSelect = UInt8
-    outputMin = 0
-    outputMax = 256
+    instanceName = ImageSave
+    taskVerboseLogging = FALSE
+    filename = DCM_TRA.dcm
+    addFileExtension = TRUE
+    format = DICOM
+    comment = MeVisLab
+    allowOverwrite = TRUE
+    autoFilename = FALSE
+    sourceName = ""
+    postfix = ""
+    dicomNameUsed = TRUE
+    dicomMetaHeader = TRUE
+    dicomDerived = TRUE
+    dicomDerivedImageType = "OTHER\\MEVISLAB"
+    dicomDiscardTags = FrameSpecific
+    dicomStoreTimeInfo = None
+    dicomSetWindow = FALSE
+    dicomWindowCenter = 0
+    dicomWindowWidth = 0
+    dicomIgnoreHalfVoxelShift = FALSE
+    tiffCompression = LZW
+    tiffTileX = 128
+    tiffTileY = 128
+    tiffTileXAuto = TRUE
+    tiffTileYAuto = TRUE
+    tiffLinearRGB = FALSE
+    saveDicomHeaderOnly = FALSE
+    pngCompression = Default
+    pngInterlaced = FALSE
+    jpegQuality = 75
+    jpegProgressive = FALSE
   }
 }
 module View2D {
   internal  {
-    frame = "1141 -115 120 56"
+    frame = "621 61 120 56"
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "456 208 535 425"
+        geometry = "1152 289 545 468"
         sizeHint = "400 400"
         wasOpen = yes
-      }
-      window Settings {
-        geometry = "603 341 312 499"
-        sizeHint = "288 499"
-        wasOpen = no
       }
     }
   }
@@ -1043,678 +575,18 @@ module View2D {
     useRelativeLUTIfNoInputImage = TRUE
   }
 }
-module DicomSetPatientInformation {
-  internal  {
-    frame = "557 -3 184 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "454 918 644 394"
-        sizeHint = "644 394"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "227 404 500 600"
-        sizeHint = "262 217"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = DicomSetPatientInformation1
-    patientsName = ""
-    patientsBirthDate = ""
-    patientID = ""
-    patientsSex = ""
-    patientsAge = ""
-    patientComment = ""
-    studyDate = ""
-    acquisitionDate = ""
-    studyDescription = ""
-    studyTime = ""
-    acquisitionTime = ""
-    studyInstanceUID = ""
-    accessionNumber = ""
-    seriesDescription = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_COR
-    institutionName = ""
-    stationName = ""
-    bodyPartExamined = ""
-    imageComments = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_COR
-    seriesNumber = 1000
-    acquisitionNumber = 1
-    studyID = ""
-    contentDate = 20221021
-    contentTime = 104248
-  }
-}
-module Resample3D {
-  internal  {
-    frame = "605 93 104 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "1960 321 339 340"
-        sizeHint = "339 340"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Resample3D1
-    keep = "Voxel size"
-    filter = Lanczos_3
-    isotropic = FALSE
-    filterAlways = FALSE
-    filterAlwaysTolerance = 0
-    zoom = "0.899999976158142 0.888842821121216 0.444421410560608"
-    imageSize = "180 256 128"
-    voxelSize = "1 1 2"
-    subVoxelShift = "0 0 0"
-    useReferenceImage = FALSE
-  }
-}
-module View2D {
-  internal  {
-    frame = "765 -123 120 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "1555 210 534 426"
-        sizeHint = "400 400"
-        wasOpen = yes
-      }
-    }
-  }
-  fields  {
-    instanceName = View2D1
-    inventorInputOn = TRUE
-    inventorOutputOn = FALSE
-    view2DExtensionsOn = TRUE
-    startSlice = 0
-    numSlices = 1
-    numXSlices = 1
-    sliceStep = 1
-    slab = 1
-    blendMode = BLEND_REPLACE
-    timePoint = 0
-    maxTimePoint = 0
-    filterMode = FILTER_LINEAR
-    standardKeys = TRUE
-    cineMode = CINE_ZT
-    cineDirection = CINE_FORWARD
-    cineRepeat = CINE_ONCE
-    cineSpeed = 0.1
-    cineAlwaysReset = TRUE
-    snapToCenter = TRUE
-    zoomMode = VIEW2D_AUTO_ZOOM
-    unzoomOnImageChange = FALSE
-    sliceZoom = 1
-    sliceZoomSynced = 1
-    baseColor = "1 1 1"
-    margin = "2 2"
-    sliceOrigin = "0 0"
-    useShaders = TRUE
-    useManagedInteraction = FALSE
-    lutCenter = 0.5
-    lutWidth = 1
-    annotationOn = TRUE
-    annotationMode = ANNO_MODE_AUTO
-    annotationSizeMode = ANNO_SHOW_DETAILED
-    annotationCol = "0.899999976158142 0.899999976158142 0.899999976158142"
-    annotationFontSize = ANNO_SIZE_AUTO
-    annoCoords = Voxel
-    annoCTValue = AsIs
-    borderOn = FALSE
-    borderColor = "0.899999976158142 0.899999976158142 0.899999976158142"
-    valueHighPrecision = TRUE
-    showColorChannelValues = FALSE
-    colorChannelSeparator = " / "
-    maxPrecision = 4
-    enableSlicing = TRUE
-    useRelativeLUTIfNoInputImage = TRUE
-  }
-}
-module DicomSetPatientInformation {
-  internal  {
-    frame = "189 -3 184 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "637 357 644 413"
-        sizeHint = "644 413"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "1029 441 500 600"
-        sizeHint = "262 217"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = DicomSetPatientInformation2
-    patientsName = ""
-    patientsBirthDate = ""
-    patientID = ""
-    patientsSex = ""
-    patientsAge = ""
-    patientComment = ""
-    studyDate = ""
-    acquisitionDate = ""
-    studyDescription = ""
-    studyTime = ""
-    acquisitionTime = ""
-    studyInstanceUID = ""
-    accessionNumber = ""
-    seriesDescription = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_SAG
-    institutionName = ""
-    stationName = ""
-    bodyPartExamined = ""
-    imageComments = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_SAG
-    seriesNumber = 1000
-    acquisitionNumber = 1
-    studyID = ""
-    contentDate = 20221021
-    contentTime = 104248
-  }
-}
-module Resample3D {
-  internal  {
-    frame = "237 93 104 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "1960 321 339 340"
-        sizeHint = "339 340"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Resample3D2
-    keep = "Voxel size"
-    filter = Lanczos_3
-    isotropic = FALSE
-    filterAlways = FALSE
-    filterAlwaysTolerance = 0
-    zoom = "0.888842821121216 0.888842821121216 0.449999988079071"
-    imageSize = "256 256 90"
-    voxelSize = "1 1 2"
-    subVoxelShift = "0 0 0"
-    useReferenceImage = FALSE
-  }
-}
-module View2D {
-  internal  {
-    frame = "405 -131 120 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "1004 211 539 426"
-        sizeHint = "400 400"
-        wasOpen = yes
-      }
-    }
-  }
-  fields  {
-    instanceName = View2D2
-    inventorInputOn = TRUE
-    inventorOutputOn = FALSE
-    view2DExtensionsOn = TRUE
-    startSlice = 0
-    numSlices = 1
-    numXSlices = 1
-    sliceStep = 1
-    slab = 1
-    blendMode = BLEND_REPLACE
-    timePoint = 0
-    maxTimePoint = 0
-    filterMode = FILTER_LINEAR
-    standardKeys = TRUE
-    cineMode = CINE_ZT
-    cineDirection = CINE_FORWARD
-    cineRepeat = CINE_ONCE
-    cineSpeed = 0.1
-    cineAlwaysReset = TRUE
-    snapToCenter = TRUE
-    zoomMode = VIEW2D_AUTO_ZOOM
-    unzoomOnImageChange = FALSE
-    sliceZoom = 1
-    sliceZoomSynced = 1
-    baseColor = "1 1 1"
-    margin = "2 2"
-    sliceOrigin = "0 0"
-    useShaders = TRUE
-    useManagedInteraction = FALSE
-    lutCenter = 0.5
-    lutWidth = 1
-    annotationOn = TRUE
-    annotationMode = ANNO_MODE_AUTO
-    annotationSizeMode = ANNO_SHOW_DETAILED
-    annotationCol = "0.899999976158142 0.899999976158142 0.899999976158142"
-    annotationFontSize = ANNO_SIZE_AUTO
-    annoCoords = Voxel
-    annoCTValue = AsIs
-    borderOn = FALSE
-    borderColor = "0.899999976158142 0.899999976158142 0.899999976158142"
-    valueHighPrecision = TRUE
-    showColorChannelValues = FALSE
-    colorChannelSeparator = " / "
-    maxPrecision = 4
-    enableSlicing = TRUE
-    useRelativeLUTIfNoInputImage = TRUE
-  }
-}
-module Comment {
-  internal  {
-    frame = "1077 1189 88 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "1542 809 230 54"
-        sizeHint = "256 209"
-        wasOpen = yes
-      }
-      window _automatic {
-        geometry = "23 440 500 600"
-        sizeHint = "256 192"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Thres
-    comment = 8
-  }
-}
-module Comment {
-  internal  {
-    frame = "1205 1189 88 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "1542 897 412 51"
-        sizeHint = "256 209"
-        wasOpen = yes
-      }
-      window _automatic {
-        geometry = "1099 471 500 600"
-        sizeHint = "256 192"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Task
-    comment = rsfMRI_rest_acq-multiTE_sensorimotor_ic1
-  }
-}
-module StringUtils {
-  internal  {
-    frame = "1425 269 96 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "452 224 411 370"
-        sizeHint = "411 370"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "1127 189 500 600"
-        sizeHint = "256 192"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Task_Treshold
-    operationType = Concatenate
-    string1 = ""
-    string2 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1
-    string3 = Tresh
-    string4 = 8
-    string5 = ""
-    string6 = ""
-    stringPrefix = [
-    stringPostfix = ]
-    toggle1 = FALSE
-    toggle2 = TRUE
-    toggle3 = TRUE
-    toggle4 = TRUE
-    toggle5 = FALSE
-    toggle6 = FALSE
-    togglePrefix = FALSE
-    togglePostfix = FALSE
-    separator = _
-    selectSeparator = 3
-    toggleIgnoreCase = FALSE
-    inPos1 = 0
-    inPos2 = 0
-  }
-}
-module StringUtils {
-  internal  {
-    frame = "1161 85 96 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "530 613 395 361"
-        sizeHint = "395 361"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "144 213 500 600"
-        sizeHint = "256 192"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Task_Tresh_TRA
-    operationType = Concatenate
-    string1 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8
-    string2 = _TRA
-    string3 = ""
-    string4 = ""
-    string5 = ""
-    string6 = ""
-    stringPrefix = [
-    stringPostfix = ]
-    toggle1 = TRUE
-    toggle2 = TRUE
-    toggle3 = FALSE
-    toggle4 = FALSE
-    toggle5 = FALSE
-    toggle6 = FALSE
-    togglePrefix = FALSE
-    togglePostfix = FALSE
-    separator = ""
-    selectSeparator = 0
-    toggleIgnoreCase = FALSE
-    inPos1 = 0
-    inPos2 = 0
-  }
-}
-module ImageSave {
-  internal  {
-    frame = "1005 -131 88 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "1078 181 438 492"
-        sizeHint = "420 492"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "1242 210 847 600"
-        sizeHint = "262 217"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = ImageSave
-    taskVerboseLogging = FALSE
-    filename = $(NETWORK)/PACS/HAND_Tresh_6_TRA.dcm
-    addFileExtension = TRUE
-    format = DICOM
-    comment = MeVisLab
-    allowOverwrite = TRUE
-    autoFilename = TRUE
-    sourceName = /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/PACS/fMRI/rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_TRA
-    postfix = ""
-    dicomNameUsed = FALSE
-    dicomMetaHeader = TRUE
-    dicomDerived = TRUE
-    dicomDerivedImageType = "OTHER\\MEVISLAB"
-    dicomDiscardTags = FrameSpecific
-    dicomStoreTimeInfo = None
-    dicomSetWindow = FALSE
-    dicomWindowCenter = 0
-    dicomWindowWidth = 0
-    dicomIgnoreHalfVoxelShift = FALSE
-    tiffCompression = LZW
-    tiffTileX = 128
-    tiffTileY = 128
-    tiffTileXAuto = TRUE
-    tiffTileYAuto = TRUE
-    tiffLinearRGB = FALSE
-    saveDicomHeaderOnly = FALSE
-    pngCompression = Default
-    pngInterlaced = FALSE
-    jpegQuality = 75
-    jpegProgressive = FALSE
-  }
-}
-module StringUtils {
-  internal  {
-    frame = "777 77 96 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "1094 688 391 307"
-        sizeHint = "391 307"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "217 410 500 600"
-        sizeHint = "256 192"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Task_Tresh_COR
-    operationType = Concatenate
-    string1 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8
-    string2 = _COR
-    string3 = ""
-    string4 = ""
-    string5 = ""
-    string6 = ""
-    stringPrefix = [
-    stringPostfix = ]
-    toggle1 = TRUE
-    toggle2 = TRUE
-    toggle3 = FALSE
-    toggle4 = FALSE
-    toggle5 = FALSE
-    toggle6 = FALSE
-    togglePrefix = FALSE
-    togglePostfix = FALSE
-    separator = ""
-    selectSeparator = 0
-    toggleIgnoreCase = FALSE
-    inPos1 = 0
-    inPos2 = 0
-  }
-}
-module ImageSave {
-  internal  {
-    frame = "617 -131 96 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "1160 317 438 492"
-        sizeHint = "420 492"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "1393 381 821 600"
-        sizeHint = "262 217"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = ImageSave1
-    taskVerboseLogging = FALSE
-    filename = $(NETWORK)/PACS/HAND_Tresh_6_COR.dcm
-    addFileExtension = TRUE
-    format = DICOM
-    comment = MeVisLab
-    allowOverwrite = TRUE
-    autoFilename = TRUE
-    sourceName = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_COR
-    postfix = ""
-    dicomNameUsed = FALSE
-    dicomMetaHeader = TRUE
-    dicomDerived = TRUE
-    dicomDerivedImageType = "OTHER\\MEVISLAB"
-    dicomDiscardTags = FrameSpecific
-    dicomStoreTimeInfo = None
-    dicomSetWindow = FALSE
-    dicomWindowCenter = 0
-    dicomWindowWidth = 0
-    dicomIgnoreHalfVoxelShift = FALSE
-    tiffCompression = LZW
-    tiffTileX = 128
-    tiffTileY = 128
-    tiffTileXAuto = TRUE
-    tiffTileYAuto = TRUE
-    tiffLinearRGB = FALSE
-    saveDicomHeaderOnly = FALSE
-    pngCompression = Default
-    pngInterlaced = FALSE
-    jpegQuality = 75
-    jpegProgressive = FALSE
-  }
-}
-module Trigger {
-  internal  {
-    frame = "1501 1177 152 64"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "1543 982 333 109"
-        sizeHint = "260 227"
-        wasOpen = yes
-      }
-      window _automatic {
-        geometry = "388 396 500 600"
-        sizeHint = "262 217"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = SAVE_DICOMS
-  }
-}
-module ImageSave {
-  internal  {
-    frame = "233 -131 96 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "1160 452 466 524"
-        sizeHint = "448 524"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "1222 381 845 600"
-        sizeHint = "262 217"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = ImageSave2
-    taskVerboseLogging = FALSE
-    filename = $(NETWORK)/PACS/Tract-csd_CST_LT_Tresh_5_SAG.dcm
-    addFileExtension = TRUE
-    format = DICOM
-    comment = MeVisLab
-    allowOverwrite = TRUE
-    autoFilename = TRUE
-    sourceName = /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/PACS/fMRI/rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_SAG
-    postfix = ""
-    dicomNameUsed = FALSE
-    dicomMetaHeader = TRUE
-    dicomDerived = TRUE
-    dicomDerivedImageType = "OTHER\\MEVISLAB"
-    dicomDiscardTags = FrameSpecific
-    dicomStoreTimeInfo = None
-    dicomSetWindow = FALSE
-    dicomWindowCenter = 0
-    dicomWindowWidth = 0
-    dicomIgnoreHalfVoxelShift = FALSE
-    tiffCompression = LZW
-    tiffTileX = 128
-    tiffTileY = 128
-    tiffTileXAuto = TRUE
-    tiffTileYAuto = TRUE
-    tiffLinearRGB = FALSE
-    saveDicomHeaderOnly = FALSE
-    pngCompression = Default
-    pngInterlaced = FALSE
-    jpegQuality = 75
-    jpegProgressive = FALSE
-  }
-}
-module StringUtils {
-  internal  {
-    frame = "397 61 120 88"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "857 416 395 361"
-        sizeHint = "395 361"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "50 391 500 600"
-        sizeHint = "256 192"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = Task_Tresh_SAG
-    operationType = Concatenate
-    string1 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8
-    string2 = _SAG
-    string3 = ""
-    string4 = ""
-    string5 = ""
-    string6 = ""
-    stringPrefix = [
-    stringPostfix = ]
-    toggle1 = TRUE
-    toggle2 = TRUE
-    toggle3 = FALSE
-    toggle4 = FALSE
-    toggle5 = FALSE
-    toggle6 = FALSE
-    togglePrefix = FALSE
-    togglePostfix = FALSE
-    separator = ""
-    selectSeparator = 0
-    toggleIgnoreCase = FALSE
-    inPos1 = 0
-    inPos2 = 0
-  }
-}
 module StringSplit {
   internal  {
-    frame = "301 837 88 56"
+    frame = "717 429 88 56"
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1745 347 500 739"
+        geometry = "194 297 500 739"
         sizeHint = "500 739"
         wasOpen = no
       }
       window _automatic {
-        geometry = "31 294 727 600"
+        geometry = "1333 170 500 600"
         sizeHint = "256 192"
         wasOpen = no
       }
@@ -1722,158 +594,91 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit
-    inString = /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
-    separators = RESULTS
+    inString = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_TRA/
+    separators = /
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
     searchSubstring = ""
     searchIgnoreCase = FALSE
   }
 }
-module StringUtils {
+module Counter {
   internal  {
-    frame = "1153 -27 96 72"
+    frame = "17 501 80 72"
     moduleGroupName = ""
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "1121 684 1236 493"
-        sizeHint = "395 361"
-        wasOpen = no
+        geometry = "1200 886 636 276"
+        sizeHint = "636 276"
+        wasOpen = yes
       }
       window _automatic {
-        geometry = "494 359 615 600"
+        geometry = "171 586 500 600"
         sizeHint = "256 192"
         wasOpen = no
       }
     }
   }
   fields  {
-    instanceName = Pathname
-    operationType = Concatenate
-    string1 = /home/stefan/DATA0/clinical_sub-Verpoorten/
-    string2 = RESULTS/
-    string3 = sub-test
-    string4 = /PACS/fMRI/
-    string5 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_TRA
-    string6 = ""
-    stringPrefix = [
-    stringPostfix = ]
-    toggle1 = TRUE
-    toggle2 = TRUE
-    toggle3 = TRUE
-    toggle4 = TRUE
-    toggle5 = TRUE
-    toggle6 = FALSE
-    togglePrefix = FALSE
-    togglePostfix = FALSE
-    separator = ""
-    selectSeparator = 0
-    toggleIgnoreCase = FALSE
-    inPos1 = 0
-    inPos2 = 0
+    instanceName = Counter
+    currentValue = -1
+    minValue = -1
+    maxValue = 11
+    startValue = -1
+    stepValue = 1
+    loop = FALSE
+    checkConsistency = TRUE
+    autoStepInterval_s = 20
+    stepDirection = Up
   }
 }
-module StringUtils {
+module FileDirectory {
   internal  {
-    frame = "777 -43 96 72"
+    frame = "613 701 136 56"
     moduleGroupName = ""
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "1549 643 921 495"
-        sizeHint = "395 361"
-        wasOpen = no
+        geometry = "563 188 562 570"
+        sizeHint = "551 570"
+        wasOpen = yes
       }
       window _automatic {
-        geometry = "724 416 615 600"
+        geometry = "625 491 500 600"
         sizeHint = "256 192"
         wasOpen = no
       }
     }
   }
   fields  {
-    instanceName = StringUtils2
-    operationType = Concatenate
-    string1 = /home/stefan/DATA0/clinical_sub-Verpoorten/
-    string2 = RESULTS/
-    string3 = sub-test
-    string4 = /PACS/fMRI/
-    string5 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_COR
-    string6 = ""
-    stringPrefix = [
-    stringPostfix = ]
-    toggle1 = TRUE
-    toggle2 = TRUE
-    toggle3 = TRUE
-    toggle4 = TRUE
-    toggle5 = TRUE
-    toggle6 = FALSE
-    togglePrefix = FALSE
-    togglePostfix = FALSE
-    separator = ""
-    selectSeparator = 0
-    toggleIgnoreCase = FALSE
-    inPos1 = 0
-    inPos2 = 0
-  }
-}
-module StringUtils {
-  internal  {
-    frame = "417 -59 96 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "66 773 886 361"
-        sizeHint = "395 361"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "155 400 615 600"
-        sizeHint = "256 192"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = StringUtils1
-    operationType = Concatenate
-    string1 = /home/stefan/DATA0/clinical_sub-Verpoorten/
-    string2 = RESULTS/
-    string3 = sub-test
-    string4 = /PACS/fMRI/
-    string5 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_SAG
-    string6 = ""
-    stringPrefix = [
-    stringPostfix = ]
-    toggle1 = TRUE
-    toggle2 = TRUE
-    toggle3 = TRUE
-    toggle4 = TRUE
-    toggle5 = TRUE
-    toggle6 = FALSE
-    togglePrefix = FALSE
-    togglePostfix = FALSE
-    separator = ""
-    selectSeparator = 0
-    toggleIgnoreCase = FALSE
-    inPos1 = 0
-    inPos2 = 0
+    instanceName = FiguresDirectory
+    rootPath = /home/stefan/DATA0/sub-test/RESULTS/sub-test/Tracto_figures_FLAIR
+    recursive = FALSE
+    maxRecursionDepth = -1
+    fileType = Dirs
+    joinImagePairs = FALSE
+    include = "**TRA**"
+    includeRegExp = FALSE
+    predefined = void
+    exclude = ""
+    excludeRegExp = FALSE
+    ignoreCase = FALSE
+    dirMode = Absolute
   }
 }
 module StringSplit {
   internal  {
-    frame = "1169 997 96 56"
+    frame = "177 445 96 56"
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "90 147 622 755"
-        sizeHint = "500 755"
+        geometry = "895 223 607 888"
+        sizeHint = "500 739"
         wasOpen = no
       }
       window _automatic {
-        geometry = "801 461 727 600"
+        geometry = "149 646 928 661"
         sizeHint = "256 192"
         wasOpen = no
       }
@@ -1881,208 +686,38 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit1
-    inString = /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
-    separators = RESULTS
+    inString = "/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_ALL_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_CCing_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_CST_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_FAT_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_IFOF_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_ILF_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_MdLF_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_OR_occlobe_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_TCing_TRA/
+/home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_UF_TRA/"
+    separators = ""
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
     searchSubstring = ""
     searchIgnoreCase = FALSE
-  }
-}
-module StringUtils {
-  internal  {
-    frame = "1573 845 88 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "301 167 255 230"
-        sizeHint = "255 230"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "871 235 500 600"
-        sizeHint = "256 192"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = StringUtils
-    operationType = Compare
-    string1 = Melodic
-    string2 = SPM
-    string3 = ""
-    string4 = ""
-    string5 = ""
-    string6 = ""
-    stringPrefix = [
-    stringPostfix = ]
-    toggle1 = TRUE
-    toggle2 = TRUE
-    toggle3 = FALSE
-    toggle4 = FALSE
-    toggle5 = FALSE
-    toggle6 = FALSE
-    togglePrefix = FALSE
-    togglePostfix = FALSE
-    separator = ""
-    selectSeparator = 0
-    toggleIgnoreCase = FALSE
-    inPos1 = 0
-    inPos2 = 0
-  }
-}
-module BoolInt {
-  internal  {
-    frame = "1565 733 104 56"
-    moduleGroupName = ""
-    showNetworkPanel = true
-    windows  {
-      window _default {
-        geometry = "105 658 229 245"
-        sizeHint = "229 245"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "1206 215 500 600"
-        sizeHint = "256 192"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = BoolInt
-    boolValue = TRUE
-    invBoolValue = FALSE
-    intValue = 1
-    offValue = 0
-    onValue = 1
-    defaultBool = Unchanged
-  }
-}
-module StringSplit {
-  internal  {
-    frame = "1169 997 96 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "90 147 622 755"
-        sizeHint = "500 755"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "801 461 727 600"
-        sizeHint = "256 192"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = StringSplit2
-    inString = /DATA/dev_MevisLab/RESULTS/sub-VanDerTaelen/SPM/afMRI_Eyes_Closed_GM.nii
-    separators = RESULTS
-    trimWhitespace = TRUE
-    selectedSubStringIndex = 0
-    searchSubstring = ""
-    searchIgnoreCase = FALSE
-  }
-}
-module StringSplit {
-  internal  {
-    frame = "1345 973 96 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "111 181 622 739"
-        sizeHint = "500 739"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "291 348 727 600"
-        sizeHint = "256 192"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = StringSplit3
-    inString = /sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
-    separators = "/ .nii"
-    trimWhitespace = TRUE
-    selectedSubStringIndex = 0
-    searchSubstring = ""
-    searchIgnoreCase = FALSE
-  }
-}
-module StringSplit {
-  internal  {
-    frame = "113 837 96 56"
-    moduleGroupName = ""
-    windows  {
-      window _default {
-        geometry = "1180 769 500 739"
-        sizeHint = "500 739"
-        wasOpen = no
-      }
-      window _automatic {
-        geometry = "31 294 727 600"
-        sizeHint = "256 192"
-        wasOpen = no
-      }
-    }
-  }
-  fields  {
-    instanceName = StringSplit4
-    inString = /sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
-    separators = /
-    trimWhitespace = TRUE
-    selectedSubStringIndex = 1
-    searchSubstring = SPM
-    searchIgnoreCase = TRUE
-  }
-}
-module ImageLoad {
-  internal  {
-    frame = "2105 701 128 72"
-    moduleGroupName = ""
-    showNetworkPanel = true
-  }
-  fields  {
-    instanceName = ImageLoad
-    filename = $(NETWORK)/RESULTS/sub-Beck/PACS/afMRI_HAND_Tresh_8_COR.dcm
-    autoLoad = TRUE
-    readRaw = FALSE
-    rawX = 1
-    rawY = 1
-    rawZ = 1
-    rawC = 1
-    rawT = 1
-    rawU = 1
-    dataTypeRaw = "unsigned int8"
-    planarConfig = Contiguous
-    byteOrder = LittleEndian
-    dataOffset = 0
-    pageSizeHint = "0 0 0 0 0 0"
-    suppressErrorLog = FALSE
-    dicomIgnoreHalfVoxelShift = FALSE
-    enableCheckSumTests = FALSE
   }
 }
 module View2D {
   internal  {
-    frame = "2101 477 120 56"
+    frame = "1685 69 120 56"
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1080 526 400 400"
+        geometry = "1548 822 821 575"
         sizeHint = "400 400"
         wasOpen = no
       }
     }
   }
   fields  {
-    instanceName = View2D3
+    instanceName = View2D1
     inventorInputOn = TRUE
     inventorOutputOn = FALSE
     view2DExtensionsOn = TRUE
@@ -2130,78 +765,672 @@ module View2D {
     useRelativeLUTIfNoInputImage = TRUE
   }
 }
+module ImageLoad {
+  internal  {
+    frame = "1681 589 192 72"
+    moduleGroupName = ""
+    showNetworkPanel = true
+    windows  {
+      window _default {
+        geometry = "1453 429 514 412"
+        sizeHint = "514 412"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = ImageLoad
+    filename = $(NETWORK)/RESULTS/sub-Verpoorten/PACS/Tracto_cT1w/Tract-csd_ALL_TRA.dcm
+    autoLoad = TRUE
+    readRaw = FALSE
+    rawX = 1
+    rawY = 1
+    rawZ = 1
+    rawC = 1
+    rawT = 1
+    rawU = 1
+    dataTypeRaw = "unsigned int8"
+    planarConfig = Contiguous
+    byteOrder = LittleEndian
+    dataOffset = 0
+    pageSizeHint = "0 0 0 0 0 0"
+    suppressErrorLog = FALSE
+    dicomIgnoreHalfVoxelShift = FALSE
+    enableCheckSumTests = FALSE
+  }
+}
+module Compose3DFrom2DFiles {
+  internal  {
+    frame = "1137 549 176 56"
+    moduleGroupName = ""
+    windows  {
+      window _default {
+        geometry = "265 675 424 535"
+        sizeHint = "424 535"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "1229 331 894 600"
+        sizeHint = "260 227"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = Compose3DFrom2DFiles1
+    dirPath = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_SAG
+    searchPattern = "***"
+    currentFile = $(NETWORK)/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_UF_SAG/Tract-csd_UF_SAG0199.png
+    readRaw = FALSE
+    rawX = 1
+    rawY = 1
+    rawZ = 1
+    rawC = 1
+    rawT = 1
+    rawU = 1
+    rawDataType = "unsigned int8"
+    rawByteOrder = LittleEndian
+    rawPlanarConfig = Contiguous
+    rawDataOffset = 0
+  }
+}
+module DicomSetPatientInformation {
+  internal  {
+    frame = "1121 245 192 56"
+    moduleGroupName = ""
+    windows  {
+      window _default {
+        geometry = "410 520 644 413"
+        sizeHint = "644 413"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "846 349 500 600"
+        sizeHint = "260 227"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = DicomSetPatientInformation1
+    patientsName = ""
+    patientsBirthDate = ""
+    patientID = ""
+    patientsSex = ""
+    patientsAge = ""
+    patientComment = ""
+    studyDate = ""
+    acquisitionDate = ""
+    studyDescription = ""
+    studyTime = ""
+    acquisitionTime = ""
+    studyInstanceUID = ""
+    accessionNumber = ""
+    seriesDescription = Tract-csd_AF_all_SAG
+    institutionName = ""
+    stationName = ""
+    bodyPartExamined = ""
+    imageComments = ""
+    seriesNumber = 1000
+    acquisitionNumber = 1
+    studyID = ""
+    contentDate = 20221110
+    contentTime = 100347
+  }
+}
+module ImageSave {
+  internal  {
+    frame = "1189 69 104 72"
+    moduleGroupName = ""
+    showNetworkPanel = true
+    windows  {
+      window _default {
+        geometry = "960 445 1126 524"
+        sizeHint = "448 524"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "165 231 1001 600"
+        sizeHint = "260 227"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = ImageSave1
+    taskVerboseLogging = FALSE
+    filename = DCM_SAG.dcm
+    addFileExtension = TRUE
+    format = DICOM
+    comment = MeVisLab
+    allowOverwrite = TRUE
+    autoFilename = FALSE
+    sourceName = ""
+    postfix = ""
+    dicomNameUsed = TRUE
+    dicomMetaHeader = TRUE
+    dicomDerived = TRUE
+    dicomDerivedImageType = "OTHER\\MEVISLAB"
+    dicomDiscardTags = FrameSpecific
+    dicomStoreTimeInfo = None
+    dicomSetWindow = FALSE
+    dicomWindowCenter = 0
+    dicomWindowWidth = 0
+    dicomIgnoreHalfVoxelShift = FALSE
+    tiffCompression = LZW
+    tiffTileX = 128
+    tiffTileY = 128
+    tiffTileXAuto = TRUE
+    tiffTileYAuto = TRUE
+    tiffLinearRGB = FALSE
+    saveDicomHeaderOnly = FALSE
+    pngCompression = Default
+    pngInterlaced = FALSE
+    jpegQuality = 75
+    jpegProgressive = FALSE
+  }
+}
+module StringSplit {
+  internal  {
+    frame = "377 397 96 56"
+    moduleGroupName = ""
+    windows  {
+      window _default {
+        geometry = "37 466 607 888"
+        sizeHint = "500 739"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "1136 424 928 661"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringSplit3
+    inString = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_TRA/
+    separators = _TRA
+    trimWhitespace = TRUE
+    selectedSubStringIndex = 0
+    searchSubstring = ""
+    searchIgnoreCase = FALSE
+  }
+}
+module StringUtils {
+  internal  {
+    frame = "949 373 104 72"
+    moduleGroupName = ""
+    showNetworkPanel = true
+    windows  {
+      window _automatic {
+        geometry = "1190 511 940 600"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+      window _default {
+        geometry = "709 599 411 370"
+        sizeHint = "411 370"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringUtils1
+    operationType = Concatenate
+    string1 = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all
+    string2 = _SAG
+    string3 = .dcm
+    string4 = ""
+    string5 = ""
+    string6 = ""
+    stringPrefix = [
+    stringPostfix = ]
+    toggle1 = TRUE
+    toggle2 = TRUE
+    toggle3 = FALSE
+    toggle4 = FALSE
+    toggle5 = FALSE
+    toggle6 = FALSE
+    togglePrefix = FALSE
+    togglePostfix = FALSE
+    separator = ""
+    selectSeparator = 0
+    toggleIgnoreCase = FALSE
+    inPos1 = 0
+    inPos2 = 0
+  }
+}
+module StringUtils {
+  internal  {
+    frame = "557 205 104 72"
+    moduleGroupName = ""
+    showNetworkPanel = true
+    windows  {
+      window _automatic {
+        geometry = "1190 511 940 600"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+      window _default {
+        geometry = "142 657 1240 556"
+        sizeHint = "395 361"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringUtils2
+    operationType = Concatenate
+    string1 = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/
+    string2 = PACS/Tracto
+    string3 = _FLAIR/Tract-csd_AF_all
+    string4 = _TRA
+    string5 = .dcm
+    string6 = ""
+    stringPrefix = [
+    stringPostfix = ]
+    toggle1 = TRUE
+    toggle2 = TRUE
+    toggle3 = TRUE
+    toggle4 = TRUE
+    toggle5 = TRUE
+    toggle6 = FALSE
+    togglePrefix = FALSE
+    togglePostfix = FALSE
+    separator = ""
+    selectSeparator = 0
+    toggleIgnoreCase = FALSE
+    inPos1 = 0
+    inPos2 = 0
+  }
+}
+module StringUtils {
+  internal  {
+    frame = "989 261 104 72"
+    moduleGroupName = ""
+    showNetworkPanel = true
+    windows  {
+      window _automatic {
+        geometry = "1190 511 940 600"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+      window _default {
+        geometry = "1044 731 1089 361"
+        sizeHint = "395 361"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringUtils3
+    operationType = Concatenate
+    string1 = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/
+    string2 = PACS/Tracto
+    string3 = _FLAIR/Tract-csd_AF_all
+    string4 = _SAG
+    string5 = .dcm
+    string6 = ""
+    stringPrefix = [
+    stringPostfix = ]
+    toggle1 = TRUE
+    toggle2 = TRUE
+    toggle3 = TRUE
+    toggle4 = TRUE
+    toggle5 = TRUE
+    toggle6 = FALSE
+    togglePrefix = FALSE
+    togglePostfix = FALSE
+    separator = ""
+    selectSeparator = 0
+    toggleIgnoreCase = FALSE
+    inPos1 = 0
+    inPos2 = 0
+  }
+}
+module StringSplit {
+  internal  {
+    frame = "385 293 96 56"
+    moduleGroupName = ""
+    windows  {
+      window _default {
+        geometry = "176 279 607 913"
+        sizeHint = "500 764"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "1136 424 928 661"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringSplit2
+    inString = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all
+    separators = Tracto_figures
+    trimWhitespace = TRUE
+    selectedSubStringIndex = 0
+    searchSubstring = ""
+    searchIgnoreCase = FALSE
+  }
+}
+module Compose3DFrom2DFiles {
+  internal  {
+    frame = "1417 557 176 56"
+    moduleGroupName = ""
+    windows  {
+      window _default {
+        geometry = "902 621 424 535"
+        sizeHint = "424 535"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "1229 331 894 600"
+        sizeHint = "260 227"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = Compose3DFrom2DFiles2
+    dirPath = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_COR
+    searchPattern = "***"
+    currentFile = $(NETWORK)/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_UF_COR/Tract-csd_UF_COR0287.png
+    readRaw = FALSE
+    rawX = 1
+    rawY = 1
+    rawZ = 1
+    rawC = 1
+    rawT = 1
+    rawU = 1
+    rawDataType = "unsigned int8"
+    rawByteOrder = LittleEndian
+    rawPlanarConfig = Contiguous
+    rawDataOffset = 0
+  }
+}
+module DicomSetPatientInformation {
+  internal  {
+    frame = "1449 245 192 56"
+    moduleGroupName = ""
+    windows  {
+      window _default {
+        geometry = "1688 302 644 413"
+        sizeHint = "644 413"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "846 349 500 600"
+        sizeHint = "260 227"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = DicomSetPatientInformation2
+    patientsName = ""
+    patientsBirthDate = ""
+    patientID = ""
+    patientsSex = ""
+    patientsAge = ""
+    patientComment = ""
+    studyDate = ""
+    acquisitionDate = ""
+    studyDescription = ""
+    studyTime = ""
+    acquisitionTime = ""
+    studyInstanceUID = ""
+    accessionNumber = ""
+    seriesDescription = Tract-csd_AF_all_COR
+    institutionName = ""
+    stationName = ""
+    bodyPartExamined = ""
+    imageComments = ""
+    seriesNumber = 1000
+    acquisitionNumber = 1
+    studyID = ""
+    contentDate = 20221110
+    contentTime = 100347
+  }
+}
+module ImageSave {
+  internal  {
+    frame = "1501 77 104 72"
+    moduleGroupName = ""
+    showNetworkPanel = true
+    windows  {
+      window _default {
+        geometry = "1790 359 454 524"
+        sizeHint = "448 524"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "165 231 1001 600"
+        sizeHint = "260 227"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = ImageSave2
+    taskVerboseLogging = FALSE
+    filename = DCM_COR.dcm
+    addFileExtension = TRUE
+    format = DICOM
+    comment = MeVisLab
+    allowOverwrite = TRUE
+    autoFilename = FALSE
+    sourceName = ""
+    postfix = ""
+    dicomNameUsed = TRUE
+    dicomMetaHeader = TRUE
+    dicomDerived = TRUE
+    dicomDerivedImageType = "OTHER\\MEVISLAB"
+    dicomDiscardTags = FrameSpecific
+    dicomStoreTimeInfo = None
+    dicomSetWindow = FALSE
+    dicomWindowCenter = 0
+    dicomWindowWidth = 0
+    dicomIgnoreHalfVoxelShift = FALSE
+    tiffCompression = LZW
+    tiffTileX = 128
+    tiffTileY = 128
+    tiffTileXAuto = TRUE
+    tiffTileYAuto = TRUE
+    tiffLinearRGB = FALSE
+    saveDicomHeaderOnly = FALSE
+    pngCompression = Default
+    pngInterlaced = FALSE
+    jpegQuality = 75
+    jpegProgressive = FALSE
+  }
+}
+module StringUtils {
+  internal  {
+    frame = "1253 397 104 72"
+    moduleGroupName = ""
+    showNetworkPanel = true
+    windows  {
+      window _automatic {
+        geometry = "1190 511 940 600"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+      window _default {
+        geometry = "1473 500 395 361"
+        sizeHint = "395 361"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringUtils4
+    operationType = Concatenate
+    string1 = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all
+    string2 = _COR
+    string3 = .dcm
+    string4 = ""
+    string5 = ""
+    string6 = ""
+    stringPrefix = [
+    stringPostfix = ]
+    toggle1 = TRUE
+    toggle2 = TRUE
+    toggle3 = FALSE
+    toggle4 = FALSE
+    toggle5 = FALSE
+    toggle6 = FALSE
+    togglePrefix = FALSE
+    togglePostfix = FALSE
+    separator = ""
+    selectSeparator = 0
+    toggleIgnoreCase = FALSE
+    inPos1 = 0
+    inPos2 = 0
+  }
+}
+module StringUtils {
+  internal  {
+    frame = "1333 269 104 72"
+    moduleGroupName = ""
+    showNetworkPanel = true
+    windows  {
+      window _automatic {
+        geometry = "1190 511 940 600"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+      window _default {
+        geometry = "530 568 1240 586"
+        sizeHint = "395 361"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringUtils5
+    operationType = Concatenate
+    string1 = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/
+    string2 = PACS/Tracto
+    string3 = _FLAIR/Tract-csd_AF_all
+    string4 = _COR
+    string5 = .dcm
+    string6 = ""
+    stringPrefix = [
+    stringPostfix = ]
+    toggle1 = TRUE
+    toggle2 = TRUE
+    toggle3 = TRUE
+    toggle4 = TRUE
+    toggle5 = TRUE
+    toggle6 = FALSE
+    togglePrefix = FALSE
+    togglePostfix = FALSE
+    separator = ""
+    selectSeparator = 0
+    toggleIgnoreCase = FALSE
+    inPos1 = 0
+    inPos2 = 0
+  }
+}
+module StringSplit {
+  internal  {
+    frame = "1105 413 96 56"
+    moduleGroupName = ""
+    windows  {
+      window _default {
+        geometry = "1630 378 500 739"
+        sizeHint = "500 739"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "1333 170 500 600"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringSplit4
+    inString = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_SAG
+    separators = /
+    trimWhitespace = TRUE
+    selectedSubStringIndex = 0
+    searchSubstring = ""
+    searchIgnoreCase = FALSE
+  }
+}
+module StringSplit {
+  internal  {
+    frame = "1409 397 96 56"
+    moduleGroupName = ""
+    windows  {
+      window _default {
+        geometry = "303 275 500 739"
+        sizeHint = "500 739"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "1333 170 500 600"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringSplit5
+    inString = /home/stefan/DATA0/Finished_2022_10_21_sub-DeArriba/RESULTS/sub-DeArriba/Tracto_figures_FLAIR/Tract-csd_AF_all_COR
+    separators = /
+    trimWhitespace = TRUE
+    selectedSubStringIndex = 0
+    searchSubstring = ""
+    searchIgnoreCase = FALSE
+  }
+}
 connections  {
-  Threshold.input0 = RegistrationManual.outReformatImage
-  Threshold.threshold = Thres.comment
-  RegistrationManual.inReferenceImage = AnatNifti.output0
-  RegistrationManual.inImage = fMRINifti.output0
-  ColorMatrix1.input0 = Scale1.output0
-  Scale1.input0 = AnatNifti.output0
-  Scale4.input0 = Threshold.output0
-  ColorMatrix2.input0 = Scale4.output0
-  ColorMatrix2.matrix10 = BoolInt.intValue
-  Arithmetic2.input0 = ColorMatrix1.output0
-  Arithmetic2.input1 = ColorMatrix2.output0
-  DicomSetPatientInformation.input0 = Resample3D.output0
-  DicomSetPatientInformation.input1 = SmartBrain.output0
-  DicomSetPatientInformation.seriesDescription = Task_Tresh_TRA.result
-  DicomSetPatientInformation.imageComments = Task_Tresh_TRA.result
-  OrthoReformat3.input0 = Scale3.output0
-  Resample3D.input0 = OrthoReformat3.output2
-  OrthoView2D.image = DicomSetPatientInformation.output0
-  itkSimpleContourExtractorImageFilter.input0 = IntervalThresh.output0
-  IntervalThresh.input0 = Threshold.output0
-  IntervalThresh.threshMin = Thres.comment
-  Scale2.input0 = itkSimpleContourExtractorImageFilter.output0
-  ColorMatrix3.input0 = Scale2.output0
-  ColorMatrix3.matrix10 = BoolInt.intValue
-  Arithmetic21.input0 = Arithmetic2.output0
-  Arithmetic21.input1 = ColorMatrix3.output0
-  Scale3.input0 = Arithmetic21.output0
-  View2D.inImage = DicomSetPatientInformation.output0
-  DicomSetPatientInformation1.input0 = Resample3D1.output0
-  DicomSetPatientInformation1.input1 = SmartBrain.output0
-  DicomSetPatientInformation1.seriesDescription = Task_Tresh_COR.result
-  DicomSetPatientInformation1.imageComments = Task_Tresh_COR.result
-  Resample3D1.input0 = OrthoReformat3.output1
-  View2D1.inImage = DicomSetPatientInformation1.output0
-  DicomSetPatientInformation2.input0 = Resample3D2.output0
-  DicomSetPatientInformation2.input1 = SmartBrain.output0
-  DicomSetPatientInformation2.seriesDescription = Task_Tresh_SAG.result
-  DicomSetPatientInformation2.imageComments = Task_Tresh_SAG.result
-  Resample3D2.input0 = OrthoReformat3.output0
-  View2D2.inImage = DicomSetPatientInformation2.output0
-  Task.comment = StringSplit3.subString3
-  Task_Treshold.string2 = StringSplit3.subString3
-  Task_Treshold.string4 = Thres.comment
-  Task_Tresh_TRA.string1 = Task_Treshold.result
+  Compose3DFrom2DFiles.dirPath = StringSplit1.selectedSubString
+  Compose3DFrom2DFiles.create3D = Counter.performStep
+  DicomSetPatientInformation.input0 = Compose3DFrom2DFiles.output0
+  DicomSetPatientInformation.input1 = DirectDicomImport.output0
+  DicomSetPatientInformation.seriesDescription = StringSplit.lastSubString
   ImageSave.input0 = DicomSetPatientInformation.output0
-  ImageSave.save = SAVE_DICOMS.trigger
-  ImageSave.sourceName = Pathname.result
-  Task_Tresh_COR.string1 = Task_Treshold.result
+  ImageSave.startTask = Compose3DFrom2DFiles.create3D
+  ImageSave.filename = StringUtils2.result
+  View2D.inImage = DicomSetPatientInformation.output0
+  StringSplit.inString = Compose3DFrom2DFiles.dirPath
+  Counter.performStep = ImageSave.taskFinished
+  StringSplit1.inString = FiguresDirectory.fileList
+  StringSplit1.selectedSubStringIndex = Counter.currentValue
+  View2D1.inImage = ImageLoad.output0
+  Compose3DFrom2DFiles1.dirPath = StringUtils1.result
+  Compose3DFrom2DFiles1.create3D = Counter.performStep
+  DicomSetPatientInformation1.input0 = Compose3DFrom2DFiles1.output0
+  DicomSetPatientInformation1.input1 = DirectDicomImport.output0
+  DicomSetPatientInformation1.seriesDescription = StringSplit4.lastSubString
   ImageSave1.input0 = DicomSetPatientInformation1.output0
-  ImageSave1.filename = StringUtils2.result
-  ImageSave1.save = SAVE_DICOMS.trigger
-  ImageSave1.sourceName = Task_Tresh_COR.result
+  ImageSave1.filename = StringUtils3.result
+  ImageSave1.save = Compose3DFrom2DFiles1.create3D
+  StringSplit3.inString = StringSplit1.selectedSubString
+  StringUtils1.string1 = StringSplit3.selectedSubString
+  StringUtils2.string1 = StringSplit2.subString0
+  StringUtils2.string3 = StringSplit2.subString1
+  StringUtils3.string1 = StringSplit2.subString0
+  StringUtils3.string3 = StringSplit2.subString1
+  StringSplit2.inString = StringSplit3.subString0
+  Compose3DFrom2DFiles2.dirPath = StringUtils4.result
+  Compose3DFrom2DFiles2.create3D = Counter.performStep
+  DicomSetPatientInformation2.input0 = Compose3DFrom2DFiles2.output0
+  DicomSetPatientInformation2.input1 = DirectDicomImport.output0
+  DicomSetPatientInformation2.seriesDescription = StringSplit5.lastSubString
   ImageSave2.input0 = DicomSetPatientInformation2.output0
-  ImageSave2.save = SAVE_DICOMS.trigger
-  ImageSave2.sourceName = StringUtils1.result
-  Task_Tresh_SAG.string1 = Task_Treshold.result
-  StringSplit.inString = fMRINifti.fileName
-  Pathname.string1 = StringSplit.subString0
-  Pathname.string3 = StringUtils1.string3
-  Pathname.string5 = Task_Tresh_TRA.result
-  StringUtils2.string1 = StringSplit.subString0
-  StringUtils2.string3 = StringUtils1.string3
-  StringUtils2.string5 = Task_Tresh_COR.result
-  StringUtils1.string1 = StringSplit.subString0
-  StringUtils1.string3 = StringSplit4.subString1
-  StringUtils1.string5 = Task_Tresh_SAG.result
-  StringSplit1.inString = fMRINifti.fileName
-  StringUtils.string1 = StringSplit3.subString2
-  BoolInt.invBoolValue = StringUtils.boolResult
-  StringSplit3.inString = StringSplit1.subString1
-  StringSplit4.inString = StringSplit.subString1
-  View2D3.inImage = ImageLoad.output0
+  ImageSave2.filename = StringUtils5.result
+  ImageSave2.save = Compose3DFrom2DFiles2.create3D
+  StringUtils4.string1 = StringSplit3.subString0
+  StringUtils5.string1 = StringSplit2.subString0
+  StringUtils5.string3 = StringSplit2.subString1
+  StringSplit4.inString = Compose3DFrom2DFiles1.dirPath
+  StringSplit5.inString = Compose3DFrom2DFiles2.dirPath
 }
 networkModel = ""

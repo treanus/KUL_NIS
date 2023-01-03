@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Bash shell script wrapper for calling KUL_dcm2bids for multiple subjects
 #
 # Requires KUL_dcm2bids
@@ -6,7 +6,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 26/10/2018 - alpha version
-v="v0.1 - dd 26/10/2018"
+version="v0.1 - dd 26/10/2018"
 
 
 
@@ -16,10 +16,10 @@ v="v0.1 - dd 26/10/2018"
 #  - kul_e2cl from KUL_main_functions (for logging)
 
 # source general functions
-kul_main_dir=`dirname "$0"`
-script=`basename $0`
+kul_main_dir=$(dirname "$0")
+script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
-
+# $cwd, mrtrix3new & $log_dir is made in main_functions
 
 # BEGIN LOCAL FUNCTIONS --------------
 
@@ -208,16 +208,16 @@ while IFS=$'\t,;' read -r BIDS_participant EAD dicom_zip config_file session com
         #echo $BIDS_participant
         #echo $bids_dir_to_check
 
-        if [ ! -d $bids_dir_to_check ]; then
+        #if [ ! -d $bids_dir_to_check ]; then
 
             kul_e2cl "Performing KUL_dcm2bids.sh -d $dcmdir/$dicom_zip -p $BIDS_participant -c $config_file -o $bids_output -s "${session}" " $log
-            KUL_dcm2bids.sh -d $dcmdir/$dicom_zip -p $BIDS_participant -c $config_file -o $bids_output -s "${session}"
+            KUL_dcm2bids_new.sh -d $dcmdir/$dicom_zip -p $BIDS_participant -c $config_file -o $bids_output -s $session -x
         
-        else
+        #else
         
-            echo " BIDS conversion of participant $BIDS_participant already done, skipping..."
+        #    echo " BIDS conversion of participant $BIDS_participant already done, skipping..."
 
-        fi
+        #fi
 
     fi
 

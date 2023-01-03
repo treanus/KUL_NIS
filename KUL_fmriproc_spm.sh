@@ -184,7 +184,7 @@ function KUL_compute_SPM_matlab {
     eval $cmd
 
 
-    result=$computedir/RESULTS/MNI/${fmrifile}_space-MNI152NLin6Asym.nii
+    result=$computedir/RESULTS/MNI/${fmrifile}_space-MNI152NLin2009cAsym.nii
     cp $fmriresults/spmT_0001.nii $result
     
     global_result=${globalresultsdir}/afMRI_${fmrifile}.nii
@@ -192,7 +192,7 @@ function KUL_compute_SPM_matlab {
     # since SPM analysis was in MNI space, we transform back in native space
     input=$result
     output=$global_result
-    transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
+    transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
     find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
     reference=${find_T1w[0]}
     KUL_antsApply_Transform
@@ -247,7 +247,10 @@ mkdir -p $scriptsdir
 mkdir -p $computedir/RESULTS/MNI
 mkdir -p $globalresultsdir
 
-fmriprep_output_type="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
+# fmriprep_output_type="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
+
+# edited by AR 04/11/2022
+fmriprep_output_type="_space-MNI152NLin2009cAsym_desc-preproc_bold.nii"
 
 
 if [ $verbose_level -lt 2 ] ; then
@@ -286,11 +289,26 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
   
         if [[ ! "$task" = *"rest"* ]]; then
             kul_echo " Analysing task $task"
-            task_and_type="*${task}*${fmriprep_output_type}"
-            #echo $task_and_type
+            task_and_type_1="*${task}*${fmriprep_output_type}"
+            #echo $task_and_type_1
             
             # find the number of runs
-            runs=($(find $fmriprepdir/func -name "*${task_and_type}.gz" -type f))
+            runs_sharp=($(find $fmriprepdir/func -name "*${task_and_type_1}.gz" -type f))
+            # edited by AR 04/11/2022
+            # temporary smoothin solution - better to use susan
+            for run_sharp in ${runs_sharp[@]}; do
+                if [[ ! -f "$(dirname ${run_sharp})/$(basename ${run_sharp} .nii.gz)_smooth_3mm.nii.gz" ]]; then
+                    fslmaths ${run_sharp} -s 3 $(dirname ${run_sharp})/$(basename ${run_sharp} .nii.gz)_smooth_6mm.nii.gz
+                fi
+            done
+
+            # edited by AR 04/11/2022
+            fmriprep_output_type_2=$(echo ${fmriprep_output_type} | cut -d "." -f1)
+            task_and_type_2="*${task}*${fmriprep_output_type_2}_smooth_6mm.nii"
+            #echo $task_and_type_2
+
+            # edited by AR 04/11/2022
+            runs=($(find $fmriprepdir/func -name "*${task_and_type_2}.gz" -type f))
             
             # unzip each run
             for run in ${runs[@]}; do
@@ -348,9 +366,9 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
     done
 
     # cleanup
-    rm -rf $fmridatadir
+    #rm -rf $fmridatadir
 
-    #touch KUL_LOG/sub-${participant}_SPM.done
+    touch KUL_LOG/sub-${participant}_SPM.done
     echo "Done computing SPM"
 else
     echo "SPM analysis already done"

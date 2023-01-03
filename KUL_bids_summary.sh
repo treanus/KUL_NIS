@@ -29,13 +29,13 @@ bids_dir=BIDS
 output=BIDS_info.tsv
 
 # find all images in the bids directory
-search_mri=($(find ${bids_dir} -type f | grep nii.gz))
+search_mri=($(find ${bids_dir} -type f | grep nii.gz | sort))
 num_mri=${#search_mri[@]}
 
 echo "Number of nifti data in the BIDS folder: $num_mri"
 #echo ${search_mri[@]}
 
-echo -e "MRI-scan \t Subject \t Session \t Type \t Scan \t Site \t Manufacturer \t Model \t TE \t TR \t DIM \t Dim_x \t Dim_y \t Dim_z \t Dynamics" > $output 
+echo -e "MRI-scan, Subject, Session, Type, Scan, Site, Manufacturer, Model, Software, Coil, MagneticFieldStrength, SeriesDescription, SeriesNumber, AcquisitionType, TE, TR, TI, DIM, Dim_x, Dim_y, Dim_z, Dynamics, ETL" > $output 
 
 for i in `seq 0 $(($num_mri-1))`; do
     
@@ -51,7 +51,7 @@ for i in `seq 0 $(($num_mri-1))`; do
     type=$(echo $mri | cut -d/ -f4)
     echo "Type: $type"
 
-    scan=$(echo $mri | cut -d_ -f 3 | cut -d. -f 1)
+    scan=$(echo $mri | awk -F_ '{print $NF}' | cut -d. -f 1)
     echo "Scan: $scan"
 
     json=${mri%%.*}.json
@@ -60,17 +60,38 @@ for i in `seq 0 $(($num_mri-1))`; do
     site=$(grep StationName  $json | cut -d: -f2 | cut -d, -f 1)
     echo "Site: $site"
 
-    manufacturer=$(grep \"Manufacturer\"  $json | cut -d: -f2 | cut -d, -f 1)
+    manufacturer=$(grep \"Manufacturer\"  $json | cut -d: -f2 | cut -d, -f 1 | tr -d '"')
     echo "Manufacturer: $manufacturer"
 
-    model=$(grep \"ManufacturersModelName\"  $json | cut -d: -f2 | cut -d, -f 1)
+    model=$(grep \"ManufacturersModelName\"  $json | cut -d: -f2 | cut -d, -f 1 | tr -d '"')
     echo "Model: $model"
+    
+    soft=$(grep \"SoftwareVersions\"  $json | cut -d: -f2 | cut -d, -f 1 | tr -d '"')
+    echo "Software: $soft"
+
+    coil=$(grep \"CoilString\"  $json | cut -d: -f2 | cut -d, -f 1 | tr -d '"')
+    echo "Coil: $coil"
+
+    MagneticFieldStrength=$(grep \"MagneticFieldStrength\"  $json | cut -d: -f2 | cut -d, -f 1)
+    echo "MagneticFieldStrength: $MagneticFieldStrength"
+
+    SeriesDescription=$(grep \"SeriesDescription\"  $json | cut -d: -f2 | cut -d, -f 1 | tr -d '"')
+    echo "SeriesDescription: $SeriesDescription"
+
+    SeriesNumber=$(grep \"SeriesNumber\"  $json | cut -d: -f2 | cut -d, -f 1)
+    echo "SeriesNumber: $SeriesNumber"
+
+    AcquisitionType=$(grep \"MRAcquisitionType\"  $json | cut -d: -f2 | cut -d, -f 1 | tr -d '"')
+    echo "AcquisitionType: $AcquisitionType"
 
     TE=$(grep EchoTime  $json | cut -d: -f2 | cut -d, -f 1)
     echo "TE: $TE"
 
-    TR=$(grep RepetitionTime  $json | cut -d: -f2 | cut -d, -f 1)
+    TR=$(grep -w RepetitionTime  $json | cut -d: -f2 | cut -d, -f 1)
     echo "TR: $TR"
+
+    TI=$(grep \"InversionTime\"  $json | cut -d: -f2 | cut -d, -f 1 | tr -d '"')
+    echo "InversionTime: $TI"
 
     dim=$(mrinfo $mri -ndim)
     echo "Dimensions: $dim"
@@ -80,8 +101,12 @@ for i in `seq 0 $(($num_mri-1))`; do
     dim_z=$(mrinfo $mri -size | cut -d" " -f 3)
     dynamics=$(mrinfo $mri -size | cut -d" " -f 4)
 
-    echo -e "$mri \t $sub \t $ses \t $type \t $scan \t $site \t $manufacturer \
-        \t $model \t $TE \t $TR \t $dim \t $dim_x \t $dim_y \t $dim_z \t $dynamics" >> $output 
+    ETL=$(grep EchoTrainLength $json | cut -d: -f2 | cut -d, -f 1)
+    echo "ETL: $ETL"
+
+    echo -e "$mri, $sub, $ses, $type, $scan, $site, $manufacturer \
+       , $model, $soft, $coil, $MagneticFieldStrength, $SeriesDescription, $SeriesNumber \
+       , $AcquisitionType, $TE, $TR, $TI, $dim, $dim_x, $dim_y, $dim_z, $dynamics, $ETL" >> $output 
 
 done
 

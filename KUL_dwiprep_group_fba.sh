@@ -1,4 +1,5 @@
 #!/bin/bash -e
+#set -x
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 # Requires Mrtrix3 
@@ -23,7 +24,7 @@ v="v1.0 - dd 19/11/2021"
 kul_main_dir=`dirname "$0"`
 source $kul_main_dir/KUL_main_functions.sh
 cwd=$(pwd)
-ncpu_foreach=4
+ncpu_foreach=6
 # suffix="_reg2T1w"
 #suffix=""
 
@@ -71,7 +72,7 @@ USAGE
 # Set defaults
 ncpu=6 # default if option -n is not given
 silent=1 # default if option -v is not given
-algo=mt
+algo=msmt
 
 # Set required options
 g_flag=0
@@ -197,6 +198,11 @@ if [ ! -f data_prep.done ]; then
         #echo $sub
         #echo $ses
         s=${sub}_${ses}
+        # if [[ -z ${ses} ]]; then
+        #     s=${sub}_${ses}
+        # else
+        #     s=${sub}
+        # fi
         mkdir -p ${cwd}/dwiprep/${group_name}/fba/subjects/${s}
         ln -sfn $i ${cwd}/dwiprep/${group_name}/fba/subjects/${s}/dwi_preproced${suffix}.mif
         if [ "$algo" = "ssst" ]; then 
@@ -207,7 +213,7 @@ if [ ! -f data_prep.done ]; then
  
     # find the preproced masks
     # need to make sure this is correct in case KUL_dwiprep_anat.sh is used in advance
-    search_subjects=($(find ${cwd}/dwiprep -type f | grep dwi_mask${suffix}.nii.gz | sort ))
+    search_subjects=($(find ${cwd}/dwiprep/sub-* -type f | grep dwi_mask${suffix}.nii.gz | sort ))
     num_subjects=${#search_subjects[@]}
 
     for i in ${search_subjects[@]}
@@ -225,7 +231,7 @@ if [ ! -f data_prep.done ]; then
 
     done
     
-
+    echo "Algo: $algo"
     if [ "$algo" = "ssmt" ] || [ "$algo" = "msmt" ]; then 
 
         # find the response functions
@@ -330,7 +336,7 @@ cd ${cwd}/dwiprep/${group_name}/fba/subjects
 
 if [ "$algo" = "ssst" ]; then 
 
-    for_each * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output/PRE_dwi_preproced${suffix}.mif \
+    for_each -force * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output/PRE_dwi_preproced${suffix}.mif \
     ${cwd}/dwiprep/${group_name}/fba/subjects/IN/dwi_preproced${suffix}_normalised.mif
 
 fi
@@ -344,7 +350,7 @@ if [ ! -f ../average_response.done ]; then
     
     if [ "$algo" = "ssst" ]; then 
 
-        for_each * : dwi2response tournier IN/dwi_preproced${suffix}_normalised.mif \
+        for_each -force * : dwi2response tournier IN/dwi_preproced${suffix}_normalised.mif \
         IN/response.txt -nthreads $ncpu -force
 
         responsemean */response.txt ../group_average_response.txt
@@ -379,7 +385,7 @@ if [ ! -f ../mask.done ]; then
         
     # if [ "$algo" = "ssst" ]; then 
 
-        # for_each -nthreads ${ncpu_foreach} * : dwi2mask IN/dwi_preproced${suffix}_normalised.mif IN/dwi_preproced${suffix}_mask.mif -nthreads $ncpu -force
+        # for_each -force -nthreads ${ncpu_foreach} * : dwi2mask IN/dwi_preproced${suffix}_normalised.mif IN/dwi_preproced${suffix}_mask.mif -nthreads $ncpu -force
     
     # else
 
@@ -419,23 +425,24 @@ if [ ! -f ../fod_estimation.done ]; then
 
     if [ "$algo" = "ssst" ]; then 
     
-        for_each -nthreads ${ncpu_foreach} * : dwiextract IN/dwi_preproced${suffix}_normalised.mif - \
+        for_each -force -nthreads ${ncpu_foreach} * : dwiextract IN/dwi_preproced${suffix}_normalised.mif - \
         \| dwi2fod msmt_csd - ../group_average_response.txt IN/wmfod.mif \
         -mask IN/dwi_preproced${suffix}_mask.mif -nthreads $ncpu -force
     
     elif [ "$algo" = "ssmt" ]; then 
 
-        for_each -nthreads ${ncpu_foreach} * : dwi2fod msmt_csd IN/dwi_preproced${suffix}.mif \
+        for_each -force -nthreads ${ncpu_foreach} * : dwi2fod msmt_csd IN/dwi_preproced${suffix}.mif \
         ../group_average_response_wm.txt IN/wmfod_nogm.mif \
         ../group_average_response_csf.txt IN/csf_nogm.mif \
-        -mask IN/dwi_preproced${suffix}_mask.mif -force
+        -mask IN/dwi_preproced${suffix}_mask.mif -nthreads $ncpu -force
 
     elif [ "$algo" = "msmt" ]; then 
 
-        for_each -nthreads ${ncpu_foreach} * : dwi2fod msmt_csd IN/dwi_preproced${suffix}.mif \
-        ../group_average_response_wm.txt IN/wmfod_nogm.mif \
-        ../group_average_response_csf.txt IN/csf_nogm.mif \
-        -mask IN/dwi_preproced${suffix}_mask.mif -force
+        for_each -force -nthreads ${ncpu_foreach} * : dwi2fod msmt_csd IN/dwi_preproced${suffix}.mif \
+        ../group_average_response_wm.txt IN/wmfod.mif \
+        ../group_average_response_gm.txt IN/gm.mif \
+        ../group_average_response_csf.txt IN/csf.mif \
+        -mask IN/dwi_preproced${suffix}_mask.mif -nthreads $ncpu -force
 
     fi
 
@@ -451,9 +458,9 @@ if [ "$algo" = "msmt" ]; then
 
     if [ ! -f ../mtnormalise.done ]; then
 
-        for_each -nthreads ${ncpu_foreach} * : mtnormalise IN/wmfod.mif IN/wmfod_norm.mif \
+        for_each -force -nthreads ${ncpu_foreach} * : mtnormalise IN/wmfod.mif IN/wmfod_norm.mif \
         IN/gm.mif IN/gm_norm.mif IN/csf.mif IN/csf_norm.mif \
-        -mask IN/dwi_preproced${suffix}_mask.mif
+        -mask IN/dwi_preproced${suffix}_mask.mif -nthreads $ncpu
 
         if [ $? -eq 0 ]; then
             echo "done" > ../mtnormalise.done
@@ -465,9 +472,9 @@ elif [ "$algo" = "ssmt" ]; then
 
     if [ ! -f ../mtnormalise.done ]; then
 
-        for_each -nthreads ${ncpu_foreach} * : mtnormalise IN/wmfod_nogm.mif IN/wmfod_norm.mif \
+        for_each -force -nthreads ${ncpu_foreach} * : mtnormalise IN/wmfod_nogm.mif IN/wmfod_norm.mif \
         IN/csf_nogm.mif IN/csf_norm.mif \
-        -mask IN/dwi_preproced${suffix}_mask.mif
+        -mask IN/dwi_preproced${suffix}_mask.mif -nthreads $ncpu
 
         if [ $? -eq 0 ]; then
             echo "done" > ../mtnormalise.done
@@ -481,7 +488,7 @@ fi
 mkdir -p ../template/fod_input
 mkdir -p ../template/mask_input
 
-declare -a links
+# declare -a links
 
 templatesubjects_a=(${templatesubjects})
 
@@ -548,7 +555,7 @@ if [ ! -f ../fod_reg2template.done ]; then
 
     # at this point ssst, ssmt, and msmt are the same no?
 
-    for_each -nthreads ${ncpu_foreach} * : mrregister IN/wmfod_norm.mif -mask1 IN/dwi_preproced${suffix}_mask.mif \
+    for_each -force -nthreads ${ncpu_foreach} * : mrregister IN/wmfod_norm.mif -mask1 IN/dwi_preproced${suffix}_mask.mif \
     ../template/wmfod_template.mif \
     -nl_warp IN/subject2template_warp.mif IN/template2subject_warp.mif -nthreads $ncpu -force
 
@@ -571,12 +578,12 @@ if [ ! -f ../template/template_mask.mif ]; then
 
     if [ "$algo" = "ssst" ]; then 
         
-        for_each -nthreads ${ncpu_foreach} * : mrtransform IN/dwi_preproced${suffix}_normalised_mask.mif -warp IN/subject2template_warp.mif \
+        for_each -force -nthreads ${ncpu_foreach} * : mrtransform IN/dwi_preproced${suffix}_normalised_mask.mif -warp IN/subject2template_warp.mif \
         -interp nearest -datatype bit IN/dwi_mask_in_template_space.mif -nthreads $ncpu -force
 
     else
 
-        for_each -nthreads ${ncpu_foreach} * : mrtransform IN/dwi_preproced${suffix}_mask.mif -warp IN/subject2template_warp.mif \
+        for_each -force -nthreads ${ncpu_foreach} * : mrtransform IN/dwi_preproced${suffix}_mask.mif -warp IN/subject2template_warp.mif \
         -interp nearest -datatype bit IN/dwi_mask_in_template_space.mif -nthreads $ncpu -force
 
     fi
@@ -612,10 +619,10 @@ if [ ! -f ../fod_warp.done ]; then
     
     # if [ $mrtrix3new ]
     echo "   Warping FOD images to template space"
-    for_each -nthreads ${ncpu_foreach} * : mrtransform IN/wmfod_norm.mif -warp IN/subject2template_warp.mif \
+    for_each -force -nthreads ${ncpu_foreach} * : mrtransform IN/wmfod_norm.mif -warp IN/subject2template_warp.mif \
     IN/fod_in_template_space_NOT_REORIENTED.mif -reorient_fod 0 -nthreads $ncpu -force
 
-    for_each -nthreads ${ncpu_foreach} * : mrtransform IN/wmfod_norm.mif -warp IN/subject2template_warp.mif \
+    for_each -force -nthreads ${ncpu_foreach} * : mrtransform IN/wmfod_norm.mif -warp IN/subject2template_warp.mif \
     IN/fod_in_template_space_REORIENTED.mif -reorient_fod 1 -nthreads $ncpu -force
 
     if [ $? -eq 0 ]; then
@@ -668,9 +675,9 @@ if [ ! -f ../fa_adc_warp.done ]; then
     done
 
     echo "   Warping FA/ADC images to template space"
-    for_each -nthreads ${ncpu_foreach} * : mrtransform IN/FA_subj_space.mif -warp IN/subject2template_warp.mif \
+    for_each -force -nthreads ${ncpu_foreach} * : mrtransform IN/FA_subj_space.mif -warp IN/subject2template_warp.mif \
       IN/FA_in_template_space.nii.gz -nthreads $ncpu -force
-    for_each -nthreads ${ncpu_foreach} * : mrtransform IN/ADC_subj_space.mif -warp IN/subject2template_warp.mif \
+    for_each -force -nthreads ${ncpu_foreach} * : mrtransform IN/ADC_subj_space.mif -warp IN/subject2template_warp.mif \
       IN/ADC_in_template_space.nii.gz -nthreads $ncpu -force
 
     if [ $? -eq 0 ]; then
@@ -679,9 +686,9 @@ if [ ! -f ../fa_adc_warp.done ]; then
 
     mkdir -p ../template/fa
     #ln -sfn ${cwd}/dwiprep/${group_name}/fba/dwiintensitynorm/dwi_output
-    for_each -nthreads ${ncpu_foreach} * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/subjects/IN/FA_in_template_space.nii.gz ${cwd}/dwiprep/${group_name}/fba/template/fa/sub_IN_FA.nii.gz
+    for_each -force -nthreads ${ncpu_foreach} * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/subjects/IN/FA_in_template_space.nii.gz ${cwd}/dwiprep/${group_name}/fba/template/fa/sub_IN_FA.nii.gz
     mkdir -p ../template/adc
-    for_each -nthreads ${ncpu_foreach} * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/subjects/IN/ADC_in_template_space.nii.gz ${cwd}/dwiprep/${group_name}/fba/template/adc/sub_IN_ADC.nii.gz
+    for_each -force -nthreads ${ncpu_foreach} * : ln -sfn ${cwd}/dwiprep/${group_name}/fba/subjects/IN/ADC_in_template_space.nii.gz ${cwd}/dwiprep/${group_name}/fba/template/adc/sub_IN_ADC.nii.gz
 
 else
 
@@ -695,7 +702,7 @@ fi
 if [ ! -f ../fod_segment.done ]; then
 
     echo "   Segment FOD images to estimate fixels and their apparent fibre density (FD)"
-    for_each -nthreads ${ncpu_foreach} * : fod2fixel -mask ../template/template_mask.mif IN/fod_in_template_space_NOT_REORIENTED.mif \
+    for_each -force -nthreads ${ncpu_foreach} * : fod2fixel -mask ../template/template_mask.mif IN/fod_in_template_space_NOT_REORIENTED.mif \
      IN/fixel_in_template_space_NOT_REORIENTED -afd fd.mif -nthreads $ncpu -force
 
     if [ $? -eq 0 ]; then
@@ -714,7 +721,7 @@ fi
 if [ ! -f ../fod_reor_fixels.done ]; then
 
     echo "   Reorient fixels"
-    for_each -nthreads ${ncpu_foreach} * : fixelreorient IN/fixel_in_template_space_NOT_REORIENTED IN/subject2template_warp.mif \
+    for_each -force -nthreads ${ncpu_foreach} * : fixelreorient IN/fixel_in_template_space_NOT_REORIENTED IN/subject2template_warp.mif \
     IN/fixel_in_template_space -nthreads $ncpu -force
 
     if [ $? -eq 0 ]; then
@@ -733,7 +740,7 @@ fi
 if [ ! -f ../assign_fixels.done ]; then
 
     echo "   Assign subject fixels to template fixels"
-    for_each -nthreads ${ncpu_foreach} * : fixelcorrespondence IN/fixel_in_template_space/fd.mif \
+    for_each -force -nthreads ${ncpu_foreach} * : fixelcorrespondence IN/fixel_in_template_space/fd.mif \
     ../template/fixel_mask ../template/fd PRE.mif -force
   
     if [ $? -eq 0 ]; then
@@ -755,7 +762,7 @@ fi
 if [ ! -f ../compute_fc.done ]; then
 
     echo "   Compute the fibre cross-section (FC) metric"
-    for_each -nthreads ${ncpu_foreach} * : warp2metric IN/subject2template_warp.mif -fc ../template/fixel_mask ../template/fc IN.mif -force
+    for_each -force -nthreads ${ncpu_foreach} * : warp2metric IN/subject2template_warp.mif -fc ../template/fixel_mask ../template/fc IN.mif -force
   
     if [ $? -eq 0 ]; then
         echo "done" > ../compute_fc.done
@@ -773,7 +780,7 @@ if [ ! -f ../compute_log_fc.done ]; then
     echo "   Compute the fibre cross-section LOG-(FC) metric"
     mkdir -p ../template/log_fc
     cp ../template/fc/index.mif ../template/fc/directions.mif ../template/log_fc
-    for_each * : mrcalc ../template/fc/IN.mif -log ../template/log_fc/IN.mif -force
+    for_each -force * : mrcalc ../template/fc/IN.mif -log ../template/log_fc/IN.mif -force
 
    if [ $? -eq 0 ]; then
         echo "done" > ../compute_log_fc.done

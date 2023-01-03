@@ -4,12 +4,12 @@
 # This script is the first part of Sarah's Study1
 # This script computes a MS lesion map using freesurfer samseg
 # 
-v="0.9"
+version="0.9"
 
-kul_main_dir=`dirname "$0"`
-script="$0"
+kul_main_dir=$(dirname "$0")
+script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
-cwd=$(pwd)
+# $cwd & $log_dir is made in main_functions
 
 # FUNCTIONS --------------
 
@@ -164,7 +164,10 @@ function KUL_create_results_file {
         Volume_MSLesions, \
         Volume_CC_Posterior, Volume_CC_Mid_Posterior, Volume_CC_Central, \
         Volume_CC_Mid_Anterior, Volume_CC_Anterior, \
-        Volume_TIV" > $outdir/stats/$my_results_file
+        Volume_TIV, \
+        NAWM_lh_T1w_int, NAWM_rh_T1w_int, \
+        NAWM_lh_T2w_int, NAWM_rh_T2w_int, \
+        NAWM_lh_FLAIR_int, NAWM_rh_FLAIR_int" > $outdir/stats/$my_results_file
     fi
 }
 
@@ -177,6 +180,18 @@ function KUL_compute_stats {
     T1FLAIR="$outdir/${participant_and_session}_ratio-T1FLAIR_${type}.nii.gz"
     #echo $MTR
     #echo $T1T2
+
+    if [ $type_sel -eq 1 ]; then
+        type2=""
+    else
+        type2="_$type"
+    fi
+    T1="$cwd/$outdir/tmp/${participant_and_session}_T1w_iso_biascorrected${type2}.nii.gz"
+    T2="$cwd/$outdir/tmp/${participant_and_session}_T2w_iso_biascorrected${type2}_reg2T1w.nii.gz"
+    FLAIR="$cwd/$outdir/tmp/${participant_and_session}_FLAIR_iso_biascorrected${type2}_reg2T1w.nii.gz"
+    echo $T1
+    #echo $T2
+    #echo $FLAIR
 
     # define the output images
     NAWM_lh="$cwd/$outdir/rois/${participant_and_session}_NAWM_lh.nii.gz"
@@ -223,6 +238,19 @@ function KUL_compute_stats {
 
     echo " computing stats"
     # do the stats
+    if [ -f $T1 ]; then
+        NAWM_lh_T1w_int=$(mrstats -mask $NAWM_lh -output median $T1 -nthreads $ncpu)
+        NAWM_rh_T1w_int=$(mrstats -mask $NAWM_rh -output median $T1 -nthreads $ncpu)
+    fi
+    if [ -f $T2 ]; then
+        NAWM_lh_T2w_int=$(mrstats -mask $NAWM_lh -output median $T2 -nthreads $ncpu)
+        NAWM_rh_T2w_int=$(mrstats -mask $NAWM_rh -output median $T2 -nthreads $ncpu)
+    fi
+    if [ -f $FLAIR ]; then
+        NAWM_lh_FLAIR_int=$(mrstats -mask $NAWM_lh -output median $FLAIR -nthreads $ncpu)
+        NAWM_rh_FLAIR_int=$(mrstats -mask $NAWM_rh -output median $FLAIR -nthreads $ncpu)
+    fi
+
     if [ -f $MTR ]; then
         NAGM_lh_mtr=$(mrstats -mask $NAGM_lh -output median $MTR -nthreads $ncpu)
         NAGM_rh_mtr=$(mrstats -mask $NAGM_rh -output median $MTR -nthreads $ncpu)
@@ -382,7 +410,10 @@ function KUL_compute_stats {
         $Volume_MSLesions, \
         $Volume_CC_Posterior, $Volume_CC_Mid_Posterior, $Volume_CC_Central, \
         $Volume_CC_Mid_Anterior, $Volume_CC_Anterior, \
-        $Volume_TIV" >> $outdir/stats/$my_results_file
+        $Volume_TIV, \
+        $NAWM_lh_T1w_int, $NAWM_rh_T1w_int, \
+        $NAWM_lh_T2w_int, $NAWM_rh_T2w_int, \
+        $NAWM_lh_FLAIR_int, $NAWM_rh_FLAIR_int" >> $outdir/stats/$my_results_file
 
 }
 
@@ -420,6 +451,10 @@ elif  [ $type_sel -eq 4 ]; then
     type="calib-nonlin2"
 elif  [ $type_sel -eq 5 ]; then
     type="calib-nonlin3"
+elif  [ $type_sel -eq 6 ]; then
+    type="calib-nonlin2b"
+elif  [ $type_sel -eq 7 ]; then
+    type="calib-nonlin2b_nomask_second_calib"
 else
     echo "Error: wrong type"
     exit
@@ -427,8 +462,8 @@ fi
 
 if [ $group -eq 1 ]; then
     echo "wrinting group results in ALL_${type}.csv"
-    cat T1T2FLAIRMTR_ratio/sub-P*/ses-*/stats/sub-*_ses-*_${type}_results.csv | sort | head -n 1 > ALL_${type}.csv
-    cat T1T2FLAIRMTR_ratio/sub-P*/ses-*/stats/sub-*_ses-*_${type}_results.csv | sort | uniq -u >> ALL_${type}.csv
+    cat $outputdir/sub-P*/ses-*/stats/sub-*_ses-*_${type}_results.csv | sort | head -n 1 > ALL_${type}.csv
+    cat $outputdir/sub-P*/ses-*/stats/sub-*_ses-*_${type}_results.csv | sort | uniq -u >> ALL_${type}.csv
     exit
 fi
 

@@ -45,6 +45,10 @@ Optional arguments:
      -n:  number of cpu to use (default 15)
      -r:  redo certain steps (program will ask)
      -R:  make results ready
+        type 1: use cT1w as underlay
+        type 2: use FLAIR as underlay
+        type 3: use SWI as underlay
+        type 4: Use T1w as underlay
      -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
 
 USAGE
@@ -75,7 +79,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:RBr" OPT; do
+	while getopts "p:t:d:n:v:R:Br" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -99,7 +103,7 @@ else
 			redo=1
 		;;
         R) #make results
-			results=1
+			results=$OPTARG
 		;;
         v) #verbose
             verbose_level=$OPTARG
@@ -208,11 +212,7 @@ if [ $bc -eq 1 ]; then
 fi
 
 # The make RESULTS option
-if [ $results -eq 1 ];then
-
-    resultsdir_png="$globalresultsdir/figures"
-    mkdir -p $resultsdir_png
-    rm -fr $globalresultsdir/figures/*
+if [ $results -gt 0 ];then
 
     mrview_tracts[0]="Tract-csd_CST_LT"
     mrview_rgb[0]="173,216,230"
@@ -250,23 +250,53 @@ if [ $results -eq 1 ];then
     mrview_rgb[16]="50,200,100"
     mrview_tracts[17]="Tract-csd_OR_occlobe_RT"
     mrview_rgb[17]="200,50,100"
+    mrview_tracts[18]="Tract-csd_MdLF_LT"
+    mrview_rgb[18]="150,200,10"
+    mrview_tracts[19]="Tract-csd_MdLF_RT"
+    mrview_rgb[19]="200,150,10"
 
     result_type=0
 
-    underlay=$globalresultsdir/Anat/cT1w_reg2_T1w.nii.gz
+    if [ $results -eq 1 ]; then
 
-    mrview_resolution=1024
+        underlay=$globalresultsdir/Anat/cT1w_reg2_T1w.nii.gz
+        resultsdir_png="$globalresultsdir/figures"
+    
+    elif [ $results -eq 2 ]; then
 
-    for tract_set_i in {0..18..2}; do
+        underlay=$globalresultsdir/Anat/FLAIR_reg2_T1w.nii.gz
+        resultsdir_png="$globalresultsdir/figures"
 
-        if [ $tract_set_i -lt 18 ]; then
+    elif [ $results -eq 3 ]; then
+
+        underlay=$globalresultsdir/Anat/SWI_reg2_T1w.nii.gz
+        resultsdir_png="$globalresultsdir/figures"
+
+    else
+
+        underlay=$globalresultsdir/Anat/T1w.nii
+        resultsdir_png="$globalresultsdir/figures"
+
+    fi
+
+    mrview_resolution=256
+
+    rm -fr $resultsdir_png
+    mkdir -p $resultsdir_png
+    resultsdir_dcm="$globalresultsdir/DCM"
+    mkdir -p $resultsdir_dcm
+    
+
+    for tract_set_i in {0..20..2}; do
+
+        if [ $tract_set_i -lt 20 ]; then
             tract_set=(${mrview_tracts[@]:$tract_set_i:2})
             tractname=${tract_set[0]:0:-3}
             tract_i=tract_set_i
             #echo $tractname 
         else
             tract_set=(${mrview_tracts[@]})
-            tractname="ALL"
+            tractname="Tract-csd_ALL"
             tract_i=0
         fi
 
@@ -336,7 +366,8 @@ if [ $results -eq 1 ];then
                 -load $underlay \
                 $mode_plane \
                 -tractography.lighting 1 \
-                -tractography.slab 0.5 \
+                -tractography.slab 1.5 \
+                -tractography.thickness 0.3 \
                 $mrview_tck \
                 $voxel_index \
                 -force \
@@ -348,26 +379,6 @@ if [ $results -eq 1 ];then
     
     done
 
-    exit
-
-    ### under development 
-    results_final_output="RESULTS/sub-${participant}/${participant}4silvia/for_PACS"
-    mkdir -p $results_final_output
-    #SPM
-    read -p "Which SPM results (.e.g. TAAL_run-2) " answ_spm
-    read -p "Which SPM threshold (.e.g. 7.5) " answ_thr
-    SPM_orig="RESULTS/sub-${participant}/SPM/SPM_${answ_spm}.nii"
-    SPM_output="${results_final_output}/tbfMRI_${answ_spm}_thr${answ_thr}.nii"
-    mrcalc $SPM_orig $answ_thr -gt $SPM_orig -mul $SPM_output
-    exit
-
-    #Melodic
-    melodic_network="visual"
-    melodic_thr=3
-    melodic_orig="RESULTS/sub-${participant}/Melodic/melodic*${Melodic_network}*.nii"
-    melodic_output="${results_final_output}/rsfMRI_visual_thr${melodic_thr}.nii"
-    mrmath $melodic_orig mean - | \
-        mrcalc - $melodic_thr -gt - -mul $melodic_output
     exit
 
 fi
@@ -786,7 +797,7 @@ function KUL_run_VBG {
                 -l $globalresultsdir/Anat/lesion.nii \
                 -o ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
                 -m ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG \
-                -z T1 -b -B 1 -t -P 3 -n $ncpu"
+                -z T1 -b -B 1 -t -P 1 -n $ncpu"
             KUL_task_exec $verbose_level "KUL_VBG" "7_VBG"
             #wait
 
@@ -799,9 +810,9 @@ function KUL_run_VBG {
             #eval $my_cmd
 
             # copy the output of VBG to the derivatives freesurfer directory
-            #cp -r ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant} \
-            #    BIDS/derivatives/freesurfer/
-            #echo "Done computing KUL_VBG"
+            cp -r ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant} \
+                BIDS/derivatives/freesurfer/
+            echo "Done computing KUL_VBG"
         else
             echo "KUL_VBG has already run"
         fi
@@ -1028,8 +1039,8 @@ wait
 
 # STEP 8 - run SPM/melodic/msbp
 #KUL_run_fastsurfer
-KUL_run_freesurfer
-wait 
+#KUL_run_freesurfer # let msbp also do FS
+#wait 
 
 
 # STEP 9 - run SPM/melodic/msbp

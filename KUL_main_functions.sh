@@ -278,7 +278,7 @@ function kul_echo {
     local info_to_log=$1
     #echo "previous verbose_level: $verbose_level"
     if [[ -z "$verbose_level" ]]; then
-        echo "setting verbose_level = 2"
+        #echo "setting verbose_level = 2"
         verbose_level=2
     fi
     #if [ $silent -eq 0 ];then
@@ -399,10 +399,10 @@ if [ $mrtrix_version_revision_major -eq 2 ]; then
 	kul_echo "you are using an older version of MRTrix3 $mrtrix_version_revision_major"
 	kul_echo "this is not supported. Exitting"
 	exit 1
-elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -lt 100 ]; then
+elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -lt 200 ]; then
 	mrtrix3new=1
 	kul_echo "you are using a new version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor but not the latest"
-elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -gt 100 ]; then
+elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -gt 200 ]; then
 	mrtrix3new=2
 	kul_echo "you are using the newest version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor"
 else 
