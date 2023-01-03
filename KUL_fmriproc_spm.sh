@@ -184,7 +184,7 @@ function KUL_compute_SPM_matlab {
     eval $cmd
 
 
-    result=$computedir/RESULTS/MNI/${fmrifile}_space-MNI152NLin6Asym.nii
+    result=$computedir/RESULTS/MNI/${fmrifile}_space-MNI152NLin2009cAsym.nii
     cp $fmriresults/spmT_0001.nii $result
     
     global_result=${globalresultsdir}/afMRI_${fmrifile}.nii
@@ -192,7 +192,7 @@ function KUL_compute_SPM_matlab {
     # since SPM analysis was in MNI space, we transform back in native space
     input=$result
     output=$global_result
-    transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
+    transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
     find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
     reference=${find_T1w[0]}
     KUL_antsApply_Transform
@@ -366,7 +366,7 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
     done
 
     # cleanup
-    rm -rf $fmridatadir
+    #rm -rf $fmridatadir
 
     touch KUL_LOG/sub-${participant}_SPM.done
     echo "Done computing SPM"

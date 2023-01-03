@@ -622,7 +622,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
 			task_in1="mrinfo dwi/degibbs.mif -export_grad_mrtrix shard/grad.b -force"
 			num_shells_tmp=($(mrinfo dwi/degibbs.mif -shell_bvalues))
-			num_shells=${$#num_shells_tmp[@]}
+			num_shells=${#num_shells_tmp[@]}
 
 			if [ $num_shells -eq 2 ]; then
 				lmax=""
@@ -874,17 +874,20 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			underlay=$f
 			if [ -f $underlay ]; then
 				capture_prefix=$(basename -s .mif $f)
-				kul_mrview_figure
+				KUL_mrview_figure.sh -p ${participant} -u $underlay -d "$(pwd)/$capture_dir" -f $capture_prefix -t 2 
+				#kul_mrview_figure
 			fi
 		done
 		
 		underlay="qa/fa_orig.nii.gz"
 		capture_prefix="fa_orig_"
-		kul_mrview_figure
+		KUL_mrview_figure.sh -p ${participant} -u $underlay -d "$(pwd)/$capture_dir" -f $capture_prefix -t 2
+		#kul_mrview_figure
 
 		underlay="qa/fa.nii.gz"
 		capture_prefix="fa_"
-		kul_mrview_figure
+		KUL_mrview_figure.sh -p ${participant} -u $underlay -d "$(pwd)/$capture_dir" -f $capture_prefix -t 2
+		#kul_mrview_figure
 
 	fi
 

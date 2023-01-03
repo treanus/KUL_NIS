@@ -180,6 +180,11 @@ else
     mrview_underlay="$underlay"
 fi
 
+# Check once more that the underlay exists on disk
+if [ ! -f "$underlay" ];then
+    echo "The underlay does not exist. Sorry quitting."
+    exit 1
+fi
 
 # Check the output dir or set default
 if [ -z "$output_dir" ]; then 
@@ -216,7 +221,7 @@ fi
 #echo "base_overlay: $base_overlay"
 
 
-# Chech out file name
+# Check out file name
 if [ -z $output_file ]; then
     final_output_dir="${output_dir}_with_${base_overlay}"
     final_output_file=$(basename $final_output_dir)
