@@ -5,7 +5,7 @@
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 # 07/12/2021
-version="0.8"
+version="0.9"
 
 kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
@@ -332,7 +332,7 @@ if [ $results -gt 0 ];then
     elif [ $results -eq 3 ]; then
 
         underlay=$globalresultsdir/Anat/SWI_reg2_T1w.nii.gz
-        resultsdir_png="$globalresultsdir/Tracto_figure_SWI"
+        resultsdir_png="$globalresultsdir/Tracto_figures_SWI"
         resultsdir_dcm="$globalresultsdir/PACS/Tracto_SWI"
 
     else

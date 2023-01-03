@@ -301,14 +301,14 @@ if [ $type -eq 1 ]; then
 
     tract_name_orig="ML_LT"
     tract_name_final="Medial_Lemniscus_Tract_Left"
-    tract_color=3
+    tract_color=17
     tract_threshold=20
     tract_corr_threshold=3
     KUL_karawun_get_tract
 
     tract_name_orig="ML_RT"
     tract_name_final="Medial_Lemniscus_Tract_Right"
-    tract_color=4
+    tract_color=18
     tract_threshold=20
     tract_corr_threshold=3
     KUL_karawun_get_tract
