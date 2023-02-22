@@ -943,10 +943,19 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_T2='{"dataType": "anat", "modalityLabel": "T2w", "criteria": { 
-             "SeriesDescription": "*'${search_string}'*"}}'
+             "SeriesDescription": "*'${search_string}'*"}'
 
-            sub_bids_[$bs]=$(echo ${sub_bids_T2} | python -m json.tool)
+            # add an acq_label if any
+            echo $acq_label
+            if [ "$acq_label" = "" ];then
+                sub_bids_T2b='}'
+            else
+                sub_bids_T2b=', "customLabels": "acq-'${acq_label}'"}'
+            fi
 
+            echo ${sub_bids_T2}${sub_bids_T2b}
+            sub_bids_[$bs]=$(echo ${sub_bids_T2}${sub_bids_T2b} | python -m json.tool)
+            
         fi
 
     fi
