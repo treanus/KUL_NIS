@@ -110,6 +110,7 @@ tags_to_copy = [
     "0008|0030",  # Study Time
     "0008|0050",  # Accession Number
     "0008|0060",  # Modality
+    "0008|0080",  # InstitutionName
 ]
 
 # Read the nii or tiff
