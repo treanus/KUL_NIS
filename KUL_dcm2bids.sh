@@ -850,6 +850,29 @@ else
 
 fi
 
+# if there is a Smartbrain, copy it to DICOM
+if [ -d DICOM ]; then
+    IFS=$'\n'
+    sb=($(find -L $tmp -type d -name "SmartBrain*"))
+    n_sb=${#sb[@]}
+    if [ $n_sb -gt 0 ]; then
+        # find the largest .dcm
+        sb_dcm=$(find -L "${sb[0]}" -type f -printf '%s %p\n' | sort -nr | head -n 1 | awk -F/ '{ print $NF }')
+        cp -f "${sb[0]}/$sb_dcm" "DICOM/smartbrain.dcm"
+    fi
+fi
+# if there is a Localizer, copy it to DICOM
+if [ -d DICOM ]; then
+    IFS=$'\n'
+    sb=($(find -L $tmp -type d -name "Localizers*"))
+    n_sb=${#sb[@]}
+    if [ $n_sb -gt 0 ]; then
+        # find the largest .dcm
+        sb_dcm=$(find -L "${sb[0]}" -type f -printf '%s %p\n' | sort -nr | head -n 1 | awk -F/ '{ print $NF }')
+        cp -f "${sb[0]}/$sb_dcm" "DICOM/localizer.dcm"
+    fi
+fi
+
 # dump the dicom tags of all dicoms in a file
 kul_e2cl "  brute force extraction of some relevant dicom tags of all dicom files of subject $subj into file $dump_file" $log
 

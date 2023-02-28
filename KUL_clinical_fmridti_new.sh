@@ -436,7 +436,25 @@ if [ $results -gt 0 ];then
                 $mrview_exit"
             #echo $cmd
             eval $cmd
-        
+
+            if [[ "$mrview_exit" = "-exit" ]];then
+                cmd="convert $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}*.png \
+                    $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}.tiff"
+                #echo $cmd
+                eval $cmd
+
+                if [ -f study_config/smartbrain.dcm ]; then
+                    dcmdir="$resultsdir_dcm/${tractname}_${orient}"
+                    echo "Making dicoms in $dcmdir"
+                    mkdir -p $dcmdir
+                    cmd="KUL_nii2dcm.py -s ${tractname}_${orient} \
+                        $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}.tiff \
+                        study_config/smartbrain.dcm \
+                        $dcmdir"
+                    echo $cmd
+                    eval $cmd
+                fi
+            fi
         done
     
     done
@@ -1300,6 +1318,7 @@ if [ ! -f $fig_check ]; then
 else 
     echo "Figures already done"
 fi
+
 
 
 # STEP 14 - run Karawun
