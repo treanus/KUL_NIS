@@ -62,7 +62,7 @@ def writeSlices(series_tag_values, new_img, out_dir, i):
 
     # Write to the output directory and add the extension dcm, to force
     # writing in DICOM format.
-    writer.SetFileName(os.path.join(out_dir, str(i) + ".dcm"))
+    writer.SetFileName(os.path.join(out_dir, str(i).rjust(6, '0') + ".dcm"))
     writer.Execute(image_slice)
 
 
@@ -76,7 +76,17 @@ nifti_input = args.nifti
 if not os.path.exists(nifti_input):
     print(nifti_input + ' does not exist')
     exit(1)
+img_input, img_ext = os.path.splitext(nifti_input)
+print(img_ext)
+if img_ext == '.tiff':
+    tiff=1
+    print('IAssuming input is a 3d-tiff')
+else:
+    tiff=0
+    print('Assuming input is nifti')
 dcm_output = args.dicomdir
+
+# set defaults
 if args.seriesdescription:
     seriesdesc = args.seriesdescription
 else:
@@ -100,30 +110,41 @@ if args.verbose:
 # Copy relevant tags from the original meta-data dictionary (private tags are
 # also accessible).
 tags_to_copy = [
+    "0002|0002",  # Media Storage SOP Class UID
     "0010|0010",  # Patient Name
     "0010|0020",  # Patient ID
     "0010|0030",  # Patient Birth Date
     "0010|0040",  # Patient Sex
     "0020|000D",  # Study Instance UID, for machine consumption
+    "0020|000d",  # Study Instance UID, for machine consumption
     "0020|0010",  # Study ID, for human consumption
+    "0008|0016",  # SOP Class UID
     "0008|0020",  # Study Date
+    "0008|0022",  # Acquisition Date
+    "0008|0023",  # Content Date
     "0008|0030",  # Study Time
+    "0008|0032",  # Acquisition Date
+    "0008|0033",  # Content Time
     "0008|0050",  # Accession Number
     "0008|0060",  # Modality
-    "0008|0080",  # InstitutionName
+    "0008|0080",  # Institution Name
 ]
 
 # Read the nii or tiff
 nii_img = sitk.ReadImage(nifti_input)
 
-# Convert the data to int16
-np.img_data = sitk.GetArrayFromImage(nii_img)
-max = np.amax(np.img_data)
-#print(max)
-img_int16 = np.img_data * ( np.iinfo(np.int16).max / max )
-img_int16b = img_int16.astype(np.int16)
-new_img = sitk.GetImageFromArray(img_int16b)
-new_img.CopyInformation(nii_img)
+if tiff == 0:
+    # Convert the data to int16
+    print('Converting the nifti to 16bit')
+    np.img_data = sitk.GetArrayFromImage(nii_img)
+    max = np.amax(np.img_data)
+    #print(max)
+    img_int16 = np.img_data * ( np.iinfo(np.int16).max / max )
+    img_int16b = img_int16.astype(np.int16)
+    new_img = sitk.GetImageFromArray(img_int16b)
+    new_img.CopyInformation(nii_img)
+else:
+    new_img = nii_img
 
 '''
 # Check the data type and set spacing in case of TIFF
@@ -159,11 +180,12 @@ modification_date = time.strftime("%Y%m%d")
 # cannot start with zero, and separated by a '.' We create a unique series ID
 # using the date and time. Tags of interest:
 direction = new_img.GetDirection()
-series_tag_values = [
+series_tag_values_a = [
     (k, reader.GetMetaData(k))
     for k in tags_to_copy
     if reader.HasMetaDataKey(k)
-] + [
+] 
+series_tag_values_b = [
     ("0008|0031", modification_time),  # Series Time
     ("0008|0021", modification_date),  # Series Date
     ("0008|0008", "DERIVED\\SECONDARY"),  # Image Type
@@ -193,32 +215,18 @@ series_tag_values = [
     # (Patient)
     ("0008|103e", seriesdesc),  # Series Description
 ]
+series_tag_values = series_tag_values_a + series_tag_values_b
 
 # Give info
 print('Incorporating the following dicom tags:')
+#print(series_tag_values_a)
+#print(series_tag_values_b)
 print(series_tag_values)
 
-# Ckean and Make the output dir
+# Clean and Make the output dir
 if os.path.exists(dcm_output):
     shutil.rmtree(dcm_output)
 os.makedirs(dcm_output, exist_ok=True)
-
-'''
-if pixel_dtype == np.float64:
-    # If we want to write floating point values, we need to use the rescale
-    # slope, "0028|1053", to select the number of digits we want to keep. We
-    # also need to specify additional pixel storage and representation
-    # information.
-    rescale_slope = 0.001  # keep three digits after the decimal point
-    series_tag_values = series_tag_values + [
-        ("0028|1053", str(rescale_slope)),  # rescale slope
-        ("0028|1052", "0"),  # rescale intercept
-        ("0028|0100", "16"),  # bits allocated
-        ("0028|0101", "16"),  # bits stored
-        ("0028|0102", "15"),  # high bit
-        ("0028|0103", "1"),
-    ]  # pixel representation
-'''
 
 # Write slices to output directory
 list(
