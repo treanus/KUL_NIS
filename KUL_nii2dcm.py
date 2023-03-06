@@ -78,10 +78,9 @@ if not os.path.exists(nifti_input):
     print(nifti_input + ' does not exist')
     exit(1)
 img_input, img_ext = os.path.splitext(nifti_input)
-print(img_ext)
 if img_ext == '.tiff':
     tiff=1
-    print('IAssuming input is a 3d-tiff')
+    print('Assuming input is a 3d-tiff')
 else:
     tiff=0
     print('Assuming input is nifti')
