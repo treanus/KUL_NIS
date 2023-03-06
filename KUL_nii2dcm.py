@@ -18,6 +18,7 @@ parser = argparse.ArgumentParser(description="Convert a nifti or 3d-tiff to dico
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("-v", "--verbose", action="store_true", help="increase verbosity")
 parser.add_argument("-s", "--seriesdescription")
+parser.add_argument("-n", "--seriesnumber")
 parser.add_argument("nifti", help="nifti or 3d-tiff image")
 parser.add_argument("donor", help="dicom donor image")
 parser.add_argument("dicomdir", help="dicom output directory")
@@ -91,6 +92,10 @@ if args.seriesdescription:
     seriesdesc = args.seriesdescription
 else:
     seriesdesc = 'IKTsimple - KUL_NIS'
+if args.seriesnumber:
+    seriesnumber = args.seriesnumber
+else:
+    seriesnumber = ''
 
 # Read the donor DICOM
 reader = sitk.ImageFileReader()
@@ -143,6 +148,7 @@ if tiff == 0:
     img_int16b = img_int16.astype(np.int16)
     new_img = sitk.GetImageFromArray(img_int16b)
     new_img.CopyInformation(nii_img)
+    new_img = sitk.DICOMOrient(new_img, "LPS")
 else:
     new_img = nii_img
 
@@ -212,8 +218,8 @@ series_tag_values_b = [
             )
         ),
     ),  # Image Orientation
-    # (Patient)
     ("0008|103e", seriesdesc),  # Series Description
+    ("0020|0011", seriesnumber),  # Series Description
 ]
 series_tag_values = series_tag_values_a + series_tag_values_b
 
