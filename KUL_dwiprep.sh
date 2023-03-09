@@ -7,7 +7,8 @@
 # @ Ahmed Radwan - KUL - radwanphd@gmail.com
 #
 # v0.1 - dd 09/11/2018 - created
-version="v1.3 - dd 27/11/2021"
+version="v1.4 - dd 15/02/2023"
+# added extra masking approaches, mean, trace and ants
 
 # To Do
 #  - fod calc msmt-5tt in stead of dhollander
@@ -48,7 +49,8 @@ Optional arguments:
 	 -e:  options to pass to eddy (default "--slm=linear --repol")
 	 -v:  show output from mrtrix commands (0=silent, 1=normal, 2=verbose; default=1)
 	 -r:  use reverse phase data only for topup and not for further processing
-	 -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 3=legacy; 3=default)
+	 -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 
+	 	  3=legacy, 4=mean, 5=trace, 6=antsBrainExtraction; 3=default)
 
 
 Documentation:
@@ -198,7 +200,6 @@ function KUL_dwiprep_convert {
 if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
 	kul_echo " Preparing datasets from BIDS directory..."
-	#echo "preproc: $preproc"
 
 	if [ $number_of_bids_dwi_found -eq 1 ]; then #FLAG, if comparing dMRI sequences, they should not be catted
 
@@ -241,8 +242,7 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 		dwi_i=1
 		for dwi_file in $bids_dwi_found; do
 			dwi_base=${dwi_file%%.*}
-			#echo "dwi_base: $dwi_base"
-			
+
 			kul_echo "   converting ${dwi_base}.nii.gz to mif"
 			mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
 			-json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} \
@@ -281,6 +281,16 @@ function kul_dwi2mask {
 		elif [ $dwi2mask_method -eq 3 ];then
 			task_in2="dwi2mask legacy \
 				dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
+		elif [ $dwi2mask_method -eq 4 ];then
+			task_in2="dwi2mask mean \
+				dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
+		elif [ $dwi2mask_method -eq 5 ];then
+			task_in2="dwi2mask trace \
+				dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
+		elif [ $dwi2mask_method -eq 6 ]; then
+			task_in2="dwi2mask ants -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+					${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+					dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
 		fi
 	else
 		task_in2="dwi2mask \
@@ -624,7 +634,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
 			task_in1="mrinfo dwi/degibbs.mif -export_grad_mrtrix shard/grad.b -force"
 			num_shells_tmp=($(mrinfo dwi/degibbs.mif -shell_bvalues))
-			num_shells=${#num_shells_tmp[@]}
+			num_shells=${$#num_shells_tmp[@]}
 
 			if [ $num_shells -eq 2 ]; then
 				lmax=""
@@ -730,14 +740,14 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		kul_echo "    upsampling resolution..."
 		task_in="mrgrid -nthreads $ncpu -force -axis 1 5,5 dwi/biascorr.mif crop - | mrgrid -axis 1 5,5 -force - pad - | mrgrid -voxel 1.3 -force - regrid dwi/upsampled.mif"
 		KUL_task_exec $verbose_level "kul_dwiprep part 5: upsampling resolution" "5_upsample"
-		rm dwi/biascorr.mif
+		#rm dwi/biascorr.mif
 	
 
 		# copy to main directory for subsequent processing
 		kul_echo "    saving..."
 		task_in="mrconvert dwi/upsampled.mif dwi_preproced.mif -set_property comments \"Preprocessed dMRI data.\" -nthreads $ncpu -force"
 		KUL_task_exec $verbose_level "kul_dwiprep part 5: saving" "5_saving"
-		rm dwi/upsampled.mif
+		#rm dwi/upsampled.mif
 
 
 		# create a final mask of the dwi data
@@ -876,20 +886,17 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			underlay=$f
 			if [ -f $underlay ]; then
 				capture_prefix=$(basename -s .mif $f)
-				KUL_mrview_figure.sh -p ${participant} -u $underlay -d "$(pwd)/$capture_dir" -f $capture_prefix -t 2 
-				#kul_mrview_figure
+				kul_mrview_figure
 			fi
 		done
 		
 		underlay="qa/fa_orig.nii.gz"
 		capture_prefix="fa_orig_"
-		KUL_mrview_figure.sh -p ${participant} -u $underlay -d "$(pwd)/$capture_dir" -f $capture_prefix -t 2
-		#kul_mrview_figure
+		kul_mrview_figure
 
 		underlay="qa/fa.nii.gz"
 		capture_prefix="fa_"
-		KUL_mrview_figure.sh -p ${participant} -u $underlay -d "$(pwd)/$capture_dir" -f $capture_prefix -t 2
-		#kul_mrview_figure
+		kul_mrview_figure
 
 	fi
 
