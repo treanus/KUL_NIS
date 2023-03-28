@@ -443,13 +443,13 @@ if [ $results -gt 0 ];then
                 #echo $cmd
                 eval $cmd
 
-                if [ -f study_config/smartbrain.dcm ]; then
+                if [ -f DICOM/smartbrain.dcm ]; then
                     dcmdir="$resultsdir_dcm/${tractname}_${orient}"
                     echo "Making dicoms in $dcmdir"
                     mkdir -p $dcmdir
                     cmd="KUL_nii2dcm.py -s ${tractname}_${orient} \
                         $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}.tiff \
-                        study_config/smartbrain.dcm \
+                        DICOM/smartbrain.dcm \
                         $dcmdir"
                     echo $cmd
                     eval $cmd

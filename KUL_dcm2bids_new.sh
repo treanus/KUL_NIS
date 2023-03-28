@@ -330,6 +330,8 @@ function kul_dcmtags {
 
             # number of excitations given multiband
             # e = n. of excitations/slices per band
+            echo $number_of_slices
+            echo $multiband_factor
             local e=$(echo $number_of_slices $multiband_factor | awk '{print ($1 / $2) -1 }')
             local spb=$((${e}+1));
             #echo $e
@@ -642,7 +644,7 @@ function kul_find_relevant_dicom_file {
     # find the search_string in the dicom dump_file            
     # search for search_string in dump_file, find ORIGINAL, remove dicom tags, sort, take first line, remove trailing space 
     seq_file=$(grep "$ss" $dump_file | grep ORIGINAL - | cut -f1 -d"[" | sort | head -n 1 | sed -e 's/[[:space:]]*$//')
-    echo "seq_file: $seq_file"
+    #echo "seq_file: $seq_file"
 
 
     if [ "$seq_file" = "" ]; then
@@ -908,6 +910,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label expert_ss exp
         ss=${search_string}
     else
         ss=${expert_val}
+        #ss=${search_string}
     fi
     echo "ss: $ss"
 
