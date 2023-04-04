@@ -9,30 +9,76 @@ module itkImageFileReader {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "904 686 314 453"
-        sizeHint = "314 446"
+        geometry = "853 613 314 459"
+        sizeHint = "314 452"
         wasOpen = yes
       }
     }
   }
   fields  {
     instanceName = AnatNifti
-    fileDataType = "unsigned int8"
+    fileDataType = float
     autoDetermineDataType = TRUE
     correctSubVoxelShift = TRUE
     fileDimension = 3
-    info = " Could not create IO object for file /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/Anat/cT1w_reg2_T1w.nii.gz
-The file doesn't exist. 
-Filename = /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/Anat/cT1w_reg2_T1w.nii.gz
- Loaded data may be undefined."
-    numDims = 0
+    info = "Loading okay."
+    numDims = 3
     fileType = TypeNotApplicable
-    componentType = ""
-    pixelType = UNKNOWNPIXELTYPE
-    loaderType = ""
-    outputMetaDataStr = ""
+    componentType = float
+    pixelType = SCALAR
+    loaderType = NiftiImageIO
+    outputMetaDataStr = "ITK_FileNotes : 
+aux_file : 
+bitpix : 32
+cal_max : 0
+cal_min : 0
+datatype : 16
+descrip : 
+dim[0] : 3
+dim[1] : 222
+dim[2] : 288
+dim[3] : 288
+dim[4] : 1
+dim[5] : 1
+dim[6] : 1
+dim[7] : 1
+dim_info : 
+intent_code : 0
+intent_name : 
+intent_p1 : 0
+intent_p2 : 0
+intent_p3 : 0
+pixdim[0] : 1
+pixdim[1] : 0.9
+pixdim[2] : 0.888889
+pixdim[3] : 0.888889
+pixdim[4] : 0
+pixdim[5] : 0
+pixdim[6] : 0
+pixdim[7] : 0
+qform_code : 1
+qoffset_x : -80.2801
+qoffset_y : -139.479
+qoffset_z : -133.175
+quatern_b : -0.0333128
+quatern_c : -0.0244721
+quatern_d : 0.0495796
+scl_inter : 0
+scl_slope : 1
+sform_code : 1
+slice_code : 
+slice_duration : 0
+slice_end : 0
+slice_start : 0
+srow_x : 0.894497 -0.0865083 -0.0463515 -80.2801
+srow_y : 0.0905245 0.882546 0.0569423 -139.479
+srow_z : 0.040985 -0.0612563 0.885851 -133.175
+toffset : 0
+vox_offset : 352
+xyzt_units : 
+"
     suppressErrorPosting = FALSE
-    unresolvedFileName = $(NETWORK)/RESULTS/sub-test/Anat/cT1w_reg2_T1w.nii.gz
+    unresolvedFileName = $(NETWORK)/RESULTS/sub-test/Anat/T1w.nii.gz
   }
 }
 module itkImageFileReader {
@@ -41,8 +87,8 @@ module itkImageFileReader {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1220 686 314 446"
-        sizeHint = "314 446"
+        geometry = "1169 613 314 452"
+        sizeHint = "314 452"
         wasOpen = yes
       }
       window _automatic {
@@ -54,22 +100,68 @@ module itkImageFileReader {
   }
   fields  {
     instanceName = fMRINifti
-    fileDataType = "unsigned int8"
+    fileDataType = float
     autoDetermineDataType = TRUE
     correctSubVoxelShift = TRUE
     fileDimension = 3
-    info = " Could not create IO object for file /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
-The file doesn't exist. 
-Filename = /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
- Loaded data may be undefined."
-    numDims = 0
+    info = "Loading okay."
+    numDims = 3
     fileType = TypeNotApplicable
-    componentType = ""
-    pixelType = UNKNOWNPIXELTYPE
-    loaderType = ""
-    outputMetaDataStr = ""
+    componentType = float
+    pixelType = SCALAR
+    loaderType = NiftiImageIO
+    outputMetaDataStr = "ITK_FileNotes : 
+aux_file : 
+bitpix : 32
+cal_max : 0
+cal_min : 0
+datatype : 16
+descrip : 
+dim[0] : 3
+dim[1] : 222
+dim[2] : 288
+dim[3] : 288
+dim[4] : 1
+dim[5] : 1
+dim[6] : 1
+dim[7] : 1
+dim_info : 
+intent_code : 0
+intent_name : 
+intent_p1 : 0
+intent_p2 : 0
+intent_p3 : 0
+pixdim[0] : 1
+pixdim[1] : 0.9
+pixdim[2] : 0.888889
+pixdim[3] : 0.888889
+pixdim[4] : 0
+pixdim[5] : 0
+pixdim[6] : 0
+pixdim[7] : 0
+qform_code : 1
+qoffset_x : -80.2801
+qoffset_y : -139.479
+qoffset_z : -133.175
+quatern_b : -0.0333128
+quatern_c : -0.0244721
+quatern_d : 0.0495796
+scl_inter : 0
+scl_slope : 1
+sform_code : 1
+slice_code : 
+slice_duration : 0
+slice_end : 0
+slice_start : 0
+srow_x : 0.894497 -0.0865083 -0.0463515 -80.2801
+srow_y : 0.0905245 0.882546 0.0569423 -139.479
+srow_z : 0.040985 -0.0612563 0.885851 -133.175
+toffset : 0
+vox_offset : 352
+xyzt_units : 
+"
     suppressErrorPosting = FALSE
-    unresolvedFileName = $(NETWORK)/RESULTS/sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
+    unresolvedFileName = $(NETWORK)/RESULTS/sub-test/Melodic/rsfMRI_LIP_sensorimotor_ic3.nii
   }
 }
 module Threshold {
@@ -92,7 +184,7 @@ module Threshold {
   }
   fields  {
     instanceName = Threshold
-    threshold = 8
+    threshold = 6
     relativeThreshold = FALSE
     comparisonOperator = Greater
     conditionTrueWriteValue = ImgOrig
@@ -116,7 +208,7 @@ module RegistrationManual {
   fields  {
     instanceName = RegistrationManual
     layout = LAYOUT_COLUMN
-    position = "-3.06254482269287 -26.1464099884033 17.6899700164795"
+    position = "0.0361791178584099 -4.97303533554077 -9.82285594940186"
     grayWidth = 0.927500069141388
     grayCenter = 0.387500017881393
     overlayGrayWidth = 0.5
@@ -128,7 +220,7 @@ module RegistrationManual {
     scale = "1 1 1"
     rotation = "0 0 1 0"
     translation = "0 0 0"
-    center = "0 0 0"
+    center = "0.50350620447449 -5.3405749913386 -10.3169027262708"
     fillValue = 0
     matrix = "1 0 0 0
 0 1 0 0
@@ -147,8 +239,8 @@ module DirectDicomImport {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "389 689 511 405"
-        sizeHint = "800 373"
+        geometry = "340 655 511 417"
+        sizeHint = "800 385"
         wasOpen = yes
       }
       window _automatic {
@@ -521,7 +613,7 @@ validImage hasIssues fileType voxelType imgExt numVoxels numSlices numTimePoints
     dplWorkaroundValueForImageOrientationPatientTag = ""
     composeOtherFilesMode = Single
     silentTrialFileTypes = ".dat .raw .txt"
-    source = $(NETWORK)/DICOM/SmartBrain_101
+    source = $(NETWORK)/DICOM
     guiCachePath = ""
   }
 }
@@ -574,8 +666,8 @@ module Scale {
   }
   fields  {
     instanceName = Scale1
-    inputMin = -3621.11075747516
-    inputMax = 87284.1874274464
+    inputMin = 0
+    inputMax = 172186.53125
     updateMode = AutoUpdateMinMaxOn
     useTrueRange = TRUE
     typeSelect = UInt16
@@ -599,7 +691,7 @@ module Scale {
   fields  {
     instanceName = Scale4
     inputMin = 0
-    inputMax = 28.3227977752686
+    inputMax = 12.3366947174072
     updateMode = AutoUpdateMinMaxOn
     useTrueRange = TRUE
     typeSelect = UInt16
@@ -686,29 +778,29 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation
-    patientsName = ""
-    patientsBirthDate = ""
-    patientID = ""
-    patientsSex = ""
-    patientsAge = ""
+    patientsName = KOTAN^YUSUF
+    patientsBirthDate = 20120417
+    patientID = 65758513
+    patientsSex = M
+    patientsAge = 010Y
     patientComment = ""
-    studyDate = ""
+    studyDate = 20230403
     acquisitionDate = ""
-    studyDescription = ""
-    studyTime = ""
+    studyDescription = "RAD fmr hersen 37"
+    studyTime = 111416
     acquisitionTime = ""
-    studyInstanceUID = ""
-    accessionNumber = ""
-    seriesDescription = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_TRA
-    institutionName = ""
-    stationName = ""
-    bodyPartExamined = ""
-    imageComments = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_TRA
+    studyInstanceUID = 1.2.40.0.13.1.183463927149897516698970973533940026440
+    accessionNumber = PACS24514042
+    seriesDescription = rsfMRI_LIP_sensorimotor_ic3_Tresh_6_on_T1w_TRA
+    institutionName = "UZ Leuven"
+    stationName = UZLGFRADPHMR02
+    bodyPartExamined = EYE
+    imageComments = rsfMRI_LIP_sensorimotor_ic3_Tresh_6_on_T1w_TRA
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = ""
-    contentDate = 20221021
-    contentTime = 104248
+    studyID = PACS24514042
+    contentDate = 20230404
+    contentTime = 172505
   }
 }
 module OrthoReformat3 {
@@ -752,8 +844,8 @@ module Resample3D {
     isotropic = FALSE
     filterAlways = FALSE
     filterAlwaysTolerance = 0
-    zoom = "0.899999976158142 0.888842821121216 0.444421410560608"
-    imageSize = "180 256 128"
+    zoom = "0.899999976158142 0.888888895511627 0.444444447755814"
+    imageSize = "200 256 128"
     voxelSize = "1 1 2"
     subVoxelShift = "0 0 0"
     useReferenceImage = FALSE
@@ -788,8 +880,8 @@ module OrthoView2D {
     enableSlicing = TRUE
     borderOn = TRUE
     borderColor = "0.899999976158142 0.899999976158142 0.899999976158142"
-    grayWidth = 1
-    grayCenter = 0.5
+    grayWidth = 256
+    grayCenter = 128
     annotationOn = TRUE
     annotationSizeMode = ANNO_SHOW_DETAILED
     annotationFontSize = ANNO_SIZE_AUTO
@@ -857,9 +949,9 @@ module IntervalThreshold {
     innerType = UserDef
     upperType = UserDef
     centerWidthSet = FALSE
-    threshCenter = 18.5756568908691
-    threshWidth = 21.1513137817383
-    threshMin = 8
+    threshCenter = 17.5756568908691
+    threshWidth = 23.1513137817383
+    threshMin = 6
     threshMax = 29.1513137817383
     lowerUserValue = 0
     innerUserValue = 1
@@ -969,7 +1061,7 @@ module Scale {
   fields  {
     instanceName = Scale3
     inputMin = 0
-    inputMax = 130535
+    inputMax = 100502
     updateMode = AutoUpdateMinMaxOn
     useTrueRange = TRUE
     typeSelect = UInt8
@@ -983,7 +1075,7 @@ module View2D {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "456 208 535 425"
+        geometry = "158 151 535 425"
         sizeHint = "400 400"
         wasOpen = yes
       }
@@ -999,7 +1091,7 @@ module View2D {
     inventorInputOn = TRUE
     inventorOutputOn = FALSE
     view2DExtensionsOn = TRUE
-    startSlice = 0
+    startSlice = 64
     numSlices = 1
     numXSlices = 1
     sliceStep = 1
@@ -1024,8 +1116,8 @@ module View2D {
     sliceOrigin = "0 0"
     useShaders = TRUE
     useManagedInteraction = FALSE
-    lutCenter = 0.5
-    lutWidth = 1
+    lutCenter = 128
+    lutWidth = 256
     annotationOn = TRUE
     annotationMode = ANNO_MODE_AUTO
     annotationSizeMode = ANNO_SHOW_DETAILED
@@ -1062,29 +1154,29 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation1
-    patientsName = ""
-    patientsBirthDate = ""
-    patientID = ""
-    patientsSex = ""
-    patientsAge = ""
+    patientsName = KOTAN^YUSUF
+    patientsBirthDate = 20120417
+    patientID = 65758513
+    patientsSex = M
+    patientsAge = 010Y
     patientComment = ""
-    studyDate = ""
+    studyDate = 20230403
     acquisitionDate = ""
-    studyDescription = ""
-    studyTime = ""
+    studyDescription = "RAD fmr hersen 37"
+    studyTime = 111416
     acquisitionTime = ""
-    studyInstanceUID = ""
-    accessionNumber = ""
-    seriesDescription = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_COR
-    institutionName = ""
-    stationName = ""
-    bodyPartExamined = ""
-    imageComments = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_COR
+    studyInstanceUID = 1.2.40.0.13.1.183463927149897516698970973533940026440
+    accessionNumber = PACS24514042
+    seriesDescription = rsfMRI_LIP_sensorimotor_ic3_Tresh_6_on_T1w_COR
+    institutionName = "UZ Leuven"
+    stationName = UZLGFRADPHMR02
+    bodyPartExamined = EYE
+    imageComments = rsfMRI_LIP_sensorimotor_ic3_Tresh_6_on_T1w_COR
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = ""
-    contentDate = 20221021
-    contentTime = 104248
+    studyID = PACS24514042
+    contentDate = 20230404
+    contentTime = 172505
   }
 }
 module Resample3D {
@@ -1106,8 +1198,8 @@ module Resample3D {
     isotropic = FALSE
     filterAlways = FALSE
     filterAlwaysTolerance = 0
-    zoom = "0.899999976158142 0.888842821121216 0.444421410560608"
-    imageSize = "180 256 128"
+    zoom = "0.899999976158142 0.888888895511627 0.444444447755814"
+    imageSize = "200 256 128"
     voxelSize = "1 1 2"
     subVoxelShift = "0 0 0"
     useReferenceImage = FALSE
@@ -1119,7 +1211,7 @@ module View2D {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1555 210 534 426"
+        geometry = "1236 150 534 426"
         sizeHint = "400 400"
         wasOpen = yes
       }
@@ -1130,7 +1222,7 @@ module View2D {
     inventorInputOn = TRUE
     inventorOutputOn = FALSE
     view2DExtensionsOn = TRUE
-    startSlice = 0
+    startSlice = 64
     numSlices = 1
     numXSlices = 1
     sliceStep = 1
@@ -1155,8 +1247,8 @@ module View2D {
     sliceOrigin = "0 0"
     useShaders = TRUE
     useManagedInteraction = FALSE
-    lutCenter = 0.5
-    lutWidth = 1
+    lutCenter = 128
+    lutWidth = 256
     annotationOn = TRUE
     annotationMode = ANNO_MODE_AUTO
     annotationSizeMode = ANNO_SHOW_DETAILED
@@ -1193,29 +1285,29 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation2
-    patientsName = ""
-    patientsBirthDate = ""
-    patientID = ""
-    patientsSex = ""
-    patientsAge = ""
+    patientsName = KOTAN^YUSUF
+    patientsBirthDate = 20120417
+    patientID = 65758513
+    patientsSex = M
+    patientsAge = 010Y
     patientComment = ""
-    studyDate = ""
+    studyDate = 20230403
     acquisitionDate = ""
-    studyDescription = ""
-    studyTime = ""
+    studyDescription = "RAD fmr hersen 37"
+    studyTime = 111416
     acquisitionTime = ""
-    studyInstanceUID = ""
-    accessionNumber = ""
-    seriesDescription = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_SAG
-    institutionName = ""
-    stationName = ""
-    bodyPartExamined = ""
-    imageComments = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_SAG
+    studyInstanceUID = 1.2.40.0.13.1.183463927149897516698970973533940026440
+    accessionNumber = PACS24514042
+    seriesDescription = rsfMRI_LIP_sensorimotor_ic3_Tresh_6_on_T1w_SAG
+    institutionName = "UZ Leuven"
+    stationName = UZLGFRADPHMR02
+    bodyPartExamined = EYE
+    imageComments = rsfMRI_LIP_sensorimotor_ic3_Tresh_6_on_T1w_SAG
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = ""
-    contentDate = 20221021
-    contentTime = 104248
+    studyID = PACS24514042
+    contentDate = 20230404
+    contentTime = 172505
   }
 }
 module Resample3D {
@@ -1237,8 +1329,8 @@ module Resample3D {
     isotropic = FALSE
     filterAlways = FALSE
     filterAlwaysTolerance = 0
-    zoom = "0.888842821121216 0.888842821121216 0.449999988079071"
-    imageSize = "256 256 90"
+    zoom = "0.888888895511627 0.888888895511627 0.449999988079071"
+    imageSize = "256 256 100"
     voxelSize = "1 1 2"
     subVoxelShift = "0 0 0"
     useReferenceImage = FALSE
@@ -1250,7 +1342,7 @@ module View2D {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1004 211 539 426"
+        geometry = "695 150 539 426"
         sizeHint = "400 400"
         wasOpen = yes
       }
@@ -1261,7 +1353,7 @@ module View2D {
     inventorInputOn = TRUE
     inventorOutputOn = FALSE
     view2DExtensionsOn = TRUE
-    startSlice = 0
+    startSlice = 50
     numSlices = 1
     numXSlices = 1
     sliceStep = 1
@@ -1286,8 +1378,8 @@ module View2D {
     sliceOrigin = "0 0"
     useShaders = TRUE
     useManagedInteraction = FALSE
-    lutCenter = 0.5
-    lutWidth = 1
+    lutCenter = 128
+    lutWidth = 256
     annotationOn = TRUE
     annotationMode = ANNO_MODE_AUTO
     annotationSizeMode = ANNO_SHOW_DETAILED
@@ -1311,7 +1403,7 @@ module Comment {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1542 809 230 54"
+        geometry = "1485 763 230 54"
         sizeHint = "256 209"
         wasOpen = yes
       }
@@ -1324,7 +1416,7 @@ module Comment {
   }
   fields  {
     instanceName = Thres
-    comment = 8
+    comment = 6
   }
 }
 module Comment {
@@ -1333,7 +1425,7 @@ module Comment {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1542 897 412 51"
+        geometry = "1485 851 412 51"
         sizeHint = "256 209"
         wasOpen = yes
       }
@@ -1346,7 +1438,7 @@ module Comment {
   }
   fields  {
     instanceName = Task
-    comment = rsfMRI_rest_acq-multiTE_sensorimotor_ic1
+    comment = rsfMRI_LIP_sensorimotor_ic3
   }
 }
 module StringUtils {
@@ -1371,9 +1463,9 @@ module StringUtils {
     instanceName = Task_Treshold
     operationType = Concatenate
     string1 = ""
-    string2 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1
+    string2 = rsfMRI_LIP_sensorimotor_ic3
     string3 = Tresh
-    string4 = 8
+    string4 = 6
     string5 = ""
     string6 = ""
     stringPrefix = [
@@ -1400,8 +1492,8 @@ module StringUtils {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "530 613 395 361"
-        sizeHint = "395 361"
+        geometry = "829 594 395 379"
+        sizeHint = "395 379"
         wasOpen = no
       }
       window _automatic {
@@ -1414,18 +1506,18 @@ module StringUtils {
   fields  {
     instanceName = Task_Tresh_TRA
     operationType = Concatenate
-    string1 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8
-    string2 = _TRA
-    string3 = ""
-    string4 = ""
+    string1 = rsfMRI_LIP_sensorimotor_ic3_Tresh_6
+    string2 = _on_
+    string3 = T1w
+    string4 = _TRA
     string5 = ""
     string6 = ""
     stringPrefix = [
     stringPostfix = ]
     toggle1 = TRUE
     toggle2 = TRUE
-    toggle3 = FALSE
-    toggle4 = FALSE
+    toggle3 = TRUE
+    toggle4 = TRUE
     toggle5 = FALSE
     toggle6 = FALSE
     togglePrefix = FALSE
@@ -1464,7 +1556,7 @@ module ImageSave {
     comment = MeVisLab
     allowOverwrite = TRUE
     autoFilename = TRUE
-    sourceName = /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/PACS/fMRI/rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_TRA
+    sourceName = /home/stefan/DATA0/clinical_sub-test_type4/RESULTS/sub-test/PACS/fMRI/rsfMRI_LIP_sensorimotor_ic3_Tresh_6_on_T1w_TRA
     postfix = ""
     dicomNameUsed = FALSE
     dicomMetaHeader = TRUE
@@ -1510,18 +1602,18 @@ module StringUtils {
   fields  {
     instanceName = Task_Tresh_COR
     operationType = Concatenate
-    string1 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8
-    string2 = _COR
-    string3 = ""
-    string4 = ""
+    string1 = rsfMRI_LIP_sensorimotor_ic3_Tresh_6
+    string2 = _on_
+    string3 = T1w
+    string4 = _COR
     string5 = ""
     string6 = ""
     stringPrefix = [
     stringPostfix = ]
     toggle1 = TRUE
     toggle2 = TRUE
-    toggle3 = FALSE
-    toggle4 = FALSE
+    toggle3 = TRUE
+    toggle4 = TRUE
     toggle5 = FALSE
     toggle6 = FALSE
     togglePrefix = FALSE
@@ -1560,7 +1652,7 @@ module ImageSave {
     comment = MeVisLab
     allowOverwrite = TRUE
     autoFilename = TRUE
-    sourceName = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_COR
+    sourceName = rsfMRI_LIP_sensorimotor_ic3_Tresh_6_on_T1w_COR
     postfix = ""
     dicomNameUsed = FALSE
     dicomMetaHeader = TRUE
@@ -1592,7 +1684,7 @@ module Trigger {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "1543 982 333 109"
+        geometry = "1485 936 333 109"
         sizeHint = "260 227"
         wasOpen = yes
       }
@@ -1634,7 +1726,7 @@ module ImageSave {
     comment = MeVisLab
     allowOverwrite = TRUE
     autoFilename = TRUE
-    sourceName = /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/PACS/fMRI/rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_SAG
+    sourceName = /home/stefan/DATA0/clinical_sub-test_type4/RESULTS/sub-test/PACS/fMRI/rsfMRI_LIP_sensorimotor_ic3_Tresh_6_on_T1w_SAG
     postfix = ""
     dicomNameUsed = FALSE
     dicomMetaHeader = TRUE
@@ -1666,8 +1758,8 @@ module StringUtils {
     showNetworkPanel = true
     windows  {
       window _default {
-        geometry = "857 416 395 361"
-        sizeHint = "395 361"
+        geometry = "257 210 395 379"
+        sizeHint = "395 379"
         wasOpen = no
       }
       window _automatic {
@@ -1680,18 +1772,18 @@ module StringUtils {
   fields  {
     instanceName = Task_Tresh_SAG
     operationType = Concatenate
-    string1 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8
-    string2 = _SAG
-    string3 = ""
-    string4 = ""
+    string1 = rsfMRI_LIP_sensorimotor_ic3_Tresh_6
+    string2 = _on_
+    string3 = T1w
+    string4 = _SAG
     string5 = ""
     string6 = ""
     stringPrefix = [
     stringPostfix = ]
     toggle1 = TRUE
     toggle2 = TRUE
-    toggle3 = FALSE
-    toggle4 = FALSE
+    toggle3 = TRUE
+    toggle4 = TRUE
     toggle5 = FALSE
     toggle6 = FALSE
     togglePrefix = FALSE
@@ -1709,8 +1801,8 @@ module StringSplit {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1745 347 500 739"
-        sizeHint = "500 739"
+        geometry = "710 228 500 757"
+        sizeHint = "500 757"
         wasOpen = no
       }
       window _automatic {
@@ -1722,7 +1814,7 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit
-    inString = /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
+    inString = /home/stefan/DATA0/clinical_sub-test_type4/RESULTS/sub-test/Melodic/rsfMRI_LIP_sensorimotor_ic3.nii
     separators = RESULTS
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
@@ -1751,11 +1843,11 @@ module StringUtils {
   fields  {
     instanceName = Pathname
     operationType = Concatenate
-    string1 = /home/stefan/DATA0/clinical_sub-Verpoorten/
+    string1 = /home/stefan/DATA0/clinical_sub-test_type4/
     string2 = RESULTS/
     string3 = sub-test
     string4 = /PACS/fMRI/
-    string5 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_TRA
+    string5 = rsfMRI_LIP_sensorimotor_ic3_Tresh_6_on_T1w_TRA
     string6 = ""
     stringPrefix = [
     stringPostfix = ]
@@ -1795,11 +1887,11 @@ module StringUtils {
   fields  {
     instanceName = StringUtils2
     operationType = Concatenate
-    string1 = /home/stefan/DATA0/clinical_sub-Verpoorten/
+    string1 = /home/stefan/DATA0/clinical_sub-test_type4/
     string2 = RESULTS/
     string3 = sub-test
     string4 = /PACS/fMRI/
-    string5 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_COR
+    string5 = rsfMRI_LIP_sensorimotor_ic3_Tresh_6_on_T1w_COR
     string6 = ""
     stringPrefix = [
     stringPostfix = ]
@@ -1839,11 +1931,11 @@ module StringUtils {
   fields  {
     instanceName = StringUtils1
     operationType = Concatenate
-    string1 = /home/stefan/DATA0/clinical_sub-Verpoorten/
+    string1 = /home/stefan/DATA0/clinical_sub-test_type4/
     string2 = RESULTS/
     string3 = sub-test
     string4 = /PACS/fMRI/
-    string5 = rsfMRI_rest_acq-multiTE_sensorimotor_ic1_Tresh_8_SAG
+    string5 = rsfMRI_LIP_sensorimotor_ic3_Tresh_6_on_T1w_SAG
     string6 = ""
     stringPrefix = [
     stringPostfix = ]
@@ -1881,7 +1973,7 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit1
-    inString = /home/stefan/DATA0/clinical_sub-Verpoorten/RESULTS/sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
+    inString = /home/stefan/DATA0/clinical_sub-test_type4/RESULTS/sub-test/Melodic/rsfMRI_LIP_sensorimotor_ic3.nii
     separators = RESULTS
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
@@ -2007,7 +2099,7 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit3
-    inString = /sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
+    inString = /sub-test/Melodic/rsfMRI_LIP_sensorimotor_ic3.nii
     separators = "/ .nii"
     trimWhitespace = TRUE
     selectedSubStringIndex = 0
@@ -2021,8 +2113,8 @@ module StringSplit {
     moduleGroupName = ""
     windows  {
       window _default {
-        geometry = "1180 769 500 739"
-        sizeHint = "500 739"
+        geometry = "710 228 500 757"
+        sizeHint = "500 757"
         wasOpen = no
       }
       window _automatic {
@@ -2034,7 +2126,7 @@ module StringSplit {
   }
   fields  {
     instanceName = StringSplit4
-    inString = /sub-test/Melodic/rsfMRI_rest_acq-multiTE_sensorimotor_ic1.nii
+    inString = /sub-test/Melodic/rsfMRI_LIP_sensorimotor_ic3.nii
     separators = /
     trimWhitespace = TRUE
     selectedSubStringIndex = 1
@@ -2130,6 +2222,60 @@ module View2D {
     useRelativeLUTIfNoInputImage = TRUE
   }
 }
+module StringSplit {
+  internal  {
+    frame = "305 933 96 56"
+    moduleGroupName = ""
+    windows  {
+      window _default {
+        geometry = "1290 212 500 757"
+        sizeHint = "500 757"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "31 294 727 600"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringSplit5
+    inString = $(NETWORK)/RESULTS/sub-test/Anat/T1w.nii.gz
+    separators = Anat/
+    trimWhitespace = TRUE
+    selectedSubStringIndex = 0
+    searchSubstring = ""
+    searchIgnoreCase = FALSE
+  }
+}
+module StringSplit {
+  internal  {
+    frame = "145 933 96 56"
+    moduleGroupName = ""
+    windows  {
+      window _default {
+        geometry = "202 161 500 757"
+        sizeHint = "500 757"
+        wasOpen = no
+      }
+      window _automatic {
+        geometry = "31 294 727 600"
+        sizeHint = "256 192"
+        wasOpen = no
+      }
+    }
+  }
+  fields  {
+    instanceName = StringSplit6
+    inString = T1w.nii.gz
+    separators = .nii.gz
+    trimWhitespace = TRUE
+    selectedSubStringIndex = 0
+    searchSubstring = ""
+    searchIgnoreCase = FALSE
+  }
+}
 connections  {
   Threshold.input0 = RegistrationManual.outReformatImage
   Threshold.threshold = Thres.comment
@@ -2175,10 +2321,12 @@ connections  {
   Task_Treshold.string2 = StringSplit3.subString3
   Task_Treshold.string4 = Thres.comment
   Task_Tresh_TRA.string1 = Task_Treshold.result
+  Task_Tresh_TRA.string3 = StringSplit6.lastSubString
   ImageSave.input0 = DicomSetPatientInformation.output0
   ImageSave.save = SAVE_DICOMS.trigger
   ImageSave.sourceName = Pathname.result
   Task_Tresh_COR.string1 = Task_Treshold.result
+  Task_Tresh_COR.string3 = StringSplit6.lastSubString
   ImageSave1.input0 = DicomSetPatientInformation1.output0
   ImageSave1.filename = StringUtils2.result
   ImageSave1.save = SAVE_DICOMS.trigger
@@ -2187,6 +2335,7 @@ connections  {
   ImageSave2.save = SAVE_DICOMS.trigger
   ImageSave2.sourceName = StringUtils1.result
   Task_Tresh_SAG.string1 = Task_Treshold.result
+  Task_Tresh_SAG.string3 = StringSplit6.lastSubString
   StringSplit.inString = fMRINifti.fileName
   Pathname.string1 = StringSplit.subString0
   Pathname.string3 = StringUtils1.string3
@@ -2203,5 +2352,7 @@ connections  {
   StringSplit3.inString = StringSplit1.subString1
   StringSplit4.inString = StringSplit.subString1
   View2D3.inImage = ImageLoad.output0
+  StringSplit5.inString = AnatNifti.unresolvedFileName
+  StringSplit6.inString = StringSplit5.lastSubString
 }
 networkModel = ""

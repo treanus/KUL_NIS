@@ -189,16 +189,16 @@ derivativesdir=${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}
 
 function KUL_scaffold {
 
-    echo "Making scaffold for clinical_sub-${participant}"
-    mkdir -p $cwd/clinical_sub-${participant}/DICOM
-    mkdir -p $cwd/clinical_sub-${participant}/study_config
-    rm -fr $cwd/clinical_sub-${participant}/study_config/*
+    echo "Making scaffold for clinical_sub-${participant}_type${type}"
+    mkdir -p $cwd/clinical_sub-${participant}_type${type}/DICOM
+    mkdir -p $cwd/clinical_sub-${participant}_type${type}/study_config
+    rm -fr $cwd/clinical_sub-${participant}_type${type}/study_config/*
     if [ $type -lt 5 ]; then
         echo "Setting up for a tumor/epilepsy/... patient (type: $type)"
-        cp ${kul_main_dir}/study_config/clinical_fmri_dmri/* $cwd/clinical_sub-${participant}/study_config
+        cp ${kul_main_dir}/study_config/clinical_fmri_dmri/* $cwd/clinical_sub-${participant}_type${type}/study_config
     else
         echo "Setting up for a DBS patient (type: $type)"
-        cp ${kul_main_dir}/study_config/clinical_dmri_dbs/* $cwd/clinical_sub-${participant}/study_config
+        cp ${kul_main_dir}/study_config/clinical_dmri_dbs/* $cwd/clinical_sub-${participant}_type${type}/study_config
     fi
 
     exit 0
