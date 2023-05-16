@@ -232,7 +232,7 @@ if [ $bc -eq 1 ]; then
         echo "Please try again"
     done    
     today=$(date +%Y_%m_%d)
-    7z a -bd -y -p${password} -mhe=on -mx=7 ../Finished_${today}_sub-${participant}.7z * 
+    7z a -bd -y -p${password} -mhe=on -mx=7 ../Finished_${today}_sub-${participant}_type${type}.7z * 
 
     exit 0
 fi
