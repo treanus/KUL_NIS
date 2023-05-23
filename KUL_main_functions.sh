@@ -397,14 +397,20 @@ mrtrix_version_revision_minor=$(mrconvert | head -1 | cut -d'-' -f2)
 if [ $mrtrix_version_revision_major -eq 2 ]; then
 	mrtrix3new=0
 	kul_echo "you are using an older version of MRTrix3 $mrtrix_version_revision_major"
-	kul_echo "this is not supported. Exitting"
+	kul_echo "this is not supported. Exiting"
 	exit 1
 elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -lt 200 ]; then
 	mrtrix3new=1
 	kul_echo "you are using a new version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor but not the latest"
-elif [ $mrtrix_version_revision_major -eq 3 ] && [ $mrtrix_version_revision_minor -gt 200 ]; then
+elif [ $mrtrix_version_revision_major -ge 3 ] && [ $mrtrix_version_revision_minor -gt 200 ]; then
 	mrtrix3new=2
 	kul_echo "you are using the newest version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor"
+elif [ $mrtrix_version_revision_major -ge 3 ]; then
+    Has_legacy=$(dwi2mask | head -18 | grep legacy | rev | cut -d "," -f3 | rev)
+    if [ ! -z ${Has_legacy} ]; then
+        mrtrix3new=2
+	    kul_echo "you are using the newest version of MRTrix3 $mrtrix_version_revision_major $mrtrix_version_revision_minor"
+    fi
 else 
 	kul_echo "cannot find correct mrtrix versions - exitting"
 	exit 1
