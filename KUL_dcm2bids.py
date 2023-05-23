@@ -61,12 +61,10 @@ dict_tags = {'Modality': '0008 0060', \
         'StationName': '0008 1010', \
         'BodyPartExamined': '0018 0015', \
         'PatientPosition': '0018 5100', \
-        'ProcedureStepDescription': '0040 0254', \
         'SoftwareVersions': '0018 1020', \
         'MRAcquisitionType': '0018 0023', \
         'SeriesDescription': '0008 103E', \
         'ProtocolName': '0018 1030', \
-        'PhilipsRescaleSlope': 
         'WaterFatShift': '2001 1022', \
         'EPIFactor': '2001 1013', \
         'Rows': '0028 0010'}
@@ -74,8 +72,8 @@ dict_tags = {'Modality': '0008 0060', \
 # get the relevant tags
 dict_dcm = {}
 for key in dict_tags:
-    #print(key)
-    #print(dict_tags[key])
+    print(key)
+    print(dict_tags[key])
     dict_tags[key] = getDicomTag(dict_tags[key])
     #print(dict_tags[key])
     dict_dcm.update({key : dict_tags[key]})
@@ -129,45 +127,47 @@ if not os.path.exists(nii_dir):
 i = 0
 dcm_serie = dcm_series
 #print(i)
-#for j, nii_part in enumerate(nii_parts):
-j = 0
-#print(j)
-print(bids_type[i])
-if bids_type[i] == 'dwi':
-    part = '_part-' + str(nii_part)
-else:
-    part = ''
+for j, nii_part in enumerate(nii_parts):
+    #j = 0
+    #nii_part = nii_parts[0]
+    #print(j)
+    print(bids_type[i])
+    if bids_type[i] == 'dwi':
+        part = '_part-' + str(nii_part)
+    else:
+        part = ''
 
-if args.pe_direction:
-    pe = '_acq-' + dcm_pe[i]
-else:
-    pe = ''
-nii_file = 'sub-' + participant + pe + part + '_' + str(bids_type[i])
-nii_nii = os.path.join(nii_dir,nii_file) + '.nii.gz'
-nii_json = os.path.join(nii_dir,nii_file) + '.json'
-if bids_type[i] == 'dwi':
-    nii_bval = os.path.join(nii_dir,nii_file) + '.bval'
-    nii_bvec = os.path.join(nii_dir,nii_file) + '.bvec'
-    export_grad_fls = " -export_grad_fsl " + nii_bvec + " " + nii_bval 
-    property_pe = " -set_property \"PhaseEncodingDirection\" \"" + str(nii_pe[i]) + "\" "
-else:
-    export_grad_fls = ""
-    property_pe = ""
+    if args.pe_direction:
+        pe = '_acq-' + dcm_pe[i]
+    else:
+        pe = ''
+    nii_file = 'sub-' + participant + pe + part + '_' + str(bids_type[i])
+    nii_nii = os.path.join(nii_dir,nii_file) + '.nii.gz'
+    nii_json = os.path.join(nii_dir,nii_file) + '.json'
+    if bids_type[i] == 'dwi':
+        nii_bval = os.path.join(nii_dir,nii_file) + '.bval'
+        nii_bvec = os.path.join(nii_dir,nii_file) + '.bvec'
+        export_grad_fls = " -export_grad_fsl " + nii_bvec + " " + nii_bval 
+        property_pe = " -set_property \"PhaseEncodingDirection\" \"" + str(nii_pe[i]) + "\" "
+    else:
+        export_grad_fls = ""
+        property_pe = ""
 
-# check if we need to check on a type (e.g. M_FFE) too & set the output type if not specified
-if dcm_types:
-    search_type = " | grep " + dcm_types[j]    
-else:
-    search_type = ""
+    # check if we need to check on a type (e.g. M_FFE) too & set the output type if not specified
+    if dcm_types:
+        search_type = " | grep " + dcm_types[j]    
+    else:
+        search_type = ""
 
-cmd = "echo q | mrinfo . 2>&1 | grep " + str(dcm_serie) + \
-    search_type + " | awk '{print $1}' | mrconvert " + \
-    dcm_dir + " " +  \
-    additional_properties + ' ' + \
-    " -json_export " + nii_json + ' ' + \
-    export_grad_fls + ' ' + \
-    property_pe + ' ' + \
-    nii_nii + ' -force'
-print(cmd)
-out = os.popen(cmd).read().strip()
-print(out)
+    cmd = "echo q | mrinfo \"" + str(dcm_dir) + "\" 2>&1 | grep " + str(dcm_serie[0]) + \
+        search_type + " | awk '{print $1}' | mrconvert " + \
+        " \"" + str(dcm_dir) + "\" " +  \
+        additional_properties + ' ' + \
+        " -json_export " + nii_json + ' ' + \
+        export_grad_fls + ' ' + \
+        property_pe + ' ' + \
+        nii_nii + ' -force'
+    print(cmd)
+    #exit()
+    out = os.popen(cmd).read().strip()
+    print(out)
