@@ -169,7 +169,11 @@ mkdir -p Karawun/sub-${participant}/labels
 mkdir -p Karawun/sub-${participant}/tck
 mkdir -p Karawun/sub-${participant}/DICOM
 
-mrcalc RESULTS/sub-${participant}/Anat/T1w.nii.gz 100 -div Karawun/sub-${participant}/T1w.nii.gz -force
+T1w_in="RESULTS/sub-${participant}/Anat/T1w.nii.gz"
+T1w_min=$(mrstats -output min $T1w_in)
+T1w_max=$(mrstats -output max $T1w_in)
+T1w_factor=$(scale=10; echo "($T1w_max-($T1w_min))/32767" | bc)
+mrcalc $T1w_in $T1w_min -sub $T1w_factor -div Karawun/sub-${participant}/T1w.nii.gz -force
 
 if [ $type -eq 1 ]; then
 
