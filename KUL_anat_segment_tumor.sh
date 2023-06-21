@@ -353,7 +353,7 @@ mkdir -p $globalresultsdir/Anat
 
 if [ $result -eq 0 ]; then
     # Get the data from KUL_anat_register_rigid
-    ln -sf $cwd/BIDS/derivatives/KUL_compute/sub-$participant/KUL_anat_register_rigid/*.gz $globalresultsdir/Anat
+    cp $cwd/BIDS/derivatives/KUL_compute/sub-$participant/KUL_anat_register_rigid/*.gz $globalresultsdir/Anat
 
     # STEP 2 - run HD-GLIO-AUTO
     KUL_hd_glio_auto
@@ -390,9 +390,9 @@ if [ $result -eq 0 ]; then
 
         kul_echo "hd-glio-auto found $hdglio_output1"
         #echo $hdglio_type_found
-        cmd="mrcalc $hdglio_segmentation 1 -eq - | maskfilter - dilate -npass 25 -nthreads $ncpu - | \
+        cmd="mrcalc $hdglio_segmentation 1 -eq - | maskfilter - dilate -npass 10 -nthreads $ncpu - | \
         maskfilter - fill - -nthreads $ncpu | \
-        maskfilter - erode ${hdglio_output1} -npass 25 -nthreads $ncpu -force"
+        maskfilter - erode ${hdglio_output1} -npass 10 -nthreads $ncpu -force"
         #echo $cmd
         eval $cmd 
 
@@ -409,9 +409,9 @@ if [ $result -eq 0 ]; then
 
         kul_echo "hd-glio-auto found $hdglio_output2"
         #echo $hdglio_type_found
-        cmd="mrcalc $hdglio_segmentation 2 -eq - | maskfilter - dilate -npass 25 -nthreads $ncpu - | \
+        cmd="mrcalc $hdglio_segmentation 2 -eq - | maskfilter - dilate -npass 10 -nthreads $ncpu - | \
         maskfilter - fill - -nthreads $ncpu | \
-        maskfilter - erode ${hdglio_output2} -npass 25 -nthreads $ncpu -force"
+        maskfilter - erode ${hdglio_output2} -npass 10 -nthreads $ncpu -force"
         #echo $cmd
         eval $cmd
 
@@ -443,7 +443,7 @@ if [ $result -eq 0 ]; then
         $fastsurferoutput -force
     rm -rf $kulderivativesdir/ventricle1.nii.gz \
         $kulderivativesdir/ventricle2.nii.gz
-    ln -sf $fastsurferoutput $globalresultsdir/Lesion/
+    cp $fastsurferoutput $globalresultsdir/Lesion/
 
 
     # STEP 5C - Correct RESSEG
@@ -500,7 +500,7 @@ if [ $result -eq 0 ]; then
     maskfilter -nthreads $ncpu - fill - | \
     maskfilter -nthreads $ncpu -npass 5 - erode $local_output_resseg -force
     rm -rf $kulderivativesdir/tmp_*.gz
-    ln -sf $local_output_resseg $global_output_resseg
+    cp $local_output_resseg $global_output_resseg
 
     # compute a refined whole lesion + cavity
     if [ $resseg_use -eq 1 ]; then
@@ -517,10 +517,10 @@ if [ $result -eq 0 ]; then
 
     maskfilter $kulderivativesdir/tmp_lesion_full.nii.gz dilate - -npass 5 -nthreads $ncpu | \
     maskfilter - connect - -nthreads $ncpu | \
-    maskfilter - erode $kulderivativesdir/sub-${participant}_lesion_and_cavity.nii.gz  -nthreads $ncpu -force
+    maskfilter - erode -npass 5 $kulderivativesdir/sub-${participant}_lesion_and_cavity.nii.gz  -nthreads $ncpu -force
     rm -rf $kulderivativesdir/tmp_*.nii.gz
 
-    ln -sf $kulderivativesdir/sub-${participant}_lesion_and_cavity.nii.gz \
+    cp $kulderivativesdir/sub-${participant}_lesion_and_cavity.nii.gz \
         $global_output_full
 
 fi

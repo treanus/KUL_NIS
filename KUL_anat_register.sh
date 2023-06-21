@@ -47,6 +47,10 @@ Optional arguments:
      -c:  use the bias corrected images as input (from KUL_anat_biascorrect.sh)
      -m:  mask the inputs (1=source & target, 2=source only, 3=target only)
      -w:  register non-rigidly using antsRegistrationSyN
+     -r:  type of registration
+            1: rigid (default)
+            2: affine
+            3: elastic using antsRegistrationSyn (same as -w option, kept for compatibility)
      -d:  output directory
      -i:  interpolation type (1=BSpline, 2=NearestNeighbor; default=1)
      -o:  apply the transformation to other images (put these between "")
@@ -75,6 +79,7 @@ warp2mni=0
 output_dir=""
 od=0
 mask=0
+reg_type=1
 
 # Set required options
 p_flag=0
@@ -86,7 +91,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:s:i:o:n:v:d:m:cw" OPT; do
+	while getopts "p:t:s:i:o:n:v:d:m:r:cw" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -111,6 +116,9 @@ else
 		;;
         m) #mask
 			mask=$OPTARG
+		;;
+        r) #reg_type
+			reg_type=$OPTARG
 		;;
         n) #ncpu
 			ncpu=$OPTARG
@@ -280,6 +288,24 @@ function KUL_rigid_register {
 
 }
 
+function KUL_affine_register {
+
+    warp_field="${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}"
+    output_mri="${kulderivativesdir}/${source_mri_label}_reg2_${target_mri_label}.nii.gz"
+    #echo "Rigidly registering $source_mri to $target_mri"
+    antsRegistration --verbose $ants_verbose --dimensionality 3 \
+    --output [$warp_field,$output_mri] \
+    --interpolation $interpolation_type \
+    --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
+    --initial-moving-transform [$target_mri,$source_mri,1] \
+    --transform Affine[0.1] \
+    --metric MI[$target_mri,$source_mri,1,32,Regular,0.25] \
+    --convergence [1000x500x250x100,1e-6,10] \
+    --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
+    #echo "Done rigidly registering $source_mri to $target_mri"
+
+}
+
 function KUL_warp2MNI {
 
     echo "source_mri2: $source_mri2"
@@ -411,7 +437,7 @@ else
     fi
 
     run_hdbet=0
-    if [ $warp2mni -eq 1 ]; then
+    if [ $warp2mni -eq 1 ] || [ $reg_type -eq 3 ]; then
 
         outputwarp=${registeroutputdir}/${source_mri_label}_warp2_${target_mri_label}
         outputwarp_test="${outputwarp}Warped.nii.gz"
@@ -450,11 +476,12 @@ else
 
 
     # KIND OF REGISTRATION - rigid or non-rigid?
-    if [ $warp2mni -eq 1 ]; then
+    echo "reg_type: $reg_type"
+    if [ $warp2mni -eq 1 ] || [ $reg_type -eq 3 ]; then
 
         #outputwarp=${registeroutputdir}/${source_mri_label}_warp2_${target_mri_label}
         #outputwarp_test="${outputwarp}Warped.nii.gz"
-
+        #echo $outputwarp_test
         if [ ! -f $outputwarp_test ]; then
 
             echo "Warping non-rigidly $source_mri_label to $target_mri_label (interpolation=$interpolation_type)"
@@ -466,11 +493,15 @@ else
             echo "Warping already done, skipping"
         fi
 
-    else
+    elif [ $reg_type -eq 2 ]; then
+
+        echo "Affinely registering $source_mri_label to $target_mri_label (interpolation=$interpolation_type)"
+        KUL_affine_register
+    
+    else 
 
         echo "Rigidly registering $source_mri_label to $target_mri_label (interpolation=$interpolation_type)"
         KUL_rigid_register
-    
 
     fi
 
@@ -482,7 +513,7 @@ else
             output_tmp=$(basename $other_image)
             output="$registeroutputdir/${output_tmp%%.*}_reg2_${target_mri_label}.nii.gz"
             
-            if [ $warp2mni -eq 1 ]; then
+            if [ $warp2mni -eq 1 ] || [ $reg_type -eq 3 ]; then
 
                 transform="-t ${outputwarp}1Warp.nii.gz -t ${outputwarp}0GenericAffine.mat"
             

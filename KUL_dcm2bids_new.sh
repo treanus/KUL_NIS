@@ -330,6 +330,8 @@ function kul_dcmtags {
 
             # number of excitations given multiband
             # e = n. of excitations/slices per band
+            echo $number_of_slices
+            echo $multiband_factor
             local e=$(echo $number_of_slices $multiband_factor | awk '{print ($1 / $2) -1 }')
             local spb=$((${e}+1));
             #echo $e
@@ -637,11 +639,13 @@ function kul_dcmtags {
 
 function kul_find_relevant_dicom_file {
 
-    kul_e2cl "  Searching for ${identifier} using search_string $grepss" $log
+    kul_e2cl "  Searching for ${identifier} using search_string $ss" $log
 
     # find the search_string in the dicom dump_file            
     # search for search_string in dump_file, find ORIGINAL, remove dicom tags, sort, take first line, remove trailing space 
-    seq_file=$(grep "$grepss" $dump_file | grep ORIGINAL - | cut -f1 -d"[" | sort | head -n 1 | sed -e 's/[[:space:]]*$//')
+    seq_file=$(grep "$ss" $dump_file | grep ORIGINAL - | cut -f1 -d"[" | sort | head -n 1 | sed -e 's/[[:space:]]*$//')
+    #echo "seq_file: $seq_file"
+
 
     if [ "$seq_file" = "" ]; then
 
@@ -873,7 +877,7 @@ fi
 echo hello > $dump_file
 
 task(){
-    dcm1=$(dcminfo "$dcm_file" -tag 0008 103E -tag 0018 1030 -tag 0008 0008 -tag 0008 0070 -nthreads 4 2>/dev/null | tr -s '\n' ' ')
+    dcm1=$(dcminfo "$dcm_file" -tag 0008 103E -tag 0018 1030 -tag 0008 0008 -tag 0008 0070 -tag 0020 0011 -nthreads 4 2>/dev/null | tr -s '\n' ' ')
     echo "$dcm_file" $dcm1 >> $dump_file
 }
 
@@ -894,18 +898,19 @@ kul_e2cl "    done reading dicom tags of $dcm" $log
 
 declare -a sub_bids
 
-while IFS=, read identifier search_string task mb pe_dir acq_label expert_ss; do
+while IFS=, read identifier search_string task mb pe_dir acq_label expert_ss expert_val; do
 
     bs=$(( $bs + 1))
 
  if [[ ! ${identifier} == \#* ]]; then
 
-    echo "grepss: $grepss"
+    echo "ss: $ss"
 
     if [ $xpert -eq 1 ]; then
         ss=${search_string}
     else
-        ss=${expert_ss}
+        ss=${expert_val}
+        #ss=${search_string}
     fi
     echo "ss: $ss"
 
@@ -1305,9 +1310,8 @@ while IFS=, read identifier search_string task mb pe_dir acq_label expert_ss; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_dw1='{"dataType": "dwi","modalityLabel": "dwi",
-            "criteria": {"ProtocolName": "*'${search_string}'*"},'
-
+            sub_bids_dw1="{\"dataType\": \"dwi\",\"modalityLabel\": 
+            \"dwi\",\"criteria\": $expert_ss,"
 
             if [ "$acq_label" = "" ];then
                 sub_bids_dw1b=""
@@ -1366,7 +1370,9 @@ while IFS=, read identifier search_string task mb pe_dir acq_label expert_ss; do
             fi
 
             sub_bids_[$bs]=$(echo ${sub_bids_dw1}${sub_bids_dw1b}${sub_bids_dw1c}${sub_bids_dw2}${sub_bids_dw3} | python -m json.tool)
-
+            echo $bs
+            echo ${sub_bids_dw1}${sub_bids_dw1b}${sub_bids_dw1c}${sub_bids_dw2}${sub_bids_dw3}
+            echo "$sub_bids_[$bs]"
         fi
 
     fi

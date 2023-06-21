@@ -166,18 +166,23 @@ function KUL_mrview {
 #### MAIN
 
 # Check the underlay or set default
+echo "underlay: $underlay"
 if [ -z "$underlay" ];then
     mrview_underlay="$cwd/RESULTS/sub-$participant/Anat/T1w.nii.gz"
-elif [ $underlay -eq 4 ]; then 
-    mrview_underlay="$cwd/RESULTS/sub-$participant/Anat/T1w.nii.gz"
-elif [ $underlay -eq 1 ]; then 
-    mrview_underlay="$cwd/RESULTS/sub-$participant/Anat/cT1w_reg2_T1w.nii.gz"
-elif [ $underlay -eq 2 ]; then 
-    mrview_underlay="$cwd/RESULTS/sub-$participant/Anat/FLAIR_reg2_T1w.nii.gz"
-elif [ $underlay -eq 3 ]; then 
-    mrview_underlay="$cwd/RESULTS/sub-$participant/Anat/SWI_reg2_T1w.nii.gz"
 else
-    mrview_underlay="$underlay"
+    if [ -n "$underlay" ] && [ "$underlay" -eq "$underlay" ] 2>/dev/null; then
+        if [ $underlay -eq 4 ]; then 
+            mrview_underlay="$cwd/RESULTS/sub-$participant/Anat/T1w.nii.gz"
+        elif [ $underlay -eq 1 ]; then 
+            mrview_underlay="$cwd/RESULTS/sub-$participant/Anat/cT1w_reg2_T1w.nii.gz"
+        elif [ $underlay -eq 2 ]; then 
+            mrview_underlay="$cwd/RESULTS/sub-$participant/Anat/FLAIR_reg2_T1w.nii.gz"
+        elif [ $underlay -eq 3 ]; then 
+            mrview_underlay="$cwd/RESULTS/sub-$participant/Anat/SWI_reg2_T1w.nii.gz"
+        fi
+    else
+        mrview_underlay="$underlay"
+    fi
 fi
 
 # Check once more that the underlay exists on disk

@@ -34,4 +34,5 @@ dwi,p4_b2500,-,3,j,rev
 dwi,128d_2500,-,3,j-,b2500
 dwi,128d_1200,-,3,j-,b1200
 dwi,rev_1200,-,3,j,rev
-
+dwi,dMRI_Linear_AP,-,2,j-,ap
+dwi,dMRI_Linear_PA,-,2,j,pa

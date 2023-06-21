@@ -850,6 +850,29 @@ else
 
 fi
 
+# if there is a Smartbrain, copy it to DICOM
+if [ -d DICOM ]; then
+    IFS=$'\n'
+    sb=($(find -L $tmp -type d -name "SmartBrain*"))
+    n_sb=${#sb[@]}
+    if [ $n_sb -gt 0 ]; then
+        # find the largest .dcm
+        sb_dcm=$(find -L "${sb[0]}" -type f -printf '%s %p\n' | sort -nr | head -n 1 | awk -F/ '{ print $NF }')
+        cp -f "${sb[0]}/$sb_dcm" "DICOM/smartbrain.dcm"
+    fi
+fi
+# if there is a Localizer, copy it to DICOM
+if [ -d DICOM ]; then
+    IFS=$'\n'
+    sb=($(find -L $tmp -type d -name "Localizers*"))
+    n_sb=${#sb[@]}
+    if [ $n_sb -gt 0 ]; then
+        # find the largest .dcm
+        sb_dcm=$(find -L "${sb[0]}" -type f -printf '%s %p\n' | sort -nr | head -n 1 | awk -F/ '{ print $NF }')
+        cp -f "${sb[0]}/$sb_dcm" "DICOM/localizer.dcm"
+    fi
+fi
+
 # dump the dicom tags of all dicoms in a file
 kul_e2cl "  brute force extraction of some relevant dicom tags of all dicom files of subject $subj into file $dump_file" $log
 
@@ -943,10 +966,19 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_T2='{"dataType": "anat", "modalityLabel": "T2w", "criteria": { 
-             "SeriesDescription": "*'${search_string}'*"}}'
+             "SeriesDescription": "*'${search_string}'*"}'
 
-            sub_bids_[$bs]=$(echo ${sub_bids_T2} | python -m json.tool)
+            # add an acq_label if any
+            echo $acq_label
+            if [ "$acq_label" = "" ];then
+                sub_bids_T2b='}'
+            else
+                sub_bids_T2b=', "customLabels": "acq-'${acq_label}'"}'
+            fi
 
+            echo ${sub_bids_T2}${sub_bids_T2b}
+            sub_bids_[$bs]=$(echo ${sub_bids_T2}${sub_bids_T2b} | python -m json.tool)
+            
         fi
 
     fi

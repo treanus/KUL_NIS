@@ -215,13 +215,14 @@ for i in `seq 0 $(($num_sessions-1))`; do
             local_ses=${local_ses_tmp%/}
             #echo "local_ses = $local_ses"
             fmriprep_subj=fmriprep/"sub-${participant}/ses-${local_ses}"
-            fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${participant}_ses-${local_ses}_desc-preproc_T1w.nii.gz"
-            fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${participant}_ses-${local_ses}_desc-brain_mask.nii.gz"
+            fmriprep_anat=($(find "${cwd}/${fmriprep_subj}/anat/" -type f -name "sub-${participant}_ses-${local_ses}_*desc-preproc_T1w.nii.gz" ! -name "*MNI*" ))
+            fmriprep_anat_mask=($(find "${cwd}/${fmriprep_subj}/anat/" -type f -name "sub-${participant}_ses-${local_ses}_*desc-brain_mask.nii.gz" ! -name "*MNI*" ))
         else
             fmriprep_subj=fmriprep/"sub-${participant}"
-            fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${participant}_desc-preproc_T1w.nii.gz"
-            fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${participant}_desc-brain_mask.nii.gz" 
+            fmriprep_anat=($(find "${cwd}/${fmriprep_subj}/anat/" -type f -name "sub-${participant}_*desc-preproc_T1w.nii.gz" ! -name "*MNI*" ))
+            fmriprep_anat_mask=($(find "${cwd}/${fmriprep_subj}/anat/" -type f -name "sub-${participant}_*desc-brain_mask.nii.gz" ! -name "*MNI*" ))
         fi
+
         echo $fmriprep_subj
         echo $fmriprep_anat
         echo $fmriprep_anat_mask

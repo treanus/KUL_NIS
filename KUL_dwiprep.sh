@@ -198,6 +198,7 @@ function KUL_dwiprep_convert {
 if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
 	kul_echo " Preparing datasets from BIDS directory..."
+	#echo "preproc: $preproc"
 
 	if [ $number_of_bids_dwi_found -eq 1 ]; then #FLAG, if comparing dMRI sequences, they should not be catted
 
@@ -240,7 +241,8 @@ if [ ! -f ${preproc}/dwi_orig.mif ]; then
 		dwi_i=1
 		for dwi_file in $bids_dwi_found; do
 			dwi_base=${dwi_file%%.*}
-
+			#echo "dwi_base: $dwi_base"
+			
 			kul_echo "   converting ${dwi_base}.nii.gz to mif"
 			mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
 			-json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} \
