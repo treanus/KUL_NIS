@@ -83,8 +83,8 @@ sbzd_pD=($(dirname ${sbzd_p1}))
 sbzd_p2="${sbzd_pD}/.."
 
 # source conda and activate virtual env
-source ${c} # Or path to where your conda is
-conda activate radsyndisco # or conda virtual env of your choosing
+# source ${c} # Or path to where your conda is
+# conda activate radsyndisco # or conda virtual env of your choosing
 # conda create --name radsyndisco; conda activate radsyndisco
 # pip install torch
 # pip install torchvision
@@ -156,7 +156,7 @@ task_in="fslmaths ${radwd}/INPUTS/b0.nii.gz -s 1.15 ${radwd}/OUTPUTS/b0_d_smooth
 
 task_exec
 
-conda deactivate
+# conda deactivate
 # conda virtual env with py3.6 + numpy 1.16.4
 # this is to ensure eddyquad will work
 # conda activate py3.6_np1.16.4 
