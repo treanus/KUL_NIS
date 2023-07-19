@@ -397,7 +397,7 @@ if [ $results -gt 0 ];then
                 echo "Making ${tractname}_${orient} on $(basename $underlay)"
                 mkdir -p $resultsdir_png/${tractname}_${orient}
                 voxel_index="-capture.folder $resultsdir_png/${tractname}_${orient} \
-                    -capture.prefix ${tractname}_${orient} -noannotations -orientationlabel 1"
+                    -capture.prefix ${tractname}_${orient} -noannotations -orientlabel 1"
                 while [ $i -lt $underlay_slices ]
                 do
                     #echo Number: $i
