@@ -670,7 +670,7 @@ function KUL_run_fmriprep {
         sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_fmriprep.txt
         rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
         if [ $n_fMRI -gt 0 ]; then
-            fmriprep_options="--fs-no-reconall --use-aroma --use-syn-sdc "
+            fmriprep_options="--fs-no-reconall --use-syn-sdc "
         else
             fmriprep_options="--fs-no-reconall --anat-only "
         fi
