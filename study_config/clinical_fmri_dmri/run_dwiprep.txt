@@ -21,7 +21,7 @@ dwiprep_options: dhollander
 synbzero_disco_instead_of_topup: 1
 rev_phase_for_topup_only: 1
 dwi2mask_method: 3
-eddy_options: --slm=linear --repol
+eddy_options: --slm=linear --repol --niter=8 --mporder=6
 dwiprep_ncpu: 64
 dwiprep_simultaneous: 1
 
