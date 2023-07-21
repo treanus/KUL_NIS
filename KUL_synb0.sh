@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Bash shell script to run synb0 from BIDS and store the output of topup in the BIDS derivatives
 #
 # Requires docker
@@ -295,6 +295,9 @@ for i in `seq 0 $(($num_sessions-1))`; do
 		fi
 		cp $fieldcoef2copy \
 			$bids_target/topup_fieldcoef.nii.gz
+		echo $fieldmap2copy
+		echo $bids_target
+		echo $synb0_scratch
 		cp $fieldmap2copy \
 			$bids_target/topup_fieldmap.nii.gz
 		cp $synb0_scratch/OUTPUTS/topup_movpar.txt \
