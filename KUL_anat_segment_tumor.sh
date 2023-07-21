@@ -291,6 +291,7 @@ function KUL_fastsurfer {
 
     if [ ! -f $fastsurferoutputdir/$participant/mri/aparc.DKTatlas+aseg.deep.mgz ]; then
         kul_echo "Running segmentation-only fastsufer"
+        eval "$(conda shell.bash hook)"
         conda activate fastsurfer_gpu
         task_in="$FASTSURFER_HOME/run_fastsurfer.sh \
             --sid $participant --sd $fastsurferoutputdir \

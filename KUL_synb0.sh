@@ -11,7 +11,7 @@ kul_main_dir=`dirname "$0"`
 script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 # $cwd & $log_dir is made in main_functions
-kul_synb0_fork=1
+kul_synb0_fork=0
 
 # FUNCTIONS --------------
 
@@ -256,7 +256,8 @@ for i in `seq 0 $(($num_sessions-1))`; do
 				-v $synb0_scratch/OUTPUTS:/OUTPUTS/ \
 				-v $FS_LICENSE:/extra/freesurfer/license.txt \
 				--user $(id -u):$(id -g) \
-				hansencb/synb0" 
+				leonyichencai/synb0-disco:v3.0"
+				#hansencb/synb0" 
 
 			echo "  we run synb0 using command: $cmd"
 			eval $cmd
