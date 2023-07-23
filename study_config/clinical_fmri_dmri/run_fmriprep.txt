@@ -24,7 +24,7 @@ BIDS_participants:
 #	if you have x cpu's, set it to x/ncpu
 #	but also take into account memory usage: if mem is 1GB per subject and your pc has 8GB of RAM, set to 8 max
 do_fmriprep: 1
-fmriprep_version: 20.2.6
+fmriprep_version: 20.2.7
 fmriprep_options: 
 fmriprep_bids_filter_file: study_config/bids_filter_no_gadolinium.json
 fmriprep_ncpu: 64
