@@ -347,6 +347,20 @@ elif [ $type -eq 2 ]; then
     tract_corr_threshold=1
     KUL_karawun_get_tract
 
+    tract_name_orig="ThR_S1_LT"
+    tract_name_final="S1VC_Left"
+    tract_color=4
+    tract_threshold=10
+    tract_corr_threshold=4
+    KUL_karawun_get_tract
+
+    tract_name_orig="ThR_S1_RT"
+    tract_name_final="S1VC_Right"
+    tract_color=4
+    tract_threshold=10
+    tract_corr_threshold=4
+    KUL_karawun_get_tract
+
 elif [ $type -eq 3 ]; then
 
     tract_name_orig="CSHDP_LT"
