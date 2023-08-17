@@ -629,14 +629,12 @@ for test_T1w in ${T1w[@]}; do
                     # METHOD 1 - LINEAR histogram matching using eye/muscle tissue
                     echo "  performing linear histogram matching"
                     
-                    M1_template_T1w=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_T1w.nii.gz
-                    #M1_template_T2w=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_T2w_lin_histmatch_2_T1w.nii.gz
-                    #M1_template_FLAIR=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_T2w_lin_histmatch_2_T1w.nii.gz
-                    M1_template_T2w=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz
-                    M1_template_FLAIR=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz
+                    M1_template_T1w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T1w.nii.gz"
+                    M1_template_T2w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz"
+                    M1_template_FLAIR="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz"
 
-                    M1_template_mask_eye=$kul_main_dir/atlasses/Ganzetti2014/eyemask.nii
-                    M1_template_mask_tempmuscle=$kul_main_dir/atlasses/Ganzetti2014/tempmask.nii
+                    M1_template_mask_eye="$kul_main_dir/atlasses/Ganzetti2014/eyemask.nii"
+                    M1_template_mask_tempmuscle="$kul_main_dir/atlasses/Ganzetti2014/tempmask.nii"
 
                     # Warp the eye and muscle back to subject space
                     echo "  warping eye/muscle and skull/air back to subject space"
@@ -718,11 +716,9 @@ for test_T1w in ${T1w[@]}; do
                     echo "  performing nonlinear histogram matching"
                     # Warp the brain_mask and its inverse to subject space
                     
-                    M2_template_T1w=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_T1w.nii.gz
-                    #M2_template_T2w=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_T2w_lin_histmatch_2_T1w.nii.gz
-                    #M2_template_FLAIR=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_T2w_lin_histmatch_2_T1w.nii.gz
-                    M2_template_T2w=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz
-                    M2_template_FLAIR=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz
+                    M2_template_T1w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T1w.nii.gz"
+                    M2_template_T2w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz"
+                    M2_template_FLAIR="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz"
 
                     input="$kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated.nii"
                     output="$outdir/masks/${base}_method2_MNI2subj_brainmask_mni_dilated.nii.gz"
@@ -776,12 +772,12 @@ for test_T1w in ${T1w[@]}; do
                     # Method 3 - Cappelle & Sunaert
                     echo "  performing second (Cappelle) nonlinear histogram matching"
 
-                    M3_template_T1w=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_T1w.nii.gz
-                    M3_template_T2w=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_T2w.nii.gz
-                    M3_template_FLAIR=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_FLAIR.nii.gz
+                    M3_template_T1w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_T1w.nii.gz"
+                    M3_template_T2w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_T2w.nii.gz"
+                    M3_template_FLAIR="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_FLAIR.nii.gz"
 
-                    M3_template_mask_4_T1w=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_mask_4_T1w.nii.gz
-                    M3_template_mask_4_T2w_and_FLAIR=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_mask_4_T2w_and_FLAIR.nii.gz
+                    M3_template_mask_4_T1w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_mask_4_T1w.nii.gz"
+                    M3_template_mask_4_T2w_and_FLAIR="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_mask_4_T2w_and_FLAIR.nii.gz"
 
                     mask1="$outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz"
                     mask2="$outdir/masks/${base}_T1w_iso_biascorrected_brain_inverted_mask.nii.gz"
@@ -860,7 +856,7 @@ for test_T1w in ${T1w[@]}; do
                     M4_template_T1w=$M3_template_T1w
                     M4_template_T2w=$M3_template_T2w
                     M4_template_FLAIR=$M3_template_FLAIR
-                    M4_template_mask=/home/stefan/DATA2/Sarah/REVIEW/Cappelle2021_final/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_T1w_mask_brain_mask.nii.gz
+                    M4_template_mask="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_T1w_mask_brain_mask.nii.gz"
 
                     mask1="$outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz"
                     mask_subj="$outdir/masks/${base}_method4_brain_mask_without_lesions.nii.gz"

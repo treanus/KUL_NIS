@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Bash shell script to run synb0 from BIDS and store the output of topup in the BIDS derivatives
 #
 # Requires docker
@@ -11,7 +11,7 @@ kul_main_dir=`dirname "$0"`
 script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 # $cwd & $log_dir is made in main_functions
-kul_synb0_fork=1
+kul_synb0_fork=0
 
 # FUNCTIONS --------------
 
@@ -256,7 +256,8 @@ for i in `seq 0 $(($num_sessions-1))`; do
 				-v $synb0_scratch/OUTPUTS:/OUTPUTS/ \
 				-v $FS_LICENSE:/extra/freesurfer/license.txt \
 				--user $(id -u):$(id -g) \
-				hansencb/synb0" 
+				leonyichencai/synb0-disco:v3.0"
+				#hansencb/synb0" 
 
 			echo "  we run synb0 using command: $cmd"
 			eval $cmd
@@ -294,6 +295,9 @@ for i in `seq 0 $(($num_sessions-1))`; do
 		fi
 		cp $fieldcoef2copy \
 			$bids_target/topup_fieldcoef.nii.gz
+		echo $fieldmap2copy
+		echo $bids_target
+		echo $synb0_scratch
 		cp $fieldmap2copy \
 			$bids_target/topup_fieldmap.nii.gz
 		cp $synb0_scratch/OUTPUTS/topup_movpar.txt \

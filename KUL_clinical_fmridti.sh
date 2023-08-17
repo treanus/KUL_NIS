@@ -397,7 +397,7 @@ if [ $results -gt 0 ];then
                 echo "Making ${tractname}_${orient} on $(basename $underlay)"
                 mkdir -p $resultsdir_png/${tractname}_${orient}
                 voxel_index="-capture.folder $resultsdir_png/${tractname}_${orient} \
-                    -capture.prefix ${tractname}_${orient} -noannotations -orientationlabel 1"
+                    -capture.prefix ${tractname}_${orient} -noannotations -orientlabel 1"
                 while [ $i -lt $underlay_slices ]
                 do
                     #echo Number: $i
@@ -1010,7 +1010,8 @@ function KUL_run_FWT {
             -n $ncpu"
             KUL_task_exec $verbose_level "KUL_FWT voi generation" "12_FWTvoi"
 
-
+            eval "$(conda shell.bash hook)"
+            conda activate scilpy
             task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
             -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
             -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
@@ -1022,7 +1023,8 @@ function KUL_run_FWT {
             -Q -S \
             -n $ncpu"
             KUL_task_exec $verbose_level "KUL_FWT tract generation" "12_FWTtck"
-
+            conda deactivate
+            
             rm -fr $globalresultsdir/Tracto/*
             mcp -o "$kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*_fin_map_BT_iFOD2.nii.gz" \
                 "$globalresultsdir/Tracto/Tract-csd_#2.nii.gz"

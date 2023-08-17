@@ -1,8 +1,6 @@
 ## This is for individual bundle tracking
 CST_LT,5000
 CST_RT,5000
-OR_LT,5000
-OR_RT,5000
 OR_occlobe_LT,5000
 OR_occlobe_RT,5000
 AF_all_LT,5000
