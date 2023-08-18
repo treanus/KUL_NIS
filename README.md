@@ -106,9 +106,9 @@ This script will run an automated analysis using FSL melodic on active and resti
 
 ## Tools for the study of myelin 
 
-### Magnetisation Transfer Ratio
+### Magnetisation Transfer Ratio and T1/T2 and T1/FLAIR ratio as a myelin marker 
 
-### T1/T2 and T1/FLAIR ratio as a myelin marker
+[KUL_T1T2FLAIRMTR_ratio](/docs/KUL_T1T2FLAIRMTR_ratio/KUL_T1T2FLAIRMTR_ratio.md)
 
 
 ## Tools for importing results back into dicom and transfer to PACS/BrainLab
@@ -124,4 +124,4 @@ This script will run an automated analysis using FSL melodic on active and resti
 ## Who are we
 Dr. Ahmed Radwan - KUL - ahmed.radwan@kuleuven.be
 
-Prof. Dr. Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
+Prof. Dr. Stefan Sunaert - UZ/KUL - stefan.sunaert@kuleuven.be
