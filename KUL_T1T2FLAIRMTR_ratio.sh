@@ -1,8 +1,9 @@
-#!/bin/bash -e
+#!/bin/bash
 # Sarah Cappelle & Stefan Sunaert
 # 22/12/2020 - v1.0
 # 18/02/2021 - v1.1 (adding calibration)
 # 24/10/2022 - v1.2 (accepted for publication)
+# 17/08/2023 - v1.3 bug fix (using local path)
 # 
 # This script computes a T1/T2, T1/FLAIR and MTC (magnetisation transfer contrast) ratio
 # 
@@ -16,7 +17,7 @@
 #  create masked brain images using HD-BET
 #  calibrate the images according to Ganzetti
 #  compute a T1FLAIR_ratio, a T1T2_ratio and a MTR
-version="1.2"
+version="1.3"
 
 kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
@@ -70,13 +71,31 @@ Optional arguments:
 Documentation:
 
     This script computes a T1/T2, T1/FLAIR and MTC (magnetisation transfer contrast) ratio, using BIDS organised data. 
+
+    It follows the rationale of Ganzetti et al. Frontiers in human neuroscience 2014 and D. Pareto et al. AJNR 2020.
+    The full methodology is described in "T1w/FLAIR ratio standardization as a myelin marker in MS patients,
+        by S Cappelle, D Pareto, S Sunaert, I Smets, A Laenen, B Dubois, Ph Demaerel" - https://pubmed.ncbi.nlm.nih.gov/36451354/
+
     A T1w is mandatory. 
     A T1w/T2w ratio is computed if a T2w is present.
     A T1w/FLAIR ratio is computed if a FLAIR is present.
-    A MTR is computed if an MTI pair is available.
-    It follows the rationale of Ganzetti et al. Frontiers in human neuroscience 2014 and D. Pareto et al. AJNR 2020.
+    A MTR is computed if an MTI pair is available.    
     It also segments (MS or T1w-hypo/FLAIR-hyper) lesions using Freesurfer Samseg if T1w and FLAIR are present and option -m is given.
     It also calculates a FastSurfer parcellation if option -f is used.
+
+Dependecies:
+
+    general:
+        - input images must be supplied in Brain Imaging Data Structure (https://bids.neuroimaging.io/) format in the folder "BIDS"
+
+    required: 
+        - MRTrix3 - https://www.mrtrix.org/
+        - ANTs - http://stnava.github.io/ANTs/
+        - HD-BET - https://github.com/MIC-DKFZ/HD-BET
+    
+    optional:
+        - FastSurfer - https://deep-mi.org/research/fastsurfer/
+        - Freesurfer Samseg - https://surfer.nmr.mgh.harvard.edu/fswiki/Samseg
 
 References:
     @ Sarah Cappelle & Stefan Sunaert
@@ -552,14 +571,14 @@ for test_T1w in ${T1w[@]}; do
                                 --sid $base --sd $outdir/fs \
                                 --t1 $test_T1w \
                                 --fs_license $FS_LICENSE \
-                                --vol_segstats --py python --parallel  --ignore_fs_version --threads $ncpu $fs_silent"
+                                --py python --parallel  --ignore_fs_version --threads $ncpu $fs_silent"
                         elif [ $fastsurf -eq 2 ]; then
                             echo "  running segmentation-with-CC & stats fastsufer"
                             my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
                                 --sid $base --sd $outdir/fs \
                                 --t1 $test_T1w \
                                 --fs_license $FS_LICENSE \
-                                --seg_with_cc_only --vol_segstats --py python --ignore_fs_version --threads $ncpu $fs_silent"
+                                --seg_with_cc_only --py python --ignore_fs_version --threads $ncpu $fs_silent"
                         elif [ $fastsurf -eq 3 ]; then
                             echo "  running segmentation-only fastsufer"
                             my_cmd="$FASTSURFER_HOME/run_fastsurfer.sh \
