@@ -6,7 +6,7 @@ This script segments pre- or post-operative brain tumor lesions and/or resection
 
 ## Required structural input data
 
-Required are data organised in BDIS:
+Required are data organised in BIDS:
 - a T1w image without contrast
 - a T1w image with contrast (ce-gadolinium in the bids name)
 - a FLAIR image
