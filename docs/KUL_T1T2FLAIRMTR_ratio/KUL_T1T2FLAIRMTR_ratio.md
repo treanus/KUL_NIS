@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Computes a T1/T2, T1/FLAIR and MTC (magnetisation transfer contrast) ratio, using BIDS organised data.
+Computes a T1w/T2w, T1w/FLAIR and MTC (magnetisation transfer contrast) ratio, using BIDS organised data.
 The full methodology is described in "T1w/FLAIR ratio standardization as a myelin marker in MS patients,
         by S Cappelle, D Pareto, S Sunaert, I Smets, A Laenen, B Dubois, Ph Demaerel" - [Article link](https://pubmed.ncbi.nlm.nih.gov/36451354/)
 
@@ -17,7 +17,7 @@ Required are data organised in BIDS [format](../KUL_dcm2bids/KUL_dcm2bids.md):
 
 A typical command for running is:  
 
-`KUL_T1T2FLAIRMTR_ratio.sh -a -n 100 -f 1 -m`
+`KUL_T1T2FLAIRMTR_ratio.sh -a -n 10 -f 1 -m`
 
 You need to be in **main** directory to run this command. This is also where the BIDS folder resides. 
 
@@ -35,7 +35,8 @@ Images starting with sub-xxx-ses-yyy_:
 
 Further output is in 1x1x1 mm voxel dimensions.
 
-T1w/T2w, T1w/FLAIR maps starting with sub-xxx-ses-yyy_:
+
+**T1w/T2w, T1w/FLAIR ratio-maps** starting with sub-xxx-ses-yyy_:
 - calib-none.nii.gz: ratio without calibration (raw T1w/T2w or T1w/FLAIR ratio)
 - calib-lin.nii.gz: LINEAR histogram matching using eye/muscle tissue (Ganzetti et al. 2014 alike)
 - calib-nonlin.nii.gz: NONLINEAR histogram matching using eye/muscle tissue (Ganzetti et al. 2014 alike)
