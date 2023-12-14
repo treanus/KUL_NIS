@@ -129,38 +129,46 @@ fi
 #----- functions
 
 function KUL_karawun_get_tract {
-    cp BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_BT${ACT}_iFOD2.tck \
-        Karawun/sub-${participant}/tck/${tract_name_final}.tck
+    if [ -f BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_BT${ACT}_iFOD2.tck ]; then
+        cp BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_BT${ACT}_iFOD2.tck \
+            Karawun/sub-${participant}/tck/${tract_name_final}.tck
 
-    if [ $type -eq 1 ]; then
+        if [ $type -eq 1 ]; then
 
-        num_tck=$(tckstats -quiet -output count Karawun/sub-${participant}/tck/${tract_name_final}.tck)
-        echo $num_tck
-        tract_threshold=$(( num_tck*1/3/100 ))
-        echo $tract_threshold
+            num_tck=$(tckstats -quiet -output count Karawun/sub-${participant}/tck/${tract_name_final}.tck)
+            echo $num_tck
+            tract_threshold=$(( num_tck*1/3/100 ))
+            echo $tract_threshold
 
+        fi
+
+        if [ $relative -eq 1 ]; then
+
+            num_tck=$(tckstats -quiet -output count Karawun/sub-${participant}/tck/${tract_name_final}.tck)
+            echo "$tract_name_final has $num_tck streamlines"
+            tract_threshold=$(( num_tck*threshold/tract_corr_threshold/100 ))
+            echo "The compute threshold is: $tract_threshold (with a correction of $tract_corr_threshold)"
+
+        fi
+
+        mrgrid BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_map_BT${ACT}_iFOD2.nii.gz \
+            regrid -template Karawun/sub-${participant}/T1w.nii.gz \
+            - | mrcalc - ${tract_threshold} -gt ${tract_color} -mul \
+            Karawun/sub-${participant}/labels/${tract_name_final}_center.nii.gz -force
+    else
+        echo "Does not exist: BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_BT${ACT}_iFOD2.tck"
     fi
-
-    if [ $relative -eq 1 ]; then
-
-        num_tck=$(tckstats -quiet -output count Karawun/sub-${participant}/tck/${tract_name_final}.tck)
-        echo "$tract_name_final has $num_tck streamlines"
-        tract_threshold=$(( num_tck*threshold/tract_corr_threshold/100 ))
-        echo "The compute threshold is: $tract_threshold (with a correction of $tract_corr_threshold)"
-
-    fi
-
-    mrgrid BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_map_BT${ACT}_iFOD2.nii.gz \
-        regrid -template Karawun/sub-${participant}/T1w.nii.gz \
-        - | mrcalc - ${tract_threshold} -gt ${tract_color} -mul \
-        Karawun/sub-${participant}/labels/${tract_name_final}_center.nii.gz -force
 }
 
 function KUL_karawun_get_voi {
-    mrgrid BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_VOIs/${tract_name_orig}_VOIs/${tract_name_orig}_incs1/${tract_name_orig}_incs1_map.nii.gz \
-        regrid -template Karawun/sub-${participant}/T1w.nii.gz \
-        - | mrcalc - ${voi_threshold} -gt ${voi_color} -mul \
-        Karawun/sub-${participant}/labels/${voi_name_final}.nii.gz -force
+    if [ -f BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_VOIs/${tract_name_orig}_VOIs/${tract_name_orig}_incs1/${tract_name_orig}_incs1_map.nii.gz ]; then
+        mrgrid BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_VOIs/${tract_name_orig}_VOIs/${tract_name_orig}_incs1/${tract_name_orig}_incs1_map.nii.gz \
+            regrid -template Karawun/sub-${participant}/T1w.nii.gz \
+            - | mrcalc - ${voi_threshold} -gt ${voi_color} -mul \
+            Karawun/sub-${participant}/labels/${voi_name_final}.nii.gz -force
+    else
+        echo "Does not exist: BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_VOIs/${tract_name_orig}_VOIs/${tract_name_orig}_incs1/${tract_name_orig}_incs1_map.nii.gz"
+    fi
 }
 
 #---- MAIN
@@ -175,7 +183,7 @@ T1w_max=$(mrstats -output max $T1w_in)
 T1w_factor=$(scale=10; echo "($T1w_max-($T1w_min))/32767" | bc)
 mrcalc $T1w_in $T1w_min -sub $T1w_factor -div Karawun/sub-${participant}/T1w.nii.gz -force
 
-if [ $type -eq 1 ]; then
+#if [ $type -eq 1 ]; then
 
     tract_name_orig="AF_all_LT"
     tract_name_final="Arcutate_Fasc_Left"
@@ -201,6 +209,20 @@ if [ $type -eq 1 ]; then
     tract_name_orig="CST_RT"
     tract_name_final="Corticospinal_Tract_Right"
     tract_color=4
+    tract_threshold=20
+    tract_corr_threshold=3
+    KUL_karawun_get_tract
+
+    tract_name_orig="PyT_SMA_LT"
+    tract_name_final="Pyramidal_Tract_Supplementary_Motor_Left"
+    tract_color=4
+    tract_threshold=20
+    tract_corr_threshold=3
+    KUL_karawun_get_tract
+
+    tract_name_orig="PyT_SMA_RT"
+    tract_name_final="Pyramidal_Tract_Supplementary_Motor_Right"
+    tract_color=3
     tract_threshold=20
     tract_corr_threshold=3
     KUL_karawun_get_tract
@@ -317,98 +339,98 @@ if [ $type -eq 1 ]; then
     tract_corr_threshold=3
     KUL_karawun_get_tract
 
-elif [ $type -eq 2 ]; then
+#elif [ $type -eq 2 ]; then
 
-    tract_name_orig="CST_LT"
-    tract_name_final="CST_Left"
-    tract_color=1
-    tract_threshold=50
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
+    #tract_name_orig="CST_LT"
+    #tract_name_final="CST_Left"
+    #tract_color=1
+    #tract_threshold=50
+    #tract_corr_threshold=3
+    #KUL_karawun_get_tract
 
-    tract_name_orig="CST_RT"
-    tract_name_final="CST_Right"
-    tract_color=1
-    tract_threshold=50
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
+    #tract_name_orig="CST_RT"
+    #tract_name_final="CST_Right"
+    #tract_color=1
+    #tract_threshold=50
+    #tract_corr_threshold=3
+    #KUL_karawun_get_tract
 
     tract_name_orig="DRT_LT"
     tract_name_final="DRT_Left"
-    tract_color=3
+    tract_color=19
     tract_threshold=20
     tract_corr_threshold=1
     KUL_karawun_get_tract
 
     tract_name_orig="DRT_RT"
     tract_name_final="DRT_Right"
-    tract_color=3
+    tract_color=20
     tract_threshold=20
     tract_corr_threshold=1
     KUL_karawun_get_tract
 
     tract_name_orig="ThR_S1_LT"
     tract_name_final="S1VC_Left"
-    tract_color=4
+    tract_color=21
     tract_threshold=10
     tract_corr_threshold=4
     KUL_karawun_get_tract
 
     tract_name_orig="ThR_S1_RT"
     tract_name_final="S1VC_Right"
-    tract_color=4
+    tract_color=22
     tract_threshold=10
     tract_corr_threshold=4
     KUL_karawun_get_tract
 
-elif [ $type -eq 3 ]; then
+#elif [ $type -eq 3 ]; then
 
     tract_name_orig="CSHDP_LT"
     voi_name_final="DISTAL_STN_MOTOR_Left"
-    voi_color=3
+    voi_color=23
     voi_threshold=0.1
     KUL_karawun_get_voi
 
     tract_name_orig="CSHDP_RT"
     voi_name_final="DISTAL_STN_MOTOR_Right"
-    voi_color=3
+    voi_color=24
     voi_threshold=0.1
     KUL_karawun_get_voi
 
     tract_name_orig="CSHDP_LT"
     tract_name_final="CSHDP_Left"
-    tract_color=2
+    tract_color=25
     tract_threshold=40
     tract_corr_threshold=1
     KUL_karawun_get_tract
 
     tract_name_orig="CSHDP_RT"
     tract_name_final="CSHDP_Right"
-    tract_color=2
+    tract_color=26
     tract_threshold=40
     tract_corr_threshold=1
     KUL_karawun_get_tract
 
-    tract_name_orig="CST_LT"
-    tract_name_final="CST_Left"
-    tract_color=1
-    tract_threshold=50
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
+    #tract_name_orig="CST_LT"
+    #tract_name_final="CST_Left"
+    #tract_color=1
+    #tract_threshold=50
+    #tract_corr_threshold=3
+    #KUL_karawun_get_tract
 
-    tract_name_orig="CST_RT"
-    tract_name_final="CST_Right"
-    tract_color=1
-    tract_threshold=50
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
+    #tract_name_orig="CST_RT"
+    #tract_name_final="CST_Right"
+    #tract_color=1
+    #tract_threshold=50
+    #tract_corr_threshold=3
+    #KUL_karawun_get_tract
 
-fi
+#fi
 
 # give information
 echo "See to it that the DICOM directory contains a single slice of the SmartBrain"
 echo "Then copy into terminal: "
-echo "conda activate KarawunEnv"
+echo "conda activate KarawunDev"
 echo "importTractography -d Karawun/sub-${participant}/DICOM/*.dcm \
 -o Karawun/sub-${participant}/sub-${participant}_for_elements \
 -n Karawun/sub-${participant}/T1w.nii.gz \

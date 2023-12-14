@@ -1,6 +1,7 @@
 #!/bin/bash
 # Bash shell script to analyse clinical fMRI/DTI
 #
+
 # Requires matlab fmriprep
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
@@ -240,7 +241,7 @@ fi
 # The make RESULTS option
 if [ $results -gt 0 ];then
 
-    if [ $type -lt 5 ];then
+    #if [ $type -lt 5 ];then
 
         mrview_tracts[0]="Tract-csd_CST_LT"
         mrview_rgb[0]="0.678,0.847,0.902"
@@ -286,33 +287,35 @@ if [ $results -gt 0 ];then
         mrview_rgb[20]="0,0.5,0.04"
         mrview_tracts[21]="Tract-csd_ML_RT"
         mrview_rgb[21]="0,0.5,0.5"
-        ntracts=22
+        #ntracts=22
 
-    elif [ $type -eq 5 ];then
+    #elif [ $type -eq 5 ];then
 
-        mrview_tracts[0]="Tract-csd_CST_LT"
-        mrview_rgb[0]="0.678,0.847,0.902"
-        mrview_tracts[1]="Tract-csd_CST_RT"
-        mrview_rgb[1]="0,0,1"
-        mrview_tracts[2]="Tract-csd_DRT_LT"
+        #mrview_tracts[0]="Tract-csd_CST_LT"
+        #mrview_rgb[0]="0.678,0.847,0.902"
+        #mrview_tracts[1]="Tract-csd_CST_RT"
+        #mrview_rgb[1]="0,0,1"
+        mrview_tracts[22]="Tract-csd_DRT_LT"
         mrview_rgb[2]="1,0,0.23"
-        mrview_tracts[3]="Tract-csd_DRT_RT"
+        mrview_tracts[23]="Tract-csd_DRT_RT"
         mrview_rgb[3]="0.23,1,0"
-        ntracts=4
+        #ntracts=4
 
-    elif [ $type -eq 6 ];then
+    #elif [ $type -eq 6 ];then
 
-        mrview_tracts[0]="Tract-csd_CST_LT"
-        mrview_rgb[0]="0.678,0.847,0.902"
-        mrview_tracts[1]="Tract-csd_CST_RT"
-        mrview_rgb[1]="0,0,1"
-        mrview_tracts[2]="Tract-csd_CSHDP_LT"
+        #mrview_tracts[0]="Tract-csd_CST_LT"
+        #mrview_rgb[0]="0.678,0.847,0.902"
+        #mrview_tracts[1]="Tract-csd_CST_RT"
+        #mrview_rgb[1]="0,0,1"
+        mrview_tracts[24]="Tract-csd_CSHDP_LT"
         mrview_rgb[2]="0.23,0.12,0"
-        mrview_tracts[3]="Tract-csd_CSHDP_RT"
+        mrview_tracts[25]="Tract-csd_CSHDP_RT"
         mrview_rgb[3]="1,0.12,0.20"
-        ntracts=4
+        #ntracts=4
 
-    fi
+    #fi
+
+    ntracts=26
 
     #echo "ntracts: $ntracts"
     result_type=0
@@ -365,97 +368,106 @@ if [ $results -gt 0 ];then
 
         mrview_tck=""
         
+        tracts_found=0
         for tract in ${tract_set[@]}; do 
             #echo $tract_set_i
             #echo "$tract ${mrview_rgb[$tract_i]} on $underlay"
             if [ -f $globalresultsdir/Tracto/${tract}.tck ]; then
-                mrview_tck="$mrview_tck -tractography.load $globalresultsdir/Tracto/${tract}.tck -tractography.colour ${mrview_rgb[$tract_i]}"
+                mrview_tck="$mrview_tck -tractography.load $globalresultsdir/Tracto/${tract}.tck \
+                    -tractography.colour ${mrview_rgb[$tract_i]}"
+                tracts_found=$(($tracts_found+1))
             fi
             tract_i=$(($tract_i+1))
         done
         
-        #echo $mrview_tck
+        #echo "mrview_tck: $mrview_tck"
+        echo "tract_i: $tract_i"
+        echo "tracts_found: $tracts_found"
+
+        if [ $tracts_found -gt 0 ]; then 
+
+            ori[0]="TRA"
+            ori[1]="SAG"
+            ori[2]="COR"
+
+            for orient in ${ori[@]}; do
+
+                if [[ "$orient" == "TRA" ]]; then
+                    underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF)}')
+                elif [[ "$orient" == "SAG" ]]; then
+                    underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-2)}')
+                else
+                    underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-1)}')
+                fi
+            
+
+                if [ $result_type -eq 0 ]; then
+                    i=0
+                    echo "Making ${tractname}_${orient} on $(basename $underlay)"
+                    mkdir -p $resultsdir_png/${tractname}_${orient}
+                    voxel_index="-capture.folder $resultsdir_png/${tractname}_${orient} \
+                        -capture.prefix ${tractname}_${orient} -noannotations -orientlabel 1"
+                    while [ $i -lt $underlay_slices ]
+                    do
+                        #echo Number: $i
+                        if [[ "$orient" == "TRA" ]]; then
+                            voxel_index="$voxel_index -voxel 0,0,$i -capture.grab"
+                            plane=2
+                        elif [[ "$orient" == "SAG" ]]; then
+                            voxel_index="$voxel_index -voxel $i,0,0 -capture.grab"
+                            plane=0
+                        else
+                            voxel_index="$voxel_index -voxel 0,$i,0 -capture.grab"
+                            plane=1
+                        fi    
+                        let "i+=1" 
+                    done
+                    mode_plane="-mode 1 -plane $plane"
+                    mrview_exit="-exit"
+                else
+                    voxel_index=""
+                    mode_plane="-mode 2"
+                    mrview_exit=""
+                fi
+                #echo $voxel_index
 
 
-        ori[0]="TRA"
-        ori[1]="SAG"
-        ori[2]="COR"
-
-        for orient in ${ori[@]}; do
-
-            if [[ "$orient" == "TRA" ]]; then
-                underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF)}')
-            elif [[ "$orient" == "SAG" ]]; then
-                underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-2)}')
-            else
-                underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-1)}')
-            fi
-        
-
-            if [ $result_type -eq 0 ]; then
-                i=0
-                echo "Making ${tractname}_${orient} on $(basename $underlay)"
-                mkdir -p $resultsdir_png/${tractname}_${orient}
-                voxel_index="-capture.folder $resultsdir_png/${tractname}_${orient} \
-                    -capture.prefix ${tractname}_${orient} -noannotations -orientlabel 1"
-                while [ $i -lt $underlay_slices ]
-                do
-                    #echo Number: $i
-                    if [[ "$orient" == "TRA" ]]; then
-                        voxel_index="$voxel_index -voxel 0,0,$i -capture.grab"
-                        plane=2
-                    elif [[ "$orient" == "SAG" ]]; then
-                        voxel_index="$voxel_index -voxel $i,0,0 -capture.grab"
-                        plane=0
-                    else
-                        voxel_index="$voxel_index -voxel 0,$i,0 -capture.grab"
-                        plane=1
-                    fi    
-                    let "i+=1" 
-                done
-                mode_plane="-mode 1 -plane $plane"
-                mrview_exit="-exit"
-            else
-                voxel_index=""
-                mode_plane="-mode 2"
-                mrview_exit=""
-            fi
-            #echo $voxel_index
-
-        
-
-            cmd="mrview -size $mrview_resolution,$mrview_resolution
-                -load $underlay \
-                $mode_plane \
-                -tractography.lighting 1 \
-                -tractography.slab 1.5 \
-                -tractography.thickness 0.3 \
-                $mrview_tck \
-                $voxel_index \
-                -force \
-                $mrview_exit"
-            #echo $cmd
-            eval $cmd
-
-            if [[ "$mrview_exit" = "-exit" ]];then
-                cmd="convert $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}*.png \
-                    $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}.tiff"
+                cmd="mrview -size $mrview_resolution,$mrview_resolution
+                    -load $underlay \
+                    $mode_plane \
+                    -tractography.lighting 1 \
+                    -tractography.slab 1.5 \
+                    -tractography.thickness 0.3 \
+                    $mrview_tck \
+                    $voxel_index \
+                    -force \
+                    $mrview_exit"
                 #echo $cmd
                 eval $cmd
 
-                if [ -f DICOM/smartbrain.dcm ]; then
-                    dcmdir="$resultsdir_dcm/${tractname}_${orient}"
-                    echo "Making dicoms in $dcmdir"
-                    mkdir -p $dcmdir
-                    cmd="KUL_nii2dcm.py -s ${tractname}_${orient} \
-                        $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}.tiff \
-                        DICOM/smartbrain.dcm \
-                        $dcmdir"
-                    echo $cmd
+                if [[ "$mrview_exit" = "-exit" ]];then
+                    cmd="convert $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}*.png \
+                        $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}.tiff"
+                    #echo $cmd
                     eval $cmd
+
+                    if [ -f DICOM/smartbrain.dcm ]; then
+                        dcmdir="$resultsdir_dcm/${tractname}_${orient}"
+                        echo "Making dicoms in $dcmdir"
+                        mkdir -p $dcmdir
+                        cmd="KUL_nii2dcm.py -s ${tractname}_${orient} \
+                            $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}.tiff \
+                            DICOM/smartbrain.dcm \
+                            $dcmdir"
+                        echo $cmd
+                        eval $cmd
+                    fi
                 fi
-            fi
-        done
+            done
+        
+        else
+            echo "No ${tractname} found"
+        fi
     
     done
 
@@ -1010,7 +1022,10 @@ function KUL_run_FWT {
             -n $ncpu"
             KUL_task_exec $verbose_level "KUL_FWT voi generation" "12_FWTvoi"
 
-            eval "$(conda shell.bash hook)"
+            conda deactivate
+            # eval "$(conda shell.bash hook)"
+            # seems like best practice is to specify abs path to conda and source that explicitly 
+            source /usr/local/KUL_apps/anaconda3/etc/profile.d/conda.sh
             conda activate scilpy
             task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
             -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
