@@ -1,0 +1,29 @@
+# Here you specify which subjects to process
+#  this is the participant name (can be without 'sub-')
+#  separate them by a space
+#  KUL_preproc_all checks what has been done already, but this check is rudimentary, thus
+#	if a processing step failed or was interupted, 
+# 	or you scanned an extra session you need to delete the results and redo processing
+
+BIDS_participants: 
+
+
+# Freesurfer processing
+# options: look at the our webpage (in most cases leaving empty is fine)
+# ncpu: numer of cpu's to use for each subject
+# (a minimum of 2 is recommended;
+# going high > 4 is not recommended since most processes are not parallelised anyway)
+# simultaneous: defines how many subjects to process simultaneously
+# (if you have x cpu's, set it to x/ncpu)
+# (but also take into account memory usage: about 2GB per subject, so if your pc has 16GB of RAM, set to 8 max)
+# note: with ncpu=2, freesurfer takes about 10 hours
+do_freesurfer: 1
+freesurfer_options:
+freesurfer_ncpu: 24
+freesurfer_simultaneous: 1
+freesurfer_store_in_derivatives: 1
+
+# specify here if you want preproc_all to exit after doing mriqc, fmriprep, freesurfer and/or dwiprep
+#  i.e. before starting dwiprep_anat
+#  this can be usefull if you process data in seperate steps, e.g. on the VSC-HPC
+exit_after: 1

@@ -41,9 +41,9 @@ Optional arguments:
         2: do automatic tumor extra-axial segmentation and vbg (tumor with T1w, cT1w, T2w and FLAIR)
         3: do vbg with manual mask (tumor but missing one of T1w, cT1w, T2w and FLAIR; 
                     put lesion.nii.gz in RESULTS/sub-{participant}/Lesion)
-        4: clinical fMRI without glioma (cavernoma, epilepsy, etc... cT1w)
-        5: clinical dMRI for DBS of essential tremor (DRT tract)
-        6: cliniacl dMRI for DBS of Parkinson's disease (CSHD pathway)
+        4: dMRI/fMRI without glioma (cavernoma, epilepsy, etc... cT1w)
+        5: dMRI for DBS of essential tremor (DRT tract)
+        6: dMRI for DBS of Parkinson's disease (CSHD pathway)
      -d:  dicom zip file (or directory)
      -s:  scaffold (make a default DICOM and study_config)
      -B:  make a backup and cleanup 
@@ -197,9 +197,12 @@ function KUL_scaffold {
     if [ $type -lt 5 ]; then
         echo "Setting up for a tumor/epilepsy/... patient (type: $type)"
         cp ${kul_main_dir}/study_config/clinical_fmri_dmri/* $cwd/clinical_sub-${participant}_type${type}/study_config
-    else
+    elif [ $type -lt 5 ]; then
         echo "Setting up for a DBS patient (type: $type)"
-        cp ${kul_main_dir}/study_config/clinical_dmri_dbs/* $cwd/clinical_sub-${participant}_type${type}/study_config
+        cp ${kul_main_dir}/study_config/clinical_dmri_dbs_drt/* $cwd/clinical_sub-${participant}_type${type}/study_config
+    elif [ $type -lt 6 ]; then
+        echo "Setting up for a DBS patient (type: $type)"
+        cp ${kul_main_dir}/study_config/clinical_dmri_dbs_hdp/* $cwd/clinical_sub-${participant}_type${type}/study_config
     fi
 
     exit 0

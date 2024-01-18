@@ -1,0 +1,6 @@
+## This is for individual bundle tracking
+CST_LT,3000
+CST_RT,3000
+DRT_LT,12000
+DRT_RT,12000
+
