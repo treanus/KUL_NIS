@@ -386,7 +386,7 @@ validImage hasIssues fileType voxelType imgExt numVoxels numSlices numTimePoints
     dplWorkaroundValueForImageOrientationPatientTag = ""
     composeOtherFilesMode = Single
     silentTrialFileTypes = ".dat .raw .txt"
-    source = /media/KUL/DATA1/STEFAN/clinical_sub-VanGenechtenPeggy_type5/DICOM
+    source = /media/KUL/DATA1/STEFAN/clinical_sub-test/DICOM
     guiCachePath = ""
   }
 }
@@ -466,7 +466,7 @@ xyzt_units :
 
 "
     suppressErrorPosting = FALSE
-    unresolvedFileName = /media/KUL/DATA1/STEFAN/clinical_sub-VanGenechtenPeggy_type5/FGATIR_mean_PD.nii.gz
+    unresolvedFileName = /media/KUL/DATA1/STEFAN/clinical_sub-test/FGATIR_mean_PD.nii.gz
   }
 }
 module DicomSetPatientInformation {
@@ -488,11 +488,11 @@ module DicomSetPatientInformation {
   }
   fields  {
     instanceName = DicomSetPatientInformation1
-    patientsName = "VAN GENECHTEN^PEGGY VICKY"
-    patientsBirthDate = 19780524
-    patientID = 64203295
-    patientsSex = F
-    patientsAge = 045Y
+    patientsName = 
+    patientsBirthDate = 
+    patientID = 
+    patientsSex = 
+    patientsAge = 
     patientComment = ""
     studyDate = 20240118
     acquisitionDate = ""
@@ -500,7 +500,7 @@ module DicomSetPatientInformation {
     studyTime = 103631
     acquisitionTime = ""
     studyInstanceUID = 1.2.40.0.13.1.129870509861470614384697861477557993576
-    accessionNumber = PACS27648889
+    accessionNumber = 
     seriesDescription = "Mean FGATIR&PDw"
     institutionName = UZLeuven
     stationName = UZLGRADPHMR08
@@ -508,7 +508,7 @@ module DicomSetPatientInformation {
     imageComments = ""
     seriesNumber = 1000
     acquisitionNumber = 1
-    studyID = PACS27648889
+    studyID = 
     contentDate = 20240119
     contentTime = 113844
   }
@@ -534,7 +534,7 @@ module ImageSave {
   fields  {
     instanceName = ImageSave1
     taskVerboseLogging = FALSE
-    filename = /media/KUL/DATA1/STEFAN/clinical_sub-VanGenechtenPeggy_type5/Mean_FGATIR_PDw.dcm
+    filename = /media/KUL/DATA1/STEFAN/clinical_sub-test_type5/Mean_FGATIR_PDw.dcm
     addFileExtension = TRUE
     format = DICOM
     comment = MeVisLab

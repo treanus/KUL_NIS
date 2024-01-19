@@ -149,6 +149,9 @@ elif [ $verbose_level -eq 2 ] ; then
 fi
 
 function KUL_mrview {
+    
+    echo "mrview_underlay: $mrview_underlay"
+    echo "mrview_overlay: $mrview_overlay"
 
     cmd="mrview \
         $mrview_underlay \
