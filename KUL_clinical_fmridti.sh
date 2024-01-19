@@ -197,10 +197,10 @@ function KUL_scaffold {
     if [ $type -lt 5 ]; then
         echo "Setting up for a tumor/epilepsy/... patient (type: $type)"
         cp ${kul_main_dir}/study_config/clinical_fmri_dmri/* $cwd/clinical_sub-${participant}_type${type}/study_config
-    elif [ $type -lt 5 ]; then
+    elif [ $type -eq 5 ]; then
         echo "Setting up for a DBS patient (type: $type)"
         cp ${kul_main_dir}/study_config/clinical_dmri_dbs_drt/* $cwd/clinical_sub-${participant}_type${type}/study_config
-    elif [ $type -lt 6 ]; then
+    elif [ $type -eq 6 ]; then
         echo "Setting up for a DBS patient (type: $type)"
         cp ${kul_main_dir}/study_config/clinical_dmri_dbs_hdp/* $cwd/clinical_sub-${participant}_type${type}/study_config
     fi
