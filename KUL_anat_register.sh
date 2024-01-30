@@ -272,6 +272,10 @@ function KUL_check_data {
 
 function KUL_rigid_register {
 
+    echo "source_mri2: $source_mri2"
+    echo "target_mri2: $target_mri2"
+    echo "outputwarp: $outputwarp"
+
     warp_field="${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}"
     output_mri="${kulderivativesdir}/${source_mri_label}_reg2_${target_mri_label}.nii.gz"
     #echo "Rigidly registering $source_mri to $target_mri"
@@ -279,9 +283,9 @@ function KUL_rigid_register {
     --output [$warp_field,$output_mri] \
     --interpolation $interpolation_type \
     --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
-    --initial-moving-transform [$target_mri,$source_mri,1] \
+    --initial-moving-transform [$target_mri2,$source_mri2,1] \
     --transform Rigid[0.1] \
-    --metric MI[$target_mri,$source_mri,1,32,Regular,0.25] \
+    --metric MI[$target_mri2,$source_mri2,1,32,Regular,0.25] \
     --convergence [1000x500x250x100,1e-6,10] \
     --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
     #echo "Done rigidly registering $source_mri to $target_mri"
@@ -297,9 +301,9 @@ function KUL_affine_register {
     --output [$warp_field,$output_mri] \
     --interpolation $interpolation_type \
     --use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
-    --initial-moving-transform [$target_mri,$source_mri,1] \
+    --initial-moving-transform [$target_mri2,$source_mri2,1] \
     --transform Affine[0.1] \
-    --metric MI[$target_mri,$source_mri,1,32,Regular,0.25] \
+    --metric MI[$target_mri2,$source_mri2,1,32,Regular,0.25] \
     --convergence [1000x500x250x100,1e-6,10] \
     --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
     #echo "Done rigidly registering $source_mri to $target_mri"
@@ -464,7 +468,7 @@ else
             target_mri2=/tmp/${target_mri_label}_brain.nii.gz
         elif [ $mask -eq 2 ]; then
             hd-bet -i $source  -o /tmp/${source_mri_label}_brain.nii.gz
-            source_mri2=/tmp/${source_mri_label_mri_label}_brain.nii.gz
+            source_mri2=/tmp/${source_mri_label}_brain.nii.gz
             target_mri2=${target_mri}
         elif [ $mask -eq 3 ]; then
             hd-bet -i $target  -o /tmp/${target_mri_label}_brain.nii.gz
