@@ -230,7 +230,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
         ants_anat_tmp=T1w/tmp.nii.gz
         ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
         ants_mask=T1w/T1w_mask.nii.gz
-        
+
         # bet the T1w using fmriprep data
         if [ ! -f T1w/T1w_BrainExtractionBrain.nii.gz ]; then
             kul_echo " skull stripping the T1w from fmriprep..."
@@ -326,24 +326,6 @@ for i in `seq 0 $(($num_sessions-1))`; do
             else
                 dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
             fi
-
-            # also recompute the response and wmfod using anat_mask
-            # response
-            dwi2response dhollander dwi_preproced_reg2T1w_goodmask.mif \
-                response/dhollander_wm_response_reg2T1w_goodmask.txt -mask $ants_mask \
-                response/dhollander_gm_response_reg2T1w_goodmask.txt response/dhollander_csf_response_reg2T1w_goodmask.txt
-
-            # fod
-            dwi2fod msmt_csd dwi_preproced_reg2T1w.mif \
-                response/dhollander_wm_response_reg2T1w_goodmask.txt response/dhollander_wmfod_noGM_reg2T1w_goodmask.mif \
-                response/dhollander_csf_response_reg2T1w_goodmask.txt response/dhollander_csf_noGM_reg2T1w_goodmask.mif -mask $ants_mask
-
-            dwi2fod msmt_csd dwi_preproced_reg2T1w.mif \
-                response/dhollander_wm_response_reg2T1w_goodmask.txt response/dhollander_wmfod_reg2T1w_goodmask.mif \
-                response/dhollander_gm_response_reg2T1w_goodmask.txt response/dhollander_gm_reg2T1w_goodmask.mif \
-                response/dhollander_csf_response_reg2T1w_goodmask.txt response/dhollander_csf_reg2T1w_goodmask.mif -mask $ants_mask
-
-
         fi
 
         # DO QA ---------------------------------------------

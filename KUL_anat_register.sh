@@ -435,8 +435,10 @@ else
 
     kulderivativesdir=$(pwd)
     if [ $od -eq 1 ]; then
+        kulderivativesdir=$output_dir
         registeroutputdir=$output_dir
     else
+        kulderivativesdir=$(pwd)
         registeroutputdir=$(pwd)
     fi
 
