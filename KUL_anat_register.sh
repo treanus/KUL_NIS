@@ -360,7 +360,7 @@ function KUL_warp2MNI {
 
 function KUL_register_anatomical_images {
 
-    target_mri=$T1w
+    target_mri2=$T1w
     target_mri_label="T1w"
     registeroutputdir="$kulderivativesdir/antsregister"
     mkdir -p $registeroutputdir
@@ -368,31 +368,31 @@ function KUL_register_anatomical_images {
 
     if [ $ncT1w -gt 0 ];then
         source_mri_label="cT1w"
-        source_mri=$cT1w
+        source_mri2=$cT1w
         task_in="KUL_rigid_register"
         KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "anat_register_rigid"
     fi
     if [ $nT2w -gt 0 ];then
         source_mri_label="T2w"
-        source_mri=$T2w
+        source_mri2=$T2w
         task_in="KUL_rigid_register"
         KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "anat_register_rigid"
     fi
     if [ $nFLAIR -gt 0 ];then
         source_mri_label="FLAIR"
-        source_mri=$FLAIR
+        source_mri2=$FLAIR
         task_in="KUL_rigid_register"
         KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "anat_register_rigid"
     fi
     if [ $nFGATIR -gt 0 ];then
         source_mri_label="FGATIR"
-        source_mri=$FGATIR
+        source_mri2=$FGATIR
         task_in="KUL_rigid_register"
         KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "anat_register_rigid"
     fi
     if [ $nSWI -gt 0 ];then
         source_mri_label="SWI"
-        source_mri=$SWI
+        source_mri2=$SWI
         task_in="KUL_rigid_register"
         KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "anat_register_rigid"
 
