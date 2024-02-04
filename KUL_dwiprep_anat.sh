@@ -6,7 +6,7 @@
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 #
 # v0.1 - dd 09/11/2018 - alpha version
-version="v0.4 - dd 04/12/2021"
+version="v0.5 - dd 31/01/2024"
 
 # To Do
 #  - register dwi to T1 with ants-syn
@@ -151,27 +151,34 @@ bids_subj=BIDS/sub-${participant}
 if [ $s_flag -eq 1 ]; then
 
     # session is given on the command line
-    search_sessions=BIDS/sub-${participant}/ses-${ses}
+    search_sessions_dwi=BIDS/sub-${participant}/ses-${ses}
 
 else
 
     # search if any sessions exist
-    search_sessions=($(find BIDS/sub-${participant} -type d | grep dwi))
+    search_sessions_dwi=($(find BIDS/sub-${participant} -type d | grep dwi))
 
 fi    
- 
+
+# find the number of sessions by counting "ses-" in the subjects folder
+search_sessions=($(find BIDS/sub-${participant} -maxdepth 1 -type d | grep ses-))
 num_sessions=${#search_sessions[@]}
+
+# find also the number of dwi sessions
+num_sessions_dwi=${#search_sessions_dwi[@]}
     
 kul_echo "  Number of BIDS sessions: $num_sessions"
 kul_echo "    notably: ${search_sessions[@]}"
+kul_echo "  Number of BIDS sessions including dwi: $num_sessions_dwi"
+kul_echo "    notably: ${search_sessions_dwi[@]}"
 
 
 # ---- BIG LOOP for processing each session
-for i in `seq 0 $(($num_sessions-1))`; do
+for i in `seq 0 $(($num_sessions_dwi-1))`; do
 
     # set up directories 
     cd $cwd
-    long_bids_subj=${search_sessions[$i]}
+    long_bids_subj=${search_sessions_dwi[$i]}
     #echo $long_bids_subj
     bids_subj=${long_bids_subj%dwi}
     #echo $bids_subj
@@ -208,24 +215,29 @@ for i in `seq 0 $(($num_sessions-1))`; do
         mkdir -p dwi_reg
 
         echo "bids_subj: $bids_subj"
-        echo "num_sessions: $num_sessions"
+        echo "num_sessions_dwi: $num_sessions_dwi"
 
-        if [[ "$bids_subj" == *"ses-"* ]] && [ $num_sessions -eq 1 ]; then
+        if [[ "$bids_subj" == *"ses-"* ]] && [ $num_sessions_dwi -eq 1 ]; then
             local_ses_tmp=${bids_subj#*ses-}
             local_ses=${local_ses_tmp%/}
             #echo "local_ses = $local_ses"
             fmriprep_subj=fmriprep/"sub-${participant}/ses-${local_ses}"
             fmriprep_anat=($(find "${cwd}/${fmriprep_subj}/anat/" -type f -name "sub-${participant}_ses-${local_ses}_*desc-preproc_T1w.nii.gz" ! -name "*MNI*" ))
             fmriprep_anat_mask=($(find "${cwd}/${fmriprep_subj}/anat/" -type f -name "sub-${participant}_ses-${local_ses}_*desc-brain_mask.nii.gz" ! -name "*MNI*" ))
+            if  [[ -z $fmriprep_anat ]]; then
+                fmriprep_subj=fmriprep/"sub-${participant}"
+                fmriprep_anat=($(find "${cwd}/${fmriprep_subj}/anat/" -type f -name "sub-${participant}_desc-preproc_T1w.nii.gz" ! -name "*MNI*" ))
+                fmriprep_anat_mask=($(find "${cwd}/${fmriprep_subj}/anat/" -type f -name "sub-${participant}_desc-brain_mask.nii.gz" ! -name "*MNI*" ))
+            fi
         else
             fmriprep_subj=fmriprep/"sub-${participant}"
             fmriprep_anat=($(find "${cwd}/${fmriprep_subj}/anat/" -type f -name "sub-${participant}_*desc-preproc_T1w.nii.gz" ! -name "*MNI*" ))
             fmriprep_anat_mask=($(find "${cwd}/${fmriprep_subj}/anat/" -type f -name "sub-${participant}_*desc-brain_mask.nii.gz" ! -name "*MNI*" ))
         fi
 
-        echo $fmriprep_subj
-        echo $fmriprep_anat
-        echo $fmriprep_anat_mask
+        echo "fmriprep_subj: $fmriprep_subj"
+        echo "fmriprep_anat: $fmriprep_anat"
+        echo "fmriprep_anat_mask: $fmriprep_anat_mask"
 
         ants_anat_tmp=T1w/tmp.nii.gz
         ants_anat=T1w/T1w_BrainExtractionBrain.nii.gz
