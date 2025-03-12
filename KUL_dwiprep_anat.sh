@@ -4,9 +4,11 @@
 # Requires Mrtrix3, FSL, ants
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
+# @ Melina Hehl 
 #
 # v0.1 - dd 09/11/2018 - alpha version
-version="v0.5 - dd 31/01/2024"
+version="v0.5 - dd 12/03/2025"
+
 
 # To Do
 #  - register dwi to T1 with ants-syn
@@ -43,8 +45,9 @@ Required arguments:
 Optional arguments:
 
      -s:  session (of the participant)
-     -m:  keep mean T1w of all sessions
+     -M:  keep mean T1w of all sessions
      -n:  number of cpu for parallelisation
+     -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 3=legacy; 3=default)
      -v:  show output from mrtrix commands
 
 
@@ -60,6 +63,7 @@ USAGE
 ncpu=6
 silent=1
 mT1w=0
+dwi2mask_method=3
 
 # Set required options
 p_flag=0
@@ -71,7 +75,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "p:n:s:vmh" OPT; do
+    while getopts "p:n:s:m:vMh" OPT; do
 
         case $OPT in
         p) #participant
@@ -85,7 +89,10 @@ else
         n) #parallel
             ncpu=$OPTARG
         ;;
-        m) #mean
+        m) #mask_method
+            dwi2mask_method=$OPTARG
+        ;;
+        M) #mean
             mT1w=1
         ;;
         v) #verbose
@@ -333,11 +340,39 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
 
             # create mask of the dwi data (that is registered to the T1w)
             kul_echo "    creating mask of the dwi_preproces_reg2T1w data..."
+            #if [ $mrtrix3new -eq 2 ]; then
+            #    dwi2mask legacy dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
+            #else
+            #    dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
+            #fi
+
+            dwi2mask_image_in=dwi_preproced_reg2T1w.mif
+            dwi2mask_mask_out=dwi_preproced_reg2T1w_mask.nii.gz
+
+            task_in1="dwiextract ${dwi2mask_image_in} dwi/bzeros.mif -bzero -force \
+            && dwiextract ${dwi2mask_image_in} dwi/nonbzeros.mif -no_bzero -force \
+            && mrcat -force -nthreads ${ncpu} dwi/bzeros.mif dwi/nonbzeros.mif dwi/rearranged_dwis.mif"
+            
             if [ $mrtrix3new -eq 2 ]; then
-                dwi2mask legacy dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
+                if [ $dwi2mask_method -eq 1 ];then
+                    task_in2="dwi2mask hdbet \
+                        dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
+                elif [ $dwi2mask_method -eq 2 ];then
+                    task_in2="dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+                        ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+                        dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
+                elif [ $dwi2mask_method -eq 3 ];then
+                    task_in2="dwi2mask legacy \
+                        dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
+                fi
             else
-                dwi2mask dwi_preproced_reg2T1w.mif dwi_preproced_reg2T1w_mask.nii.gz -nthreads $ncpu -force
+                task_in2="dwi2mask \
+                        dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
             fi
+            task_in="$task_in1; $task_in2"
+            KUL_task_exec $verbose_level "${dwi2mask_message}" "${dwi2mask_logfile}"
+            rm -f dwi/rearranged_dwis.mi
+
         fi
 
         # DO QA ---------------------------------------------
