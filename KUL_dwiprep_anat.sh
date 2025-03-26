@@ -371,7 +371,7 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
             fi
             task_in="$task_in1; $task_in2"
             KUL_task_exec $verbose_level "${dwi2mask_message}" "${dwi2mask_logfile}"
-            rm -f dwi/rearranged_dwis.mi
+            rm -f dwi/rearranged_dwis.mif
 
         fi
 
