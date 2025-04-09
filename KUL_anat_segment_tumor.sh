@@ -182,17 +182,28 @@ function KUL_hd_glio_auto {
         cp -f $cwd/$FLAIR $hdglioinputdir/FLAIR.nii.gz
         cp -f $cwd/$T2w $hdglioinputdir/T2.nii.gz
         
-        # run HD-GLIO-AUTO using docker
-        if [ ! -f /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py ]; then
-            task_in="docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
-                --mount type=bind,source=$hdgliooutputdir/output,target=/output \
-                jenspetersen/hd-glio-auto"
-            hdglio_type="docker"
-        else
-            task_in="python /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py -i $hdglioinputdir -o $hdgliooutputdir/output"
-            hdglio_type="local install"
-        fi
-        KUL_task_exec $verbose_level "HD-GLIO-AUTO using $hdglio_type" "hdglioauto"
+        # run HD-GLIO-AUTO using different methods
+        #if [ ! -f /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py ]; then
+        #    task_in="docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
+        #        --mount type=bind,source=$hdgliooutputdir/output,target=/output \
+        #        jenspetersen/hd-glio-auto"
+        #    hdglio_type="docker"
+        #else
+            #first hdbet these
+            mkdir -p $hdglioinputdir/../hdbet
+            hd-bet -i $hdglioinputdir -o $hdglioinputdir/../hdbet --save_bet_mask
+            cp $hdglioinputdir/../hdbet/T1_bet.nii.gz $hdgliooutputdir/output/mask.nii.gz
+            
+            hd_glio_predict -t1 $hdglioinputdir/../hdbet/T1.nii.gz \
+                -t1c $hdglioinputdir/../hdbet/CT1.nii.gz \
+                -t2 $hdglioinputdir/../hdbet/T2.nii.gz \
+                -flair $hdglioinputdir/../hdbet/FLAIR.nii.gz \
+                -o $hdgliooutputdir/output/segmentation.nii.gz
+        #fi
+        #    task_in="python /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py -i $hdglioinputdir -o $hdgliooutputdir/output"
+        #    hdglio_type="local install HD-GLIO-AUTO"
+        #fi
+        #KUL_task_exec $verbose_level "HD-GLIO-AUTO using $hdglio_type" "hdglioauto"
         
     else
         kul_echo "Already done HD-GLIO-AUTO"
@@ -223,8 +234,7 @@ function KUL_resseg {
         cp $T1w $resseginputdir1/${resseginput}.nii.gz
 
         # run resseg 1st time
-        eval "$(conda shell.bash hook)"
-        conda activate resseg
+        KUL_activate_conda_env resseg
             task_in="resseg-mni -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
                 -r $ressegoutputdir/${resseginput}_reg2mni.nii.gz \
                 $resseginputdir1/${resseginput}.nii.gz"
@@ -236,12 +246,12 @@ function KUL_resseg {
             KUL_task_exec $verbose_level "resseg run 1" "resseg_run1"
         conda deactivate
 
+
         # run resseg 2nd time
         hdgliooutputdir="$kulderivativesdir/hdglio"
         # make a betted T1 as input
         maskfilter $hdgliooutputdir/output/mask.nii.gz dilate - -npass 15 -nthreads $ncpu | mrcalc $resseginputdir1/${resseginput}.nii.gz - -mul $resseginputdir2/${resseginput}.nii.gz -force
-        eval "$(conda shell.bash hook)"
-        conda activate resseg
+        KUL_activate_conda_env resseg
             task_in="resseg -a 3 -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
                 -o $ressegoutputdir/${resseginput}_cavity2.nii.gz \
                 $resseginputdir2/${resseginput}.nii.gz"
@@ -291,8 +301,7 @@ function KUL_fastsurfer {
 
     if [ ! -f $fastsurferoutputdir/$participant/mri/aparc.DKTatlas+aseg.deep.mgz ]; then
         kul_echo "Running segmentation-only fastsufer"
-        eval "$(conda shell.bash hook)"
-        conda activate fastsurfer_gpu
+        KUL_activate_conda_env fastsurfer_gpu
         task_in="$FASTSURFER_HOME/run_fastsurfer.sh \
             --sid $participant --sd $fastsurferoutputdir \
             --t1 $cwd/$T1w \
@@ -379,7 +388,6 @@ if [ $result -eq 0 ]; then
     # STEP 5A - HD-GLIO-AUTO
     hdglio_type_found=$(mrstats -output max $hdglio_segmentation)
     #echo $hdglio_type_found
-    
     
     if [ $hdglio_type_found -eq 0 ];then
 
@@ -497,13 +505,15 @@ if [ $result -eq 0 ]; then
         fi
 
     fi
+    
 
     # clean and fill the cavity
     maskfilter -nthreads $ncpu -npass 5 $kulderivativesdir/tmp_sub-${participant}_cavity_only.nii.gz dilate - | \
-    maskfilter -nthreads $ncpu - fill - | \
-    maskfilter -nthreads $ncpu -npass 5 - erode $local_output_resseg -force
+        maskfilter -nthreads $ncpu - fill - | \
+        maskfilter -nthreads $ncpu -npass 5 - erode $local_output_resseg -force
     rm -rf $kulderivativesdir/tmp_*.gz
     cp $local_output_resseg $global_output_resseg
+
 
     # compute a refined whole lesion + cavity
     if [ $resseg_use -eq 1 ]; then
