@@ -1429,7 +1429,7 @@ if [ $anon -eq 1 ]; then
     $json_anon='"defaceTpl": "pydeface --outfile {dstFile} {srcFile}",'
 fi
 bids_conf_str="{${json_anon}
- \"dcm2niixOptions\": \"-b y -ba y -z y -i y -f '%3s_%f_%p_%t'\",
+ \"dcm2niixOptions\": \"-b y -ba y -z y -i n -f '%3s_%f_%p_%t'\",
  \"descriptions\":[ ${bids_conf} ] }"
 #echo ${bids_conf_str}
 echo ${bids_conf_str} | python -m json.tool > ${bids_config_json_file}
