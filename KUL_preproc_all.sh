@@ -370,7 +370,7 @@ function task_freesurfer {
         kul_e2cl " started (in parallel) freesurfer recon-all on participant ${BIDS_participant}... (using $ncpu_freesurfer cores, logging to $freesurfer_log)" ${log}
         
         # search if any sessions exist
-        search_sessions=($(find BIDS/sub-${BIDS_participant} -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
+        search_sessions=($(find BIDS/sub-${BIDS_participant} -name "*_T1w.nii.gz" ! -name "*gadolinium*" ! -name "*short*" | sort))
         
         num_sessions=${#search_sessions[@]}
         
