@@ -183,13 +183,13 @@ function KUL_hd_glio_auto {
         cp -f $cwd/$T2w $hdglioinputdir/T2.nii.gz
         
         # run HD-GLIO-AUTO using different methods
-        #if [ ! -f /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py ]; then
-        #    task_in="docker run --gpus all --mount type=bind,source=$hdglioinputdir,target=/input \
-        #        --mount type=bind,source=$hdgliooutputdir/output,target=/output \
-        #        jenspetersen/hd-glio-auto"
-        #    hdglio_type="docker"
-        #else
-            #first hdbet these
+            # 1. local install
+        if [ -f /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py ]; then
+            task_in="python /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py -i $hdglioinputdir -o $hdgliooutputdir/output"
+            hdglio_type="local install HD-GLIO-AUTO"
+            KUL_task_exec $verbose_level "HD-GLIO-AUTO using $hdglio_type" "hdglioauto"
+        else
+            # 2. using pip
             mkdir -p $hdglioinputdir/../hdbet
             hd-bet -i $hdglioinputdir -o $hdglioinputdir/../hdbet --save_bet_mask
             cp $hdglioinputdir/../hdbet/T1_bet.nii.gz $hdgliooutputdir/output/mask.nii.gz
@@ -199,12 +199,8 @@ function KUL_hd_glio_auto {
                 -t2 $hdglioinputdir/../hdbet/T2.nii.gz \
                 -flair $hdglioinputdir/../hdbet/FLAIR.nii.gz \
                 -o $hdgliooutputdir/output/segmentation.nii.gz
-        #fi
-        #    task_in="python /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py -i $hdglioinputdir -o $hdgliooutputdir/output"
-        #    hdglio_type="local install HD-GLIO-AUTO"
-        #fi
-        #KUL_task_exec $verbose_level "HD-GLIO-AUTO using $hdglio_type" "hdglioauto"
-        
+        fi
+
     else
         kul_echo "Already done HD-GLIO-AUTO"
     fi
