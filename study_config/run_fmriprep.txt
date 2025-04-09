@@ -29,7 +29,7 @@ fmriprep_options: --fs-no-reconall --use-aroma --use-syn-sdc
 fmriprep_bids_filter_file: study_config/bids_filter_no_gadolinium.json
 fmriprep_ncpu: 16
 fmriprep_mem: 60
-fmriprep_simultaneous: 1
+fmriprep_simultaneous: 2
 
 
 # specify here if you want preproc_all to exit after doing mriqc, fmriprep, freesurfer and/or dwiprep
