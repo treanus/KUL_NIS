@@ -8,6 +8,8 @@ transform=${fmriprep_dir}/anat/sub-${participant}_from-MNI152NLin2009cAsym_to-T1
 reference=${fmriprep_dir}/anat/sub-${participant}_desc-preproc_T1w.nii.gz
 ref_fMRI=CONN/conn_project01/results/firstlevel/SBC_01/BETA_Subject001_Condition001_Source001.nii
 T1w_GM=${fmriprep_dir}/anat/sub-${participant}_space-MNI152NLin2009cAsym_label-GM_probseg.nii.gz
+T1w_WM=${fmriprep_dir}/anat/sub-${participant}_space-MNI152NLin2009cAsym_label-WM_probseg.nii.gz
+T1w_mask=${fmriprep_dir}/anat/sub-${participant}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz
 
 function KUL_antsApply_Transform {
     #if [ $KUL_DEBUG -gt 0 ]; then
@@ -43,11 +45,16 @@ function average_network {
         si="$si ${conn_dir}/BETA_Subject001_Condition001_Source${s}.nii "
         
         # extract the individual connectivity maps
-        mrcalc ${conn_dir}/BETA_Subject001_Condition001_Source${s}.nii 0.3 -gt CONN/T1w_GM_resampled.nii.gz -mult \
+        mrcalc ${conn_dir}/BETA_Subject001_Condition001_Source${s}.nii 0.3 -gt $underlay -mult \
             CONN/$formatted_text.nii.gz -force
-        
+        mrcalc ${conn_dir}/BETA_Subject001_Condition001_Source${s}.nii $underlay -mult \
+            CONN/${formatted_text}_raw.nii.gz -force
+
         input=CONN/$formatted_text.nii.gz
         output=CONN/${formatted_text}_space-subject.nii.gz
+        KUL_antsApply_Transform
+        input=CONN/${formatted_text}_raw.nii.gz
+        output=CONN/${formatted_text}_raw_space-subject.nii.gz
         KUL_antsApply_Transform
 
         KUL_mrview_figure.sh -u $reference \
@@ -58,10 +65,16 @@ function average_network {
     done
     echo $si
     net=$text_before_dot
-    mrmath $si mean - | mrcalc - 0.2 -gt CONN/T1w_GM_resampled.nii.gz -mult \
+    mrmath $si mean - | mrcalc - 0.2 -gt $underlay -mult \
         CONN/${net}_average.nii.gz -force
+    mrmath $si mean - | mrcalc - $underlay -mult \
+        CONN/${net}_average_raw.nii.gz -force
+
     input=CONN/${net}_average.nii.gz
     output=CONN/${net}_average_space-subject.nii.gz    
+    KUL_antsApply_Transform
+    input=CONN/${net}_average_raw.nii.gz
+    output=CONN/${net}_average_raw_space-subject.nii.gz    
     KUL_antsApply_Transform
 
     KUL_mrview_figure.sh -u $reference \
@@ -71,7 +84,13 @@ function average_network {
 }
 
 # Make the T1w_GM same dimensions as fMRI
-mrgrid $T1w_GM -template $ref_fMRI regrid CONN/T1w_GM_resampled.nii.gz -force
+#underlay0=CONN/T1w_GM.nii.gz
+underlay0=$T1w_mask
+underlay=CONN/T1w_mask_resampled.nii.gz
+#mrcalc $T1w_GM $T1w_WM -add $underlay0 -force
+
+mrgrid $underlay0 -template $ref_fMRI regrid $underlay -force
+
 
 # DMN
 sources=(001 002 003 004)
