@@ -186,7 +186,12 @@ modification_date = time.strftime("%Y%m%d")
 # using the date and time. Tags of interest:
 direction = new_img.GetDirection()
 series_tag_values_a = [
-    (k, reader.GetMetaData(k))
+    (
+        k,
+        reader.GetMetaData(k)
+        .encode('utf-8', 'surrogateescape')  # convert str -> bytes (preserving invalids)
+        .decode('latin-1')                   # decode bytes as latin-1
+    )
     for k in tags_to_copy
     if reader.HasMetaDataKey(k)
 ] 
