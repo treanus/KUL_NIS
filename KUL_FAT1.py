@@ -16,17 +16,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Using participant ID (assumes standard directory structure):
-  python script.py -p SUB001
+  # Using BIDS participant ID (without 'sub-'):
+  KUL_FAT1.py -p 001
   
   # Using explicit file paths:
-  python script.py -t1 path/to/T1w.nii.gz -fa path/to/fa.nii.gz -o path/to/output/FAT1.nii.gz
+  KUL_FAT1.py -t1 path/to/T1w.nii.gz -fa path/to/fa.nii.gz -o path/to/output/FAT1.nii.gz
   
   # With smoothing (default 2.0mm):
-  python script.py -p SUB001 -s
+  KUL_FAT1.py -p 001 -s
   
   # With custom smoothing:
-  python script.py -p SUB001 -s 3.0
+  KUL_FAT1.py -p 001 -s 3.0
 """
     )
 
