@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Stefan Sunaert, 2025-06-24
+# Stefan Sunaert, 2025-08-24
 # Compute FAT1 weighted MR image from T1w and FA images using MRtrix3
 # M&M taken from Goedemans et al., Imaging Neurosci 2024. doi: 10.1162/imag_a_00139
 #
