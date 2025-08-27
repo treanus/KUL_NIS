@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+#
+# Stefan Sunaert, 2025-06-24
+# Compute FAT1 weighted MR image from T1w and FA images using MRtrix3
+# M&M taken from Goedemans et al., Imaging Neurosci 2024. doi: 10.1162/imag_a_00139
+#
 import argparse
 import subprocess
 import os
@@ -20,7 +25,7 @@ Examples:
   KUL_FAT1.py -p 001
   
   # Using explicit file paths:
-  KUL_FAT1.py -t1 path/to/T1w.nii.gz -fa path/to/fa.nii.gz -o path/to/output/FAT1.nii.gz
+  KUL_FAT1.py -t1 path/to/T1w.nii.gz -fa path/to/fa.nii.gz -o path/to/output/FAT1w.nii.gz
   
   # With smoothing (default 2.0mm):
   KUL_FAT1.py -p 001 -s
@@ -47,7 +52,7 @@ Examples:
         participant = args.participant
         t1_path = f"./RESULTS/sub-{participant}/Anat/T1w.nii.gz"
         fa_path = f"./dwiprep/sub-{participant}/sub-{participant}/qa/fa_reg2T1w.nii.gz"
-        out_path = f"./BIDS/derivatives/KUL_compute/sub-{participant}/KUL_FAT1/FAT1.nii.gz"
+        out_path = f"./BIDS/derivatives/KUL_compute/sub-{participant}/KUL_FAT1/FAT1w.nii.gz"
     elif all([args.t1, args.fa, args.output]):
         t1_path = args.t1
         fa_path = args.fa
@@ -64,15 +69,15 @@ Examples:
     fa_processed = fa_regrid
 
     # Regrid FA to T1w
-    subprocess.run(["mrgrid", fa_path, "regrid", "-template", t1_path, fa_regrid], check=True)
+    subprocess.run(["mrgrid", "-force", fa_path, "regrid", "-template", t1_path, fa_regrid], check=True)
 
     if args.smooth is not None:
         fa_smooth = os.path.join(base_dir, "fa_smooth.nii.gz")
-        subprocess.run(["mrfilter", fa_regrid, "smooth", "-fwhm", str(args.smooth), fa_smooth], check=True)
+        subprocess.run(["mrfilter", "-force", fa_regrid, "smooth", "-fwhm", str(args.smooth), fa_smooth], check=True)
         fa_processed = fa_smooth
 
     # Compute FAT1 = sqrt(FA) * T1w
-    subprocess.run(["mrcalc", fa_processed, "-sqrt", t1_path, "-mult", out_path], check=True)
+    subprocess.run(["mrcalc", "-force", fa_processed, "-sqrt", t1_path, "-mult", out_path], check=True)
 
 if __name__ == "__main__":
     main()
