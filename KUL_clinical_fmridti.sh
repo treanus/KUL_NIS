@@ -1300,6 +1300,12 @@ wait
 KUL_run_dwiprep_anat
 
 
+# STEP 11b - new FAT1w
+if [ $dbs -gt 0 ]; then
+    KUL_FAT1w.py -p $participant
+fi
+
+
 # STEP 12 - run Fun With Tracts
 KUL_run_FWT
 
