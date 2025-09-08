@@ -138,7 +138,7 @@ function KUL_antsApply_Transform {
     if [ $KUL_DEBUG -gt 0 ]; then
         echo "input=$input"
         echo "output=$output"
-        echo "transform=$transform"
+        #echo "transform=$transform"
         echo "reference=$reference"
     fi
     antsApplyTransforms -d 3 --float 1 \
@@ -146,7 +146,6 @@ function KUL_antsApply_Transform {
         -i $input \
         -o $output \
         -r $reference \
-        -t $transform \
         -n Linear
 }
 
@@ -259,6 +258,14 @@ function KUL_compute_SPM_matlab {
     cmd="cp $fmriresults/spmT_0001.nii $global_result"
     #echo $cmd
     eval $cmd
+
+    # since SPM analysis was in bold space, we transform back in T1w space
+    input=$result
+    output=$global_result
+    #transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+    find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
+    reference=${find_T1w[0]}
+    KUL_antsApply_Transform
 
 } 
 
