@@ -667,7 +667,7 @@ function KUL_run_fmriprep {
         rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
         if [ $n_fMRI -gt 0 ]; then
             #fmriprep_options="--fs-no-reconall --use-aroma --use-syn-sdc "
-            fmriprep_options="--fs-no-reconall --use-aroma --use-syn-sdc "
+            fmriprep_options="--fs-no-reconall --use-syn-sdc "
         else
             fmriprep_options="--fs-no-reconall --anat-only "
         fi
@@ -1096,8 +1096,8 @@ function KUL_fmriproc {
     if [ $n_fMRI -gt 0 ];then
 
         if [ ! -f ${cwd}/KUL_LOG/sub-${participant}_SPM.done ]; then
-            task_in="KUL_fmriproc_spm.sh -p $participant"
-            KUL_task_exec $verbose_level "KUL_fmriproc_spm" "7_fmriproc_spm"
+            task_in="KUL_fmriproc_spm_new.sh -p $participant"
+            KUL_task_exec $verbose_level "KUL_fmriproc_spm_new" "7_fmriproc_spm"
 
             # add to report
             for spm in RESULTS/sub-${participant}/SPM/*.nii; do
