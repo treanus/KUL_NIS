@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Stefan Sunaert, 2025-08-24
-# Compute FAT1 weighted MR image from T1w and FA images using MRtrix3
+# Compute FAT1w weighted MR image from T1w and FA images using MRtrix3
 # M&M taken from Goedemans et al., Imaging Neurosci 2024. doi: 10.1162/imag_a_00139
 #
 import argparse
@@ -11,13 +11,13 @@ import sys
 
 def print_usage_and_exit(parser):
     """Print usage information and exit."""
-    print("\nUsage: Compute FAT1 image from T1w and FA images using MRtrix3\n")
+    print("\nUsage: Compute FAT1w image from T1w and FA images using MRtrix3\n")
     parser.print_help()
     sys.exit(1)
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Compute FAT1 from T1w and FA images using MRtrix3",
+        description="Compute FAT1w from T1w and FA images using MRtrix3",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -38,7 +38,7 @@ Examples:
     parser.add_argument('-p', '--participant', type=str, help="Participant ID")
     parser.add_argument('-t1', type=str, help="Path to T1w image")
     parser.add_argument('-fa', type=str, help="Path to FA image")
-    parser.add_argument('-o', '--output', type=str, help="Path to output FAT1 image")
+    parser.add_argument('-o', '--output', type=str, help="Path to output FAT1w image")
     parser.add_argument('-s', '--smooth', nargs='?', const=2.0, type=float, default=None,
                         help="Smooth FA with FWHM in mm (default 2.0 if flag provided without value)")
 
@@ -76,7 +76,7 @@ Examples:
         subprocess.run(["mrfilter", "-force", fa_regrid, "smooth", "-fwhm", str(args.smooth), fa_smooth], check=True)
         fa_processed = fa_smooth
 
-    # Compute FAT1 = sqrt(FA) * T1w
+    # Compute FAT1w = sqrt(FA) * T1w
     subprocess.run(["mrcalc", "-force", fa_processed, "-sqrt", t1_path, "-mult", out_path], check=True)
 
 if __name__ == "__main__":

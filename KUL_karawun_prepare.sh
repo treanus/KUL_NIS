@@ -183,6 +183,16 @@ T1w_max=$(mrstats -output max $T1w_in)
 T1w_factor=$(scale=10; echo "($T1w_max-($T1w_min))/32767" | bc)
 mrcalc $T1w_in $T1w_min -sub $T1w_factor -div Karawun/sub-${participant}/T1w.nii.gz -force
 
+
+FAT1="BIDS/derivatives/KUL_compute/sub-${participant}/KUL_FAT1/FAT1w.nii.gz"
+if [ -f $FAT1 ]; 
+then
+    FAT1w="Karawun/sub-${participant}/FAT1w.nii.gz
+    cp $FAT1 $FAT1w
+else 
+    FAT1w=""
+fi
+
 #if [ $type -eq 1 ]; then
 
     tract_name_orig="AF_all_LT"
@@ -448,6 +458,6 @@ echo "Then copy into terminal: "
 echo "conda activate KarawunDev"
 echo "importTractography -d Karawun/sub-${participant}/DICOM/*.dcm \
 -o Karawun/sub-${participant}/sub-${participant}_for_elements \
--n Karawun/sub-${participant}/T1w.nii.gz \
+-n Karawun/sub-${participant}/T1w.nii.gz $FAT1w \
 -t Karawun/sub-${participant}/tck/*.tck \
 -l Karawun/sub-${participant}/labels/*.gz"

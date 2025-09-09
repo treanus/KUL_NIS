@@ -257,10 +257,10 @@ function KUL_compute_SPM_matlab {
 
     cmd="cp $fmriresults/spmT_0001.nii $global_result"
     #echo $cmd
-    eval $cmd
+    #eval $cmd
 
     # since SPM analysis was in bold space, we transform back in T1w space
-    input=$result
+    input=$fmriresults/spmT_0001.nii
     output=$global_result
     #transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
     find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
