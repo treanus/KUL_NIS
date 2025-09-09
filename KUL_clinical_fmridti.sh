@@ -1300,18 +1300,24 @@ wait
 KUL_run_dwiprep_anat
 
 
-# STEP 11b - new FAT1w
+# STEP 12 - new FAT1w
 if [ $dbs -gt 0 ]; then
-    KUL_FAT1w.py -p $participant
+    FAT1="BIDS/derivatives/KUL_compute/sub-${participant}/KUL_FAT1/FAT1w.nii.gz"
+    if [ ! -f $FAT1 ]; then
+        kul_echo "Running KUL_FAT1w for a DBS patient"
+        KUL_FAT1w.py -p $participant
+    else
+        echo "FAT1w already done"
+    fi
 fi
 
 
-# STEP 12 - run Fun With Tracts
+# STEP 13 - run Fun With Tracts
 KUL_run_FWT
 
 
 
-# STEP 13 - call yourself to make tractography figures
+# STEP 14 - call yourself to make tractography figures
 fig_check=${cwd}/KUL_LOG/sub-${participant}_figures.done
 if [ ! -f $fig_check ]; then
     #echo $type
@@ -1336,7 +1342,7 @@ fi
 
 
 
-# STEP 14 - run Karawun
+# STEP 15 - run Karawun
 karawun_check=${cwd}/KUL_LOG/sub-${participant}_karawun.done
 if [ ! -f $karawun_check ]; then
     if [ $type -lt 5 ]; then
