@@ -187,7 +187,7 @@ mrcalc $T1w_in $T1w_min -sub $T1w_factor -div Karawun/sub-${participant}/T1w.nii
 FAT1="BIDS/derivatives/KUL_compute/sub-${participant}/KUL_FAT1/FAT1w.nii.gz"
 if [ -f $FAT1 ]; 
 then
-    FAT1w="Karawun/sub-${participant}/FAT1w.nii.gz
+    FAT1w="Karawun/sub-${participant}/FAT1w.nii.gz"
     cp $FAT1 $FAT1w
 else 
     FAT1w=""

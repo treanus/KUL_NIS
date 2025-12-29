@@ -1,4 +1,6 @@
 #!/bin/bash
+
+#set -x
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 # Requires Mrtrix3, FSL, ants
