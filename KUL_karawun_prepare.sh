@@ -153,6 +153,7 @@ function KUL_karawun_get_tract {
 
         mrgrid BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_map_BT${ACT}_iFOD2.nii.gz \
             regrid -template Karawun/sub-${participant}/T1w.nii.gz \
+            -interp linear \
             - | mrcalc - ${tract_threshold} -gt ${tract_color} -mul \
             Karawun/sub-${participant}/labels/${tract_name_final}_center.nii.gz -force
     else
