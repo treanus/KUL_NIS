@@ -153,6 +153,7 @@ function KUL_karawun_get_tract {
 
         mrgrid BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_map_BT${ACT}_iFOD2.nii.gz \
             regrid -template Karawun/sub-${participant}/T1w.nii.gz \
+            -interp linear \
             - | mrcalc - ${tract_threshold} -gt ${tract_color} -mul \
             Karawun/sub-${participant}/labels/${tract_name_final}_center.nii.gz -force
     else
@@ -182,6 +183,16 @@ T1w_min=$(mrstats -output min $T1w_in)
 T1w_max=$(mrstats -output max $T1w_in)
 T1w_factor=$(scale=10; echo "($T1w_max-($T1w_min))/32767" | bc)
 mrcalc $T1w_in $T1w_min -sub $T1w_factor -div Karawun/sub-${participant}/T1w.nii.gz -force
+
+
+FAT1="BIDS/derivatives/KUL_compute/sub-${participant}/KUL_FAT1/FAT1w.nii.gz"
+if [ -f $FAT1 ]; 
+then
+    FAT1w="Karawun/sub-${participant}/FAT1w.nii.gz"
+    cp $FAT1 $FAT1w
+else 
+    FAT1w=""
+fi
 
 #if [ $type -eq 1 ]; then
 
@@ -448,6 +459,6 @@ echo "Then copy into terminal: "
 echo "conda activate KarawunDev"
 echo "importTractography -d Karawun/sub-${participant}/DICOM/*.dcm \
 -o Karawun/sub-${participant}/sub-${participant}_for_elements \
--n Karawun/sub-${participant}/T1w.nii.gz \
+-n Karawun/sub-${participant}/T1w.nii.gz $FAT1w \
 -t Karawun/sub-${participant}/tck/*.tck \
 -l Karawun/sub-${participant}/labels/*.gz"

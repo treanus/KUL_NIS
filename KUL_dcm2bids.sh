@@ -854,7 +854,7 @@ fi
 # if there is a Smartbrain, copy it to DICOM
 if [ -d DICOM ]; then
     IFS=$'\n'
-    sb=($(find -L $tmp -type d -name "SmartBrain*"))
+    sb=($(find -L $tmp -type d -name "*SmartBrain*"))
     n_sb=${#sb[@]}
     if [ $n_sb -gt 0 ]; then
         # find the largest .dcm

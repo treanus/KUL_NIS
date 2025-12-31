@@ -667,7 +667,7 @@ function KUL_run_fmriprep {
         rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
         if [ $n_fMRI -gt 0 ]; then
             #fmriprep_options="--fs-no-reconall --use-aroma --use-syn-sdc "
-            fmriprep_options="--fs-no-reconall --use-aroma --use-syn-sdc "
+            fmriprep_options="--fs-no-reconall --use-syn-sdc "
         else
             fmriprep_options="--fs-no-reconall --anat-only "
         fi
@@ -1096,8 +1096,8 @@ function KUL_fmriproc {
     if [ $n_fMRI -gt 0 ];then
 
         if [ ! -f ${cwd}/KUL_LOG/sub-${participant}_SPM.done ]; then
-            task_in="KUL_fmriproc_spm.sh -p $participant"
-            KUL_task_exec $verbose_level "KUL_fmriproc_spm" "7_fmriproc_spm"
+            task_in="KUL_fmriproc_spm_new.sh -p $participant"
+            KUL_task_exec $verbose_level "KUL_fmriproc_spm_new" "7_fmriproc_spm"
 
             # add to report
             for spm in RESULTS/sub-${participant}/SPM/*.nii; do
@@ -1300,12 +1300,24 @@ wait
 KUL_run_dwiprep_anat
 
 
-# STEP 12 - run Fun With Tracts
+# STEP 12 - new FAT1w
+if [ $dbs -gt 0 ]; then
+    FAT1="BIDS/derivatives/KUL_compute/sub-${participant}/KUL_FAT1/FAT1w.nii.gz"
+    if [ ! -f $FAT1 ]; then
+        kul_echo "Running KUL_FAT1w for a DBS patient"
+        KUL_FAT1w.py -p $participant
+    else
+        echo "FAT1w already done"
+    fi
+fi
+
+
+# STEP 13 - run Fun With Tracts
 KUL_run_FWT
 
 
 
-# STEP 13 - call yourself to make tractography figures
+# STEP 14 - call yourself to make tractography figures
 fig_check=${cwd}/KUL_LOG/sub-${participant}_figures.done
 if [ ! -f $fig_check ]; then
     #echo $type
@@ -1330,7 +1342,7 @@ fi
 
 
 
-# STEP 14 - run Karawun
+# STEP 15 - run Karawun
 karawun_check=${cwd}/KUL_LOG/sub-${participant}_karawun.done
 if [ ! -f $karawun_check ]; then
     if [ $type -lt 5 ]; then
