@@ -53,6 +53,68 @@ The pipelines used should work fine with healthy volunteer data, but are being i
 **Any use in a clinical environment is off-label, not FDA aproved, not CE-labeled or approved. Also see the license file please.**
 
 
+## Requirements
+
+KUL_NIS is a set of bash/python wrappers around established neuroimaging software. All scripts assume a Linux environment and expect the dependencies below to be installed and on the `PATH`. The easiest way to install most of them is [KUL_Linux_Installation](https://github.com/treanus/KUL_Linux_Installation).
+
+### Core dependencies (used by most tools)
+
+| Software | Version (tested) | Used for |
+|---|---|---|
+| [MRtrix3](https://www.mrtrix.org/) | latest | dwiprep, mrconvert/mrview, tractography, fixel-based analysis, figures |
+| [FSL](https://fsl.fmrib.ox.ac.uk/) | 6.x | topup/eddy distortion correction, melodic resting-state, fslmaths |
+| [ANTs](https://github.com/ANTsX/ANTs) | latest | registration (rigid/SyN), N4 bias correction |
+| [dcm2bids](https://github.com/UNFmontreal/Dcm2Bids) | **≥ 3.0** | dicom → BIDS (v2 supported only via `KUL_dcm2bids_v2bkup.sh`) |
+| [dcm2niix](https://github.com/rordenlab/dcm2niix) | latest | dicom → NIfTI backend for dcm2bids |
+| python3 | ≥ 3.8 | helper scripts (`KUL_nii2dcm.py`, `KUL_EDs_b2masks.py`, etc.) |
+| `xvfb` / `xvfb-run` | — | headless `mrview` screenshots in the clinical pipeline |
+| [p7zip](https://www.7-zip.org/) (`7z`) | — | encrypted backup archives (`-B` option) |
+| [dcmtk](https://dicom.offis.de/dcmtk) (`dcmsend`) | — | push DICOMs to PACS / Orthanc (`tools/send_2_orthanc.sh`) |
+
+#### Python packages (for KUL_nii2dcm.py and other .py scripts)
+
+| Package | Used for |
+|---|---|
+| [SimpleITK](https://simpleitk.org/) | reading DICOM geometry in `KUL_nii2dcm.py` |
+| [Pillow](https://python-pillow.org/) (PIL) | PNG loading and resizing in `KUL_nii2dcm.py` |
+| [numpy](https://numpy.org/) | array math throughout |
+| [nibabel](https://nipy.org/nibabel/) | NIfTI I/O in Python scripts |
+| [scipy](https://scipy.org/) | image operations in `KUL_EDs_b2masks.py` |
+
+### Pipeline / analysis dependencies (tool-specific)
+
+| Software | Version (tested) | Used by |
+|---|---|---|
+| [fmriprep](https://fmriprep.org/) | **25.1.4** (all clinical configs) | `KUL_preproc_all`, clinical pipeline; run via Docker or Singularity |
+| [mriqc](https://mriqc.readthedocs.io/) | latest | quality control; run via Docker or Singularity |
+| [FreeSurfer](https://surfer.nmr.mgh.harvard.edu/) | **8.2.0** | recon-all, cortical parcellation (Lausanne2018, Glasser HCP-MMP1), subregion segmentation |
+| [FastSurfer](https://github.com/Deep-MI/FastSurfer) | **v3+** (required for FreeSurfer 8 compatibility) | faster surface reconstruction alternative to recon-all |
+| [SPM12](https://www.fil.ion.ucl.ac.uk/spm/) + MATLAB | SPM12 | task-fMRI GLM statistics (`KUL_fmriproc_spm`) |
+| [synb0-disco](https://github.com/MASILab/Synb0-DISCO) | **v3.0** (`leonyichencai/synb0-disco:v3.0`) | susceptibility distortion correction when no reverse-PE acquisition exists |
+| [HD-BET](https://github.com/MIC-DKFZ/HD-BET) | latest | brain extraction (`KUL_dwiprep -m 1`, `KUL_anat_register`) |
+| [hd-glio-auto](https://github.com/NeuroAI-HD/HD-GLIO-AUTO) | latest | AI glioma segmentation (clinical types 1–3) |
+| [resseg](https://github.com/fepegar/resseg) | latest | resection-cavity segmentation |
+| [LoRE](https://github.com/TissueVisionMics/lore) (`lore_dwi2decomposition`, `lore_decomposition2contrast`) | latest | low-rank DWI decomposition / microstructure contrasts (`-D run_dwiprep_lore_sd.txt`) |
+| [qsiprep](https://qsiprep.readthedocs.io/) | latest | alternative dMRI preprocessing (`KUL_qsiprep`) |
+
+### Sibling KUL repositories
+
+These are separate repos that the clinical pipeline calls and must be installed alongside KUL_NIS:
+
+- [**KUL_VBG**](https://github.com/KUL-Radneuron/KUL_VBG) — Virtual Brain Grafting: enables FreeSurfer/FastSurfer in patients with large lesions. Brain extraction uses `mri_synthstrip` (FreeSurfer built-in; `-B 1` in the clinical pipeline).
+- [**KUL_FWT**](https://github.com/KUL-Radneuron/KUL_FWT) — automated CSD probabilistic tractography pipeline.
+- [**KUL_DTI_ALPS**](KUL_DTI_ALPS/) — DTI-ALPS index calculation using MNI-space ROIs (bundled as a subdirectory of KUL_NIS_unified).
+- [Karawun](https://github.com/DevelopmentalImagingMCRI/karawun) — convert tractography/segmentation results to Brainlab Neurosurgery format.
+
+> Versions marked "latest" are not pinned by the code and track current releases. Versions in **bold** are explicitly set in study configs or the code itself and represent the values KUL_NIS is currently validated against.
+
+
+## Clinical pipeline (one command, dicom → figures/PACS)
+
+### [KUL_clinical_fmridti](/docs/KUL_clinical_fmridti/KUL_clinical_fmridti.md)
+The clinical batch pipeline. From a single DICOM input it runs the full presurgical / DBS fMRI–dMRI work-up — dcm2bids, tumor segmentation, KUL_VBG, fmriprep, SPM/melodic activation maps, KUL_dwiprep and KUL_FWT tractography — and produces review figures and (optionally, via `-R`) DICOMs for PACS and Brainlab. Seven processing types cover intra-/extra-axial glioma, manual-mask lesions, non-glioma cases, DBS (DRT / CSHD) and DTI-ALPS. Click the link in the header for the full guide.
+
+
 ## Tools for BIDS data conversion
 
 ### [KUL_dcm2bids](/docs/KUL_dcm2bids/KUL_dcm2bids.md)
@@ -64,7 +126,7 @@ Click the link in the header above for more information.
 KUL_dcm2bids to convert multiple datasets at once.
 
 ### KUL_bids_summary
-Provides output of multiple parameters of a BIDS dataset, including acquisition date, scanner software verion, etc... readable in google sheets, excel, etc...
+Provides output of multiple parameters of a BIDS dataset, including acquisition date, scanner software verion, voxel spacing (x/y/z), etc... written to `BIDS_info.tsv`, readable in google sheets, excel, etc...
 
 
 
@@ -99,10 +161,18 @@ This script will run an automated analysis using FSL melodic on active and resti
 ## Tools for dMRI analysis  
 
 ### KUL_dwiprep
+Preprocesses diffusion MRI data with MRtrix3: denoising, Gibbs unringing, motion/distortion correction via `dwifslpreproc` (topup/eddy or synb0-disco when no reverse phase-encoding is available), bias correction and brain masking (including a `mri_synthstrip` option). Run `KUL_dwiprep.sh` for options. For old studies whose headers lack phase-encoding info, set `export KUL_dwiprep_custom_dwifslpreproc="..."` to pass explicit parameters.
 
 ### KUL_dwiprep_anat
+Coregisters the preprocessed dMRI to the subject's T1w (without Gd) and brings anatomical/parcellation information into diffusion space.
 
 ### KUL_dwiprep_MNI
+Normalises diffusion-space results to MNI space (using fmriprep transforms) for group analysis.
+
+## Tools for mask comparison
+
+### [KUL_EDs_b2masks](/docs/KUL_EDs_b2masks/KUL_EDs_b2masks.md)
+Swiss-knife distance tool for binary NIfTI masks: minimum Euclidean, Hausdorff, 95th-percentile Hausdorff and ASSD metrics, one-to-one/one-to-many/all-pairs comparison modes, multi-class label support, parallel workers, and PNG/HTML/CSV reporting per pair.
 
 ## Tools for the study of myelin 
 
@@ -113,9 +183,19 @@ This script will run an automated analysis using FSL melodic on active and resti
 
 ## Tools for importing results back into dicom and transfer to PACS/BrainLab
 
-### Karawun 
+Pipeline results (tracts, activation maps) can be converted back to DICOM so they can be reviewed in a clinical PACS or imported into Brainlab for neuronavigation. In the clinical pipeline this is triggered with `KUL_clinical_fmridti.sh -R <underlay>`, **after** reviewing the figures.
+
+### KUL_nii2dcm
+Wraps rendered PNG screenshots into a DICOM series, using a donor DICOM from the same study/session so the result links correctly in PACS and supports multi-planar reconstruction (`KUL_nii2dcm.py`).
+
+### Karawun
+Converts tractography/segmentation results into the Brainlab Neurosurgery format (`KUL_karawun_prepare.sh`, `KUL_karawun2brainlab.sh`). See [Karawun](https://github.com/DevelopmentalImagingMCRI/karawun).
+
+### send_2_orthanc
+Pushes a directory of generated DICOMs to an Orthanc/PACS node with `dcmsend` (`tools/send_2_orthanc.sh`).
 
 ### MevisLab
+A MevisLab interface is available to convert results for import into a general PACS.
 
 
 ## Other (under dev)

@@ -1,0 +1,5 @@
+#Identifier,search-string,task,mb,pe_dir,acq_label
+T1w,T1W_SE
+FLAIR,FLAIR
+T2w,eT2W_TSE
+dwi,DTI_high_iso,-,2,j-,b1000

@@ -158,6 +158,21 @@ else
     pip install dcm2bids
 
 fi
+
+# Version-detection preamble: warn if dcm2bids v2 is detected.
+# This script uses the v3 schema (dataType/modalityLabel/customLabels/sidecarChanges).
+# For v2 sites use KUL_dcm2bids_v2bkup.sh instead.
+_dcm2bids_ver=$(dcm2bids --version 2>/dev/null | grep -oP '\d+\.\d+' | head -1)
+_dcm2bids_major=$(echo "$_dcm2bids_ver" | cut -d. -f1)
+if [[ -n "$_dcm2bids_major" && "$_dcm2bids_major" -lt 3 ]]; then
+    echo "WARNING: dcm2bids v${_dcm2bids_ver} detected (v2 schema)."
+    echo "  This script requires dcm2bids v3 (v3 schema: dataType/modalityLabel)."
+    echo "  For v2 compatibility, use KUL_dcm2bids_v2bkup.sh instead."
+    echo "  Upgrade with: pip install --upgrade dcm2bids"
+    echo "  Continuing anyway — your config file schema must match the installed version."
+fi
+unset _dcm2bids_ver _dcm2bids_major
+
 # check if jq is installed and install it if not
 if [[ $(which jq) ]]; then
 
@@ -854,7 +869,7 @@ fi
 # if there is a Smartbrain, copy it to DICOM
 if [ -d DICOM ]; then
     IFS=$'\n'
-    sb=($(find -L $tmp -type d -name "*SmartBrain*"))
+    sb=($(find -L $tmp -type d -name "SmartBrain*"))
     n_sb=${#sb[@]}
     if [ $n_sb -gt 0 ]; then
         # find the largest .dcm
@@ -1033,8 +1048,8 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
     fi
 
-    if [[ ${identifier} == "SWI" ]]; then 
-        
+    if [[ ${identifier} == "SWI" ]]; then
+
         kul_find_relevant_dicom_file
 
         if [ $seq_found -eq 1 ]; then
@@ -1042,10 +1057,19 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_SWI='{"dataType": "anat", "modalityLabel": "SWI", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*"}}'
+            # Two explicit entries: magnitude (REAL, no PHASE) and phase (PHASE+REAL).
+            # This excludes inline-derived MinIP images (ImageType starts with DERIVED).
+            sub_bids_SWIm='{"dataType": "anat", "modalityLabel": "SWI", "criteria": {
+             "SeriesDescription": "*'${search_string}'*",
+             "ImageType": ["ORIGINAL", "PRIMARY", "T1", "MIXED", "REAL"]}}'
 
-            sub_bids_[$bs]=$(echo ${sub_bids_SWI} | python -m json.tool)
+            sub_bids_SWIp='{"dataType": "anat", "modalityLabel": "SWIp", "criteria": {
+             "SeriesDescription": "*'${search_string}'*",
+             "ImageType": ["ORIGINAL", "PRIMARY", "T1", "MIXED", "PHASE", "REAL"]}}'
+
+            sub_bids_[$bs]=$(echo ${sub_bids_SWIm} | python -m json.tool)
+            bs=$((bs+1))
+            sub_bids_[$bs]=$(echo ${sub_bids_SWIp} | python -m json.tool)
 
         fi
 
@@ -1092,8 +1116,8 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
     fi
 
-    if [[ ${identifier} == "FLAIR" ]]; then 
-        
+    if [[ ${identifier} == "FLAIR" ]]; then
+
         kul_find_relevant_dicom_file
 
         if [ $seq_found -eq 1 ]; then
@@ -1101,12 +1125,49 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_FL='{"dataType": "anat", "modalityLabel": "FLAIR", "criteria": { 
+            sub_bids_FL='{"dataType": "anat", "modalityLabel": "FLAIR", "criteria": {
              "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_FL} | python -m json.tool)
 
-        fi     
+        fi
+
+    fi
+
+    if [[ ${identifier} == "DIR" ]]; then
+
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            kul_dcmtags "${seq_file}"
+
+            sub_bids_DIR='{"dataType": "anat", "modalityLabel": "DIR", "criteria": {
+             "SeriesDescription": "*'${search_string}'*"}}'
+
+            sub_bids_[$bs]=$(echo ${sub_bids_DIR} | python -m json.tool)
+
+        fi
+
+    fi
+
+    if [[ ${identifier} == "MP2RAGE" ]]; then
+
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            kul_dcmtags "${seq_file}"
+
+            # Capture only magnitude volumes (ImageType has no PHASE/IMAGINARY/REAL suffix).
+            # Both TI1 and TI2 match; pipeline selects INV2 by highest TriggerDelayTime.
+            sub_bids_MP2='{"dataType": "anat", "modalityLabel": "MP2RAGE", "criteria": {
+             "SeriesDescription": "*'${search_string}'*",
+             "ImageType": ["ORIGINAL", "PRIMARY", "T1", "MIXED"]}}'
+
+            sub_bids_[$bs]=$(echo ${sub_bids_MP2} | python -m json.tool)
+
+        fi
 
     fi
 
@@ -1444,8 +1505,11 @@ if [ ! -d BIDS/.bidsignore ];then
     dcm2bids_scaffold
     echo "tmp_dcm2bids/*" > .bidsignore
     echo "**/anat/*SWI*" >> .bidsignore
+    echo "**/anat/*SWIp*" >> .bidsignore
     echo "**/anat/*MTI*" >> .bidsignore
     echo "**/anat/*FGATIR*" >> .bidsignore
+    echo "**/anat/*DIR*" >> .bidsignore
+    echo "**/anat/*MP2RAGE*" >> .bidsignore
     echo "**/anat/*lesion_roi*" >> .bidsignore
     echo "**/perf/*asl*" >> .bidsignore
     cd ..

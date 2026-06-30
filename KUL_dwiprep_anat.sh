@@ -47,7 +47,7 @@ Optional arguments:
      -s:  session (of the participant)
      -M:  keep mean T1w of all sessions
      -n:  number of cpu for parallelisation
-     -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 3=legacy; 3=default)
+     -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 3=legacy, 4=synthstrip; default=3)
      -v:  show output from mrtrix commands
 
 
@@ -331,12 +331,21 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
                 mrtransform response/tax_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
                     response/tax_wmfod_reg2T1w.mif -reorient_fod yes -nthreads $ncpu -force 
             fi
-            if [ -f response/tournier_wmfod.mif ]; then 
+            if [ -f response/tournier_wmfod.mif ]; then
                 mrtransform response/tournier_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-                    response/tournier_wmfod_reg2T1w.mif -reorient_fod yes -nthreads $ncpu -force         
+                    response/tournier_wmfod_reg2T1w.mif -reorient_fod yes -nthreads $ncpu -force
             fi
-
-
+            if [ -f response/lore_sd/odf.mif ]; then
+                mrtransform response/lore_sd/odf.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+                    response/lore_sd/odf_reg2T1w.mif -reorient_fod yes -nthreads $ncpu -force
+                for contrast in intra_axonal_contrast extra_axonal_contrast free_water_contrast rfa; do
+                    if [ -f response/lore_sd_contrasts/${contrast}.mif ]; then
+                        mrtransform response/lore_sd_contrasts/${contrast}.mif \
+                            -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+                            response/lore_sd_contrasts/${contrast}_reg2T1w.mif -nthreads $ncpu -force
+                    fi
+                done
+            fi
 
             # create mask of the dwi data (that is registered to the T1w)
             kul_echo "    creating mask of the dwi_preproces_reg2T1w data..."
@@ -363,6 +372,9 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
                         dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
                 elif [ $dwi2mask_method -eq 3 ];then
                     task_in2="dwi2mask legacy \
+                        dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
+                elif [ $dwi2mask_method -eq 4 ];then
+                    task_in2="dwi2mask synthstrip \
                         dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
                 fi
             else
@@ -398,14 +410,17 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
                 fod2dec response/tournier_wmfod_reg2T1w.mif qa/tournier_dec_reg2T1w.mif -force -nthreads $ncpu
                 fod2dec response/tournier_wmfod_reg2T1w.mif qa/tournier_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
             fi
-            if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then  
+            if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then
                 fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w.mif -force -nthreads $ncpu
                 fod2dec response/dhollander_wmfod_reg2T1w.mif qa/dhollander_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
                 #fod2dec response/dhollander_wmfod_noGM_reg2T1w.mif qa/dhollander_noGM_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
                 #fod2dec response/dhollander_wmfod_norm_reg2T1w.mif qa/dhollander_norm_dec_reg2T1w.mif -force -nthreads $ncpu
                 #fod2dec response/dhollander_wmfod_norm_reg2T1w.mif qa/dhollander_norm_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
                 #fod2dec response/dhollander_wmfod_norm_noGM_reg2T1w.mif qa/dhollander_norm_noGM_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
-
+            fi
+            if [ -f response/lore_sd/odf_reg2T1w.mif ]; then
+                fod2dec response/lore_sd/odf_reg2T1w.mif qa/lore_sd_dec_reg2T1w.mif -force -nthreads $ncpu
+                fod2dec response/lore_sd/odf_reg2T1w.mif qa/lore_sd_dec_reg2T1w_on_t1w.mif -contrast $ants_anat -force -nthreads $ncpu
             fi
 
         fi
@@ -443,7 +458,16 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
         if [ ! -f dwi_reg/mrtrix_warp_corrected.mif ]; then
 
             kul_echo " converting ants (non-linear) warps to mrtrix format..."
-            input_fod_image=response/dhollander_wmfod_reg2T1w.mif
+            # pick any available linearly-registered FOD as warpinit reference
+            if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then
+                input_fod_image=response/dhollander_wmfod_reg2T1w.mif
+            elif [ -f response/lore_sd/odf_reg2T1w.mif ]; then
+                input_fod_image=response/lore_sd/odf_reg2T1w.mif
+            elif [ -f response/tournier_wmfod_reg2T1w.mif ]; then
+                input_fod_image=response/tournier_wmfod_reg2T1w.mif
+            elif [ -f response/tax_wmfod_reg2T1w.mif ]; then
+                input_fod_image=response/tax_wmfod_reg2T1w.mif
+            fi
             template=dwi_preproced_reg2T1w_mask.nii.gz
             ants_warp=dwi_reg/nonlinear_out1Warp.nii.gz
             ants_affine=dwi_reg/nonlinear_out0GenericAffine.mat
@@ -468,23 +492,21 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
 
             kul_echo " Applying the non-linear transformation of the dMRI to T1..."
 
-            if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then    
+            if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then
                 mrtransform response/dhollander_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
-                    response/dhollander_wmfod_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force 
-                #mrtransform response/dhollander_wmfod_norm_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
-                #    response/dhollander_wmfod_norm_NLreg2T1w.mif -nthreads $ncpu -force
-                #mrtransform response/dhollander_wmfod_noGM_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
-                #    response/dhollander_wmfod_noGM_NLreg2T1w.mif -nthreads $ncpu -force 
-                #mrtransform response/dhollander_wmfod_norm_noGM_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
-                #    response/dhollander_wmfod_norm_noGM_NLreg2T1w.mif -nthreads $ncpu -force
+                    response/dhollander_wmfod_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force
             fi
-            if [ -f response/tax_wmfod_NLreg2T1w.mif ]; then 
+            if [ -f response/tax_wmfod_reg2T1w.mif ]; then
                 mrtransform response/tax_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
-                    response/tax_wmfod_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force 
+                    response/tax_wmfod_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force
             fi
-            if [ -f response/tournier_wmfod_NLreg2T1w.mif ]; then 
+            if [ -f response/tournier_wmfod_reg2T1w.mif ]; then
                 mrtransform response/tournier_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
-                    response/tournier_wmfod_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force         
+                    response/tournier_wmfod_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force
+            fi
+            if [ -f response/lore_sd/odf_reg2T1w.mif ]; then
+                mrtransform response/lore_sd/odf_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
+                    response/lore_sd/odf_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force
             fi
 
             kul_echo "done" > log/status.mrtransformNL.done

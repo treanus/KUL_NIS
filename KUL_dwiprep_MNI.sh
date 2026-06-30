@@ -197,32 +197,64 @@ for i in `seq 0 $(($num_sessions-1))`; do
         -n Linear
     }
 
+    function find_first_match {
+
+        local glob="$1"
+        local description="$2"
+        local matches=()
+
+        shopt -s nullglob
+        matches=($glob)
+        shopt -u nullglob
+
+        if [ ${#matches[@]} -eq 0 ]; then
+            echo "Error: could not locate ${description} (pattern: ${glob})" >&2
+            exit 1
+        fi
+
+        printf '%s\n' "${matches[0]}"
+    }
 
 
     fmriprep_subj=fmriprep/"sub-${subj}"
-    fmriprep_anat="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-preproc_T1w.nii.gz"
-    fmriprep_anat_mask="${cwd}/${fmriprep_subj}/anat/sub-${subj}_desc-brain_mask.nii.gz"
+    fmriprep_anat=$(find_first_match "${cwd}/${fmriprep_subj}/anat/sub-${subj}_*_desc-preproc_T1w.nii.gz" "fmriprep T1w anatomy")
+    fmriprep_anat_mask=$(find_first_match "${cwd}/${fmriprep_subj}/anat/sub-${subj}_*_desc-brain_mask.nii.gz" "fmriprep brain mask")
 
     # transform the T1w into MNI space using fmriprep data
-    input=T1w/T1w_BrainExtractionBrain.nii.gz
+    input=$(find_first_match "T1w/T1w_BrainExtractionBrain*.nii.gz" "brain-extracted T1 image")
     output=MNI/sub-${subj}_T1w_space-MNI152NLin2009cAsym.nii.gz
-    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+    transform=$(find_first_match "${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_*from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5" "fmriprep T1w-to-MNI transform")
     reference=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz
     KUL_antsApply_Transform
 
     # transform the FA into MNI space using fmriprep data
-    input=qa/fa_reg2T1w.nii.gz
+    input=$(find_first_match "qa/fa_reg2T1w*.nii.gz" "FA map registered to T1 space")
     output=MNI/sub-${subj}_FA_space-MNI152NLin2009cAsym.nii.gz
-    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+    transform=$(find_first_match "${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_*from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5" "fmriprep T1w-to-MNI transform")
     reference=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz
     KUL_antsApply_Transform
 
     # transform the ADC into MNI space using fmriprep data
-    input=qa/adc_reg2T1w.nii.gz
+    input=$(find_first_match "qa/adc_reg2T1w*.nii.gz" "ADC map registered to T1 space")
     output=MNI/sub-${subj}_ADC_space-MNI152NLin2009cAsym.nii.gz
-    transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5
+    transform=$(find_first_match "${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_*from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5" "fmriprep T1w-to-MNI transform")
     reference=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz
     KUL_antsApply_Transform
+
+    # transform lore-sd DEC maps into MNI space if available
+    mni_transform=$(find_first_match "${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_*from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5" "fmriprep T1w-to-MNI transform")
+    for dec_map in qa/lore_sd_dec_reg2T1w.mif qa/lore_sd_dec_reg2T1w_on_t1w.mif; do
+        if [ -f "${dec_map}" ]; then
+            dec_base=$(basename ${dec_map} .mif)
+            dec_nii="qa/${dec_base}.nii.gz"
+            mrconvert ${dec_map} ${dec_nii} -force -nthreads ${ncpu}
+            input=${dec_nii}
+            output=MNI/sub-${subj}_${dec_base}_space-MNI152NLin2009cAsym.nii.gz
+            transform=${mni_transform}
+            reference=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz
+            KUL_antsApply_Transform
+        fi
+    done
 
     echo " Finished processing $bids_subj" 
     # ---- END of the BIG loop over sessions

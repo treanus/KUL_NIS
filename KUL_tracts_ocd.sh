@@ -110,13 +110,13 @@ function KUL_tckgen {
 # activate conda scilpy env
 KUL_activate_conda_env scilpy
 
-# general sttings
+# general settings
 participant=$1
 thr_ATR_L=1.0
 thr_ATR_R=1.0
 thr_slMFB_L=1.0
 thr_slMFB_R=1.0
-ncpu=84
+ncpu=${2:-${ncpu:-84}}
 source=dwiprep/sub-${participant}/sub-${participant}/response/dhollander_wmfod_reg2T1w.mif
 fa=dwiprep/sub-${participant}/sub-${participant}/qa/fa_reg2T1w.nii.gz
 select_slMFP=40000

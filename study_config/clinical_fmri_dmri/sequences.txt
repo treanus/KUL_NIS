@@ -9,6 +9,8 @@ FLAIR,FLAIR
 T2w,3D_T2
 SWI,SWI
 FGATIR,FGATIR
+DIR,DIR
+MP2RAGE,MP2RAGE
 func,rsfMRI_MB5_REST,rest,5,j,singleTE
 sbref,rsfMRI_MB5_sbref,rest,1,j,singleTE
 func,rsfMRI_noMB,rest,1,j,singleTE

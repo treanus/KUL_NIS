@@ -247,28 +247,47 @@ function KUL_task_exec {
 
     done
 
-    ### STEP 5 - return the status of execution 
+    ### STEP 5 - return the status of execution
     if [ $errorcount -eq 0 ]; then
-        if [ $kul_verbose_level -eq 2 ]; then 
+        if [ $kul_verbose_level -eq 2 ]; then
             echo -e "Success" | tee -a ${kul_log_file}
         fi
     else
         echo -e "Fail" | tee -a ${kul_log_file}
-        #exit 1
     fi
 
     unset task_in
     unset task_participant
 
-    # return errorcount
-
     if [[ ! -z $total_errorcount ]]; then
         total_errorcount=$(($total_errorcount + $errorcount))
-        if [ $kul_verbose_level -eq 2 ]; then 
+        if [ $kul_verbose_level -eq 2 ]; then
 	        echo -e "total_errorcount: $total_errorcount\n\n\n"
         fi
     fi
 
+    return $(( errorcount > 0 ? 1 : 0 ))
+
+}
+
+
+# Resolve the first file matching a glob pattern; exit with an error if none found
+function find_first_match {
+    local glob="$1"
+    local description="$2"
+    local matches=()
+
+    shopt -s nullglob
+    matches=($glob)
+    shopt -u nullglob
+
+    if [ ${#matches[@]} -eq 0 ]; then
+        echo "Error: could not locate ${description} (pattern: ${glob})" >&2
+        echo "Transform file does not exist: 1" >&2
+        exit 1
+    fi
+
+    printf '%s\n' "${matches[0]}"
 }
 
 

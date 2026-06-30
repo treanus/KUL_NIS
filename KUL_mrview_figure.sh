@@ -47,6 +47,8 @@ Optional arguments:
             specify a text file with many overlays and settings
      -d:  output directory (default=RESULTS/sub-participant/View)
      -f:  output_filename (default=underlay_with_overlay)
+     -a:  overlay opacity (0=fully transparent, 1=fully opaque; default=0.3)
+            only used when a single overlay file is given (not a .txt settings file)
      -t:  view type
         0: or not given = open mrview to view
         1: produce TRA/SAG/COR png files of every slice
@@ -69,6 +71,7 @@ view=0
 output_dir=""
 d_given=0
 output_file=""
+overlay_opacity=0.3
 verbose_level=1
 
 # Set required options
@@ -81,7 +84,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:u:o:d:f:t:v:" OPT; do
+	while getopts "p:u:o:d:f:a:t:v:" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -103,6 +106,9 @@ else
 		;;
         f) #output_file
 			output_file=$OPTARG
+		;;
+        a) #overlay opacity
+			overlay_opacity=$OPTARG
 		;;
         v) #verbose
             verbose_level=$OPTARG
@@ -149,11 +155,11 @@ elif [ $verbose_level -eq 2 ] ; then
 fi
 
 function KUL_mrview {
-    
+
     echo "mrview_underlay: $mrview_underlay"
     echo "mrview_overlay: $mrview_overlay"
 
-    cmd="mrview \
+    cmd="${mrview_prefix}mrview \
         $mrview_underlay \
         $mrview_plane \
         $mrview_mode \
@@ -220,7 +226,7 @@ elif [[ "$overlay" == *".txt" ]]; then
     
 else
 
-    mrview_overlay="-overlay.load $overlay -overlay.opacity 0.4"
+    mrview_overlay="-overlay.load $overlay -overlay.opacity $overlay_opacity"
     base_overlay_tmp=$(basename $overlay)
     base_overlay=${base_overlay_tmp%%.nii.gz}
     
@@ -273,6 +279,7 @@ mkdir -p $final_output_dir
 #echo "view_type: $view"
 if [ $view -eq 0 ]; then
 
+    mrview_prefix=""
     mrview_mode="-mode 2"
     mrview_exit="&"
     mrview_capture=""
@@ -282,6 +289,7 @@ if [ $view -eq 0 ]; then
 
 elif [ $view -eq 1 ]; then
 
+    mrview_prefix="xvfb-run -a "
     mrview_mode="-mode 1"
     mrview_exit="-exit"
     mrview_annotations="-noannotations"
@@ -328,6 +336,7 @@ elif [ $view -eq 1 ]; then
 
 elif [ $view -eq 2 ]; then
 
+    mrview_prefix="xvfb-run -a "
     mrview_mode="-mode 1"
     mrview_exit="-exit"
     mrview_plane="-plane 2"

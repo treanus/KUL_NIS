@@ -1,6 +1,4 @@
 #!/bin/bash
-
-#set -x
 # Bash shell script to process diffusion & structural 3D-T1w MRI data
 #
 # Requires Mrtrix3, FSL, ants
@@ -60,8 +58,12 @@ Required arguments:
 
 
 Optional arguments:
-     
+
      -s:  session
+     -S:  smoothing FWHM in mm for SUSAN (default: adaptive = mean voxel size)
+            e.g. -S 5 for 5mm FWHM, -S 6 for 6mm FWHM
+     -P:  FWE-corrected p-value for Bizzi thresholding (default: 0.01)
+            e.g. -P 0.01, -P 0.005, -P 0.001
      -v:  verbose (0=silent, 1=normal, 2=verbose; default=1)
 
 
@@ -75,6 +77,8 @@ USAGE
 # 
 # Set defaults
 verbose_level=1
+smooth_fwhm=0  # 0 = adaptive (mean voxel size)
+pfwe=0.01
 
 
 # Set required options
@@ -87,7 +91,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "p:s:v:" OPT; do
+    while getopts "p:s:S:P:v:" OPT; do
 
         case $OPT in
         p) #participant
@@ -97,6 +101,12 @@ else
         s) #session
             s_flag=1
             ses=$OPTARG
+        ;;
+        S) #smoothing FWHM
+            smooth_fwhm=$OPTARG
+        ;;
+        P) #FWE p-value threshold
+            pfwe=$OPTARG
         ;;
         v) #verbose
             verbose_level=$OPTARG
@@ -148,7 +158,40 @@ function KUL_antsApply_Transform {
         -i $input \
         -o $output \
         -r $reference \
+        -t $transform \
         -n Linear
+}
+
+function KUL_threshold_SPM_Bizzi {
+    if [ ! -f "$fmriresults/SPM.mat" ]; then
+        echo " Bizzi thresholding skipped: SPM.mat not found in $fmriresults"
+        return
+    fi
+    # Detect _wc suffix from fmriresults path so output names don't collide
+    local wc_suffix=""
+    [[ "$fmriresults" == *_wc ]] && wc_suffix="_wc"
+    spm_bizzi_script="${scriptsdir}/thresh_Bizzi_${fmrifile}${wc_suffix}.m"
+    spm_bizzi_script=${spm_bizzi_script/run-/run}
+    cp "$kul_main_dir/share/spm12/spm12_threshold_Bizzi.m" "$spm_bizzi_script"
+    sed -i.bck "s|###FMRIRESULTS###|$fmriresults|" "$spm_bizzi_script"
+    sed -i.bck "s|###PFWE###|$pfwe|g" "$spm_bizzi_script"
+    rm -f "${spm_bizzi_script}.bck"
+    cmd="$matlab_exe -nodisplay -nosplash -nodesktop -r \"run('$spm_bizzi_script');exit;\" $str_silent_SPM"
+    eval $cmd
+    pfwe_tag=$(echo "$pfwe" | sed 's/0\.//' | sed 's/0*$//')
+    fwe_tag="FWE${pfwe_tag}_k50"
+    mni_to_t1w=$(find_first_match "${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_*from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5" "MNI-to-T1w transform")
+    find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
+    reference=${find_T1w[0]}
+    for thresh_tag in "p001unc_k50" "${fwe_tag}"; do
+        thresh_nii="$fmriresults/spmT_0001_${thresh_tag}.nii"
+        if [ -f "$thresh_nii" ]; then
+            input="$thresh_nii"
+            output="${globalresultsdir}/afMRI_${fmrifile}${wc_suffix}_${thresh_tag}.nii"
+            transform="$mni_to_t1w"
+            KUL_antsApply_Transform
+        fi
+    done
 }
 
 function KUL_tsv_filter {
@@ -257,14 +300,10 @@ function KUL_compute_SPM_matlab {
     echo $cmd
     eval $cmd
 
-    cmd="cp $fmriresults/spmT_0001.nii $global_result"
-    #echo $cmd
-    #eval $cmd
-
-    # since SPM analysis was in bold space, we transform back in T1w space
+    # SPM output is in MNI space; warp back to T1w space for display
     input=$fmriresults/spmT_0001.nii
     output=$global_result
-    #transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
+    transform=$(find_first_match "${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_*from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5" "MNI-to-T1w transform")
     find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
     reference=${find_T1w[0]}
     KUL_antsApply_Transform
@@ -310,8 +349,9 @@ mkdir -p $confoundsdir
 mkdir -p $computedir/RESULTS
 mkdir -p $globalresultsdir
 
-# what data do we want from fmriprep
-fmriprep_output_type="_desc"
+# Use MNI-space fmriprep output so SPM stats are in MNI and the MNI→T1w
+# warp-back at the end produces correctly aligned native-space results.
+fmriprep_output_type="_space-MNI152NLin2009cAsym"
 
 
 if [ $verbose_level -lt 2 ] ; then
@@ -325,8 +365,7 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
     
     # find the output of fmriprep
     fmriprep_match=($(find $fmriprepdir/func \
-        -name "*${fmriprep_output_type}-preproc_bold.nii.gz" \
-        ! -name "*_space-*" \
+        -name "*${fmriprep_output_type}*_desc-preproc_bold.nii.gz" \
         -type f))
     echo " fmriprep found the following files: "
     for match in ${fmriprep_match[@]}; do
@@ -377,12 +416,21 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
                 echo "  repetition time (TR): $TR"
                 tf_TR+=("$TR")
 
-                # determine the voxel size 
+                # determine the voxel size
                 spacing=($(mrinfo $task_file -spacing))
                 echo "  the voxel size: ${spacing[0]} + ${spacing[1]} + ${spacing[2]}"
                 mean=$(echo "(${spacing[0]} + ${spacing[1]} + ${spacing[2]}) / 3" | bc -l)
                 tf_mean_voxel_size+=("$mean")
                 echo "  mean voxel size: $mean"
+
+                # determine SUSAN sigma: fixed FWHM if -S given, else adaptive (mean voxel size)
+                if (( $(echo "$smooth_fwhm > 0" | bc -l) )); then
+                    sigma=$(echo "$smooth_fwhm / 2.3548" | bc -l)
+                    echo "  SUSAN sigma: ${sigma}mm (fixed FWHM=${smooth_fwhm}mm)"
+                else
+                    sigma=$mean
+                    echo "  SUSAN sigma: ${sigma}mm (adaptive = mean voxel size)"
+                fi
 
                 # determine the brightness threshold for susan smoothing
                 mask=$(dirname ${task_file})/$(basename ${task_file} "-preproc_bold.nii.gz")-brain_mask.nii.gz
@@ -394,12 +442,12 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
                 # run susan smoothing if not done yet
                 smooth_file="$fmridatadir/$(basename ${task_file} "-preproc_bold.nii.gz")_smooth.nii"
                 tf_smooth+=("$smooth_file")
-                # find the boldref file
-                boldref=$(dirname ${task_file})/$(basename ${task_file} "-preproc_bold.nii.gz")-coreg_boldref.nii.gz
+                # find the boldref file (MNI-space boldref has no desc- prefix)
+                boldref=$(dirname ${task_file})/$(basename ${task_file} "_desc-preproc_bold.nii.gz")_boldref.nii.gz
                 echo "  boldref: $boldref"
                 if [ ! -f $smooth_file ]; then
                     echo "  Smoothing $task_file to $smooth_file"
-                    cmd="susan ${task_file} $bt $mean 3 1 1 \
+                    cmd="susan ${task_file} $bt ${sigma} 3 1 1 \
                         $boldref $bt \
                         $smooth_file"
                     echo "  $cmd"
@@ -410,8 +458,10 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
                 fi
 
                 # filter confounds
-                filter_input=$(dirname ${task_file})/$(basename ${task_file} "-preproc_bold.nii.gz")-confounds_timeseries.tsv
-                confounds_file="$confoundsdir/$(basename ${task_file} "-preproc_bold.nii.gz")_confounds.txt"
+                # Confounds TSV never carries a _space- entity — find it by task+run key
+                _task_run_key=$(basename "$task_file" | grep -oE 'task-[A-Za-z0-9]+(_run-[0-9]+)?')
+                filter_input=$(find $(dirname ${task_file}) -name "*${_task_run_key}_desc-confounds_timeseries.tsv" | head -1)
+                confounds_file="$confoundsdir/${_task_run_key}_confounds.txt"
                 tf_confounds+=("$confounds_file")
                 run_number=$(basename "$task_file" | sed -E 's/.*_run-0*([0-9]+).*/\1/')
                 if [ -n "$run_number" ]; then
@@ -442,31 +492,32 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
                 run_TR="${tf_TR[$i]}"
                 echo "  Running SPM analysis for $run_taskname with TR=$run_TR"
                 
-                # Run SPM with and without confounds
+                # Run SPM with and without confounds, then Bizzi threshold
                 spm_types=(1 2) # 1: without confounds, 2: with confounds
-                for spm_type in "${spm_types[@]}"; do 
+                for spm_type in "${spm_types[@]}"; do
                     KUL_compute_SPM_matlab
+                    KUL_threshold_SPM_Bizzi
                 done
             done
-            
+
             if [ ${#task_files[@]} -gt 1 ]; then
                 spm_nruns=${#task_files[@]}
                 fmrifile=$task
                 if [ $spm_nruns -eq 2 ]; then
-                    spm_template_config_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_2runs.m" #template config file
-                    spm_template_job_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_2runs_job.m" #template job file
+                    spm_template_config_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_2runs.m"
+                    spm_template_job_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_2runs_job.m"
                 elif [ $spm_nruns -eq 3 ]; then
-                    spm_template_config_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_3runs.m" #template config file
-                    spm_template_job_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_3runs_job.m" #template job file
+                    spm_template_config_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_3runs.m"
+                    spm_template_job_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_3runs_job.m"
                 else
-                    "Error: Not yet defined more than 3 runs. Exitting"
+                    echo "Error: Not yet defined more than 3 runs. Exitting"
                     exit 1
                 fi
                 echo "  Running aggregate SPM analysis for task $task with $spm_nruns runs"
-                # Run SPM with and without confounds
-                spm_types=(1 2) # 1: without confounds, 2: with confounds
-                for spm_type in "${spm_types[@]}"; do 
+                spm_types=(1 2)
+                for spm_type in "${spm_types[@]}"; do
                     KUL_compute_SPM_matlab
+                    KUL_threshold_SPM_Bizzi
                 done
             fi
         fi

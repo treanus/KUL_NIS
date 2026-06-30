@@ -5,6 +5,9 @@
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 # 06/09/2021
+
+set -x
+
 version="0.1"
 
 kul_main_dir=`dirname "$0"`
@@ -12,6 +15,7 @@ script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 # $cwd & $log_dir is made in main_functions
 kul_synb0_fork=0
+
 
 # FUNCTIONS --------------
 
@@ -37,6 +41,7 @@ Required arguments:
 Optional arguments:
      
      -s:  session
+     -m:  T1w brain extraction method for synb0-disco (1=hd-bet, 2=synthstrip; default=1)
      -c:  cleanup the topup_fieldmap (remove signal in air anterior from eyes) *** in development - do not use
      -n:  number of cpu to use (default 15)
      -v:  show output from commands
@@ -55,6 +60,7 @@ ncpu=15
 session=""
 cleanup=0
 dir_epi="PA"
+t1bet_method=1
 
 # Set required options
 p_flag=0
@@ -66,7 +72,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:cv" OPT; do
+	while getopts "p:s:m:n:cv" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -76,6 +82,9 @@ else
 		s) #session
 			session=$OPTARG
 			s_flag=1
+		;;
+		m) #t1 bet method
+			t1bet_method=$OPTARG
 		;;
 		c) #cleanup
 			cleanup=1
@@ -210,7 +219,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 		echo "test_pe_table: $test_pe_table"
 		# this will depend on plane of acquisition
 		if [[ $test_pe_table == "" ]]; then
-			pe_axis=$(mrinfo $synb0_scratch/dwi_p1_b0s.mif -property PhaseEncodingAxis)
+			pe_axis=$(mrinfo -quiet $synb0_scratch/dwi_p1_b0s.mif -property PhaseEncodingAxis)
 			echo "	WARNING! No phase encoding data present in the data, assuming PhaseEncodingAxis $pe_axis"
 			if [ $pe_axis == "i" ]; then
 				echo "1 0 0 0.05" > $synb0_scratch/INPUTS/acqparams.txt
@@ -223,7 +232,8 @@ for i in `seq 0 $(($num_sessions-1))`; do
 				echo "0 0 1 0.00" >> $synb0_scratch/INPUTS/acqparams.txt
 			fi
 		else
-			mrinfo $synb0_scratch/dwi_p1_b0s.mif -export_pe_table $synb0_scratch/topup_datain.txt
+			rm -rf $synb0_scratch/topup_datain.txt
+			mrinfo -quiet $synb0_scratch/dwi_p1_b0s.mif -petable -quiet | tee -a $synb0_scratch/topup_datain.txt
 			# read topup_datain.txt and add line
 			topup_data=($(cat $synb0_scratch/topup_datain.txt))
 			echo "${topup_data[0]} ${topup_data[1]} ${topup_data[2]} ${topup_data[3]}" > $synb0_scratch/INPUTS/acqparams.txt
@@ -242,8 +252,14 @@ for i in `seq 0 $(($num_sessions-1))`; do
 
 		if [ $kul_synb0_fork -eq 1 ]; then
 
-			hd-bet -i $synb0_scratch/INPUTS/T1.nii.gz -o $synb0_scratch/INPUTS/T1_masked
-			mv $synb0_scratch/INPUTS/T1_masked_mask.nii.gz $synb0_scratch/INPUTS/T1_mask.nii.gz 
+			if [ $t1bet_method -eq 2 ]; then
+				mri_synthstrip -i $synb0_scratch/INPUTS/T1.nii.gz \
+					-o $synb0_scratch/INPUTS/T1_masked.nii.gz \
+					-m $synb0_scratch/INPUTS/T1_mask.nii.gz
+			else
+				hd-bet -i $synb0_scratch/INPUTS/T1.nii.gz -o $synb0_scratch/INPUTS/T1_masked
+				mv $synb0_scratch/INPUTS/T1_masked_mask.nii.gz $synb0_scratch/INPUTS/T1_mask.nii.gz
+			fi
 			cd $synb0_scratch
 			KUL_radsyndisco.sh
 			cd $cwd
@@ -256,32 +272,60 @@ for i in `seq 0 $(($num_sessions-1))`; do
 				-v $synb0_scratch/OUTPUTS:/OUTPUTS/ \
 				-v $FS_LICENSE:/extra/freesurfer/license.txt \
 				--user $(id -u):$(id -g) \
-				leonyichencai/synb0-disco:v3.0"
+				leonyichencai/synb0-disco:v3.0 --notopup"
 				#hansencb/synb0" 
 
 			echo "  we run synb0 using command: $cmd"
 			eval $cmd
 
 		fi
-		# make a json
-		json_file=${synb0_scratch}/sub-${participant}${sessuf2}_dir-${dir_epi}_epi.json
-		echo "{" > $json_file
-		echo "\"PhaseEncodingDirection\": \"j\"," >> $json_file
-		echo "\"TotalReadoutTime\": 0.000," >> $json_file
-		# need to reprogram this, so that there is a synthetic synb0 in fmap for each dwi-dataset 
-		echo "\"IntendedFor\": " >> $json_file
-		for i in `seq 0 $(($number_of_bids_dmri_found-1))`; do
-			if [ $i -eq $(($number_of_bids_dmri_found-1)) ];then
-				comma=""
-			else
-				comma=", "
-			fi
-			echo "\"${bids_dmri_found[i]#*$participant/}\"$comma" >> $json_file
-		done
-		#echo "]" >> $json_file
-		echo "}" >> $json_file
+		# potentially add own topup step
+		fslmerge -t ${synb0_scratch}/OUTPUTS/b0_all.nii.gz ${synb0_scratch}/OUTPUTS/b0_d_smooth.nii.gz ${synb0_scratch}/OUTPUTS/b0_u.nii.gz
 
+		# Select topup config: use subsamp=1 variant for odd/small slice counts
+		synb0_num_slices=$(mrinfo -size ${synb0_scratch}/OUTPUTS/b0_all.nii.gz | awk '{print $(NF-1)}')
+		echo "Number of slices in synb0 b0_all: $synb0_num_slices"
+		if [ $((synb0_num_slices % 2)) -eq 1 ]; then
+			synb0_topup_cfg="${kul_main_dir}/share/synb0_1.cnf"
+			echo "Odd number of slices — using synb0_1.cnf (subsamp=1)"
+		else
+			synb0_topup_cfg="${kul_main_dir}/share/synb0.cnf"
+		fi
 
+		topup -v --imain=${synb0_scratch}/OUTPUTS/b0_all.nii.gz --datain=${synb0_scratch}/INPUTS/acqparams.txt \
+			--config=${synb0_topup_cfg} --iout=${synb0_scratch}/OUTPUTS/b0_all_topup.nii.gz \
+			--out=${synb0_scratch}/OUTPUTS/topup --fout=${synb0_scratch}/OUTPUTS/topup_fieldmap.nii.gz --nthr=$ncpu		# make a json
+		# add info to .json file
+		json_file="${synb0_scratch}/sub-${participant}${sessuf2}_dir-${dir_epi}_epi.json"
+
+		echo "{" > "$json_file"
+		echo "  \"PhaseEncodingDirection\": \"j\"," >> "$json_file"
+		echo "  \"TotalReadoutTime\": 0.000," >> "$json_file"
+
+		# IntendedFor as a proper JSON array
+		if [ "$number_of_bids_dmri_found" -gt 0 ]; then
+			echo "  \"IntendedFor\": [" >> "$json_file"
+
+			for ((i=0; i<number_of_bids_dmri_found; i++)); do
+				# strip everything up to 'sub-<participant>/' so you keep e.g. dwi/...
+				entry="${bids_dmri_found[i]#*$participant/}"
+
+				if [ "$i" -lt $((number_of_bids_dmri_found-1)) ]; then
+					comma=","
+				else
+					comma=""
+				fi
+
+				echo "    \"${entry}\"${comma}" >> "$json_file"
+			done
+
+			echo "  ]" >> "$json_file"
+		else
+			# if nothing found, write an empty array
+			echo "  \"IntendedFor\": []" >> "$json_file"
+		fi
+
+		echo "}" >> "$json_file"
 		# add these to the BIDS derivatives	
 		
 		mkdir -p ${bids_target}
