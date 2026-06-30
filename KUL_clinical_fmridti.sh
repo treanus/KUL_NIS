@@ -44,36 +44,17 @@ Optional arguments:
         4: dMRI/fMRI without glioma (cavernoma, epilepsy, etc... cT1w)
         5: dMRI for DBS of essential tremor (DRT tract)
         6: dMRI for DBS of Parkinson's disease (CSHD pathway)
-        7: processing stream for DTI_ALPS
      -d:  dicom zip file (or directory)
      -s:  scaffold (make a default DICOM and study_config)
      -B:  make a backup and cleanup 
      -r:  redo certain steps (program will ask)
-     -R:  generate DICOMs for PACS and Karawun (run this AFTER reviewing figures)
+     -R:  make results ready
         1: use cT1w as underlay
         2: use FLAIR as underlay
         3: use SWI as underlay
-        4: use T1w as underlay
-        5: use FGATIR as underlay
-        6: use DIR as underlay
-        7: use MP2RAGE (INV2) as underlay
-     -O:  orientations to render, comma-separated (default: TRA,SAG,COR)
-     -e:  add edge outline to SPM/Melodic overlays (dark blue contour at threshold boundary)
-     -T:  fixed threshold for ALL SPM/Melodic overlays (default: auto = max/3 per map)
-          if not given and running interactively, you will be prompted to enter
-          one threshold per map (space-separated, matching the listed order)
-     -a:  opacity of SPM/Melodic (fMRI) activation overlays (0=transparent, 1=opaque; default 0.7)
-          lower values let underlying anatomy show through on figures and PACS DICOMs
-     -D:  dwiprep config file to use from study_config/ (default: run_dwiprep.txt)
-          use e.g. -D run_dwiprep_lore_sd.txt to run lore-sd based FOD estimation
-     -S:  fMRI SUSAN smoothing FWHM in mm (default: adaptive = mean voxel size)
-          e.g. -S 6 for 6mm FWHM, -S 8 for 8mm FWHM
-     -P:  FWE-corrected p-value for Bizzi fMRI thresholding (default: 0.01)
-          e.g. -P 0.01, -P 0.005, -P 0.001
+        4: Use T1w as underlay
      -n:  number of threads to use (default 48)
      -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
-     -X:  use FastSurfer instead of plain recon-all for the reconstruction step
-          in types 4, 5, 6 (faster, requires GPU; default is FreeSurfer 8.2.0 recon-all)
 
 USAGE
 
@@ -87,26 +68,13 @@ USAGE
 silent=1 # default if option -v is not given
 ants_verbose=1
 ncpu=48
-bc=0
+bc=0 
 type=1
-dwiprep_config_file="run_dwiprep.txt"
 redo=0
-results=0
-make_dcm=0
+results=0 
 verbose_level=1
 dbs=0
-scaffold=0
-alps=0
-msbp=0
-fwt=1
-orientations="TRA,SAG,COR"
-spm_edge=0
-spm_thresh_override=""
-spm_opacity=0.7
-smooth_fwhm=5
-pfwe=0.01
-use_fastsurfer=0
-declare -A spm_thresh_map=()
+scaffold=0 
 
 # Set required options
 p_flag=0
@@ -119,7 +87,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:R:F:O:a:BrseT:D:S:P:X" OPT; do
+	while getopts "p:t:d:n:v:R:Brs" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -145,40 +113,12 @@ else
         s) #scaffold
 			scaffold=1
 		;;
-        R) #generate DICOMs for PACS and Karawun (user-explicit, run after reviewing figures)
+        R) #make results
 			results=$OPTARG
-            make_dcm=1
 		;;
-        F) #internal: generate figures/screenshots only (no DICOMs)
-            results=$OPTARG
-        ;;
-        O) #orientations
-            orientations=$OPTARG
-        ;;
-        e) #spm edge outline
-            spm_edge=1
-        ;;
-        T) #spm threshold override
-            spm_thresh_override=$OPTARG
-        ;;
-        a) #spm/melodic overlay opacity
-            spm_opacity=$OPTARG
-        ;;
-        D) #dwiprep config file
-            dwiprep_config_file=$OPTARG
-        ;;
-        S) #fMRI smoothing FWHM
-            smooth_fwhm=$OPTARG
-        ;;
-        P) #FWE p-value for Bizzi thresholding
-            pfwe=$OPTARG
-        ;;
         v) #verbose
             verbose_level=$OPTARG
 		;;
-        X) #use FastSurfer instead of plain recon-all for types 4/5/6
-            use_fastsurfer=1
-        ;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
 			echo
@@ -222,22 +162,26 @@ fi
 
 # Determine what to process depending on patient lesion type
 if [ $type -eq 1 ]; then
-    hdglio=1; vbg=1; msbp=0; fwt=1; alps=0
+    hdglio=1
+    vbg=1
 elif [ $type -eq 2 ]; then
-    hdglio=1; vbg=2; msbp=0; fwt=1; alps=0
+    hdglio=1
+    vbg=2
 elif [ $type -eq 3 ]; then
-    hdglio=0; vbg=3; msbp=0; fwt=1; alps=0
+    hdglio=0
+    vbg=3
 elif [ $type -eq 4 ]; then
-    hdglio=0; vbg=0; msbp=0; fwt=1; alps=0
+    hdglio=0
+    vbg=0
 elif [ $type -eq 5 ]; then
-    hdglio=0; vbg=0; dbs=1; msbp=0; fwt=1; alps=0
+    hdglio=0
+    vbg=0
+    dbs=1
 elif [ $type -eq 6 ]; then
-    hdglio=0; vbg=0; dbs=2; msbp=0; fwt=1; alps=0
-elif [ $type -eq 7 ]; then
-    hdglio=0; vbg=0; dbs=0; msbp=0; fwt=0; alps=1
+    hdglio=0
+    vbg=0
+    dbs=2
 fi
-
-figs=0
 
 
 # GLOBAL defs
@@ -259,9 +203,6 @@ function KUL_scaffold {
     elif [ $type -eq 6 ]; then
         echo "Setting up for a DBS patient (type: $type)"
         cp ${kul_main_dir}/study_config/clinical_dmri_dbs_hdp/* $cwd/clinical_sub-${participant}_type${type}/study_config
-    elif [ $type -eq 7 ]; then
-        echo "Setting up for DTI-ALPS processing (type: $type)"
-        cp ${kul_main_dir}/study_config/DTI_ALPS_proc/* $cwd/clinical_sub-${participant}_type${type}/study_config
     fi
 
     exit 0
@@ -279,7 +220,8 @@ if [ $bc -eq 1 ]; then
     clean_dwiprep="./dwiprep/sub-${participant}/sub-${participant}/*dwifsl*tmp* \
         ./dwiprep/sub-${participant}/sub-${participant}/raw \
         ./dwiprep/sub-${participant}/sub-${participant}/dwi \
-        ./dwiprep/sub-${participant}/sub-${participant}/dwi_orig*"
+        ./dwiprep/sub-${participant}/sub-${participant}/dwi_orig* \
+        ./dwiprep/sub-${participant}/sub-${participant}/dwi_preproced.mif"
     clean_other="./fmriprep_work* \
         ./BIDS/tmp_dcm2bids"
 
@@ -357,54 +299,7 @@ if [ $results -gt 0 ];then
     mrview_tracts[25]="Tract-csd_CSHDP_RT"
     mrview_rgb[25]="1,0.12,0.20"
 
-    mrview_tracts[26]="Tract-csd_Ant_Comm"
-    mrview_rgb[26]="0.5,0,0.5"
-    mrview_tracts[27]="Tract-csd_Post_Comm"
-    mrview_rgb[27]="0.8,0.4,0.8"
-    mrview_tracts[28]="Tract-csd_CC_PreF_Comm"
-    mrview_rgb[28]="0.2,0.8,0.8"
-    mrview_tracts[29]="Tract-csd_CC_Motor_Comm"
-    mrview_rgb[29]="0.8,0.4,0"
-    mrview_tracts[30]="Tract-csd_CC_PMandSM_Comm"
-    mrview_rgb[30]="1,0.5,0"
-    mrview_tracts[31]="Tract-csd_CC_Sensory_Comm"
-    mrview_rgb[31]="0.4,0.8,0.4"
-    mrview_tracts[32]="Tract-csd_CC_Parietal_Comm"
-    mrview_rgb[32]="0.4,0,0.8"
-    mrview_tracts[33]="Tract-csd_CC_Temporal_Comm"
-    mrview_rgb[33]="0.8,0,0.4"
-    mrview_tracts[34]="Tract-csd_CC_Occipital_Comm"
-    mrview_rgb[34]="0,0.6,0.8"
-
-    ntracts_paired=26   # indices 0-25: lateralized LT/RT pairs, step 2
-    ntracts_total=34    # index of last commissural tract (indices 26-34), step 1
-
-    # Sync FWT output to RESULTS/Tracto before generating screenshots
-    # Tract maps are resampled to T1w resolution so they can be compared
-    # directly with anatomical images and lesion masks.
-    mkdir -p $globalresultsdir/Tracto
-    rm -fr $globalresultsdir/Tracto/*
-    _t1w_ref="$globalresultsdir/Anat/T1w.nii.gz"
-    [[ ! -f "$_t1w_ref" ]] && _t1w_ref="fmriprep/sub-${participant}/anat/sub-${participant}_desc-preproc_T1w.nii.gz"
-    for tck_outdir in "$derivativesdir/FWT/sub-${participant}_TCKs_output"/*_output; do
-        [ -d "$tck_outdir" ] || continue
-        tract_name=$(basename "$tck_outdir" _output)
-        fin_tck="${tck_outdir}/${tract_name}_fin_BT_iFOD2.tck"
-        fin_map="${tck_outdir}/${tract_name}_fin_map_BT_iFOD2.nii.gz"
-        _out_map="$globalresultsdir/Tracto/Tract-csd_${tract_name}.nii.gz"
-        if [ -f "$fin_tck" ]; then
-            cp "$fin_tck" "$globalresultsdir/Tracto/Tract-csd_${tract_name}.tck"
-            [ -f "$fin_map" ] && mrgrid "$fin_map" regrid -template "$_t1w_ref" "$_out_map" -force -quiet
-        else
-            use_tck=$(ls "${tck_outdir}/${tract_name}_filt"*"_BT_iFOD2.tck" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
-            use_map=$(ls "${tck_outdir}/${tract_name}_filt"*"_map_BT_iFOD2.nii.gz" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
-            if [ -n "$use_tck" ]; then
-                echo "  ${tract_name}: fin not found, using $(basename $use_tck)"
-                cp "$use_tck" "$globalresultsdir/Tracto/Tract-csd_${tract_name}.tck"
-                [ -n "$use_map" ] && mrgrid "$use_map" regrid -template "$_t1w_ref" "$_out_map" -force -quiet
-            fi
-        fi
-    done
+    ntracts=26
 
     #echo "ntracts: $ntracts"
     result_type=0
@@ -427,24 +322,6 @@ if [ $results -gt 0 ];then
         resultsdir_png="$globalresultsdir/Tracto_figures_SWI"
         resultsdir_dcm="$globalresultsdir/PACS/Tracto_SWI"
 
-    elif [ $results -eq 5 ]; then
-
-        underlay=$globalresultsdir/Anat/FGATIR_reg2_T1w.nii.gz
-        resultsdir_png="$globalresultsdir/Tracto_figures_FGATIR"
-        resultsdir_dcm="$globalresultsdir/PACS/Tracto_FGATIR"
-
-    elif [ $results -eq 6 ]; then
-
-        underlay=$globalresultsdir/Anat/DIR_reg2_T1w.nii.gz
-        resultsdir_png="$globalresultsdir/Tracto_figures_DIR"
-        resultsdir_dcm="$globalresultsdir/PACS/Tracto_DIR"
-
-    elif [ $results -eq 7 ]; then
-
-        underlay=$globalresultsdir/Anat/MP2RAGE_reg2_T1w.nii.gz
-        resultsdir_png="$globalresultsdir/Tracto_figures_MP2RAGE"
-        resultsdir_dcm="$globalresultsdir/PACS/Tracto_MP2RAGE"
-
     else
 
         underlay=$globalresultsdir/Anat/T1w.nii.gz
@@ -455,280 +332,30 @@ if [ $results -gt 0 ];then
 
     mrview_resolution=256
 
-    # Donor DICOM: used to copy patient/study metadata into PACS DICOMs.
-    # Search Karawun first, then RESULTS/sub-*/DICOM (case-insensitive, .dcm and .ima).
-    donor_dcm=$(find "Karawun/sub-${participant}/DICOM" \( -iname "*.dcm" -o -iname "*.ima" \) -type f 2>/dev/null | sort | head -1)
-    if [ -z "$donor_dcm" ]; then
-        donor_dcm=$(find "$globalresultsdir/DICOM" \( -iname "*.dcm" -o -iname "*.ima" \) -type f 2>/dev/null | sort | head -1)
-    fi
-    if [ $make_dcm -eq 1 ] && [ -z "$donor_dcm" ]; then
-        echo ""
-        echo "ERROR: No donor DICOM found in Karawun/sub-${participant}/DICOM/ or $globalresultsdir/DICOM/"
-        echo "       Copy a T1w DICOM series into one of those locations before running -R."
-        echo "       DICOM output will be skipped for this run."
-        echo ""
-    elif [ -n "$donor_dcm" ]; then
-        echo "Using donor DICOM: $donor_dcm"
-    fi
-
-    # Compute correct PixelSpacing for each orientation from the underlay geometry.
-    # mrview -size N,N renders the full image FOV into exactly N pixels per side;
-    # the larger in-plane physical dimension spans mrview_resolution pixels.
-    _dims=($(mrinfo $underlay -size))
-    _vox=($(mrinfo $underlay -spacing))
-    px_tra=$(python3 -c "print(max(${_dims[0]}*${_vox[0]},${_dims[1]}*${_vox[1]})/$mrview_resolution)")
-    px_sag=$(python3 -c "print(max(${_dims[1]}*${_vox[1]},${_dims[2]}*${_vox[2]})/$mrview_resolution)")
-    px_cor=$(python3 -c "print(max(${_dims[0]}*${_vox[0]},${_dims[2]}*${_vox[2]})/$mrview_resolution)")
-
-    # Mesa software renderer threads per mrview instance.
-    # 3 bundles run in parallel, so total cores = mrview_threads * 3.
-    mrview_threads=$(( ncpu / 3 ))
-    [ $mrview_threads -lt 1 ] && mrview_threads=1
-
+    rm -fr $resultsdir_png
     mkdir -p $resultsdir_png
     mkdir -p $resultsdir_dcm
+    
 
-    # Derive underlay suffix for SPM figure directories (matches Tracto naming)
-    _ulsuffix="${resultsdir_png##*_figures_}"
-    spm_resultsdir_png="$globalresultsdir/SPM_figures_${_ulsuffix}"
-    spm_resultsdir_dcm="$globalresultsdir/PACS/fMRI_${_ulsuffix}"
-    mkdir -p "$spm_resultsdir_png"
-    mkdir -p "$spm_resultsdir_dcm"
+    for tract_set_i in $(eval echo "{0..$ntracts..2}"); do
 
-    # Render one SPM/Melodic map (all orientations) on display :20.
-    # Threshold is computed per-map as max/3 (same as the report logic).
-    _render_one_spm() {
-        local spmfile="$1" spmname="$2"
-        local ori
-        IFS=',' read -ra ori <<< "$orientations"
-
-        local _max_T _thresh
-        if [ -n "${spm_thresh_map[$spmname]+x}" ]; then
-            _thresh=${spm_thresh_map[$spmname]}
-            echo "SPM ${spmname}: using per-map threshold=${_thresh}"
-        elif [ -n "$spm_thresh_override" ]; then
-            _thresh=$spm_thresh_override
-            echo "SPM ${spmname}: using fixed threshold=${_thresh}"
-        else
-            _max_T=$(mrstats -output max "$spmfile")
-            _thresh=$(awk "BEGIN {print $_max_T/3}")
-            echo "SPM ${spmname}: max=${_max_T}, auto threshold=${_thresh}"
-        fi
-
-        # Optionally compute a 1-voxel edge mask for the dark-blue outline
-        local _edge_overlay="" _tmp_mask="" _tmp_eroded="" _tmp_edge=""
-        if [ $spm_edge -eq 1 ]; then
-            _tmp_mask=$(mktemp /tmp/spm_mask_XXXXXX.nii.gz)
-            _tmp_eroded=$(mktemp /tmp/spm_eroded_XXXXXX.nii.gz)
-            _tmp_edge=$(mktemp /tmp/spm_edge_XXXXXX.nii.gz)
-            mrcalc "$spmfile" $_thresh -ge "$_tmp_mask" -force -quiet
-            maskfilter "$_tmp_mask" erode "$_tmp_eroded" -npass 1 -force -quiet
-            mrcalc "$_tmp_mask" "$_tmp_eroded" -sub "$_tmp_edge" -force -quiet
-            _edge_overlay="-overlay.load $_tmp_edge -overlay.opacity 1.0 -overlay.colour 0,0,0.8 -overlay.threshold_min 0.5"
-        fi
-
-        local _px_tra=$px_tra _px_sag=$px_sag _px_cor=$px_cor _sample_png=""
-        for orient in "${ori[@]}"; do
-            local plane underlay_slices
-            if [[ "$orient" == "TRA" ]]; then
-                underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF)}'); plane=2
-            elif [[ "$orient" == "SAG" ]]; then
-                underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-2)}'); plane=0
-            else
-                underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-1)}'); plane=1
-            fi
-
-            local png_dir="$spm_resultsdir_png/${spmname}_${orient}"
-            if [ -n "$(ls "$png_dir"/*.png 2>/dev/null | head -1)" ]; then
-                echo "Skipping screenshots for ${spmname}_${orient} (already exist)"
-            else
-                mkdir -p "$png_dir"
-                local voxel_index="" i=0
-                while [ $i -lt $underlay_slices ]; do
-                    if [[ "$orient" == "TRA" ]]; then
-                        voxel_index="$voxel_index -voxel 0,0,$i -capture.grab"
-                    elif [[ "$orient" == "SAG" ]]; then
-                        voxel_index="$voxel_index -voxel $i,0,0 -capture.grab"
-                    else
-                        voxel_index="$voxel_index -voxel 0,$i,0 -capture.grab"
-                    fi
-                    let "i+=1"
-                done
-                echo "Making ${spmname}_${orient} SPM on $(basename $underlay)"
-                eval "LP_NUM_THREADS=$mrview_threads timeout 600 xvfb-run -n 20 --server-args=\"-screen 0 ${mrview_resolution}x${mrview_resolution}x24\" mrview -size $mrview_resolution,$mrview_resolution \
-                    -load $underlay -mode 1 -plane $plane \
-                    -overlay.load $spmfile -overlay.opacity $spm_opacity -overlay.colourmap 1 \
-                        -overlay.threshold_min $_thresh \
-                    $_edge_overlay \
-                    -noannotations -orientlabel 0 -voxelinfo 0 -colourbar 0 \
-                    -capture.folder $png_dir -capture.prefix ${spmname}_${orient} \
-                    $voxel_index -force -exit"
-                [ -z "$_sample_png" ] && _sample_png=$(ls "$png_dir"/*.png 2>/dev/null | head -1)
-            fi
-        done
-
-        [ -n "$_tmp_mask" ] && rm -f "$_tmp_mask" "$_tmp_eroded" "$_tmp_edge"
-
-        # Recompute PixelSpacing from first screenshot (same as tract logic)
-        if [ -n "$_sample_png" ]; then
-            local _png_max
-            _png_max=$(python3 -c "from PIL import Image; w,h=Image.open('$_sample_png').size; print(max(w,h))")
-            _px_tra=$(python3 -c "print(max(${_dims[0]}*${_vox[0]},${_dims[1]}*${_vox[1]})/$_png_max)")
-            _px_sag=$(python3 -c "print(max(${_dims[1]}*${_vox[1]},${_dims[2]}*${_vox[2]})/$_png_max)")
-            _px_cor=$(python3 -c "print(max(${_dims[0]}*${_vox[0]},${_dims[2]}*${_vox[2]})/$_png_max)")
-        fi
-
-        # DICOM conversion (only when explicitly requested via -R)
-        # Skip if this map was not selected by the user (_dcm_spm_set empty = all selected)
-        if [ $make_dcm -eq 1 ] && [ -n "$donor_dcm" ] && \
-           { [ ${#_dcm_spm_set[@]} -eq 0 ] || [ -n "${_dcm_spm_set[$spmname]+x}" ]; }; then
-            local dcm_label="${spmname}_on_${_ulsuffix}"
-            for orient in "${ori[@]}"; do
-                local ps
-                case $orient in TRA) ps=$_px_tra ;; SAG) ps=$_px_sag ;; COR) ps=$_px_cor ;; esac
-                local png_dir="$spm_resultsdir_png/${spmname}_${orient}"
-                local dcmdir="$spm_resultsdir_dcm/${dcm_label}_${orient}"
-                if [ -n "$(ls "$dcmdir"/*.dcm 2>/dev/null | head -1)" ]; then
-                    echo "Skipping DICOMs for ${dcm_label}_${orient} (already exist)"
-                else
-                    mkdir -p "$dcmdir"
-                    if [[ "$orient" == "SAG" ]]; then
-                        echo "Making dicoms in $dcmdir (donor-match mode)"
-                        KUL_nii2dcm.py -s "${dcm_label}_${orient}" \
-                            -u "$underlay" -o "$orient" -M \
-                            "$png_dir" "$donor_dcm" "$dcmdir" \
-                            || echo "WARNING: KUL_nii2dcm.py failed for ${dcm_label}_${orient}"
-                    else
-                        echo "Making dicoms in $dcmdir (PixelSpacing=${ps}mm)"
-                        KUL_nii2dcm.py -s "${dcm_label}_${orient}" -p $ps \
-                            -u "$underlay" -o "$orient" \
-                            "$png_dir" "$donor_dcm" "$dcmdir" \
-                            || echo "WARNING: KUL_nii2dcm.py failed for ${dcm_label}_${orient}"
-                    fi
-                fi
-            done
-        fi
-    }
-
-    # Render one bundle (all orientations sequentially) on display :$((10+slot))
-    _render_one_bundle() {
-        local slot="$1" tractname="$2" mrview_tck="$3"
-        local ori
-        IFS=',' read -ra ori <<< "$orientations"
-
-        for orient in "${ori[@]}"; do
-            if [ -n "$(ls "$resultsdir_png/${tractname}_${orient}"/*.png 2>/dev/null | head -1)" ]; then
-                echo "Skipping screenshots for ${tractname}_${orient} (already exist)"
-            else
-                local underlay_slices plane
-                if [[ "$orient" == "TRA" ]]; then
-                    underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF)}'); plane=2
-                elif [[ "$orient" == "SAG" ]]; then
-                    underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-2)}'); plane=0
-                else
-                    underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-1)}'); plane=1
-                fi
-                echo "Making ${tractname}_${orient} on $(basename $underlay)"
-                mkdir -p "$resultsdir_png/${tractname}_${orient}"
-                local voxel_index="-capture.folder $resultsdir_png/${tractname}_${orient} -capture.prefix ${tractname}_${orient}"
-                local i=0
-                while [ $i -lt $underlay_slices ]; do
-                    if [[ "$orient" == "TRA" ]]; then
-                        voxel_index="$voxel_index -voxel 0,0,$i -capture.grab"
-                    elif [[ "$orient" == "SAG" ]]; then
-                        voxel_index="$voxel_index -voxel $i,0,0 -capture.grab"
-                    else
-                        voxel_index="$voxel_index -voxel 0,$i,0 -capture.grab"
-                    fi
-                    let "i+=1"
-                done
-                eval "LP_NUM_THREADS=$mrview_threads timeout 600 xvfb-run -n $((10 + slot)) --server-args=\"-screen 0 ${mrview_resolution}x${mrview_resolution}x24\" mrview -size $mrview_resolution,$mrview_resolution \
-                    -load $underlay -mode 1 -plane $plane \
-                    -tractography.lighting 1 -tractography.slab 1.5 -tractography.thickness 0.3 \
-                    -noannotations -orientlabel 0 -voxelinfo 0 -colourbar 0 \
-                    $mrview_tck $voxel_index -force -exit"
-            fi
-        done
-
-        # Recompute PixelSpacing from first available screenshot
-        local _px_tra=$px_tra _px_sag=$px_sag _px_cor=$px_cor _sample_png=""
-        for orient in "${ori[@]}"; do
-            _sample_png=$(ls "$resultsdir_png/${tractname}_${orient}"/*.png 2>/dev/null | head -1)
-            [ -n "$_sample_png" ] && break
-        done
-        if [ -n "$_sample_png" ]; then
-            local _png_max
-            _png_max=$(python3 -c "from PIL import Image; w,h=Image.open('$_sample_png').size; print(max(w,h))")
-            _px_tra=$(python3 -c "print(max(${_dims[0]}*${_vox[0]},${_dims[1]}*${_vox[1]})/$_png_max)")
-            _px_sag=$(python3 -c "print(max(${_dims[1]}*${_vox[1]},${_dims[2]}*${_vox[2]})/$_png_max)")
-            _px_cor=$(python3 -c "print(max(${_dims[0]}*${_vox[0]},${_dims[2]}*${_vox[2]})/$_png_max)")
-            echo "Actual PNG max dim: ${_png_max}px → PixelSpacing TRA=${_px_tra}mm SAG=${_px_sag}mm COR=${_px_cor}mm"
-        fi
-
-        # DICOM conversion (only when explicitly requested via -R)
-        if [ $make_dcm -eq 1 ] && [ -n "$donor_dcm" ]; then
-            for orient in "${ori[@]}"; do
-                local ps
-                case $orient in TRA) ps=$_px_tra ;; SAG) ps=$_px_sag ;; COR) ps=$_px_cor ;; esac
-                local dcmdir="$resultsdir_dcm/${tractname}_${orient}"
-                if [ -n "$(ls "$dcmdir"/*.dcm 2>/dev/null | head -1)" ]; then
-                    echo "Skipping DICOMs for ${tractname}_${orient} (already exist)"
-                else
-                    mkdir -p "$dcmdir"
-                    if [[ "$orient" == "SAG" ]]; then
-                        echo "Making dicoms in $dcmdir (donor-match mode)"
-                        KUL_nii2dcm.py -s "FT_${tractname}_${orient}_${_ulsuffix}" \
-                            -u "$underlay" -o "$orient" -M \
-                            "$resultsdir_png/${tractname}_${orient}" "$donor_dcm" "$dcmdir" \
-                            || echo "WARNING: KUL_nii2dcm.py failed for ${tractname}_${orient}"
-                    else
-                        echo "Making dicoms in $dcmdir (PixelSpacing=${ps}mm)"
-                        KUL_nii2dcm.py -s "FT_${tractname}_${orient}_${_ulsuffix}" -p $ps \
-                            -u "$underlay" -o "$orient" \
-                            "$resultsdir_png/${tractname}_${orient}" "$donor_dcm" "$dcmdir" \
-                            || echo "WARNING: KUL_nii2dcm.py failed for ${tractname}_${orient}"
-                    fi
-                fi
-            done
-        fi
-    }
-
-    # Launch current batch of bundles in parallel (max 3), then wait
-    _flush_bundle_batch() {
-        for slot in "${!_btractnames[@]}"; do
-            _render_one_bundle "$slot" "${_btractnames[$slot]}" "${_btcks[$slot]}" &
-        done
-        wait
-        _btractnames=()
-        _btcks=()
-    }
-
-    _btractnames=()
-    _btcks=()
-
-    tract_set_i=0
-    while true; do
-
-        if [ $tract_set_i -lt $ntracts_paired ]; then
-            # Paired mode: lateralized LT/RT bundles, step 2
-            # tractname = first bundle name without Tract-csd_ prefix (e.g. CST_LT)
+        if [ $tract_set_i -lt $ntracts ]; then
             tract_set=(${mrview_tracts[@]:$tract_set_i:2})
-            tractname="${tract_set[0]#Tract-csd_}"; tractname="${tractname%_LT}"
-            tract_i=$tract_set_i
-            tract_set_i=$(($tract_set_i + 2))
-        elif [ $tract_set_i -le $ntracts_total ]; then
-            # Solo mode: commissural bundles, step 1
-            tract_set=("${mrview_tracts[$tract_set_i]}")
-            tractname="${mrview_tracts[$tract_set_i]#Tract-csd_}"
-            tract_i=$tract_set_i
-            tract_set_i=$(($tract_set_i + 1))
+            tractname=${tract_set[0]:0:-3}
+            tract_i=tract_set_i
+            #echo $tractname 
         else
-            break
+            tract_set=(${mrview_tracts[@]})
+            tractname="Tract-csd_ALL"
+            tract_i=0
         fi
 
         mrview_tck=""
+        
         tracts_found=0
-        for tract in ${tract_set[@]}; do
+        for tract in ${tract_set[@]}; do 
+            #echo $tract_set_i
+            #echo "$tract ${mrview_rgb[$tract_i]} on $underlay"
             if [ -f $globalresultsdir/Tracto/${tract}.tck ]; then
                 mrview_tck="$mrview_tck -tractography.load $globalresultsdir/Tracto/${tract}.tck \
                     -tractography.colour ${mrview_rgb[$tract_i]}"
@@ -736,124 +363,96 @@ if [ $results -gt 0 ];then
             fi
             tract_i=$(($tract_i+1))
         done
-
+        
+        #echo "mrview_tck: $mrview_tck"
         echo "tract_i: $tract_i"
         echo "tracts_found: $tracts_found"
 
-        if [ $tracts_found -gt 0 ]; then
-            _btractnames+=("$tractname")
-            _btcks+=("$mrview_tck")
-            if [ ${#_btractnames[@]} -ge 3 ]; then
-                _flush_bundle_batch
-            fi
+        if [ $tracts_found -gt 0 ]; then 
+
+            ori[0]="TRA"
+            ori[1]="SAG"
+            ori[2]="COR"
+
+            for orient in ${ori[@]}; do
+
+                if [[ "$orient" == "TRA" ]]; then
+                    underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF)}')
+                elif [[ "$orient" == "SAG" ]]; then
+                    underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-2)}')
+                else
+                    underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-1)}')
+                fi
+            
+
+                if [ $result_type -eq 0 ]; then
+                    i=0
+                    echo "Making ${tractname}_${orient} on $(basename $underlay)"
+                    mkdir -p $resultsdir_png/${tractname}_${orient}
+                    voxel_index="-capture.folder $resultsdir_png/${tractname}_${orient} \
+                        -capture.prefix ${tractname}_${orient} -noannotations -orientlabel 1"
+                    while [ $i -lt $underlay_slices ]
+                    do
+                        #echo Number: $i
+                        if [[ "$orient" == "TRA" ]]; then
+                            voxel_index="$voxel_index -voxel 0,0,$i -capture.grab"
+                            plane=2
+                        elif [[ "$orient" == "SAG" ]]; then
+                            voxel_index="$voxel_index -voxel $i,0,0 -capture.grab"
+                            plane=0
+                        else
+                            voxel_index="$voxel_index -voxel 0,$i,0 -capture.grab"
+                            plane=1
+                        fi    
+                        let "i+=1" 
+                    done
+                    mode_plane="-mode 1 -plane $plane"
+                    mrview_exit="-exit"
+                else
+                    voxel_index=""
+                    mode_plane="-mode 2"
+                    mrview_exit=""
+                fi
+                #echo $voxel_index
+
+
+                cmd="mrview -size $mrview_resolution,$mrview_resolution
+                    -load $underlay \
+                    $mode_plane \
+                    -tractography.lighting 1 \
+                    -tractography.slab 1.5 \
+                    -tractography.thickness 0.3 \
+                    $mrview_tck \
+                    $voxel_index \
+                    -force \
+                    $mrview_exit"
+                #echo $cmd
+                eval $cmd
+
+                if [[ "$mrview_exit" = "-exit" ]];then
+                    cmd="convert $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}*.png \
+                        $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}.tiff"
+                    #echo $cmd
+                    eval $cmd
+
+                    if [ -f DICOM/smartbrain.dcm ]; then
+                        dcmdir="$resultsdir_dcm/${tractname}_${orient}"
+                        echo "Making dicoms in $dcmdir"
+                        mkdir -p $dcmdir
+                        cmd="KUL_nii2dcm.py -s ${tractname}_${orient} \
+                            $resultsdir_png/${tractname}_${orient}/${tractname}_${orient}.tiff \
+                            DICOM/smartbrain.dcm \
+                            $dcmdir"
+                        echo $cmd
+                        eval $cmd
+                    fi
+                fi
+            done
+        
         else
             echo "No ${tractname} found"
         fi
-
-    done
-    [ ${#_btractnames[@]} -gt 0 ] && _flush_bundle_batch
-
-    # ── Group renders: Projection / Associative / Commissural (3-way parallel) ─
-    _btractnames=()
-    _btcks=()
-
-    _proj_tck=""
-    for _gi in 0 1 16 17 20 21 22 23 24 25; do
-        [ -f "$globalresultsdir/Tracto/${mrview_tracts[$_gi]}.tck" ] && \
-            _proj_tck="$_proj_tck -tractography.load $globalresultsdir/Tracto/${mrview_tracts[$_gi]}.tck -tractography.colour ${mrview_rgb[$_gi]}"
-    done
-    if [ -n "$_proj_tck" ]; then
-        _btractnames+=("Projection"); _btcks+=("$_proj_tck")
-    else
-        echo "No Projection tracts found"
-    fi
-
-    _assoc_tck=""
-    for _gi in 2 3 4 5 6 7 8 9 10 11 12 13 14 15 18 19; do
-        [ -f "$globalresultsdir/Tracto/${mrview_tracts[$_gi]}.tck" ] && \
-            _assoc_tck="$_assoc_tck -tractography.load $globalresultsdir/Tracto/${mrview_tracts[$_gi]}.tck -tractography.colour ${mrview_rgb[$_gi]}"
-    done
-    if [ -n "$_assoc_tck" ]; then
-        _btractnames+=("Associative"); _btcks+=("$_assoc_tck")
-    else
-        echo "No Associative tracts found"
-    fi
-
-    _comm_tck=""
-    for _gi in 26 27 28 29 30 31 32 33 34; do
-        [ -f "$globalresultsdir/Tracto/${mrview_tracts[$_gi]}.tck" ] && \
-            _comm_tck="$_comm_tck -tractography.load $globalresultsdir/Tracto/${mrview_tracts[$_gi]}.tck -tractography.colour ${mrview_rgb[$_gi]}"
-    done
-    if [ -n "$_comm_tck" ]; then
-        _btractnames+=("Commissural"); _btcks+=("$_comm_tck")
-    else
-        echo "No Commissural tracts found"
-    fi
-
-    [ ${#_btractnames[@]} -gt 0 ] && _flush_bundle_batch
-
-    # ── SPM & Melodic → PACS ────────────────────────────────────────────────
-    # If interactive and no global -T override, ask for a per-map threshold list.
-    _all_spm_names=()
-    for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii \
-                "$globalresultsdir/Melodic/"*.nii.gz "$globalresultsdir/Melodic/"*.nii; do
-        [ -f "$_spm" ] || continue
-        _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
-        _all_spm_names+=("$_spmname")
-    done
-
-    if [ ${#_all_spm_names[@]} -gt 0 ] && [ -z "$spm_thresh_override" ] && [ -t 0 ]; then
-        echo "fMRI/Melodic maps found for PACS conversion:"
-        for _idx in "${!_all_spm_names[@]}"; do
-            echo "  $((_idx+1)). ${_all_spm_names[$_idx]}"
-        done
-        read -r -p "Enter threshold values, space-separated, in the same order as above (Enter = auto max/3 for all): " -a _thresh_input
-        if [ ${#_thresh_input[@]} -gt 0 ]; then
-            if [ ${#_thresh_input[@]} -ne ${#_all_spm_names[@]} ]; then
-                echo "Warning: got ${#_thresh_input[@]} value(s) for ${#_all_spm_names[@]} map(s) — ignoring, using auto threshold for all"
-            else
-                for _idx in "${!_all_spm_names[@]}"; do
-                    spm_thresh_map["${_all_spm_names[$_idx]}"]="${_thresh_input[$_idx]}"
-                done
-            fi
-        fi
-    fi
-
-    # When generating DICOMs (-R), let the user select which maps to export.
-    # Empty _dcm_spm_set means "all maps".
-    declare -A _dcm_spm_set=()
-    if [ $make_dcm -eq 1 ] && [ ${#_all_spm_names[@]} -gt 0 ] && [ -t 0 ] && [ -z "$spm_thresh_override" ]; then
-        echo ""
-        echo "Select fMRI/Melodic maps to export as PACS DICOMs (underlay: ${_ulsuffix}):"
-        for _idx in "${!_all_spm_names[@]}"; do
-            echo "  $((_idx+1)). ${_all_spm_names[$_idx]}"
-        done
-        read -r -p "Enter numbers to include (space-separated), or Enter for all: " -a _sel_input
-        if [ ${#_sel_input[@]} -gt 0 ]; then
-            for _num in "${_sel_input[@]}"; do
-                _sel_idx=$(( _num - 1 ))
-                if [ $_sel_idx -ge 0 ] && [ $_sel_idx -lt ${#_all_spm_names[@]} ]; then
-                    _dcm_spm_set["${_all_spm_names[$_sel_idx]}"]=1
-                else
-                    echo "Warning: ignoring out-of-range selection '$_num'"
-                fi
-            done
-            echo "Selected for DICOM export: ${!_dcm_spm_set[*]}"
-        else
-            echo "All maps selected for DICOM export."
-        fi
-    fi
-
-    for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii; do
-        [ -f "$_spm" ] || continue
-        _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
-        _render_one_spm "$_spm" "$_spmname"
-    done
-
-    for _spm in "$globalresultsdir/Melodic/"*.nii.gz "$globalresultsdir/Melodic/"*.nii; do
-        [ -f "$_spm" ] || continue
-        _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
-        _render_one_spm "$_spm" "$_spmname"
+    
     done
 
     exit
@@ -863,98 +462,73 @@ fi
 # --- functions ---
 function KUL_check_redo {
     if [ $redo -eq 1 ];then
-
-        # Questions follow the same order as the main processing steps.
-
-        # Step 3 — tumor segmentation (types 1 and 2 only)
-        if [ $type -lt 3 ]; then
+        if [ $type -lt 3 ];then
             read -p "Redo: tumor segmentation? (y/n) " answ
             if [[ "$answ" == "y" ]]; then
+                #echo $answ
+                #echo "rm ${cwd}/KUL_LOG/sub-${participant}_anat_*.done"
                 rm -rf ${cwd}/KUL_LOG/sub-${participant}_anat_*.done >/dev/null 2>&1
                 rm -rf $derivativesdir/KUL_anat_biascorrect >/dev/null 2>&1
                 rm -rf $derivativesdir/KUL_anat_register_rigid >/dev/null 2>&1
                 rm -rf $derivativesdir/KUL_anat_segment_tumor >/dev/null 2>&1
-                rm -rf $globalresultsdir/Lesion/sub-${participant}_lesion_and_cavity.nii.gz >/dev/null 2>&1
+                rm -rf $globalresultsdir/Lesion/sub-${participant}_lesion_and_cavity.nii.gz
             fi
         fi
-
-        # Step 4 — fmriprep (all types)
         read -p "Redo: fmriprep? (y/n) " answ
         if [[ "$answ" == "y" ]]; then
+            echo $answ
+            echo "rm ${cwd}/KUL_LOG/sub-${participant}_run_dwiprep.txt"
             rm -rf ${cwd}/fmriprep/sub-${participant} >/dev/null 2>&1
             rm -rf ${cwd}/fmriprep_work >/dev/null 2>&1
             rm -f ${cwd}/fmriprep/sub-${participant}.html >/dev/null 2>&1
         fi
-
-        # Step 5 — dwiprep (all types)
         read -p "Redo: KUL_dwiprep? (y/n) " answ
         if [[ "$answ" == "y" ]]; then
+            echo $answ
+            echo "rm ${cwd}/KUL_LOG/sub-${participant}_run_dwiprep.txt"
             rm -f ${cwd}/KUL_LOG/sub-${participant}_run_dwiprep.txt >/dev/null 2>&1
             rm -rf ${cwd}/dwiprep/sub-${participant} >/dev/null 2>&1
             rm -rf $derivativesdir/synb0 >/dev/null 2>&1
         fi
-
-        # Step 8 — SPM and Melodic (only if fMRI data present)
-        if [ $n_fMRI -gt 0 ]; then
-            read -p "Redo: SPM? (y/n) " answ
-            if [[ "$answ" == "y" ]]; then
-                rm -f ${cwd}/KUL_LOG/sub-${participant}_SPM.done >/dev/null 2>&1
-                rm -fr $derivativesdir/SPM/* >/dev/null 2>&1
-                rm -fr ${cwd}/RESULTS/sub-${participant}/SPM/* >/dev/null 2>&1
-            fi
-            read -p "Redo: Melodic? (y/n) " answ
-            if [[ "$answ" == "y" ]]; then
-                rm -f ${cwd}/KUL_LOG/sub-${participant}_melodic.done >/dev/null 2>&1
-                rm -fr $derivativesdir/FSL_melodic/* >/dev/null 2>&1
-                rm -fr ${cwd}/RESULTS/sub-${participant}/Melodic/* >/dev/null 2>&1
-            fi
-        fi
-
-        # Step 9 — VBG (types 1, 2, 3 only)
-        if [ $vbg -gt 0 ]; then
-            read -p "Redo: KUL_VBG? (y/n) " answ
-            if [[ "$answ" == "y" ]]; then
-                rm -f ${cwd}/KUL_LOG/sub-${participant}_VBG.log >/dev/null 2>&1
-                rm -fr $derivativesdir/KUL_VBG/* >/dev/null 2>&1
-            fi
-        fi
-
-        # Step 11 — dwiprep_anat (all types)
-        read -p "Redo: KUL_dwiprep_anat? (y/n) " answ
+        read -p "Redo: SPM? (y/n) " answ
         if [[ "$answ" == "y" ]]; then
-            rm -f ${cwd}/KUL_LOG/sub-${participant}_dwiprep_anat.done >/dev/null 2>&1
+            echo $answ
+            echo "rm ${cwd}/KUL_LOG/sub-${participant}_SPM.done"
+            rm -f ${cwd}/KUL_LOG/sub-${participant}_SPM.done >/dev/null 2>&1
+            rm -f ${cwd}/RESULTS/sub-${participant}/Melodic/* >/dev/null 2>&1
+            rm -fr $derivativesdir/SPM/* >/dev/null 2>&1
         fi
-
-        # Step 12 — dwiprep_MNI (all types)
-        read -p "Redo: KUL_dwiprep_MNI? (y/n) " answ
+        read -p "Redo: Melodic? (y/n) " answ
         if [[ "$answ" == "y" ]]; then
-            rm -f ${cwd}/KUL_LOG/sub-${participant}_dwiprep_MNI.done >/dev/null 2>&1
+            echo $answ
+            echo "rm ${cwd}/KUL_LOG/sub-${participant}_melodic.done"
+            rm -f ${cwd}/KUL_LOG/sub-${participant}_melodic.done >/dev/null 2>&1
+            rm -f ${cwd}/RESULTS/sub-${participant}/SPM/* >/dev/null 2>&1
+            rm -fr $derivativesdir/FSL_melodic/* >/dev/null 2>&1
         fi
-
-        # Step 13 — DTI-ALPS (type 7 only)
-        if [ $alps -eq 1 ]; then
-            read -p "Redo: KUL_calc_DTI_ALPS? (y/n) " answ
-            if [[ "$answ" == "y" ]]; then
-                rm -rf ${cwd}/KUL_dwiprep/sub-${participant}/sub-${participant}/DTI_ALPS >/dev/null 2>&1
-                rm -f ${cwd}/KUL_LOG/sub-${participant}_dti_ALPS.done >/dev/null 2>&1
-            fi
-        fi
-
-        # Step 14 — FWT (types 1–6)
-        if [ $fwt -eq 1 ]; then
-            read -p "Redo: KUL_FWT? (y/n) " answ
-            if [[ "$answ" == "y" ]]; then
-                rm -f ${cwd}/KUL_LOG/sub-${participant}_FWT.done >/dev/null 2>&1
-                rm -fr $derivativesdir/KUL_FWT/* >/dev/null 2>&1
-            fi
-        fi
-
-        # Step 15 — figures
-        read -p "Redo: figures? (y/n) " answ
+        read -p "Redo: KUL_VBG? (y/n) " answ
         if [[ "$answ" == "y" ]]; then
-            rm -f ${cwd}/KUL_LOG/sub-${participant}_figures.done >/dev/null 2>&1
+            echo $answ
+            echo "rm ${cwd}/KUL_LOG/sub-${participant}_VBG.log"
+            rm -f ${cwd}/KUL_LOG/sub-${participant}_VBG.log >/dev/null 2>&1
+            rm -fr $derivativesdir/KUL_VBG/* >/dev/null 2>&1
         fi
-
+        read -p "Redo: msbp? (y/n) " answ
+        if [[ "$answ" == "y" ]]; then
+            echo $answ
+            echo "rm ${cwd}/KUL_LOG/sub-${participant}_MSBP.done"
+            rm -f ${cwd}/KUL_LOG/sub-${participant}_MSBP.done >/dev/null 2>&1
+            rm -fr ${cwd}/BIDS/derivatives/cmp/sub-${participant} >/dev/null 2>&1
+            rm -fr ${cwd}/BIDS/derivatives/nipype/sub-${participant} >/dev/null 2>&1
+            rm -f ${cwd}/BIDS/derivatives/sub-${participant}_anatomical_config.ini >/dev/null 2>&1
+        fi
+        read -p "Redo: KUL_FWT? (y/n) " answ
+        if [[ "$answ" == "y" ]]; then
+            echo $answ
+            echo "rm ${cwd}/KUL_LOG/sub-${participant}_FWT.done"
+            rm -f ${cwd}/KUL_LOG/sub-${participant}_FWT.done >/dev/null 2>&1
+            rm -fr $derivativesdir/KUL_FWT/* >/dev/null 2>&1
+        fi
     fi
 }
 
@@ -966,43 +540,6 @@ function KUL_antsApply_Transform {
         -r $reference \
         -t $transform \
         -n Linear
-}
-
-function KUL_pad_anat {
-    local pad_check=${cwd}/KUL_LOG/sub-${participant}_pad_anat.done
-    if [ -f $pad_check ]; then
-        echo "Anatomical FOV padding already done"
-        return
-    fi
-    local pad_voxels=10
-    local anat_dir="${cwd}/BIDS/sub-${participant}/anat"
-    local padded_any=0
-    for nii in "${anat_dir}"/*.nii.gz; do
-        [ -f "$nii" ] || continue
-        # get image dimensions and check if any brain voxel is within pad_voxels of any edge
-        read -r nx ny nz <<< $(mrinfo "$nii" -size | awk '{print $1, $2, $3}')
-        # create a quick brain mask and check proximity to FOV edge
-        local tmpdir=$(mktemp -d)
-        mrthreshold "$nii" -abs 0 "${tmpdir}/mask.mif" -force -quiet 2>/dev/null
-        # check bounding box of non-zero voxels
-        read -r x0 x1 y0 y1 z0 z1 <<< $(mrstats "${tmpdir}/mask.mif" -mask "${tmpdir}/mask.mif" -output bbox 2>/dev/null | awk '{print $1,$2,$3,$4,$5,$6}')
-        rm -rf "$tmpdir"
-        local needs_pad=0
-        for val in $x0 $y0 $z0; do
-            [ -n "$val" ] && (( $(echo "$val < $pad_voxels" | bc -l) )) && needs_pad=1
-        done
-        [ -n "$x1" ] && (( $(echo "$nx - $x1 < $pad_voxels" | bc -l) )) && needs_pad=1
-        [ -n "$y1" ] && (( $(echo "$ny - $y1 < $pad_voxels" | bc -l) )) && needs_pad=1
-        [ -n "$z1" ] && (( $(echo "$nz - $z1 < $pad_voxels" | bc -l) )) && needs_pad=1
-        if [ $needs_pad -eq 1 ]; then
-            echo "  Padding ${nii} (brain near FOV edge, adding ${pad_voxels} voxels)"
-            mrgrid "$nii" pad -uniform $pad_voxels "${nii%.nii.gz}_padded.nii.gz" -force -quiet
-            mv "${nii%.nii.gz}_padded.nii.gz" "$nii"
-            padded_any=1
-        fi
-    done
-    [ $padded_any -eq 0 ] && echo "  No anatomical images required FOV padding"
-    touch $pad_check
 }
 
 function KUL_convert2bids {
@@ -1047,68 +584,12 @@ function KUL_check_data {
     T2w=($(find $bidsdir -name "*T2w.nii.gz" -type f ))
     nT2w=${#T2w[@]}
     echo "  number of T2w: $nT2w"
-    SWI=($(find $bidsdir -name "*_SWI.nii.gz" ! -name "*SWIp*" -type f | sort))
+    SWI=($(find $bidsdir -name "*run-01_SWI.nii.gz" -type f ))
     nSWI=${#SWI[@]}
+    SWIp=($(find $bidsdir -name "*run-02_SWI.nii.gz" -type f ))
+    nSWIp=${#SWIp[@]}
     echo "  number of SWI magnitude: $nSWI"
-
-    _swip_all=($(find $bidsdir -name "*_SWIp.nii.gz" -type f | sort))
-    nSWIp=${#_swip_all[@]}
-    if [ $nSWIp -eq 1 ]; then
-        SWIp=${_swip_all[0]}
-    elif [ $nSWIp -gt 1 ]; then
-        if [ -t 0 ]; then
-            echo "Multiple SWIp volumes found:"
-            for _i in "${!_swip_all[@]}"; do
-                echo "  $((_i+1)). $(basename ${_swip_all[$_i]})"
-            done
-            read -r -p "Select SWIp volume to use (Enter = first): " _sel
-            if [[ "$_sel" =~ ^[0-9]+$ ]] && [ "$_sel" -ge 1 ] && [ "$_sel" -le $nSWIp ]; then
-                SWIp=${_swip_all[$((_sel-1))]}
-            else
-                SWIp=${_swip_all[0]}
-            fi
-        else
-            SWIp=${_swip_all[0]}
-        fi
-        nSWIp=1
-    fi
     echo "  number of SWI phase: $nSWIp"
-
-    DIR=($(find $bidsdir -name "*DIR.nii.gz" -type f ))
-    nDIR=${#DIR[@]}
-    echo "  number of DIR: $nDIR"
-
-    # MP2RAGE: user selects which volume (TI) to use; auto-selects highest TI if non-interactive
-    MP2RAGE=""
-    nMP2RAGE=0
-    _mp2rage_files=($(find $bidsdir -name "*MP2RAGE*.nii.gz" -type f | sort))
-    if [ ${#_mp2rage_files[@]} -eq 1 ]; then
-        nMP2RAGE=1
-        MP2RAGE=${_mp2rage_files[0]}
-    elif [ ${#_mp2rage_files[@]} -gt 1 ]; then
-        nMP2RAGE=1
-        if [ -t 0 ]; then
-            echo "Multiple MP2RAGE volumes found:"
-            for _i in "${!_mp2rage_files[@]}"; do
-                _json="${_mp2rage_files[$_i]%.nii.gz}.json"
-                _ti=$(python3 -c "import json; d=json.load(open('$_json')); print(d.get('TriggerDelayTime','?'))" 2>/dev/null || echo "?")
-                echo "  $((_i+1)). $(basename ${_mp2rage_files[$_i]}) (TI=${_ti}ms)"
-            done
-            read -r -p "Select MP2RAGE volume to use (Enter = auto highest TI / INV2): " _sel
-            if [[ "$_sel" =~ ^[0-9]+$ ]] && [ "$_sel" -ge 1 ] && [ "$_sel" -le ${#_mp2rage_files[@]} ]; then
-                MP2RAGE=${_mp2rage_files[$((_sel-1))]}
-            fi
-        fi
-        if [ -z "$MP2RAGE" ]; then
-            _best_ti=0
-            for _f in "${_mp2rage_files[@]}"; do
-                _json="${_f%.nii.gz}.json"
-                _ti=$(python3 -c "import json; d=json.load(open('$_json')); print(d.get('TriggerDelayTime',0))" 2>/dev/null || echo 0)
-                if (( $(echo "$_ti > $_best_ti" | bc -l) )); then _best_ti=$_ti; MP2RAGE=$_f; fi
-            done
-        fi
-    fi
-    echo "  MP2RAGE selected: ${MP2RAGE:-(none)}"
 
     # check the T1w
     if [ $nT1w -eq 0 ]; then
@@ -1186,7 +667,7 @@ function KUL_run_fmriprep {
         rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
         if [ $n_fMRI -gt 0 ]; then
             #fmriprep_options="--fs-no-reconall --use-aroma --use-syn-sdc "
-            fmriprep_options="--fs-no-reconall "
+            fmriprep_options="--fs-no-reconall --use-syn-sdc "
         else
             fmriprep_options="--fs-no-reconall --anat-only "
         fi
@@ -1222,7 +703,7 @@ function KUL_run_fmriprep {
 function KUL_run_dwiprep {
     if [ $n_dwi -gt 0 ];then
         if [ ! -f dwiprep/sub-${participant}/dwiprep_is_done.log ]; then
-            cp study_config/${dwiprep_config_file} KUL_LOG/sub-${participant}_run_dwiprep.txt
+            cp study_config/run_dwiprep.txt KUL_LOG/sub-${participant}_run_dwiprep.txt
             sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_dwiprep.txt
             rm -f KUL_LOG/sub-${participant}_run_dwiprep.txt.bck
             
@@ -1302,28 +783,6 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
 
 
     FaSu_loc=$(which run_fastsurfer.sh)
-
-    # --- FastSurfer / FreeSurfer version compatibility check ---
-    fs_version_str=$(recon-all --version 2>/dev/null)
-    fs_major=$(echo "$fs_version_str" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 | cut -d. -f1)
-    fasu_version_str=$(run_fastsurfer.sh --version 2>/dev/null || echo "")
-    fasu_major=$(echo "$fasu_version_str" | grep -oE '[0-9]+\.[0-9]+' | head -1 | cut -d. -f1)
-    kul_echo "FreeSurfer version detected: ${fs_version_str:-unknown}"
-    kul_echo "FastSurfer version detected: ${fasu_version_str:-unknown}"
-    if [[ -n "$fs_major" && -n "$fasu_major" ]]; then
-        if [[ "$fs_major" -ge 8 && "$fasu_major" -lt 3 ]]; then
-            kul_echo "WARNING: FreeSurfer v${fs_major}.x is installed but FastSurfer v${fasu_major}.x was detected."
-            kul_echo "WARNING: FastSurfer v3+ is required for FreeSurfer v8 compatibility."
-            kul_echo "WARNING: Please update FastSurfer: https://github.com/Deep-MI/FastSurfer/releases"
-            kul_echo "WARNING: Proceeding with --ignore_fs_version but results may be unreliable."
-        fi
-    elif [[ -z "$fasu_version_str" && -n "$fs_major" && "$fs_major" -ge 8 ]]; then
-        kul_echo "WARNING: FreeSurfer v${fs_major}.x detected but FastSurfer version could not be determined."
-        kul_echo "WARNING: Please ensure FastSurfer v3+ is installed for FreeSurfer v8 compatibility."
-        kul_echo "WARNING: Get FastSurfer v3+: https://github.com/Deep-MI/FastSurfer/releases"
-    fi
-    # --- end version check ---
-
     #nvd_cu=$(nvcc --version)
     user_id_str=$(id -u $(whoami))
     T1_4_FaSu=$(basename ${T1_4_parc})
@@ -1407,7 +866,17 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
 
     task_in="recon-all -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} \
         -parallel -no-isrunning -make all"
-    KUL_task_exec $verbose_level "FastSurfer part 3: recon-all -make-all" "FastSurfer" || { kul_echo "FastSurfer part 3 failed — NOT writing FastSurfer.done"; return 1; }
+    KUL_task_exec $verbose_level "FastSurfer part 3: recon-all -make-all" "FastSurfer"
+
+    #exit
+
+    #task_in="mri_convert -rl ${fs_output}/${participant}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${participant}/mri/real_T1.mgz"
+
+    #task_exec
+
+    #task_in="mri_convert -rl ${fs_output}/${participant}/mri/brain.mgz -rt nearest ${Lmask_o} ${fs_output}/${participant}/mri/Lmask_T1_bin.mgz"
+
+    #task_exec
 
     #fs_parc_mgz="${fs_output}/${participant}/mri/aparc+aseg.mgz"
     touch KUL_LOG/sub-${participant}_FastSurfer.done
@@ -1506,11 +975,6 @@ function KUL_run_VBG {
 
 function KUL_run_msbp {
 
-    if [ $msbp -ne 1 ]; then
-        echo "MSBP not required for this type of analysis"
-        return 0
-    fi
-
     if [ ! -f KUL_LOG/sub-${participant}_MSBP.done ]; then
 
         echo "Running MSBP"
@@ -1526,7 +990,7 @@ function KUL_run_msbp {
          --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
          --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
          --multiproc_number_of_cores $ncpu"
-        KUL_task_exec $verbose_level "MSBP" "10_msbp" || { kul_echo "MSBP failed — NOT writing MSBP.done"; return 1; }
+        KUL_task_exec $verbose_level "MSBP" "10_msbp"
 
         echo "Done MSBP"
         touch KUL_LOG/sub-${participant}_MSBP.done
@@ -1536,68 +1000,28 @@ function KUL_run_msbp {
     fi
 }
 
-function KUL_run_multiparc {
-    # Types 4, 5, 6: no VBG, but FWT still needs aparc+aseg.
-    # Calls KUL_FS_multiparc.sh which handles recon-all (or FastSurfer with -X)
-    # then adds Lausanne2018 x5, Glasser, thalamic, and brainstem parcellations.
-    if [ $vbg -gt 0 ] || [ $fwt -eq 0 ]; then
-        return 0
-    fi
-
-    if [ ! -f KUL_LOG/sub-${participant}_multiparc.done ]; then
-
-        _fs_multiparc="${kul_main_dir}/KUL_FS_multiparc.sh"
-        _fastsurfer_flag=""
-        [ $use_fastsurfer -eq 1 ] && _fastsurfer_flag="-X"
-
-        task_in="${_fs_multiparc} \
-            -s sub-${participant} \
-            -f ${cwd}/BIDS/derivatives/freesurfer \
-            -i ${T1w[0]} \
-            -n ${ncpu} ${_fastsurfer_flag}"
-        KUL_task_exec $verbose_level "KUL_FS_multiparc (recon-all + parcellation)" "10_multiparc" || { kul_echo "KUL_FS_multiparc failed — NOT writing multiparc.done"; return 1; }
-
-        touch KUL_LOG/sub-${participant}_multiparc.done
-
-    else
-        echo "multiparc already done"
-    fi
-}
-
-
 function KUL_run_FWT {
-    if [ $fwt -ne 1 ]; then
-        echo "FWT not required for this analysis type"
-        return 0
-    fi
-    # Ensure updated KUL_FWT scripts (sibling repo) take priority over any older installation in PATH
-    _kul_nis_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-    export PATH="${_kul_nis_dir}/../KUL_FWT:$PATH"
     if [ $n_dwi -gt 0 ];then
         config="tracks_list.txt"
         if [ ! -f KUL_LOG/sub-${participant}_FWT.done ]; then
 
-            # Resolve FS aparc+aseg path: prefer VBG FS output, fall back to standard freesurfer derivatives
-            _vbg_fs_apas="$derivativesdir/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/mri/aparc+aseg.mgz"
-            _std_fs_apas="$cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz"
-            if [ -f "$_vbg_fs_apas" ]; then
-                _fs_apas="$_vbg_fs_apas"
-            else
-                _fs_apas="$_std_fs_apas"
-            fi
-            _fs_scale3="$(dirname $_fs_apas)/lausanne2018.scale3+aseg.mgz"
-
             task_in="KUL_FWT_make_VOIs.sh -p ${participant} \
-            -F ${_fs_apas} \
+            -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
+            -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
             -c $cwd/study_config/${config} \
             -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
             -o $kulderivativesdir/sub-${participant}/FWT \
             -n $ncpu"
-            KUL_task_exec $verbose_level "KUL_FWT voi generation" "12_FWTvoi" || { kul_echo "FWT VOI generation failed — NOT writing FWT.done"; return 1; }
+            KUL_task_exec $verbose_level "KUL_FWT voi generation" "12_FWTvoi"
 
-            export PATH="/mnt/DATA1/aradwa0/local_KUL_NIS/scilpynew/bin:$PATH"
+            conda deactivate
+            # eval "$(conda shell.bash hook)"
+            # seems like best practice is to specify abs path to conda and source that explicitly 
+            source /usr/local/KUL_apps/anaconda3/etc/profile.d/conda.sh
+            conda activate scilpy
             task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
-            -F ${_fs_apas} \
+            -F $cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz \
+            -M $cwd/BIDS/derivatives/cmp/sub-${participant}/anat/sub-${participant}_label-L2018_desc-scale3_atlas.nii.gz \
             -c $cwd/study_config/${config} \
             -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
             -o $kulderivativesdir/sub-${participant}/FWT \
@@ -1605,40 +1029,24 @@ function KUL_run_FWT {
             -f 1 \
             -Q -S \
             -n $ncpu"
-            KUL_task_exec $verbose_level "KUL_FWT tract generation" "12_FWTtck" || { kul_echo "FWT tract generation failed — NOT writing FWT.done"; return 1; }
+            KUL_task_exec $verbose_level "KUL_FWT tract generation" "12_FWTtck"
+            conda deactivate
+            
+            rm -fr $globalresultsdir/Tracto/*
+            mcp -o "$kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*_fin_map_BT_iFOD2.nii.gz" \
+                "$globalresultsdir/Tracto/Tract-csd_#2.nii.gz"
+            mcp -o "$kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*_fin_BT_iFOD2.tck" \
+                "$globalresultsdir/Tracto/Tract-csd_#2.tck"
+            pdfunite $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
+            
+            # add to report
+            cp -f RESULTS/sub-${participant}/Tracto/Tracts_Summary.pdf REPORT/sub-${participant}_06_Tract_Summary.pdf
 
             touch KUL_LOG/sub-${participant}_FWT.done
-
+            
         else
             echo "FWT already done"
         fi
-
-        # Always sync FWT output to RESULTS/Tracto so re-runs and new bundles are picked up.
-        # Tract maps are resampled to T1w resolution for direct comparison with anatomy/lesion masks.
-        mkdir -p $globalresultsdir/Tracto
-        rm -fr $globalresultsdir/Tracto/*
-        _t1w_ref="$globalresultsdir/Anat/T1w.nii.gz"
-        [[ ! -f "$_t1w_ref" ]] && _t1w_ref="fmriprep/sub-${participant}/anat/sub-${participant}_desc-preproc_T1w.nii.gz"
-        for tck_outdir in "$kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output"/*_output; do
-            tract_name=$(basename "$tck_outdir" _output)
-            fin_tck="${tck_outdir}/${tract_name}_fin_BT_iFOD2.tck"
-            fin_map="${tck_outdir}/${tract_name}_fin_map_BT_iFOD2.nii.gz"
-            _out_map="$globalresultsdir/Tracto/Tract-csd_${tract_name}.nii.gz"
-            if [ -f "$fin_tck" ]; then
-                cp "$fin_tck" "$globalresultsdir/Tracto/Tract-csd_${tract_name}.tck"
-                [ -f "$fin_map" ] && mrgrid "$fin_map" regrid -template "$_t1w_ref" "$_out_map" -force -quiet
-            else
-                use_tck=$(ls "${tck_outdir}/${tract_name}_filt"*"_BT_iFOD2.tck" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
-                use_map=$(ls "${tck_outdir}/${tract_name}_filt"*"_map_BT_iFOD2.nii.gz" "${tck_outdir}/${tract_name}_filt"*"_BT_iFOD2_map.nii.gz" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
-                if [ -n "$use_tck" ]; then
-                    echo "  ${tract_name}: fin not found, using $(basename $use_tck)"
-                    cp "$use_tck" "$globalresultsdir/Tracto/Tract-csd_${tract_name}.tck"
-                    [ -n "$use_map" ] && mrgrid "$use_map" regrid -template "$_t1w_ref" "$_out_map" -force -quiet
-                fi
-            fi
-        done
-        pdfunite $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf 2>/dev/null || true
-        cp -f $globalresultsdir/Tracto/Tracts_Summary.pdf REPORT/sub-${participant}_06_Tract_Summary.pdf 2>/dev/null || true
     fi
 }
 
@@ -1658,10 +1066,7 @@ function KUL_register_anatomical_images {
     check="KUL_LOG/sub-${participant}_anat_reg.done"
     if [ ! -f $check ]; then
 
-        export KUL_MP2RAGE_FILE="$MP2RAGE"
-        export KUL_SWIP_FILE="$SWIp"
         KUL_anat_register.sh -p $participant -c -v $verbose_level
-        unset KUL_MP2RAGE_FILE KUL_SWIP_FILE
         cp  $cwd/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_anat_register_rigid/*reg2_T1w.nii.gz $globalresultsdir/Anat/
         cp  $cwd/BIDS/derivatives/KUL_compute/sub-${participant}/KUL_anat_register_rigid/T1w.nii.gz $globalresultsdir/Anat/
         touch $check
@@ -1691,15 +1096,20 @@ function KUL_fmriproc {
     if [ $n_fMRI -gt 0 ];then
 
         if [ ! -f ${cwd}/KUL_LOG/sub-${participant}_SPM.done ]; then
-            task_in="KUL_fmriproc_spm_new.sh -p $participant -S $smooth_fwhm -P $pfwe"
+            task_in="KUL_fmriproc_spm_new.sh -p $participant"
             KUL_task_exec $verbose_level "KUL_fmriproc_spm_new" "7_fmriproc_spm"
 
-            # add to report using Bizzi-thresholded maps (p<0.001 unc, k>=50)
-            for bizzi_map in $derivativesdir/SPM/*/spmT_0001_p001unc_k50.nii; do
-                [ -f "$bizzi_map" ] || continue
-                task=$(basename $(dirname $bizzi_map))
-                KUL_mrview_figure.sh -p ${participant} -u RESULTS/sub-${participant}/Anat/T1w.nii.gz \
-                    -o "$bizzi_map" -t 2 -d REPORT -f 05_afMRI_${task}_p001unc_k50
+            # add to report
+            for spm in RESULTS/sub-${participant}/SPM/*.nii; do
+                #echo $spm
+                max_T=$(mrstats -output max $spm)
+                #echo $max_T
+                thresh=$(awk "BEGIN {print $max_T/3}")
+                task=$(basename $spm)
+                mrcalc $spm $thresh -gt REPORT/spm_tmp_$task
+                KUL_mrview_figure.sh -p ${participant} -u RESULTS/sub-${participant}/Anat/T1w.nii.gz -o REPORT/spm_tmp_$task \
+                    -t 2 -d REPORT -f 05_afMRI_${task}_Thr_${thresh}
+                rm -f REPORT/spm_tmp_$task
             done
         fi
 
@@ -1740,32 +1150,6 @@ function KUL_run_dwiprep_anat {
         fi
 
         touch $dwi_anat_check
-    fi
-
-}
-
-function KUL_run_dwiprep_MNI {
-
-    dwi_MNI_check=${cwd}/KUL_LOG/sub-${participant}_dwiprep_MNI.done
-    if [ ! -f $dwi_MNI_check ]; then
-        task_in="KUL_dwiprep_MNI.sh -p $participant -n $ncpu"
-        KUL_task_exec $verbose_level "KUL_dwiprep_MNI" "12_dwiprep_MNI"
-
-        touch $dwi_MNI_check
-    fi
-
-}
-
-function KUL_calc_DTI_ALPS {
-
-    if [ $alps -eq 1 ]; then
-        dti_ALPS_check=${cwd}/KUL_LOG/sub-${participant}_dti_ALPS.done
-        if [ ! -f $dti_ALPS_check ]; then
-            task_in="${kul_main_dir}/KUL_DTI_ALPS/KUL_calc_DTIALPS.sh -p $participant -n $ncpu"
-            KUL_task_exec $verbose_level "KUL_calc_DTIALPS" "13_dti_ALPS"
-
-            touch $dti_ALPS_check
-        fi
     fi
 
 }
@@ -1811,6 +1195,8 @@ function KUL_run_cT1w_subtraction {
 
 
 # --- MAIN ---
+# Prepare for sending to pacs.
+cp -f $kul_main_dir/share/KUL_mevislab_* .
 
 # Check if scaffolding has happend
 if [ ! -d $cwd/study_config ]; then
@@ -1898,9 +1284,10 @@ KUL_run_VBG
 wait
 
 
-# STEP 9b - FastSurfer + KUL_multiparc (types 4, 5, 6 only — no VBG)
-KUL_run_multiparc
-wait
+# STEP 8 - dev
+#KUL_run_fastsurfer
+#KUL_run_freesurfer # let msbp also do FS
+#wait 
 
 
 # STEP 10 - run SPM/melodic/msbp
@@ -1913,79 +1300,62 @@ wait
 KUL_run_dwiprep_anat
 
 
-# STEP 12 run dwiprep_MNI (needed for DTI-ALPS; skipped for other types)
-KUL_run_dwiprep_MNI
+# STEP 12 - new FAT1w
+if [ $dbs -gt 0 ]; then
+    FAT1="BIDS/derivatives/KUL_compute/sub-${participant}/KUL_FAT1/FAT1w.nii.gz"
+    if [ ! -f $FAT1 ]; then
+        kul_echo "Running KUL_FAT1w for a DBS patient"
+        KUL_FAT1w.py -p $participant
+    else
+        echo "FAT1w already done"
+    fi
+fi
 
-# STEP 13 run DTI_ALPS calculation (type 7 only)
-KUL_calc_DTI_ALPS
-wait
 
-
-# STEP 14 - run Fun With Tracts
+# STEP 13 - run Fun With Tracts
 KUL_run_FWT
 
 
-# STEP 15 - Prepare Karawun folder automatically.
-# The importTractography command is printed at the end — run it manually after
-# copying the SmartBrain DICOM donor into Karawun/sub-${participant}/DICOM/
-# and curating the fMRI label maps.
-karawun_prepare_check=${cwd}/KUL_LOG/sub-${participant}_karawun_prepare.done
-if [ ! -f $karawun_prepare_check ]; then
-    if [ $type -lt 5 ]; then
-        kul_echo "Preparing Karawun folder"
-        KUL_karawun_prepare.sh -p ${participant} -t 1 -r 3
-    elif [ $type -eq 5 ]; then
-        kul_echo "Preparing Karawun folder (DBS ET)"
-        KUL_karawun_prepare.sh -p ${participant} -t 2 -r 10
-    elif [ $type -eq 6 ]; then
-        kul_echo "Preparing Karawun folder (DBS Parkinson)"
-        KUL_karawun_prepare.sh -p ${participant} -t 3 -r 10
-    fi
-    touch $karawun_prepare_check
-else
-    echo "Karawun folder already prepared"
-fi
 
-
-# STEP 17 - figure generation is no longer automatic.
-# Review results first, then run with -F <underlay> to generate screenshots, or -R <underlay> to also push DICOMs.
-if [ $figs -eq 1 ]; then
+# STEP 14 - call yourself to make tractography figures
 fig_check=${cwd}/KUL_LOG/sub-${participant}_figures.done
 if [ ! -f $fig_check ]; then
-    if [ $ncT1w -gt 0 ] || [ $ncT1w -eq -1 ]; then
-        KUL_clinical_fmridti.sh -p $participant -t $type -F 1 -O "$orientations"
+    #echo $type
+    #echo $ncT1w
+    if [ $ncT1w -gt 0 ]  || [ $ncT1w -eq -1 ]; then 
+        KUL_clinical_fmridti.sh -p $participant -t $type -R 1 
     fi
-    if [ $nFLAIR -gt 0 ]; then
-        KUL_clinical_fmridti.sh -p $participant -t $type -F 2 -O "$orientations"
+    #echo $nFLAIR
+    if [ $nFLAIR -gt 0 ]; then 
+        KUL_clinical_fmridti.sh -p $participant -t $type -R 2
     fi
-    if [ $nSWI -gt 0 ]; then
-        KUL_clinical_fmridti.sh -p $participant -t $type -F 3 -O "$orientations"
+    if [ $nSWI -gt 0 ]; then 
+        KUL_clinical_fmridti.sh -p $participant -t $type -R 3
     fi
-    if [ $nT1w -gt 0 ] && [ $ncT1w -lt 1 ] && [ $nFLAIR -eq 0 ]; then
-        KUL_clinical_fmridti.sh -p $participant -t $type -F 4 -O "$orientations"
-    fi
-    if [ $nFGATIR -gt 0 ]; then
-        KUL_clinical_fmridti.sh -p $participant -t $type -F 5 -O "$orientations"
-    fi
-    if [ $nDIR -gt 0 ]; then
-        KUL_clinical_fmridti.sh -p $participant -t $type -F 6 -O "$orientations"
-    fi
-    if [ $nMP2RAGE -gt 0 ]; then
-        KUL_clinical_fmridti.sh -p $participant -t $type -F 7 -O "$orientations"
+    if [ $nT1w -gt 0 ] && [ $ncT1w -lt 1 ] && [ $nFLAIR -eq 0 ]; then 
+        KUL_clinical_fmridti.sh -p $participant -t $type -R 4
     fi
     touch $fig_check
-else
+else 
     echo "Figures already done"
 fi
-else
-    echo "Tractography figure generation not required"
+
+
+
+# STEP 15 - run Karawun
+karawun_check=${cwd}/KUL_LOG/sub-${participant}_karawun.done
+if [ ! -f $karawun_check ]; then
+    if [ $type -lt 5 ]; then
+        kul_echo "Running KUL_karawun for a tumor patient"
+        KUL_karawun_prepare.sh -p ${participant} -t 1 -r 3
+    elif [ $type -eq 5 ]; then
+        kul_echo "Running KUL_karawun for a DBS ET patient"
+        KUL_karawun_prepare.sh -p ${participant} -t 2 -r 10 
+    elif [ $type -eq 6 ]; then
+        kul_echo "Running KUL_karawun for a DBS Parkinson patient"
+        KUL_karawun_prepare.sh -p ${participant} -t 3 -r 10 
+    fi
+    touch $karawun_check
 fi
-
-
-
-# STEP 18 - DICOM generation is no longer automatic.
-# Review figures in RESULTS/sub-${participant}/, then run:
-#   KUL_clinical_fmridti.sh -p ${participant} -t ${type} -R <1|2|3|4> [-O orientations]
-# to generate PACS DICOMs.
 
 echo "Finished"

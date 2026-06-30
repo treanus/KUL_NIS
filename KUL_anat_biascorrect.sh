@@ -146,15 +146,12 @@ function KUL_check_data {
     T2w=($(find $bidsdir -name "*T2w.nii.gz" -type f ))
     nT2w=${#T2w[@]}
     echo "  number of T2w: $nT2w"
-    SWI=($(find $bidsdir -name "*_SWI.nii.gz" ! -name "*SWIp*" -type f | sort))
+    SWI=($(find $bidsdir -name "*run-01_SWI.nii.gz" -type f ))
     nSWI=${#SWI[@]}
-    SWIp=($(find $bidsdir -name "*_SWIp.nii.gz" -type f | sort))
+    SWIp=($(find $bidsdir -name "*run-02_SWI.nii.gz" -type f ))
     nSWIp=${#SWIp[@]}
     echo "  number of SWI magnitude: $nSWI"
     echo "  number of SWI phase: $nSWIp"
-    DIR=($(find $bidsdir -name "*DIR.nii.gz" -type f ))
-    nDIR=${#DIR[@]}
-    echo "  number of DIR: $nDIR"
 
     echo -e "\n\n"
 
@@ -211,13 +208,7 @@ function KUL_biascorrect_anat_images {
         task_in="KUL_biascorrect"
         KUL_task_exec $verbose_level "Bias correcting the $source_mri_label" "anat_biascorrect"
     fi
-    if [ $nDIR -gt 0 ];then
-        source_mri_label="DIR"
-        source_mri=$DIR
-        task_in="KUL_biascorrect"
-        KUL_task_exec $verbose_level "Bias correcting the $source_mri_label" "anat_biascorrect"
-    fi
-
+    
 }
 
 

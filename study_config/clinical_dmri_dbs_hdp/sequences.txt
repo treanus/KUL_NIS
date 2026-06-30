@@ -2,15 +2,12 @@
 T1w,T1_PRE
 T1w,T1W_PRE
 cT1w,T1_Post
-cT1w,T1W_Post
 cT1w,POST
 cT1w,T1W_Gd
 FLAIR,3D_FLAIR
 T2w,3D_T2
 SWI,SWI
 FGATIR,FGATIR
-DIR,DIR
-MP2RAGE,MP2RAGE
 func,rsfMRI_MB5_REST,rest,5,j,singleTE
 sbref,rsfMRI_MB5_sbref,rest,1,j,singleTE
 func,rsfMRI_noMB,rest,1,j,singleTE
@@ -41,5 +38,3 @@ dwi,dMRI_Linear_AP,-,2,j-,ap
 dwi,dMRI_Linear_PA,-,2,j,pa
 dwi,rev_2sh,-,3,j,rev
 dwi,128d_2sh,-,3,j-,b2500
-dwi,dMRI_s1.7_2sh_mb3_APP,-,3,j,rev
-dwi,dMRI_s1.7_2sh_mb3_APA,-,3,j-,2sh

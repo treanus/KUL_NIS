@@ -7,22 +7,18 @@
 # @ Ahmed Radwan - KUL - radwanphd@gmail.com
 #
 # v0.1 - dd 09/11/2018 - created
-version="v1.4 - dd 24/02/2026"
+version="v1.3 - dd 27/11/2021"
 
-# The multiband factor for shard-recon.
-# needs to be turned into a configurable parameter if shard-recon is used!
+# temp var
 mb=2
 
-# for some old studies, the header info is not available
-# in that case one can set an environment variable
-# e.g. export KUL_dwiprep_custom_dwifslpreproc="-rpe_none -pe_dir ap"
-# it is entirely up to the user to set the correct parameters
+# To Do
+#  - fod calc msmt-5tt in stead of dhollander
 
 kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 # $cwd, mrtrix3new & $log_dir is made in main_functions
-
 
 # --------------------------------------------------------------------------------------------------------
 # function Usage
@@ -47,8 +43,7 @@ Required arguments:
 
 Optional arguments:
 
-	 -d:  dwiprep options: can be dhollander, tax, tournier and/or lore_sd (default = dhollander) e.g. "tax dhollander"
-	 -u:  use native (non-upsampled) data for all FOD/DTI estimation (default: use upsampled dwi_preproced.mif)
+	 -d:  dwiprep options: can be dhollander, tax and/or tournier (default = dhollander) e.g. "tax dhollander"
 	 -s:  session (BIDS session)
 	 -n:  number of cpu for parallelisation (default 6)
 	 -b:  use Synb0-DISCO instead of topup (requires docker)
@@ -56,7 +51,7 @@ Optional arguments:
 	 -e:  options to pass to eddy (default "--slm=linear --repol")
 	 -v:  show output from mrtrix commands (0=silent, 1=normal, 2=verbose; default=1)
 	 -r:  use reverse phase data only for topup and not for further processing
-	 -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 3=legacy; 4=synthstrip; default = 3)
+	 -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 3=legacy; 3=default)
 
 
 Documentation:
@@ -90,7 +85,6 @@ rev_only_topup=0
 synb0=0
 total_errorcount=0
 dwipreproc_options="dhollander"
-use_upsampled=1
 dwi2mask_method=3
 shard=0
 
@@ -109,7 +103,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:d:e:m:v:rbcu" OPT; do
+	while getopts "p:s:n:d:e:m:v:rbc" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -143,9 +137,6 @@ else
 		;;
 		c) #shard
 			shard=1
-		;;
-		u) #use native (non-upsampled) data
-			use_upsampled=0
 		;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -292,9 +283,6 @@ function kul_dwi2mask {
 				dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
 		elif [ $dwi2mask_method -eq 3 ];then
 			task_in2="dwi2mask legacy \
-				dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
-		elif [ $dwi2mask_method -eq 4 ];then
-			task_in2="dwi2mask synthstrip \
 				dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
 		fi
 	else
@@ -567,7 +555,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 					--datain=shard/topup_datain.txt \
 					--out=shard/field \
 					--fout=shard/fieldmap.nii.gz \
-					--config=$topup_cfg --nthr=$ncpu --verbose"
+					--config=$topup_cfg --verbose"
 				#	--subsamp=1,1,1,1,1,1,1,1,1 \
             	#	--miter=10,10,10,10,10,20,20,30,30 \
             	#	--lambda=0.00033,0.000067,0.0000067,0.000001,0.00000033,0.000000033,0.0000000033,0.000000000033,0.00000000000067"
@@ -696,7 +684,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		dwi2mask_logfile="3_mask"
 		kul_dwi2mask
 
-		temp_dir=$(ls -d *dwifslpreproc*/dwi_post_eddy.nii.gz 2>/dev/null | head -1 | xargs dirname)
+		temp_dir=$(ls -d *dwifslpreproc*)
 
 		if [ ! command -v eddy_quad &> /dev/null ]; then
 
@@ -745,6 +733,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		kul_echo "    upsampling resolution..."
 		task_in="mrgrid -nthreads $ncpu -force -axis 1 5,5 dwi/biascorr.mif crop - | mrgrid -axis 1 5,5 -force - pad - | mrgrid -voxel 1.3 -force - regrid dwi/upsampled.mif"
 		KUL_task_exec $verbose_level "kul_dwiprep part 5: upsampling resolution" "5_upsample"
+		rm dwi/biascorr.mif
 	
 
 		# copy to main directory for subsequent processing
@@ -779,20 +768,12 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 	mkdir -p response
 	# response function estimation (we compute following algorithms: tournier, tax and dhollander)
 
-	if [ $use_upsampled -eq 1 ]; then
-		dwi_input="dwi_preproced.mif"
-		dwi_mask_input="dwi_mask.nii.gz"
-	else
-		dwi_input="dwi/biascorr.mif"
-		dwi_mask_input="dwi/dwi_intermediate_mask.nii.gz"
-	fi
-
 	kul_echo "Using dwipreproc_options: $dwipreproc_options"
 
 	if [[ $dwipreproc_options == *"dhollander"* ]]; then
 		if [ ! -f response/dhollander_wm_response.txt ]; then
 			kul_echo "Calculating dhollander dwi2response..."
-			task_in="dwi2response dhollander ${dwi_input} response/dhollander_wm_response.txt -mask ${dwi_mask_input} \
+			task_in="dwi2response dhollander dwi_preproced.mif response/dhollander_wm_response.txt -mask dwi_mask.nii.gz \
 			response/dhollander_gm_response.txt response/dhollander_csf_response.txt -nthreads $ncpu -force"
 			KUL_task_exec $verbose_level "kul_dwiprep part 6: estimate response dhollander" "6_response_dhollander"
 		else
@@ -802,12 +783,12 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		if [ ! -f response/dhollander_wmfod.mif ]; then
 			kul_echo "Calculating dhollander dwi2fod & normalising it..."
 
-			task_in1="dwi2fod msmt_csd ${dwi_input} response/dhollander_wm_response.txt response/dhollander_wmfod.mif \
+			task_in1="dwi2fod msmt_csd dwi_preproced.mif response/dhollander_wm_response.txt response/dhollander_wmfod.mif \
 			response/dhollander_gm_response.txt response/dhollander_gm.mif \
-			response/dhollander_csf_response.txt response/dhollander_csf.mif -mask ${dwi_mask_input} -force -nthreads $ncpu"
+			response/dhollander_csf_response.txt response/dhollander_csf.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu"
 
-			task_in2="dwi2fod msmt_csd ${dwi_input} response/dhollander_wm_response.txt response/dhollander_wmfod_noGM.mif \
-			response/dhollander_csf_response.txt response/dhollander_csf_noGM.mif -mask ${dwi_mask_input} -force -nthreads $ncpu"
+			task_in2="dwi2fod msmt_csd dwi_preproced.mif response/dhollander_wm_response.txt response/dhollander_wmfod_noGM.mif \
+			response/dhollander_csf_response.txt response/dhollander_csf_noGM.mif -mask dwi_mask.nii.gz -force -nthreads $ncpu"
 			task_in="$task_in1;$task_in2"
 			KUL_task_exec $verbose_level "kul_dwiprep part 7: dwi2fod dhollander" "6_dwi2fod_dhollander"
 		else
@@ -818,7 +799,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 	if [[ $dwipreproc_options == *"tax"* ]]; then
 		if [ ! -f response/tax_response.txt ]; then
 			kul_echo "Calculating tax dwi2response..."
-			task_in1="dwi2response tax ${dwi_input} response/tax_response.txt -nthreads $ncpu -force"
+			task_in1="dwi2response tax dwi_preproced.mif response/tax_response.txt -nthreads $ncpu -force"
 			KUL_task_exec $verbose_level "kul_dwiprep part 6: estimate response tax" "6_response_tax"
 		else
 			kul_echo " dwi2response tax already done, skipping..."
@@ -826,8 +807,8 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
 		if [ ! -f response/tax_wmfod.mif ]; then
 			kul_echo "Calculating tax dwi2fod..."
-			task_in="dwi2fod csd ${dwi_input} response/tax_response.txt response/tax_wmfod.mif  \
-			-mask ${dwi_mask_input} -force -nthreads $ncpu"
+			task_in="dwi2fod csd dwi_preproced.mif response/tax_response.txt response/tax_wmfod.mif  \
+			-mask dwi_mask.nii.gz -force -nthreads $ncpu -mask dwi_mask.nii.gz"
 			KUL_task_exec $verbose_level "kul_dwiprep part 7: dwi2fod tax" "6_dwi2fod_tax"
 		else
 			kul_echo " dwi2fod tax already done, skipping..."
@@ -837,7 +818,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 	if [[ $dwipreproc_options == *"tournier"* ]]; then
 		if [ ! -f response/tournier_response.txt ]; then
 			kul_echo "Calculating tournier dwi2response..."
-			task_in="dwi2response tournier ${dwi_input} response/tournier_response.txt -nthreads $ncpu -force"
+			task_in="dwi2response tournier dwi_preproced.mif response/tournier_response.txt -nthreads $ncpu -force"
 			KUL_task_exec $verbose_level "kul_dwiprep part 6: estimate response tournier" "6_response_tournier"
 		else
 			kul_echo " dwi2response already done, skipping..."
@@ -845,62 +826,11 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
 		if [ ! -f response/tournier_wmfod.mif ]; then
 			kul_echo "Calculating tournier dwi2fod..."
-			task_in="dwi2fod csd ${dwi_input} response/tournier_response.txt response/tournier_wmfod.mif  \
-			-mask ${dwi_mask_input} -force -nthreads $ncpu"
+			task_in="dwi2fod csd dwi_preproced.mif response/tournier_response.txt response/tournier_wmfod.mif  \
+			-mask dwi_mask.nii.gz -force -nthreads $ncpu"
 			KUL_task_exec $verbose_level "kul_dwiprep part 7: dwi2fod tax" "6_dwi2fod_tournier"
 		else
 			kul_echo " dwi2fod already done, skipping..."
-		fi
-	fi
-
-	if [[ $dwipreproc_options == *"lore_sd"* ]]; then
-		mkdir -p response/lore_sd
-
-		if [ ! -f response/lore_sd/response.mif ]; then
-			kul_echo "Calculating lore_sd decomposition (response + ODF)..."
-			task_in="lore_dwi2decomposition ${dwi_input} response/lore_sd/ \
-			--mask ${dwi_mask_input} --cores $ncpu"
-			KUL_task_exec $verbose_level "kul_dwiprep part 6-7: lore_sd decomposition" "6_lore_sd_decomposition"
-		else
-			kul_echo " lore_sd decomposition already done, skipping..."
-		fi
-
-		if [ $use_upsampled -eq 0 ]; then
-			if [ ! -f response/lore_sd/odf_resampled.mif ]; then
-				kul_echo "Resampling lore_sd ODF to 1.3mm isotropic..."
-				task_in="mrgrid response/lore_sd/odf.mif regrid -template dwi_preproced.mif \
-				response/lore_sd/odf_resampled.mif -force -nthreads $ncpu"
-				KUL_task_exec $verbose_level "kul_dwiprep part 7: lore_sd resample odf" "7_lore_sd_resample_odf"
-			else
-				kul_echo " lore_sd ODF resampling already done, skipping..."
-			fi
-		fi
-
-		if [ ! -f response/lore_sd_contrasts/rfa.mif ]; then
-			kul_echo "Calculating lore_sd contrasts..."
-			mkdir -p response/lore_sd_contrasts
-			task_in="lore_decomposition2contrast \
-			response/lore_sd/gaussian_fractions.mif response/lore_sd_contrasts/"
-			KUL_task_exec $verbose_level "kul_dwiprep part 7: lore_sd contrasts" "7_lore_sd_contrasts"
-		else
-			kul_echo " lore_sd contrasts already done, skipping..."
-		fi
-
-		if [ $use_upsampled -eq 0 ]; then
-			if [ ! -f response/lore_sd_contrasts/rfa_resampled.mif ]; then
-				kul_echo "Resampling lore_sd contrasts to 1.3mm isotropic..."
-				task_in="mrgrid response/lore_sd_contrasts/rfa.mif regrid -template dwi_preproced.mif \
-					response/lore_sd_contrasts/rfa_resampled.mif -force -nthreads $ncpu; \
-				mrgrid response/lore_sd_contrasts/intra_axonal_contrast.mif regrid -template dwi_preproced.mif \
-					response/lore_sd_contrasts/intra_axonal_contrast_resampled.mif -force -nthreads $ncpu; \
-				mrgrid response/lore_sd_contrasts/extra_axonal_contrast.mif regrid -template dwi_preproced.mif \
-					response/lore_sd_contrasts/extra_axonal_contrast_resampled.mif -force -nthreads $ncpu; \
-				mrgrid response/lore_sd_contrasts/free_water_contrast.mif regrid -template dwi_preproced.mif \
-					response/lore_sd_contrasts/free_water_contrast_resampled.mif -force -nthreads $ncpu"
-				KUL_task_exec $verbose_level "kul_dwiprep part 7: lore_sd resample contrasts" "7_lore_sd_resample_contrasts"
-			else
-				kul_echo " lore_sd contrast resampling already done, skipping..."
-			fi
 		fi
 	fi
 
@@ -909,39 +839,32 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
 	mkdir -p qa
 
-	if [ ! -f qa/fa.nii.gz ]; then
-		kul_echo "Calculating final FA/ADC..."
-		task_in="dwi2tensor ${dwi_input} dwi_dt.mif -force -mask ${dwi_mask_input}; \
-			tensor2metric dwi_dt.mif -fa qa/fa.nii.gz -mask ${dwi_mask_input} -force; \
-			tensor2metric dwi_dt.mif -adc qa/adc.nii.gz -mask ${dwi_mask_input} -force"
-		KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC" "8_qa"
+	if [ ! -f qa/noiselevel.nii.gz ]; then
 
-		mrconvert dwi/biasfield.mif qa/biasfield.nii.gz -force
-		mrconvert dwi/noiselevel.mif qa/noiselevel.nii.gz -force
-	fi
+		kul_echo "Calculating final FA/ADC/dec..."
+		task_in="dwi2tensor dwi_preproced.mif dwi_dt.mif -force -mask dwi_mask.nii.gz; \
+			tensor2metric dwi_dt.mif -fa qa/fa.nii.gz -mask dwi_mask.nii.gz -force; \
+			tensor2metric dwi_dt.mif -adc qa/adc.nii.gz -mask dwi_mask.nii.gz -force"
+		KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC/DEC" "8_qa"
 
-	if [[ $dwipreproc_options == *"tournier"* ]] && [ ! -f qa/tournier_dec.mif ]; then
-		task_in="fod2dec response/tournier_wmfod.mif qa/tournier_dec.mif -force -mask ${dwi_mask_input}"
-		KUL_task_exec $verbose_level "kul_dwiprep part 8: tournier DEC" "8_qa_tournier_dec"
-	fi
-
-	if [[ $dwipreproc_options == *"tax"* ]] && [ ! -f qa/tax_dec.mif ]; then
-		task_in="fod2dec response/tax_wmfod.mif qa/tax_dec.mif -force -mask ${dwi_mask_input}"
-		KUL_task_exec $verbose_level "kul_dwiprep part 8: tax DEC" "8_qa_tax_dec"
-	fi
-
-	if [[ $dwipreproc_options == *"dhollander"* ]] && [ ! -f qa/dhollander_dec.mif ]; then
-		task_in="fod2dec response/dhollander_wmfod.mif qa/dhollander_dec.mif -force -mask ${dwi_mask_input}"
-		KUL_task_exec $verbose_level "kul_dwiprep part 8: dhollander DEC" "8_qa_dhollander_dec"
-	fi
-
-	if [[ $dwipreproc_options == *"lore_sd"* ]] && [ ! -f qa/lore_sd_dec.mif ]; then
-		if [ $use_upsampled -eq 0 ]; then
-			task_in="fod2dec response/lore_sd/odf_resampled.mif qa/lore_sd_dec.mif -force -mask dwi_mask.nii.gz"
-		else
-			task_in="fod2dec response/lore_sd/odf.mif qa/lore_sd_dec.mif -force -mask ${dwi_mask_input}"
+		if [[ $dwipreproc_options == *"tournier"* ]]; then
+			task_in="fod2dec response/tournier_wmfod.mif qa/tournier_dec.mif -force -mask dwi_mask.nii.gz"
+			KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC/DEC" "8_qa"
 		fi
-		KUL_task_exec $verbose_level "kul_dwiprep part 8: lore_sd DEC" "8_qa_lore_sd_dec"
+
+		if [[ $dwipreproc_options == *"tax"* ]]; then
+			task_in="fod2dec response/tax_wmfod.mif qa/tax_dec.mif -force -mask dwi_mask.nii.gz"
+			KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC/DEC" "8_qa"
+		fi
+
+		if [[ $dwipreproc_options == *"dhollander"* ]]; then
+			task_in="fod2dec response/dhollander_wmfod.mif qa/dhollander_dec.mif -force -mask dwi_mask.nii.gz"
+			KUL_task_exec $verbose_level "kul_dwiprep part 8: final FA/ADC/DEC" "8_qa"
+		fi
+
+		mrconvert dwi/biasfield.mif qa/biasfield.nii.gz
+		mrconvert dwi/noiselevel.mif qa/noiselevel.nii.gz
+
 	fi
 
 	# make some QA figures

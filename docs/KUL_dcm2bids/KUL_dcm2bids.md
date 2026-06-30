@@ -67,20 +67,6 @@ Following the example above you will get:
 ![Image](KUL_dcm2bids_2.png)
 
 
-## Script variants (dcm2bids v3 vs v2)
-
-The dcm2bids tool changed its configuration schema between major versions. KUL_NIS ships three variants so you can match whichever dcm2bids is installed on your system:
-
-| Script | dcm2bids version | Config schema | When to use |
-|---|---|---|---|
-| **`KUL_dcm2bids.sh`** (default) | **v3 (>= 3.0)** | `dataType` / `modalityLabel` / `customLabels` / `sidecarChanges` | Standard, recommended. This is the maintained version. |
-| `KUL_dcm2bids_dev.sh` | v3 (>= 3.0) | same as above, **plus Philips PE-direction auto-detection** from DICOM private tag `[2005,107B]` | Testing only. Auto-derives phase-encoding direction for Philips DWI when header info is present. Not yet validated for all cases. |
-| `KUL_dcm2bids_v2bkup.sh` | v2 (< 3.0) | `custom_entities` / `sidecar_changes` | Fallback for sites still pinned to dcm2bids v2. |
-
-`KUL_dcm2bids.sh` runs a version-detection check at startup: if it finds dcm2bids v2 installed it prints a warning and points you to `KUL_dcm2bids_v2bkup.sh`. Upgrade with `pip install --upgrade dcm2bids`.
-
-**Your config file schema must match the installed dcm2bids version** — a v2 config will not work with v3 and vice versa.
-
 ## Config file
 
 The KUL_dcm2bids config file describes what data you have acquired on the scanner and how it should be converted into the BIDS format.
@@ -139,9 +125,7 @@ An example config file can be found in [study_config/sequences.txt](/study_confi
 
 - T1w, cT1w, FLAIR, T2w, PDw: fully BIDS compliant
 - FGATIR:  Fast Gray Matter Acquisition T1 Inversion Recovery, this is not yet specified in the BIDS
-- SWI: susceptibility weigthed images. Magnitude (SWI) and phase (SWIp) are split into separate series; not yet specified in the BIDS (listed in `.bidsignore`)
-- DIR: double inversion recovery; not yet specified in the BIDS (listed in `.bidsignore`)
-- MP2RAGE: stored with its INV1/INV2/UNI parts; not yet specified in the BIDS (listed in `.bidsignore`)
+- SWI: susceptibility weigthed images that have been processed already on the scanner (minip and phase), this is not yet specified in the BIDS
 - MTI: magnetisation transfer contrast images (a pair of images), this is not yet specified in the BIDS
 
 ### fMRI
@@ -160,11 +144,10 @@ An example config file can be found in [study_config/sequences.txt](/study_confi
 - ASL: arterial spin labeling, images that have already been processed on the MR scanner (a rCVF map), this is not what is specified in the BIDS convention (those are native images)
 
 
-## Dependencies
+## Depedencies
 
 Internally KUL_dcm2bids uses:
-- [dcm2bids](https://github.com/UNFmontreal/Dcm2Bids) — **v3 (>= 3.0)** for the default script; v2 only with `KUL_dcm2bids_v2bkup.sh`
+- [dcm2bids](https://github.com/UNFmontreal/Dcm2Bids)
 - [dcm2niix](https://github.com/rordenlab/dcm2niix)
-- [pydeface](https://github.com/poldracklab/pydeface) — only when using `-a` (further anonymisation)
 
 These could be installed using [KUL_Linux_Installation](https://github.com/treanus/KUL_Linux_Installation)

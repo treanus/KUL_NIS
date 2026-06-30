@@ -129,25 +129,9 @@ fi
 #----- functions
 
 function KUL_karawun_get_tract {
-    local tract_dir="BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output"
-    local fin_tck="${tract_dir}/${tract_name_orig}_fin_BT${ACT}_iFOD2.tck"
-    local fin_map="${tract_dir}/${tract_name_orig}_fin_map_BT${ACT}_iFOD2.nii.gz"
-    local use_tck=""
-    local use_map=""
-
-    if [ -f "$fin_tck" ]; then
-        use_tck="$fin_tck"
-        use_map="$fin_map"
-    else
-        use_tck=$(ls "${tract_dir}/${tract_name_orig}_filt"*"_BT${ACT}_iFOD2.tck" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
-        use_map=$(ls "${tract_dir}/${tract_name_orig}_filt"*"_map_BT${ACT}_iFOD2.nii.gz" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
-        if [ -n "$use_tck" ]; then
-            echo "  ${tract_name_orig}: fin not found, using $(basename $use_tck)"
-        fi
-    fi
-
-    if [ -n "$use_tck" ]; then
-        cp "$use_tck" Karawun/sub-${participant}/tck/${tract_name_final}.tck
+    if [ -f BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_BT${ACT}_iFOD2.tck ]; then
+        cp BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_BT${ACT}_iFOD2.tck \
+            Karawun/sub-${participant}/tck/${tract_name_final}.tck
 
         if [ $type -eq 1 ]; then
 
@@ -167,16 +151,13 @@ function KUL_karawun_get_tract {
 
         fi
 
-        if [ -n "$use_map" ]; then
-            mrgrid "$use_map" \
-                regrid -template Karawun/sub-${participant}/T1w.nii.gz \
-                - | mrcalc - ${tract_threshold} -gt ${tract_color} -mul \
-                Karawun/sub-${participant}/labels/${tract_name_final}_center.nii.gz -force
-        else
-            echo "  Warning: no map found for ${tract_name_orig}, label not generated"
-        fi
+        mrgrid BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_map_BT${ACT}_iFOD2.nii.gz \
+            regrid -template Karawun/sub-${participant}/T1w.nii.gz \
+            -interp linear \
+            - | mrcalc - ${tract_threshold} -gt ${tract_color} -mul \
+            Karawun/sub-${participant}/labels/${tract_name_final}_center.nii.gz -force
     else
-        echo "Does not exist: $fin_tck"
+        echo "Does not exist: BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output/${tract_name_orig}_output/${tract_name_orig}_fin_BT${ACT}_iFOD2.tck"
     fi
 }
 
@@ -203,11 +184,13 @@ T1w_max=$(mrstats -output max $T1w_in)
 T1w_factor=$(scale=10; echo "($T1w_max-($T1w_min))/32767" | bc)
 mrcalc $T1w_in $T1w_min -sub $T1w_factor -div Karawun/sub-${participant}/T1w.nii.gz -force
 
+
 FAT1="BIDS/derivatives/KUL_compute/sub-${participant}/KUL_FAT1/FAT1w.nii.gz"
-if [ -f $FAT1 ]; then
+if [ -f $FAT1 ]; 
+then
     FAT1w="Karawun/sub-${participant}/FAT1w.nii.gz"
     cp $FAT1 $FAT1w
-else
+else 
     FAT1w=""
 fi
 
@@ -363,83 +346,6 @@ fi
     tract_name_orig="ML_RT"
     tract_name_final="Medial_Lemniscus_Tract_Right"
     tract_color=18
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="MdLF_LT"
-    tract_name_final="MiddleLongitudinal_Fasc_Left"
-    tract_color=29
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="MdLF_RT"
-    tract_name_final="MiddleLongitudinal_Fasc_Right"
-    tract_color=30
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="Ant_Comm"
-    tract_name_final="Anterior_Commissure"
-    tract_color=31
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="Post_Comm"
-    tract_name_final="Posterior_Commissure"
-    tract_color=32
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_Motor_Comm"
-    tract_name_final="CC_Motor"
-    tract_color=33
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_Occipital_Comm"
-    tract_name_final="CC_Occipital"
-    tract_color=34
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_Parietal_Comm"
-    tract_name_final="CC_Parietal"
-    tract_color=35
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_PMandSM_Comm"
-    tract_name_final="CC_PreMotor_SupplMotor"
-    tract_color=36
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_PreF_Comm"
-    tract_name_final="CC_Prefrontal"
-    tract_color=37
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_Sensory_Comm"
-    tract_name_final="CC_Sensory"
-    tract_color=38
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_Temporal_Comm"
-    tract_name_final="CC_Temporal"
-    tract_color=39
     tract_threshold=20
     tract_corr_threshold=3
     KUL_karawun_get_tract

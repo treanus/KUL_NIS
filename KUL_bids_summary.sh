@@ -35,9 +35,7 @@ num_mri=${#search_mri[@]}
 echo "Number of nifti data in the BIDS folder: $num_mri"
 #echo ${search_mri[@]}
 
-echo -e "MRI-scan, Subject, Session, Type, Scan, Site, Manufacturer, Model, Software, Coil, MagneticFieldStrength, \
-    SeriesDescription, SeriesNumber, AcquisitionType, TE, TR, TI, DIM, Dim_x, Dim_y, Dim_z, Dynamics, \
-    Spacing_x, Spacing_y, Spacing_z, ETL" > $output
+echo -e "MRI-scan, Subject, Session, Type, Scan, Site, Manufacturer, Model, Software, Coil, MagneticFieldStrength, SeriesDescription, SeriesNumber, AcquisitionType, TE, TR, TI, DIM, Dim_x, Dim_y, Dim_z, Dynamics, ETL" > $output 
 
 for i in `seq 0 $(($num_mri-1))`; do
     
@@ -103,17 +101,12 @@ for i in `seq 0 $(($num_mri-1))`; do
     dim_z=$(mrinfo $mri -size | cut -d" " -f 3)
     dynamics=$(mrinfo $mri -size | cut -d" " -f 4)
 
-    spacing_x=$(mrinfo $mri -spacing | cut -d" " -f 1)
-    spacing_y=$(mrinfo $mri -spacing | cut -d" " -f 2)
-    spacing_z=$(mrinfo $mri -spacing | cut -d" " -f 3)
-
     ETL=$(grep EchoTrainLength $json | cut -d: -f2 | cut -d, -f 1)
     echo "ETL: $ETL"
 
     echo -e "$mri, $sub, $ses, $type, $scan, $site, $manufacturer \
        , $model, $soft, $coil, $MagneticFieldStrength, $SeriesDescription, $SeriesNumber \
-       , $AcquisitionType, $TE, $TR, $TI, $dim, $dim_x, $dim_y, $dim_z, $dynamics, \
-       $spacing_x, $spacing_y, $spacing_z, $ETL" >> $output
+       , $AcquisitionType, $TE, $TR, $TI, $dim, $dim_x, $dim_y, $dim_z, $dynamics, $ETL" >> $output 
 
 done
 

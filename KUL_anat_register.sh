@@ -224,79 +224,12 @@ function KUL_check_data {
         T2w=($(find $bidsdir -name "*T2w.nii.gz" -type f ))
         nT2w=${#T2w[@]}
         echo "  number of T2w: $nT2w"
-        SWI=($(find $bidsdir -name "*_SWI.nii.gz" ! -name "*SWIp*" -type f | sort))
+        SWI=($(find $bidsdir -name "*run-01_SWI.nii.gz" -type f ))
         nSWI=${#SWI[@]}
+        SWIp=($(find $bidsdir -name "*run-02_SWI.nii.gz" -type f ))
+        nSWIp=${#SWIp[@]}
         echo "  number of SWI magnitude: $nSWI"
-
-        # SWIp: use selection from clinical script if provided, otherwise interactive/auto
-        if [ -n "$KUL_SWIP_FILE" ]; then
-            SWIp="$KUL_SWIP_FILE"
-            nSWIp=1
-        else
-            _swip_all=($(find $bidsdir -name "*_SWIp.nii.gz" -type f | sort))
-            nSWIp=${#_swip_all[@]}
-            if [ $nSWIp -eq 1 ]; then
-                SWIp=${_swip_all[0]}
-            elif [ $nSWIp -gt 1 ]; then
-                if [ -t 0 ]; then
-                    echo "Multiple SWIp volumes found:"
-                    for _i in "${!_swip_all[@]}"; do
-                        echo "  $((_i+1)). $(basename ${_swip_all[$_i]})"
-                    done
-                    read -r -p "Select SWIp volume to use (Enter = first): " _sel
-                    if [[ "$_sel" =~ ^[0-9]+$ ]] && [ "$_sel" -ge 1 ] && [ "$_sel" -le $nSWIp ]; then
-                        SWIp=${_swip_all[$((_sel-1))]}
-                    else
-                        SWIp=${_swip_all[0]}
-                    fi
-                else
-                    SWIp=${_swip_all[0]}
-                fi
-                nSWIp=1
-            fi
-        fi
         echo "  number of SWI phase: $nSWIp"
-
-        DIR=($(find $bidsdir -name "*DIR.nii.gz" -type f ))
-        nDIR=${#DIR[@]}
-        echo "  number of DIR: $nDIR"
-
-        # MP2RAGE: use selection from clinical script if provided, otherwise interactive/auto
-        MP2RAGE=""
-        nMP2RAGE=0
-        if [ -n "$KUL_MP2RAGE_FILE" ]; then
-            MP2RAGE="$KUL_MP2RAGE_FILE"
-            nMP2RAGE=1
-        else
-            _mp2rage_files=($(find $bidsdir -name "*MP2RAGE*.nii.gz" -type f | sort))
-            if [ ${#_mp2rage_files[@]} -eq 1 ]; then
-                MP2RAGE=${_mp2rage_files[0]}
-                nMP2RAGE=1
-            elif [ ${#_mp2rage_files[@]} -gt 1 ]; then
-                nMP2RAGE=1
-                if [ -t 0 ]; then
-                    echo "Multiple MP2RAGE volumes found:"
-                    for _i in "${!_mp2rage_files[@]}"; do
-                        _json="${_mp2rage_files[$_i]%.nii.gz}.json"
-                        _ti=$(python3 -c "import json; d=json.load(open('$_json')); print(d.get('TriggerDelayTime','?'))" 2>/dev/null || echo "?")
-                        echo "  $((_i+1)). $(basename ${_mp2rage_files[$_i]}) (TI=${_ti}ms)"
-                    done
-                    read -r -p "Select MP2RAGE volume to use (Enter = auto highest TI / INV2): " _sel
-                    if [[ "$_sel" =~ ^[0-9]+$ ]] && [ "$_sel" -ge 1 ] && [ "$_sel" -le ${#_mp2rage_files[@]} ]; then
-                        MP2RAGE=${_mp2rage_files[$((_sel-1))]}
-                    fi
-                fi
-                if [ -z "$MP2RAGE" ]; then
-                    _best_ti=0
-                    for _f in "${_mp2rage_files[@]}"; do
-                        _json="${_f%.nii.gz}.json"
-                        _ti=$(python3 -c "import json; d=json.load(open('$_json')); print(d.get('TriggerDelayTime',0))" 2>/dev/null || echo 0)
-                        if (( $(echo "$_ti > $_best_ti" | bc -l) )); then _best_ti=$_ti; MP2RAGE=$_f; fi
-                    done
-                fi
-            fi
-        fi
-        echo "  MP2RAGE selected: ${MP2RAGE:-(none)}"
 
         # check the T1w
         if [ $nT1w -eq 0 ]; then
@@ -325,38 +258,10 @@ function KUL_check_data {
         echo "  number of T2w: $nT2w"
         SWI=($(find $bidsdir -name "SWI_bc.nii.gz" -type f ))
         nSWI=${#SWI[@]}
+        SWIp=($(find BIDS/sub-$participant -name "*run-02_SWI.nii.gz" -type f ))
+        nSWIp=${#SWIp[@]}
         echo "  number of SWI magnitude: $nSWI"
-
-        if [ -n "$KUL_SWIP_FILE" ]; then
-            SWIp="$KUL_SWIP_FILE"; nSWIp=1
-        else
-            SWIp=($(find BIDS/sub-$participant -name "*_SWIp.nii.gz" -type f | sort))
-            nSWIp=${#SWIp[@]}
-            [ $nSWIp -gt 1 ] && SWIp=${SWIp[0]} && nSWIp=1
-        fi
         echo "  number of SWI phase: $nSWIp"
-
-        DIR=($(find $bidsdir -name "DIR_bc.nii.gz" -type f ))
-        nDIR=${#DIR[@]}
-        echo "  number of DIR: $nDIR"
-
-        MP2RAGE=""
-        nMP2RAGE=0
-        if [ -n "$KUL_MP2RAGE_FILE" ]; then
-            MP2RAGE="$KUL_MP2RAGE_FILE"; nMP2RAGE=1
-        else
-            _mp2rage_files=($(find BIDS/sub-$participant -name "*MP2RAGE*.nii.gz" -type f | sort))
-            if [ ${#_mp2rage_files[@]} -gt 0 ]; then
-                nMP2RAGE=1
-                _best_ti=0
-                for _f in "${_mp2rage_files[@]}"; do
-                    _json="${_f%.nii.gz}.json"
-                    _ti=$(python3 -c "import json; d=json.load(open('$_json')); print(d.get('TriggerDelayTime',0))" 2>/dev/null || echo 0)
-                    if (( $(echo "$_ti > $_best_ti" | bc -l) )); then _best_ti=$_ti; MP2RAGE=$_f; fi
-                done
-            fi
-        fi
-        echo "  MP2RAGE selected: ${MP2RAGE:-(none)}"
 
     else
         echo "oeps no input found. Exitting"
@@ -504,18 +409,6 @@ function KUL_register_anatomical_images {
         reference=$target_mri
         task_in="KUL_antsApply_Transform"
         KUL_task_exec $verbose_level "Applying the rigid registration of SWIm to SWIp too" "anat_register_rigid"
-    fi
-    if [ $nDIR -gt 0 ];then
-        source_mri_label="DIR"
-        source_mri2=$DIR
-        task_in="KUL_rigid_register"
-        KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "anat_register_rigid"
-    fi
-    if [ $nMP2RAGE -gt 0 ];then
-        source_mri_label="MP2RAGE"
-        source_mri2=$MP2RAGE
-        task_in="KUL_rigid_register"
-        KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label (INV2) to the T1w" "anat_register_rigid"
     fi
 
 }

@@ -8,6 +8,7 @@
 #
 # v0.1 - dd 19/01/2019 - jurassic version
 version="v0.2 - dd 22/12/2021"
+set +x
 
 kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
@@ -214,7 +215,7 @@ function KUL_compute_melodic {
             # since Melodic analysis was in MNI space, we transform back in native space
             input=$network_file
             output=$globalresultsdir/rsfMRI_${shorttask}_${network_name}_ic${ic}.nii
-            transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
+            transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
             find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
             reference=${find_T1w[0]}
             KUL_antsApply_Transform $str_silent_melodic
@@ -236,7 +237,7 @@ fmridatadir="$computedir/fmridata"
 scriptsdir="$computedir/scripts"
 fmriprepdir="fmriprep/sub-$participant/func"
 globalresultsdir="$cwd/RESULTS/sub-$participant/Melodic"
-searchtask="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
+searchtask="_space-MNI152NLin2009cAsym_res-2_desc-preproc_bold.nii"
 
 if [ $KUL_DEBUG -gt 0 ]; then 
     echo "kulderivativesdir: $kulderivativesdir"

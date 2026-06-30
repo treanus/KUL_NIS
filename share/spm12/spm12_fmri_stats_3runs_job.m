@@ -4,20 +4,20 @@
 % cfg_basicio BasicIO - Unknown
 %-----------------------------------------------------------------------
 matlabbatch{1}.cfg_basicio.file_dir.file_ops.file_fplist.dir = {'###FMRIDIR###'};
-matlabbatch{1}.cfg_basicio.file_dir.file_ops.file_fplist.filter = '###FMRIFILE###_run-01';
+matlabbatch{1}.cfg_basicio.file_dir.file_ops.file_fplist.filter = '###FMRIFILE###_run-1';
 matlabbatch{1}.cfg_basicio.file_dir.file_ops.file_fplist.rec = 'FPList';
 matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_fplist.dir = {'###FMRIDIR###'};
-matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_fplist.filter = '###FMRIFILE###_run-02';
+matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_fplist.filter = '###FMRIFILE###_run-2';
 matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_fplist.rec = 'FPList';
 matlabbatch{3}.cfg_basicio.file_dir.file_ops.file_fplist.dir = {'###FMRIDIR###'};
-matlabbatch{3}.cfg_basicio.file_dir.file_ops.file_fplist.filter = '###FMRIFILE###_run-03';
+matlabbatch{3}.cfg_basicio.file_dir.file_ops.file_fplist.filter = '###FMRIFILE###_run-3';
 matlabbatch{3}.cfg_basicio.file_dir.file_ops.file_fplist.rec = 'FPList';
 matlabbatch{4}.spm.stats.fmri_spec.dir = {'###FMRIRESULTS###'};
 matlabbatch{4}.spm.stats.fmri_spec.timing.units = 'secs';
 matlabbatch{4}.spm.stats.fmri_spec.timing.RT = ###TR###;
 matlabbatch{4}.spm.stats.fmri_spec.timing.fmri_t = 16;
 matlabbatch{4}.spm.stats.fmri_spec.timing.fmri_t0 = 8;
-matlabbatch{4}.spm.stats.fmri_spec.sess(1).scans(1) = cfg_dep('File Selector (Batch Mode): Selected Files (###FMRIFILE###_run-0*1)', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','files'));
+matlabbatch{4}.spm.stats.fmri_spec.sess(1).scans(1) = cfg_dep('File Selector (Batch Mode): Selected Files (TAAL_run-1)', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','files'));
 matlabbatch{4}.spm.stats.fmri_spec.sess(1).cond.name = 'ON';
 matlabbatch{4}.spm.stats.fmri_spec.sess(1).cond.onset = [30
                                                          90
@@ -32,7 +32,7 @@ matlabbatch{4}.spm.stats.fmri_spec.sess(1).multi = {''};
 matlabbatch{4}.spm.stats.fmri_spec.sess(1).regress = struct('name', {}, 'val', {});
 matlabbatch{4}.spm.stats.fmri_spec.sess(1).multi_reg = {''};
 matlabbatch{4}.spm.stats.fmri_spec.sess(1).hpf = 128;
-matlabbatch{4}.spm.stats.fmri_spec.sess(2).scans(1) = cfg_dep('File Selector (Batch Mode): Selected Files (###FMRIFILE###_run-0*2)', substruct('.','val', '{}',{2}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','files'));
+matlabbatch{4}.spm.stats.fmri_spec.sess(2).scans(1) = cfg_dep('File Selector (Batch Mode): Selected Files (TAAL_run-2)', substruct('.','val', '{}',{2}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','files'));
 matlabbatch{4}.spm.stats.fmri_spec.sess(2).cond.name = 'ON';
 matlabbatch{4}.spm.stats.fmri_spec.sess(2).cond.onset = [30
                                                          90
@@ -47,7 +47,7 @@ matlabbatch{4}.spm.stats.fmri_spec.sess(2).multi = {''};
 matlabbatch{4}.spm.stats.fmri_spec.sess(2).regress = struct('name', {}, 'val', {});
 matlabbatch{4}.spm.stats.fmri_spec.sess(2).multi_reg = {''};
 matlabbatch{4}.spm.stats.fmri_spec.sess(2).hpf = 128;
-matlabbatch{4}.spm.stats.fmri_spec.sess(3).scans(1) = cfg_dep('File Selector (Batch Mode): Selected Files (###FMRIFILE###_run-0*3)', substruct('.','val', '{}',{3}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','files'));
+matlabbatch{4}.spm.stats.fmri_spec.sess(3).scans(1) = cfg_dep('File Selector (Batch Mode): Selected Files (TAAL_run-3)', substruct('.','val', '{}',{3}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','files'));
 matlabbatch{4}.spm.stats.fmri_spec.sess(3).cond.name = 'ON';
 matlabbatch{4}.spm.stats.fmri_spec.sess(3).cond.onset = [30
                                                          90

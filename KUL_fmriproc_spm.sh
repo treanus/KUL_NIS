@@ -59,12 +59,8 @@ Required arguments:
 
 
 Optional arguments:
-
+     
      -s:  session
-     -S:  smoothing FWHM in mm for SUSAN (default: adaptive = mean voxel size)
-            e.g. -S 6 for 6mm FWHM, -S 8 for 8mm FWHM
-     -P:  FWE-corrected p-value threshold for Bizzi thresholding (default: 0.01)
-            e.g. -P 0.01, -P 0.005, -P 0.001
      -v:  verbose (0=silent, 1=normal, 2=verbose; default=1)
 
 
@@ -78,8 +74,6 @@ USAGE
 # 
 # Set defaults
 verbose_level=1
-smooth_fwhm=0  # 0 = adaptive (mean voxel size)
-pfwe=0.01
 
 
 # Set required options
@@ -92,7 +86,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "p:s:S:P:v:" OPT; do
+    while getopts "p:s:v:" OPT; do
 
         case $OPT in
         p) #participant
@@ -102,12 +96,6 @@ else
         s) #session
             s_flag=1
             ses=$OPTARG
-        ;;
-        S) #smoothing FWHM
-            smooth_fwhm=$OPTARG
-        ;;
-        P) #FWE p-value threshold
-            pfwe=$OPTARG
         ;;
         v) #verbose
             verbose_level=$OPTARG
@@ -220,45 +208,7 @@ function KUL_compute_SPM_matlab {
     #gm_result_global=${globalresultsdir}/SPM_${fmrifile}_gm.nii
     #mrcalc $global_result $gm_mask3 0.1 -gt -mul $gm_result_global -force
 
-}
-
-function KUL_threshold_SPM_Bizzi {
-
-    if [ ! -f "$fmriresults/SPM.mat" ]; then
-        kul_echo " Bizzi thresholding skipped: SPM.mat not found in $fmriresults"
-        return
-    fi
-
-    spm_bizzi_script="${scriptsdir}/thresh_Bizzi_${fmrifile}.m"
-    spm_bizzi_script=${spm_bizzi_script/run-/run}
-
-    cp "$kul_main_dir/share/spm12/spm12_threshold_Bizzi.m" "$spm_bizzi_script"
-    sed -i.bck "s|###FMRIRESULTS###|$fmriresults|" "$spm_bizzi_script"
-    sed -i.bck "s|###PFWE###|$pfwe|g" "$spm_bizzi_script"
-    rm -f "${spm_bizzi_script}.bck"
-
-    cmd="$matlab_exe -nodisplay -nosplash -nodesktop -r \"run('$spm_bizzi_script');exit;\" $str_silent_SPM"
-    eval $cmd
-
-    # build FWE tag matching the MATLAB output filename logic (e.g. 0.01->FWE01, 0.005->FWE005)
-    pfwe_tag=$(echo "$pfwe" | sed 's/0\.//' | sed 's/0*$//')
-    fwe_tag="FWE${pfwe_tag}_k50"
-
-    transform="${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5"
-    find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
-    reference=${find_T1w[0]}
-
-    for thresh_tag in "p001unc_k50" "${fwe_tag}"; do
-        thresh_nii="$fmriresults/spmT_0001_${thresh_tag}.nii"
-        if [ -f "$thresh_nii" ]; then
-            mni_result="$computedir/RESULTS/MNI/${fmrifile}_${thresh_tag}_space-MNI152NLin2009cAsym.nii"
-            cp "$thresh_nii" "$mni_result"
-            input="$mni_result"
-            output="${globalresultsdir}/afMRI_${fmrifile}_${thresh_tag}.nii"
-            KUL_antsApply_Transform
-        fi
-    done
-}
+} 
 
 # MAIN --------------------------------------------------------------
 matlab_exe=$(which matlab)
@@ -344,31 +294,11 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
             
             # find the number of runs
             runs_sharp=($(find $fmriprepdir/func -name "*${task_and_type_1}.gz" -type f))
-            # SUSAN edge-preserving smoothing: adaptive sigma (mean voxel size), bt = 2/3 masked median
+            # edited by AR 04/11/2022
+            # temporary smoothin solution - better to use susan
             for run_sharp in ${runs_sharp[@]}; do
-                smooth_out="$(dirname ${run_sharp})/$(basename ${run_sharp} .nii.gz)_smooth_6mm.nii.gz"
-                if [[ ! -f "${smooth_out}" ]]; then
-                    spacing=($(mrinfo ${run_sharp} -spacing))
-                    if (( $(echo "$smooth_fwhm > 0" | bc -l) )); then
-                        sigma=$(echo "$smooth_fwhm / 2.3548" | bc -l)
-                    else
-                        sigma=$(echo "(${spacing[0]} + ${spacing[1]} + ${spacing[2]}) / 3" | bc -l)
-                    fi
-                    # brightness threshold from masked median (2/3 rule)
-                    mask_file="$(dirname ${run_sharp})/$(basename ${run_sharp} _desc-preproc_bold.nii.gz)_desc-brain_mask.nii.gz"
-                    if [[ -f "${mask_file}" ]]; then
-                        p50=$(fslstats ${run_sharp} -k ${mask_file} -p 50)
-                    else
-                        p50=$(fslstats ${run_sharp} -p 50)
-                    fi
-                    bt=$(echo "$p50 * 0.66666" | bc -l)
-                    # boldref as USAN edge reference
-                    boldref="$(dirname ${run_sharp})/$(basename ${run_sharp} _desc-preproc_bold.nii.gz)_desc-coreg_boldref.nii.gz"
-                    if [[ -f "${boldref}" ]]; then
-                        susan ${run_sharp} ${bt} ${sigma} 3 1 1 ${boldref} ${bt} ${smooth_out}
-                    else
-                        susan ${run_sharp} ${bt} ${sigma} 3 1 0 ${smooth_out}
-                    fi
+                if [[ ! -f "$(dirname ${run_sharp})/$(basename ${run_sharp} .nii.gz)_smooth_3mm.nii.gz" ]]; then
+                    fslmaths ${run_sharp} -s 3 $(dirname ${run_sharp})/$(basename ${run_sharp} .nii.gz)_smooth_6mm.nii.gz
                 fi
             done
 
@@ -403,15 +333,13 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
                 spm_template_config_file="$kul_main_dir/share/spm12/spm12_fmri_stats_1run.m" #template config file
                 spm_template_job_file="$kul_main_dir/share/spm12/spm12_fmri_stats_1run_job.m" #template job file
                 if [ $n_runs -gt 1 ]; then
-                    run_id=$(basename "${run}" | grep -oP '(?<=_run-)\d+' | head -1)
-                    fmrifile="${task}_run-${run_id}"
+                    fmrifile="${task}_run-${i_run}"
                 elif [ $n_runs -eq 1 ]; then
                     fmrifile="${task}"
                 fi
 
                 echo " computing $fmrifile"
                 KUL_compute_SPM_matlab
-                KUL_threshold_SPM_Bizzi
                 ((i_run++))
             
             done
@@ -432,7 +360,6 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
                 fmrifile="${task}"
                 echo " computing aggregate n=${n_runs} ${fmrifile}"
                 KUL_compute_SPM_matlab
-                KUL_threshold_SPM_Bizzi
             fi
 
         fi

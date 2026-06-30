@@ -530,13 +530,8 @@ function task_KUL_dwiprep {
             extra_options_dwi2mask=" -m $dwi2mask_method "
         fi
 
-        extra_options_native=""
-        if [ "$use_native_dwi" -eq 1 ]; then
-            extra_options_native=" -u "
-        fi
-
         task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} \
-            $extra_options_dwi2mask $extra_options_synb0 $extra_options_shard $extra_options_revphase $extra_options_native -n $ncpu_dwiprep \
+            $extra_options_dwi2mask $extra_options_synb0 $extra_options_shard $extra_options_revphase -n $ncpu_dwiprep \
             -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1") 
             # > $dwiprep_log 2>&1 ")
 
@@ -553,7 +548,7 @@ function task_KUL_dwiprep {
             mkdir -p VSC
             cp $kul_main_dir/VSC/master_dwiprep.pbs VSC/run_dwiprep.pbs
             task_command=$(echo "KUL_dwiprep.sh -p \${BIDS_participant} \
-    $extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase $extra_options_native -n $ncpu_dwiprep \
+    $extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase -n $ncpu_dwiprep \
     -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1 \
     > \$dwiprep_log 2>&1 ")
             kul_echo $task_command
@@ -1299,11 +1294,6 @@ if [ $expert -eq 1 ]; then
 
         dwiprep_ncpu=$(grep dwiprep_ncpu $conf | grep -v \# | cut -d':' -f 2 | sed 's/[^0-9]//g')
         ncpu_dwiprep=$dwiprep_ncpu
-
-        use_native_dwi=$(grep use_native_dwi $conf | grep -v \# | sed 's/[^0-9]//g')
-        if [ -z "$use_native_dwi" ]; then
-            use_native_dwi=0
-        fi
         
         #get bids_participants
         BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
