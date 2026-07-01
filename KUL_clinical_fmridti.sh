@@ -1248,34 +1248,16 @@ function KUL_run_freesurfer {
 
 function KUL_run_fastsurfer {
 if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
-    #echo "Hybrid parcellation flag is set, now starting FastSurfer/FreeSurfer hybrid recon-all based part of VBG"
-
     # make your log file
-    #prep_log="KUL_LOG/sub-${participant}_run_fastsurfer.txt" 
-    #if [[ ! -f ${prep_log} ]] ; then
-    #    touch ${prep_log}
-    #else
-    #    echo "${prep_log} already created"
-    #fi
     kul_log_file="KUL_LOG/sub-${participant}_run_fastsurfer.txt"
 
     fs_output="${cwd}/BIDS/derivatives/freesurfer"
-    #output_d="$derivativesdir/FastSurfer"
-    #str_op="${output_d}/${participant}"
-    #fasu_output="${str_op}fastsurfer"
     fasu_output="$derivativesdir/FastSurfer"
-    #T1_4_parc="${str_op}_T1_nat_4parc.mgz"
     if [ $vbg -eq 1 ];then
         T1_4_parc=$derivativesdir/KUL_VBG/output_VBG/sub-${participant}/sub-Casier_T1_nat_4parc.mgz
     else
         T1_4_parc="${cwd}/$T1w"
     fi
-    #echo $T1_4_parc
-    #ls -l $T1_4_parc
-
-    #recall_scripts="${fs_output}/sub-${participant}/scripts"
-    #echo $recall_scripts
- 
     mkdir -p ${fs_output} >/dev/null 2>&1
     mkdir -p ${fasu_output} >/dev/null 2>&1
 
@@ -1286,20 +1268,8 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
     # if we can switch to fast-surf, would be great also
     # another possiblity is using recon-all -skullstrip -clean-bm -gcut -subjid <subject name>
     
-    #echo "starting recon-all stage 1"
     task_in="recon-all -i ${T1_4_parc} -s sub-${participant} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1 -no-isrunning"
     KUL_task_exec $verbose_level "FastSurfer part 1: recon-all stage 1" "$KUL_LOG_DIR/FastSurfer"
-    #echo "done recon-all stage 1"
-
-
-
-    #task_in="mri_convert -rl ${fs_output}/${participant}/mri/brainmask.mgz ${T1_BM_4_FS} ${clean_BM_mgz}"
-    #task_exec
-
-    #task_in="mri_mask ${FS_brain} ${T1_BM_4_FS} ${new_brain} && mv ${new_brain} ${fs_output}/${participant}/mri/brainmask.mgz && cp \
-    #${fs_output}/${participant}/mri/brainmask.mgz ${fs_output}/${participant}/mri/brainmask.auto.mgz"
-    #task_exec
-
 
     FaSu_loc=$(which run_fastsurfer.sh)
 
@@ -1324,7 +1294,6 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
     fi
     # --- end version check ---
 
-    #nvd_cu=$(nvcc --version)
     user_id_str=$(id -u $(whoami))
     T1_4_FaSu=$(basename ${T1_4_parc})
     nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
@@ -1595,7 +1564,7 @@ function KUL_run_FWT {
             -n $ncpu"
             KUL_task_exec $verbose_level "KUL_FWT voi generation" "12_FWTvoi" || { kul_echo "FWT VOI generation failed — NOT writing FWT.done"; return 1; }
 
-            export PATH="/mnt/DATA1/aradwa0/local_KUL_NIS/scilpynew/bin:$PATH"
+            KUL_activate_conda_env scilpy
             task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
             -F ${_fs_apas} \
             -c $cwd/study_config/${config} \

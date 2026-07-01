@@ -375,7 +375,6 @@ function KUL_rigid_register {
 
     warp_field="${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}"
     output_mri="${kulderivativesdir}/${source_mri_label}_reg2_${target_mri_label}.nii.gz"
-    #echo "Rigidly registering $source_mri to $target_mri"
     antsRegistration --verbose $ants_verbose --dimensionality 3 \
     --output [$warp_field,$output_mri] \
     --interpolation $interpolation_type \
@@ -385,7 +384,6 @@ function KUL_rigid_register {
     --metric MI[$target_mri2,$source_mri2,1,32,Regular,0.25] \
     --convergence [1000x500x250x100,1e-6,10] \
     --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
-    #echo "Done rigidly registering $source_mri to $target_mri"
     ConvertTransformFile 3 ${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}0GenericAffine.mat \
         ${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}0GenericAffine.txt
 }
@@ -394,7 +392,6 @@ function KUL_affine_register {
 
     warp_field="${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}"
     output_mri="${kulderivativesdir}/${source_mri_label}_reg2_${target_mri_label}.nii.gz"
-    #echo "Rigidly registering $source_mri to $target_mri"
     antsRegistration --verbose $ants_verbose --dimensionality 3 \
     --output [$warp_field,$output_mri] \
     --interpolation $interpolation_type \
@@ -404,7 +401,6 @@ function KUL_affine_register {
     --metric MI[$target_mri2,$source_mri2,1,32,Regular,0.25] \
     --convergence [1000x500x250x100,1e-6,10] \
     --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
-    #echo "Done rigidly registering $source_mri to $target_mri"
     ConvertTransformFile 3 ${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}0GenericAffine.mat \
         ${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}0GenericAffine.txt
 }
@@ -419,7 +415,6 @@ function KUL_warp2MNI {
     local its=10000x111110x11110
     local percentage=0.3
     local syn="100x100x50,-0.01,5"
-    #local nm=${D}${nm1}_fixed_${nm2}_moving_setting_is_${mysetting}   # construct output prefix
     local nm=$outputwarp
 
     my_cmd="antsRegistration -d $dim -r [ $f, $m ,1 ]  \
@@ -445,8 +440,6 @@ function KUL_warp2MNI {
                         -s 1x0.5x0vox  \
                         -f 4x2x1 -l 1 -u 1 -z 1 \
                        -o [ ${nm},${nm}_diff.nii.gz,${nm}_inv.nii.gz]"
-
-    #antsApplyTransforms -d $dim -i $m -r $f -n linear -t ${nm}1Warp.nii.gz -t ${nm}0GenericAffine.mat -o ${nm}_warped.nii.gz
 
     my_cmd="antsRegistrationSyN.sh -d 3 -f ${target_mri2} -m ${source_mri2} \
         -o ${outputwarp} -n ${ncpu} -j 1 -t s $fs_silent"
@@ -540,11 +533,9 @@ else
 
     source_mri_label_tmp=$(basename $source)
     source_mri_label=${source_mri_label_tmp%%.*}
-    #echo $source_mri_label
     source_mri=$source
     target_mri_label_tmp=$(basename $target)
     target_mri_label=${target_mri_label_tmp%%.*}
-    #echo $target_mri_label
     target_mri=$target
 
     kulderivativesdir=$(pwd)
@@ -599,9 +590,6 @@ else
     echo "reg_type: $reg_type"
     if [ $warp2mni -eq 1 ] || [ $reg_type -eq 3 ]; then
 
-        #outputwarp=${registeroutputdir}/${source_mri_label}_warp2_${target_mri_label}
-        #outputwarp_test="${outputwarp}Warped.nii.gz"
-        #echo $outputwarp_test
         if [ ! -f $outputwarp_test ]; then
 
             echo "Warping non-rigidly $source_mri_label to $target_mri_label (interpolation=$interpolation_type)"
@@ -640,7 +628,6 @@ else
             else
                 transform="-t ${warp_field}0GenericAffine.mat "
             fi
-            #echo  $transform
             reference=$target_mri
             KUL_antsApply_Transform
 

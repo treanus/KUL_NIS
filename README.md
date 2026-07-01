@@ -95,6 +95,7 @@ KUL_NIS is a set of bash/python wrappers around established neuroimaging softwar
 | [hd-glio-auto](https://github.com/NeuroAI-HD/HD-GLIO-AUTO) | latest | AI glioma segmentation (clinical types 1–3) |
 | [resseg](https://github.com/fepegar/resseg) | latest | resection-cavity segmentation |
 | [LoRE](https://github.com/TissueVisionMics/lore) (`lore_dwi2decomposition`, `lore_decomposition2contrast`) | latest | low-rank DWI decomposition / microstructure contrasts (`-D run_dwiprep_lore_sd.txt`) |
+| [scilpy](https://github.com/scilus/scilpy) | **2.3.0** | tractography post-processing (`KUL_tracts_ocd`, `KUL_FWT`); install as conda env named `scilpy` |
 | [qsiprep](https://qsiprep.readthedocs.io/) | latest | alternative dMRI preprocessing (`KUL_qsiprep`) |
 
 ### Sibling KUL repositories

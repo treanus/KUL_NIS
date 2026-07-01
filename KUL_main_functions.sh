@@ -52,8 +52,6 @@ function KUL_task_exec {
         fi
     fi
 
-    #local pidsArray=${task_in_pid[@]} # pids to wait for, separated by semi-colon
-    #local procsArray=${task_in_name[@]} # name of procs to wait for, separated by semi-colon 
     local pidsArray=() # pids to wait for, separated by semi-colon
     local procsArray=() # name of procs to wait for, separated by semi-colon     
     local log_ttime=0 # local time instance for comparison
@@ -360,8 +358,6 @@ function kul_e2cl {
     fi
     
     local old_elapsed_s=$elapsed_s
-    #local b=$(tput bold)
-    #local n=$(tput sgr0)
     local b=''
     local n=''
 
@@ -414,13 +410,6 @@ fi
 
 
 machine_type=$(uname)
-#echo $machine_type
-
-
-# -- Set global defaults --
-#silent=1
-#tmp=/tmp
-
 
 # -- Execute global startup --
 

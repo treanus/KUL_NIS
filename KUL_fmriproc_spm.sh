@@ -178,7 +178,6 @@ function KUL_compute_SPM_matlab {
     # get rid of - in filename, since this breaks -r in matlab
     spm_participant_config_file=${spm_participant_config_file/run-/run}
     spm_participant_job_file=${spm_participant_job_file/run-/run}
-    #echo "$spm_participant_config_file -- $spm_participant_job_file"
     cp $spm_template_config_file $spm_participant_config_file
     cp $spm_template_job_file $spm_participant_job_file
     sed -i.bck "s|###JOBFILE###|$spm_participant_job_file|" $spm_participant_config_file
@@ -192,7 +191,6 @@ function KUL_compute_SPM_matlab {
 
     # call matlab and execute
     cmd="$matlab_exe -nodisplay -nosplash -nodesktop -r \"run('$spm_participant_config_file');exit;\" $str_silent_SPM"
-    #echo $cmd
     eval $cmd
 
 
@@ -208,17 +206,6 @@ function KUL_compute_SPM_matlab {
     find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
     reference=${find_T1w[0]}
     KUL_antsApply_Transform
-
-    # compute the gray matter mask
-    #gm_mask="$fmriprepdir/anat/sub-${participant}_label-GM_probseg.nii.gz"
-    #gm_mask2=$computedir/RESULTS/gm_mask_${fmrifile}.nii.gz
-    #gm_mask3=$computedir/RESULTS/gm_mask_smooth_${fmrifile}.nii.gz
-    #mrgrid $gm_mask regrid -template $global_result $gm_mask2 -force
-    #mrfilter $gm_mask2 smooth $gm_mask3 -force
-
-    # compute a gray matter masked SPM result
-    #gm_result_global=${globalresultsdir}/SPM_${fmrifile}_gm.nii
-    #mrcalc $global_result $gm_mask3 0.1 -gt -mul $gm_result_global -force
 
 }
 
@@ -306,14 +293,8 @@ fmriprep_output_type="_space-MNI152NLin2009cAsym_desc-preproc_bold.nii"
 if [ $verbose_level -lt 2 ] ; then
     str_silent_SPM=" >> KUL_LOG/$script/sub-${participant}_spm12.log"
 fi
-#echo $str_silent_SPM
-
-# Provide the anatomy
-#cp -f $fmriprepdir/../anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/Anat/T1w.nii.gz
-#gunzip -f $globalresultsdir/Anat/T1w.nii.gz
 
 if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
-    #echo "Computing SPM"
     
     # find the output of fmriprep
     fmriprep_match=($(find $fmriprepdir/func -name "*${fmriprep_output_type}.gz" -type f))
@@ -321,17 +302,12 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
     # find the unique tasks
     tasks=()
     for match in ${fmriprep_match[@]}; do
-        #echo ${match[@]}
         match_tmp1=${match[@]#*_task-}
-        #echo ${match_tmp1[@]}
         match_tmp2=${match_tmp1[@]%_space*}
-        #echo ${match_tmp2[@]}
         match_tmp3=${match_tmp2[@]%_run*}
         tasks=(${tasks[@]} $match_tmp3)
     done
-    #echo ${tasks[@]}
     uniqe_tasks=($(for i in ${tasks[@]}; do echo $i; done | sort -u))
-    #echo ${uniqe_tasks[@]}
 
 
     # we loop over the unique tasks
@@ -340,8 +316,7 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
         if [[ ! "$task" = *"rest"* ]]; then
             kul_echo " Analysing task $task"
             task_and_type_1="*${task}*${fmriprep_output_type}"
-            #echo $task_and_type_1
-            
+
             # find the number of runs
             runs_sharp=($(find $fmriprepdir/func -name "*${task_and_type_1}.gz" -type f))
             # SUSAN edge-preserving smoothing: adaptive sigma (mean voxel size), bt = 2/3 masked median
@@ -375,14 +350,12 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
             # edited by AR 04/11/2022
             fmriprep_output_type_2=$(echo ${fmriprep_output_type} | cut -d "." -f1)
             task_and_type_2="*${task}*${fmriprep_output_type_2}_smooth_6mm.nii"
-            #echo $task_and_type_2
 
             # edited by AR 04/11/2022
             runs=($(find $fmriprepdir/func -name "*${task_and_type_2}.gz" -type f))
             
             # unzip each run
             for run in ${runs[@]}; do
-                #echo $run
                 cp $run $fmridatadir
                 shortrun=$(basename $run)
                 kul_echo " gunzipping $shortrun"
@@ -394,12 +367,10 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
             kul_echo " the repetition time (TR) of $shortrun is: $TR"
 
             n_runs=${#runs[@]}
-            #echo $n_runs     
 
             i_run=1
             for run in ${runs[@]}; do
-            
-                #echo $run
+
                 spm_template_config_file="$kul_main_dir/share/spm12/spm12_fmri_stats_1run.m" #template config file
                 spm_template_job_file="$kul_main_dir/share/spm12/spm12_fmri_stats_1run_job.m" #template job file
                 if [ $n_runs -gt 1 ]; then
@@ -437,9 +408,6 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
 
         fi
     done
-
-    # cleanup
-    #rm -rf $fmridatadir
 
     touch KUL_LOG/sub-${participant}_SPM.done
     echo "Done computing SPM"

@@ -145,7 +145,6 @@ FSLPARALLEL=$ncpu; export FSLPARALLEL
 OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
 
 d=$(date "+%Y-%m-%d_%H-%M-%S")
-#log=log/log_${d}.txt
 log=${log_dir}/${script}_${d}.log
 
 # --- MAIN ----------------

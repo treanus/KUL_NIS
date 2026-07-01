@@ -211,7 +211,6 @@ else
     FAT1w=""
 fi
 
-#if [ $type -eq 1 ]; then
 
     tract_name_orig="AF_all_LT"
     tract_name_final="Arcuate_Fasc_Left"
@@ -444,22 +443,6 @@ fi
     tract_corr_threshold=3
     KUL_karawun_get_tract
 
-#elif [ $type -eq 2 ]; then
-
-    #tract_name_orig="CST_LT"
-    #tract_name_final="CST_Left"
-    #tract_color=1
-    #tract_threshold=50
-    #tract_corr_threshold=3
-    #KUL_karawun_get_tract
-
-    #tract_name_orig="CST_RT"
-    #tract_name_final="CST_Right"
-    #tract_color=1
-    #tract_threshold=50
-    #tract_corr_threshold=3
-    #KUL_karawun_get_tract
-
     tract_name_orig="DRT_LT"
     tract_name_final="DRT_Left"
     tract_color=19
@@ -487,8 +470,6 @@ fi
     tract_threshold=10
     tract_corr_threshold=4
     KUL_karawun_get_tract
-
-#elif [ $type -eq 3 ]; then
 
     tract_name_orig="CSHDP_LT"
     voi_name_final="DISTAL_STN_MOTOR_Left"
@@ -531,21 +512,6 @@ fi
     tract_corr_threshold=1
     KUL_karawun_get_tract
 
-    #tract_name_orig="CST_LT"
-    #tract_name_final="CST_Left"
-    #tract_color=1
-    #tract_threshold=50
-    #tract_corr_threshold=3
-    #KUL_karawun_get_tract
-
-    #tract_name_orig="CST_RT"
-    #tract_name_final="CST_Right"
-    #tract_color=1
-    #tract_threshold=50
-    #tract_corr_threshold=3
-    #KUL_karawun_get_tract
-
-#fi
 
 # give information
 echo "See to it that the DICOM directory contains a single slice of the SmartBrain"

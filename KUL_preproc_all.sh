@@ -7,7 +7,7 @@ verbose_level=1
 # This is the main script of the KUL_NeuroImaging_Toools
 #
 # Description:
-#    This script preprocces an entire study (multiple subjects) with structural, functional and diffusion data at Stefan's lab
+#    This script preprocces an entire study (multiple subjects) with structural, functional and diffusion data at KU Leuven, Translational MRI
 #      It will:
 #       - perform mriqc on structural and functional data
 #       - perform fmriprep on structural and functional data
@@ -957,9 +957,6 @@ if [ $expert -eq 1 ]; then
         kul_echo "  pbs_singularity_mriqc: ${pbs_singularity_mriqc}"
         kul_echo "  pbs_singularity_fmriprep: $pbs_singularity_fmriprep"
 
-        #mriqc_rand=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1)
-        #pbs_data_file="pbs_data_mriqc_${mriqc_rand}.csv"
-
     fi
 
 
@@ -1124,8 +1121,6 @@ if [ $expert -eq 1 ]; then
         # check if already performed fmriprep
         todo_bids_participants=()
         already_done=()
-
-        #if [ ! "$fmriprep_force_redo" == "1" ]; then
 
             for i_bids_participant in $(seq 0 $(($n_subj-1))); do
 

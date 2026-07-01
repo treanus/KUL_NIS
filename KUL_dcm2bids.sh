@@ -218,10 +218,6 @@ function kul_dcmtags {
         slicetime_provided_by_vendor=1
         ees_trt_provided_by_vendor=1
 
-    #elif [ "$manufacturer" = 'GE ]
-
-        # need to be tested
-
     else
 
         slicetime_provided_by_vendor=0

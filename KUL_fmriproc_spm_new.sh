@@ -150,7 +150,6 @@ function KUL_antsApply_Transform {
     if [ $KUL_DEBUG -gt 0 ]; then
         echo "input=$input"
         echo "output=$output"
-        #echo "transform=$transform"
         echo "reference=$reference"
     fi
     antsApplyTransforms -d 3 --float 1 \
@@ -247,7 +246,6 @@ function KUL_compute_SPM_matlab {
     # get rid of - in filename, since this breaks -r in matlab
     spm_participant_config_file=${spm_participant_config_file/run-/run}
     spm_participant_job_file=${spm_participant_job_file/run-/run}
-    #echo "$spm_participant_config_file -- $spm_participant_job_file"
     cp $spm_template_config_file $spm_participant_config_file
     cp $spm_template_job_file $spm_participant_job_file
     sed -i.bck "s|###JOBFILE###|$spm_participant_job_file|" $spm_participant_config_file
@@ -286,7 +284,6 @@ function KUL_compute_SPM_matlab {
             fi
             sed -i.bck "s|###FMRIFILE$j###|$spm_taskname|" $spm_participant_job_file
             cmd="sed -i.bck \"s|###CONFOUNDSFILE$j###|$spm_confounds_file|\" $spm_participant_job_file"
-            #echo $cmd
             eval $cmd
             
         done
@@ -357,12 +354,9 @@ fmriprep_output_type="_space-MNI152NLin2009cAsym"
 if [ $verbose_level -lt 2 ] ; then
     str_silent_SPM=" >> KUL_LOG/$script/sub-${participant}_spm12.log"
 fi
-#echo $str_silent_SPM
-
 
 if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
-    #echo "Computing SPM"
-    
+
     # find the output of fmriprep
     fmriprep_match=($(find $fmriprepdir/func \
         -name "*${fmriprep_output_type}*_desc-preproc_bold.nii.gz" \
