@@ -758,8 +758,8 @@ def execute(): #pylint: disable=unused-variable
   
   # KUL - Stefan
   path_2_KULNIs = os.path.dirname(__file__)
-  temp = os.path.join(path_2_KULNIs, 'atlasses', 'Temp_4_KUL_dwiprep', 'UKBB_fMRI_mod.nii.gz')
-  tempm = os.path.join(path_2_KULNIs, 'atlasses', 'Temp_4_KUL_dwiprep', 'UKBB_fMRI_mod_brain_mask.nii.gz')
+  temp = os.path.join(path_2_KULNIs, 'atlases', 'Temp_4_KUL_dwiprep', 'UKBB_fMRI_mod.nii.gz')
+  tempm = os.path.join(path_2_KULNIs, 'atlases', 'Temp_4_KUL_dwiprep', 'UKBB_fMRI_mod_brain_mask.nii.gz')
    
   if do_topup or kul_disco:
 

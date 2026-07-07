@@ -1,5 +1,6 @@
 #!/bin/bash
 # KUL_FS_multiparc.sh
+# Ahmed M. Radwan, KU Leuven Translational MRI
 #
 # FreeSurfer recon-all + multi-scale parcellation for non-lesioned subjects
 # (types 4, 5, 6 in KUL_clinical_fmridti.sh — no VBG needed).
@@ -27,11 +28,11 @@
 
 set -e
 
-version="0.1 — 2026-06-26"
+version="0.2 — 2026-07-07"
 
 # ── Script location — atlases live in sibling KUL_VBG_latest repo ─────────────
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-atlases_dir="${script_dir}/../KUL_VBG_latest/atlasses/New/atlases"
+atlases_dir="${script_dir}/atlases"
 lausanne_dir="${atlases_dir}/lausanne2008"
 glasser_dir="${atlases_dir}/glasser"
 remap_py="${lausanne_dir}/remap_lausanne_to_msbp.py"

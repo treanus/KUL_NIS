@@ -546,8 +546,8 @@ for test_T1w in ${T1w[@]}; do
                 
                 # PART 3 - Spatially normalise (warp) the T1w to the MNI atlas
                 if [ $deel -ge 3 ]; then
-                    fix_im="$kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii"
-                    ref_im="$kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a_with_neck.nii"
+                    fix_im="$kul_main_dir/atlases/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii"
+                    ref_im="$kul_main_dir/atlases/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a_with_neck.nii"
                     #input=${test_T1w##*/}
                     #input=${input%%.*}
                     #mov_im=$outdir/tmp/${input}_iso_biascorrected.nii.gz
@@ -661,12 +661,12 @@ for test_T1w in ${T1w[@]}; do
                     # METHOD 1 - LINEAR histogram matching using eye/muscle tissue
                     echo "  performing linear histogram matching"
                     
-                    M1_template_T1w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T1w.nii.gz"
-                    M1_template_T2w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz"
-                    M1_template_FLAIR="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz"
+                    M1_template_T1w="$kul_main_dir/atlases/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T1w.nii.gz"
+                    M1_template_T2w="$kul_main_dir/atlases/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz"
+                    M1_template_FLAIR="$kul_main_dir/atlases/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz"
 
-                    M1_template_mask_eye="$kul_main_dir/atlasses/Ganzetti2014/eyemask.nii"
-                    M1_template_mask_tempmuscle="$kul_main_dir/atlasses/Ganzetti2014/tempmask.nii"
+                    M1_template_mask_eye="$kul_main_dir/atlases/Ganzetti2014/eyemask.nii"
+                    M1_template_mask_tempmuscle="$kul_main_dir/atlases/Ganzetti2014/tempmask.nii"
 
                     # Warp the eye and muscle back to subject space
                     echo "  warping eye/muscle and skull/air back to subject space"
@@ -748,20 +748,20 @@ for test_T1w in ${T1w[@]}; do
                     echo "  performing nonlinear histogram matching"
                     # Warp the brain_mask and its inverse to subject space
                     
-                    M2_template_T1w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T1w.nii.gz"
-                    M2_template_T2w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz"
-                    M2_template_FLAIR="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz"
+                    M2_template_T1w="$kul_main_dir/atlases/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T1w.nii.gz"
+                    M2_template_T2w="$kul_main_dir/atlases/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz"
+                    M2_template_FLAIR="$kul_main_dir/atlases/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_T2w.nii.gz"
 
-                    input="$kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated.nii"
+                    input="$kul_main_dir/atlases/Ganzetti2014/brainmask_mni_dilated.nii"
                     output="$outdir/masks/${base}_method2_MNI2subj_brainmask_mni_dilated.nii.gz"
                     KUL_antsApply_Transform_MNI
-                    input="$kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii"
+                    input="$kul_main_dir/atlases/Ganzetti2014/brainmask_mni_dilated_inverse.nii"
                     output="$outdir/masks/${base}_method2_MNI2subj_brainmask_mni_dilated_inverse.nii.gz"
                     KUL_antsApply_Transform_MNI
 
                     mrhistmatch \
                     -mask_input $outdir/masks/${base}_method2_MNI2subj_brainmask_mni_dilated_inverse.nii.gz \
-                    -mask_target $kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii \
+                    -mask_target $kul_main_dir/atlases/Ganzetti2014/brainmask_mni_dilated_inverse.nii \
                     nonlinear \
                     $outdir/tmp/${base}_T1w_iso_biascorrected.nii.gz \
                     $M2_template_T1w \
@@ -774,7 +774,7 @@ for test_T1w in ${T1w[@]}; do
                     if [ $t2 -eq 1 ];then
                         mrhistmatch \
                         -mask_input $outdir/masks/${base}_method2_MNI2subj_brainmask_mni_dilated_inverse.nii.gz \
-                        -mask_target $kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii \
+                        -mask_target $kul_main_dir/atlases/Ganzetti2014/brainmask_mni_dilated_inverse.nii \
                         nonlinear \
                         $outdir/tmp/${base}_T2w_iso_biascorrected_reg2T1w.nii.gz \
                         $M2_template_T2w \
@@ -788,7 +788,7 @@ for test_T1w in ${T1w[@]}; do
                     if [ $flair -eq 1 ];then
                         mrhistmatch \
                         -mask_input $outdir/masks/${base}_method2_MNI2subj_brainmask_mni_dilated_inverse.nii.gz \
-                        -mask_target $kul_main_dir/atlasses/Ganzetti2014/brainmask_mni_dilated_inverse.nii \
+                        -mask_target $kul_main_dir/atlases/Ganzetti2014/brainmask_mni_dilated_inverse.nii \
                         nonlinear \
                         $outdir/tmp/${base}_FLAIR_iso_biascorrected_reg2T1w.nii.gz \
                         $M2_template_FLAIR \
@@ -804,12 +804,12 @@ for test_T1w in ${T1w[@]}; do
                     # Method 3 - Cappelle & Sunaert
                     echo "  performing second (Cappelle) nonlinear histogram matching"
 
-                    M3_template_T1w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_T1w.nii.gz"
-                    M3_template_T2w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_T2w.nii.gz"
-                    M3_template_FLAIR="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_FLAIR.nii.gz"
+                    M3_template_T1w="$kul_main_dir/atlases/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_T1w.nii.gz"
+                    M3_template_T2w="$kul_main_dir/atlases/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_T2w.nii.gz"
+                    M3_template_FLAIR="$kul_main_dir/atlases/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_FLAIR.nii.gz"
 
-                    M3_template_mask_4_T1w="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_mask_4_T1w.nii.gz"
-                    M3_template_mask_4_T2w_and_FLAIR="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_mask_4_T2w_and_FLAIR.nii.gz"
+                    M3_template_mask_4_T1w="$kul_main_dir/atlases/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_mask_4_T1w.nii.gz"
+                    M3_template_mask_4_T2w_and_FLAIR="$kul_main_dir/atlases/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_mask_4_T2w_and_FLAIR.nii.gz"
 
                     mask1="$outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz"
                     mask2="$outdir/masks/${base}_T1w_iso_biascorrected_brain_inverted_mask.nii.gz"
@@ -888,7 +888,7 @@ for test_T1w in ${T1w[@]}; do
                     M4_template_T1w=$M3_template_T1w
                     M4_template_T2w=$M3_template_T2w
                     M4_template_FLAIR=$M3_template_FLAIR
-                    M4_template_mask="$kul_main_dir/atlasses/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_T1w_mask_brain_mask.nii.gz"
+                    M4_template_mask="$kul_main_dir/atlases/Local/Cappelle2021/tpl-MNI152NLin2009aSym_res-1_Cappelle2021_T1w_mask_brain_mask.nii.gz"
 
                     mask1="$outdir/masks/${base}_T1w_iso_biascorrected_brain_mask.nii.gz"
                     mask_subj="$outdir/masks/${base}_method4_brain_mask_without_lesions.nii.gz"

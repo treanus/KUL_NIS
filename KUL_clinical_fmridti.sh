@@ -5,8 +5,9 @@
 # Requires matlab fmriprep
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
-# 07/12/2021
-version="0.9"
+# @ Ahmed Radwan - KU Leuven, Translational MRI - ahmed.radwan@kuleuven.be
+# 07/07/2026
+version="2.0"
 
 kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
@@ -74,6 +75,7 @@ Optional arguments:
      -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
      -X:  use FastSurfer instead of plain recon-all for the reconstruction step
           in types 4, 5, 6 (faster, requires GPU; default is FreeSurfer 8.2.0 recon-all)
+     -f:  use the name specified for activating the scilpy conda environment 
 
 USAGE
 
@@ -119,7 +121,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:R:F:O:a:BrseT:D:S:P:X" OPT; do
+	while getopts "p:t:d:n:v:R:F:O:a:BrseT:D:S:P:Xf:" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -178,6 +180,9 @@ else
 		;;
         X) #use FastSurfer instead of plain recon-all for types 4/5/6
             use_fastsurfer=1
+        ;;
+        f) # use the name specified for scilpy env name
+            scilpy=$OPTARG
         ;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -485,6 +490,31 @@ if [ $results -gt 0 ];then
     mrview_threads=$(( ncpu / 3 ))
     [ $mrview_threads -lt 1 ] && mrview_threads=1
 
+    # --- Portable headless-mrview environment (Linux Mint / Ubuntu, GPU or not) ---
+    # Every mrview capture below is prefixed with $_mrview_env. This:
+    #   * strips the MATLAB MCR's Qt5 from LD_LIBRARY_PATH. That Qt5 ships no platform
+    #     plugins, so if it shadows the system Qt you get the classic abort:
+    #       "Could not find the Qt platform plugin xcb/offscreen in ''".
+    #     All MCR lib dirs live under .../glnxa64, so removing that single token is a
+    #     precise filter that leaves CUDA (and everything else) intact. It is applied
+    #     ONLY to the mrview call, so any MCR-based step elsewhere keeps its runtime.
+    #   * forces Mesa llvmpipe (LIBGL_ALWAYS_SOFTWARE=1) so software GL is used
+    #     deterministically even on machines that DO have a GPU but no display.
+    #   * drops any leaked QT_QPA_PLATFORM=offscreen / QT_PLUGIN_PATH from the shell,
+    #     which would otherwise override the xcb plugin xvfb-run provides.
+    # Override the binary with MRVIEW_BIN=/path/to/mrview if PATH is ambiguous.
+    _mrview_ld=$(printf '%s' "${LD_LIBRARY_PATH:-}" | tr ':' '\n' | grep -v 'glnxa64' | paste -sd:)
+    _mrview_bin="${MRVIEW_BIN:-$(command -v mrview)}"
+    _mrview_env="env -u QT_QPA_PLATFORM -u QT_PLUGIN_PATH LD_LIBRARY_PATH=$_mrview_ld LIBGL_ALWAYS_SOFTWARE=1"
+    if [ -z "$_mrview_bin" ]; then
+        echo "ERROR: mrview not found on PATH. Set MRVIEW_BIN=/path/to/mrview or fix PATH."
+        _mrview_bin="mrview"   # fall through; the failure will be explicit
+    fi
+    if ! command -v xvfb-run >/dev/null 2>&1; then
+        echo "WARNING: xvfb-run not found — mrview screenshots will fail on this host."
+        echo "         Install with: sudo apt install -y xvfb libgl1-mesa-dri"
+    fi
+
     mkdir -p $resultsdir_png
     mkdir -p $resultsdir_dcm
 
@@ -555,7 +585,7 @@ if [ $results -gt 0 ];then
                     let "i+=1"
                 done
                 echo "Making ${spmname}_${orient} SPM on $(basename $underlay)"
-                eval "LP_NUM_THREADS=$mrview_threads timeout 600 xvfb-run -n 20 --server-args=\"-screen 0 ${mrview_resolution}x${mrview_resolution}x24\" mrview -size $mrview_resolution,$mrview_resolution \
+                eval "$_mrview_env LP_NUM_THREADS=$mrview_threads timeout 600 xvfb-run -n 20 --server-args=\"-screen 0 ${mrview_resolution}x${mrview_resolution}x24\" $_mrview_bin -size $mrview_resolution,$mrview_resolution \
                     -load $underlay -mode 1 -plane $plane \
                     -overlay.load $spmfile -overlay.opacity $spm_opacity -overlay.colourmap 1 \
                         -overlay.threshold_min $_thresh \
@@ -642,7 +672,7 @@ if [ $results -gt 0 ];then
                     fi
                     let "i+=1"
                 done
-                eval "LP_NUM_THREADS=$mrview_threads timeout 600 xvfb-run -n $((10 + slot)) --server-args=\"-screen 0 ${mrview_resolution}x${mrview_resolution}x24\" mrview -size $mrview_resolution,$mrview_resolution \
+                eval "$_mrview_env LP_NUM_THREADS=$mrview_threads timeout 600 xvfb-run -n $((10 + slot)) --server-args=\"-screen 0 ${mrview_resolution}x${mrview_resolution}x24\" $_mrview_bin -size $mrview_resolution,$mrview_resolution \
                     -load $underlay -mode 1 -plane $plane \
                     -tractography.lighting 1 -tractography.slab 1.5 -tractography.thickness 0.3 \
                     -noannotations -orientlabel 0 -voxelinfo 0 -colourbar 0 \
@@ -1539,9 +1569,9 @@ function KUL_run_FWT {
         echo "FWT not required for this analysis type"
         return 0
     fi
-    # Ensure updated KUL_FWT scripts (sibling repo) take priority over any older installation in PATH
-    _kul_nis_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-    export PATH="${_kul_nis_dir}/../KUL_FWT:$PATH"
+    # # Ensure updated KUL_FWT scripts (sibling repo) take priority over any older installation in PATH
+    # _kul_nis_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+    # export PATH="${_kul_nis_dir}/../KUL_FWT:$PATH"
     if [ $n_dwi -gt 0 ];then
         config="tracks_list.txt"
         if [ ! -f KUL_LOG/sub-${participant}_FWT.done ]; then
@@ -1564,7 +1594,7 @@ function KUL_run_FWT {
             -n $ncpu"
             KUL_task_exec $verbose_level "KUL_FWT voi generation" "12_FWTvoi" || { kul_echo "FWT VOI generation failed — NOT writing FWT.done"; return 1; }
 
-            KUL_activate_conda_env scilpy
+            KUL_activate_conda_env ${scilpy}
             task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
             -F ${_fs_apas} \
             -c $cwd/study_config/${config} \

@@ -5,6 +5,7 @@
 #
 # @ Stefan Sunaert - UZ/KUL - stefan.sunaert@uzleuven.be
 # @ Melina Hehl 
+# @ Ahmed Radwan
 #
 # v0.1 - dd 09/11/2018 - alpha version
 version="v0.5 - dd 12/03/2025"
@@ -287,7 +288,7 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
 
         if [ ! -f dwi_reg/rigid_outWarped.nii.gz ]; then
 
-            kul_echo " registering the the dmri b0 to the betted T1w image (rigid)..."
+            kul_echo " registering the dmri b0 to the betted T1w image (rigid)..."
             antsRegistration --verbose 1 --dimensionality 3 \
                 --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
                 --interpolation Linear \
@@ -366,8 +367,8 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
                     task_in2="dwi2mask hdbet \
                         dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
                 elif [ $dwi2mask_method -eq 2 ];then
-                    task_in2="dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
-                        ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+                    task_in2="dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlases/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+                        ${kul_main_dir}/atlases/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
                         dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
                 elif [ $dwi2mask_method -eq 3 ];then
                     task_in2="dwi2mask legacy \
@@ -437,7 +438,7 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
 
         if [ ! -f dwi_reg/nonlinear_outWarped.nii.gz ]; then
 
-            kul_echo " registering the the dmri ADC to the betted T1w image (non-linear)..."
+            kul_echo " registering the dmri ADC to the betted T1w image (non-linear)..."
             antsRegistration --dimensionality 3 \
                 --output [${ants_type}_out,${ants_type}_outWarped.nii.gz,${ants_type}_outInverseWarped.nii.gz] \
                 -x [${T1_brain_mask},${ADC_nii_brain_mask},NULL] \

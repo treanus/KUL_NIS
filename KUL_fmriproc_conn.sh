@@ -196,14 +196,14 @@ function KUL_compute_melodic {
         # edited by AR 04/11/2022
         # now we compare to known networks
         mkdir -p $fmriresults/kul
-        task_in="fslcc --noabs -p 3 -t .204 $kul_main_dir/atlasses/Local/Sunaert2021/KUL_NIT_networks.nii.gz \
+        task_in="fslcc --noabs -p 3 -t .204 $kul_main_dir/atlases/Local/Sunaert2021/KUL_NIT_networks.nii.gz \
             $fmriresults/melodic_IC.nii.gz > $fmriresults/kul/kul_networks.txt"
         KUL_task_exec $verbose_level "Running fslcc for $melodic_in_2" "2_fslcc"
 
 
         while IFS=$' ' read network ic stat; do
             #echo $network
-            network_name=$(sed "${network}q;d" $kul_main_dir/atlasses/Local/Sunaert2021/KUL_NIT_networks.txt)
+            network_name=$(sed "${network}q;d" $kul_main_dir/atlases/Local/Sunaert2021/KUL_NIT_networks.txt)
             #echo $network_name
             icfile="$fmriresults/stats/thresh_zstat${ic}.nii.gz"
             network_file="$fmriresults/kul/melodic_${network_name}_ic${ic}.nii.gz"

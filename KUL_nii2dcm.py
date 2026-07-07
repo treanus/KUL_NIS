@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Convert nifti to dicom given a donor dicom image
 # Stefan Sunaert - 27/02/2023
@@ -15,6 +15,87 @@ import glob
 import hashlib
 import numpy as np
 from PIL import Image
+
+# Pillow >=9.1 moved resampling filters under Image.Resampling and (>=10) drops
+# some top-level aliases; resolve once so this works across distro Pillow versions.
+try:
+    LANCZOS = Image.Resampling.LANCZOS
+except AttributeError:
+    LANCZOS = Image.LANCZOS
+
+
+# DICOM Specific Character Set (0008,0005) defined term -> Python codec.
+# Covers the single-byte ISO 8859 families plus UTF-8, which is everything a
+# clinical donor realistically uses. Multibyte code-extension sets that need a
+# stateful ISO 2022 decoder (Japanese ISO 2022 IR 87/159, Korean IR 149, and
+# GB18030 escape sequences) are deliberately NOT claimed here — Arabic does not
+# need them (ISO 8859-6 is single-byte; modern Arabic is UTF-8).
+_DICOM_CHARSET = {
+    "": "ascii", "ISO_IR 6": "ascii",
+    "ISO_IR 100": "latin-1",    # Latin-1  Western European (DICOM default extension)
+    "ISO_IR 101": "iso8859-2",  # Latin-2  Central European
+    "ISO_IR 109": "iso8859-3",  # Latin-3
+    "ISO_IR 110": "iso8859-4",  # Latin-4
+    "ISO_IR 144": "iso8859-5",  # Cyrillic
+    "ISO_IR 127": "iso8859-6",  # Arabic
+    "ISO_IR 126": "iso8859-7",  # Greek
+    "ISO_IR 138": "iso8859-8",  # Hebrew
+    "ISO_IR 148": "iso8859-9",  # Latin-5  Turkish
+    "ISO_IR 192": "utf-8",      # Unicode UTF-8
+    "GB18030": "gb18030", "GBK": "gbk",
+}
+
+
+def _resolve_codec(reader):
+    """Pick a decode codec from Specific Character Set (0008,0005).
+
+    Falls back to Latin-1 (the DICOM default) when the tag is absent or maps to a
+    multibyte set we don't handle, so decoding always has a sane single-byte codec
+    rather than raising.
+    """
+    for key in ("0008|0005", "0008|0005 "):
+        if reader.HasMetaDataKey(key):
+            term = reader.GetMetaData(key)
+            if isinstance(term, bytes):
+                term = term.decode("ascii", "ignore")
+            # Multi-valued (code extensions): take the first component. Normalise
+            # the "ISO 2022 IR nnn" spelling to the "ISO_IR nnn" table key; for the
+            # single-byte sets the underlying tables are identical.
+            term = str(term).split("\\")[0].strip().replace("ISO 2022 IR", "ISO_IR").strip()
+            codec = _DICOM_CHARSET.get(term)
+            if codec:
+                return codec
+    return "latin-1"
+
+
+def _dcm_str(v, codec="latin-1"):
+    """Coerce a donor tag value to a str SimpleITK.SetMetaData will accept.
+
+    A non-UTF-8 tag value (accented Latin name, Cyrillic/Greek/Arabic, ...) surfaces
+    differently across SimpleITK builds: older ones return raw ``bytes``; newer ones
+    (2.5.x) return a surrogate-escaped ``str`` (e.g. 'H\\udcf4pital'). SetMetaData
+    rejects BOTH with 'argument 3 of type std::string const &', so a version bump
+    does not fix it — the trigger is the tag content, not the version.
+
+    Three cases:
+      * bytes                      -> decode with the donor `codec`.
+      * str with surrogate escapes -> SimpleITK could not decode it; recover the
+                                      original bytes and decode with `codec`.
+      * clean str (no surrogates)  -> SimpleITK already decoded valid UTF-8
+                                      correctly (e.g. an ISO_IR 192 Arabic name);
+                                      trust it as-is. This passthrough is what keeps
+                                      UTF-8 content from being re-decoded — and
+                                      corrupted — by a single-byte codec.
+    Errors fall back to replacement so it can never raise. NUL pad is stripped.
+    """
+    if v is None:
+        return ""
+    if isinstance(v, bytes):
+        return v.decode(codec, "replace").rstrip("\x00")
+    s = str(v)
+    if any(0xD800 <= ord(c) <= 0xDFFF for c in s):
+        return s.encode("utf-8", "surrogateescape").decode(codec, "replace").rstrip("\x00")
+    return s.rstrip("\x00")
 
 
 # Get and check commandline
@@ -133,16 +214,17 @@ def writeSlices(series_tag_values, new_img, out_dir, i, underlay_geom=None, plan
 donor_dcm = args.donor
 if not os.path.exists(donor_dcm):
     print(donor_dcm + ' does not exist')
-    exit(1)
+    sys.exit(1)
 nifti_input = args.nifti
 if not os.path.exists(nifti_input):
     print(nifti_input + ' does not exist')
-    exit(1)
+    sys.exit(1)
 img_input, img_ext = os.path.splitext(nifti_input)
+img_ext = img_ext.lower()
 if os.path.isdir(nifti_input):
     input_type = 'png_dir'
     print('Assuming input is a directory of PNG slices')
-elif img_ext == '.tiff':
+elif img_ext in ('.tiff', '.tif'):
     input_type = 'tiff'
     print('Assuming input is a 3d-tiff')
 else:
@@ -159,6 +241,9 @@ reader = sitk.ImageFileReader()
 reader.SetFileName(donor_dcm)
 reader.LoadPrivateTagsOn()
 reader.ReadImageInformation()
+
+# Codec for decoding donor text tags, from Specific Character Set (0008,0005).
+_charset = _resolve_codec(reader)
 
 if args.verbose:
     for k in reader.GetMetaDataKeys():
@@ -331,13 +416,13 @@ if args.match_donor and input_type == 'png_dir':
     modification_time = time.strftime("%H%M%S")
     modification_date = time.strftime("%Y%m%d")
     series_tag_values_a = [
-        (k, reader.GetMetaData(k))
+        (k, _dcm_str(reader.GetMetaData(k), _charset))
         for k in tags_to_copy
         if reader.HasMetaDataKey(k)
     ]
     _series_hash = str(int(hashlib.md5(seriesdesc.encode()).hexdigest()[:8], 16))
-    _study_uid = reader.GetMetaData("0020|000d") if reader.HasMetaDataKey("0020|000d") else \
-                 reader.GetMetaData("0020|000D") if reader.HasMetaDataKey("0020|000D") else \
+    _study_uid = _dcm_str(reader.GetMetaData("0020|000d"), _charset) if reader.HasMetaDataKey("0020|000d") else \
+                 _dcm_str(reader.GetMetaData("0020|000D"), _charset) if reader.HasMetaDataKey("0020|000D") else \
                  "1.2.826.0.1.3680043.2.1125." + modification_date + modification_time
     series_tag_values_b = [
         ("0008|0031", modification_time),
@@ -363,7 +448,7 @@ if args.match_donor and input_type == 'png_dir':
         img_arr = np.array(Image.open(png_path).convert('RGB'))
         img_arr = img_arr[crop_top:crop_bot, crop_left:crop_right, :]
         img_resized = np.array(
-            Image.fromarray(img_arr).resize((donor_cols, donor_rows), Image.LANCZOS))
+            Image.fromarray(img_arr).resize((donor_cols, donor_rows), LANCZOS))
         # IPP = physical position of top-left pixel for this SAG slice:
         # (i=png_idx, j=N_j-1 [anterior], k=N_k-1 [superior]).
         # Uses NIfTI geometry (same space as donor) so each slice steps
@@ -443,11 +528,11 @@ if input_type == 'png_dir' and underlay_geom is not None and args.plane in ('TRA
     modification_time = time.strftime("%H%M%S")
     modification_date = time.strftime("%Y%m%d")
     series_tag_values_a = [
-        (k, reader.GetMetaData(k)) for k in tags_to_copy if reader.HasMetaDataKey(k)
+        (k, _dcm_str(reader.GetMetaData(k), _charset)) for k in tags_to_copy if reader.HasMetaDataKey(k)
     ]
     _series_hash2 = str(int(hashlib.md5(seriesdesc.encode()).hexdigest()[:8], 16))
-    _study_uid2 = reader.GetMetaData("0020|000d") if reader.HasMetaDataKey("0020|000d") else \
-                  reader.GetMetaData("0020|000D") if reader.HasMetaDataKey("0020|000D") else \
+    _study_uid2 = _dcm_str(reader.GetMetaData("0020|000d"), _charset) if reader.HasMetaDataKey("0020|000d") else \
+                  _dcm_str(reader.GetMetaData("0020|000D"), _charset) if reader.HasMetaDataKey("0020|000D") else \
                   "1.2.826.0.1.3680043.2.1125." + modification_date + modification_time
     series_tag_values_b = [
         ("0008|0031", modification_time),
@@ -477,7 +562,7 @@ if input_type == 'png_dir' and underlay_geom is not None and args.plane in ('TRA
         img_arr    = np.array(Image.open(png_path).convert('RGB'))
         img_arr    = img_arr[crop_top:crop_bot, crop_left:crop_right, :]
         img_resized = np.array(
-            Image.fromarray(img_arr).resize((out_w, out_h), Image.LANCZOS))
+            Image.fromarray(img_arr).resize((out_w, out_h), LANCZOS))
 
         slice_img = sitk.GetImageFromArray(img_resized, isVector=True)
         slice_img.SetSpacing([out_sp_x, out_sp_y])
@@ -510,7 +595,7 @@ if input_type == 'png_dir':
     pngs = sorted(glob.glob(os.path.join(nifti_input, '*.png')))
     if not pngs:
         print(f'No PNG files found in {nifti_input}')
-        exit(1)
+        sys.exit(1)
     print(f'Reading {len(pngs)} PNG slices from {nifti_input}')
     frames = [np.array(Image.open(p).convert('RGB')) for p in pngs]
     volume = np.stack(frames, axis=0)           # (Z, H, W, 3)
@@ -522,9 +607,12 @@ elif input_type == 'tiff':
 else:
     print('Converting the nifti to 16bit')
     nii_img = sitk.ReadImage(nifti_input)
-    np.img_data = sitk.GetArrayFromImage(nii_img)
-    max_val = np.amax(np.img_data)
-    img_int16 = (np.img_data * (np.iinfo(np.int16).max / max_val)).astype(np.int16)
+    img_data = sitk.GetArrayFromImage(nii_img)
+    max_val = np.amax(img_data)
+    if max_val == 0:
+        print('Error: input image is all zeros; cannot rescale to int16')
+        sys.exit(1)
+    img_int16 = (img_data * (np.iinfo(np.int16).max / max_val)).astype(np.int16)
     new_img = sitk.GetImageFromArray(img_int16)
     new_img.CopyInformation(nii_img)
     new_img = sitk.DICOMOrient(new_img, "LPS")
@@ -551,7 +639,7 @@ else:
     orientation_str = "\\".join(map(str, (d[0], d[3], d[6], d[1], d[4], d[7])))
 
 series_tag_values_a = [
-    (k, reader.GetMetaData(k))
+    (k, _dcm_str(reader.GetMetaData(k), _charset))
     for k in tags_to_copy
     if reader.HasMetaDataKey(k)
 ]

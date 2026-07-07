@@ -444,21 +444,21 @@ log=log/log_${d}.txt;
 # need to use multiple templates here...
 # will need to include a folder with priors
 
-MNI_T1=${function_path}/atlasses/Templates/MNI_T1.nii.gz
+MNI_T1=${function_path}/atlases/Templates/MNI_T1.nii.gz
 
-MNI_T1_brain=${function_path}/atlasses/Templates/MNI_T1_brain.nii.gz
+MNI_T1_brain=${function_path}/atlases/Templates/MNI_T1_brain.nii.gz
 
-# MNI_T2=${function_path}/atlasses/Templates/MNI_T2.nii.gz
+# MNI_T2=${function_path}/atlases/Templates/MNI_T2.nii.gz
 
-MNI_T2_brain=${function_path}/atlasses/Templates/MNI_T2_brain.nii.gz
+MNI_T2_brain=${function_path}/atlases/Templates/MNI_T2_brain.nii.gz
 
-# MNI_FLAIR=${function_path}/atlasses/Templates/MNI_FLAIR.nii.gz
+# MNI_FLAIR=${function_path}/atlases/Templates/MNI_FLAIR.nii.gz
 
-MNI_FLAIR_brain=${function_path}/atlasses/Templates/MNI_FLAIR_brain.nii.gz
+MNI_FLAIR_brain=${function_path}/atlases/Templates/MNI_FLAIR_brain.nii.gz
 
-MNI_brain_mask=${function_path}/atlasses/Templates/MNI_brain_mask.nii.gz
+MNI_brain_mask=${function_path}/atlases/Templates/MNI_brain_mask.nii.gz
 
-MNI_rl=${function_path}/atlasses/Templates/MNI_RL1c_labels.nii.gz
+MNI_rl=${function_path}/atlases/Templates/MNI_RL1c_labels.nii.gz
 
 # Either a session is given on the command line
 # If not the session(s) need to be determined.

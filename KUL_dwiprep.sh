@@ -287,8 +287,8 @@ function kul_dwi2mask {
 			task_in2="dwi2mask hdbet \
 				dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
 		elif [ $dwi2mask_method -eq 2 ];then
-			task_in2="dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
-				${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+			task_in2="dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlases/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+				${kul_main_dir}/atlases/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
 				dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
 		elif [ $dwi2mask_method -eq 3 ];then
 			task_in2="dwi2mask legacy \

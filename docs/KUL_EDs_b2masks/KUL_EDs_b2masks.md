@@ -56,4 +56,10 @@ In one-to-many mode, mask A's distance-transform (EDT) is computed once per work
 
 ## Dependencies
 
-Python 3, `numpy`, `scipy` (distance transforms / morphology), `nibabel` (NIfTI I/O). `--bg-image` snapshots additionally need `mrview` (MRtrix3) with `xvfb-run`, or VTK for `--volume-render`.
+Python 3, `numpy`, `scipy` (distance transforms / morphology), `nibabel` (NIfTI I/O), `matplotlib` (Agg backend). `matplotlib` is not optional: it renders the **default** 3-panel QC snapshot whenever `--bg-image` is not given (the common case), and is also the fallback if `--bg-image` is given but the `mrview`/VTK render fails.
+
+`--bg-image` snapshots additionally need:
+- **Without `--volume-render`**: `mrview` (MRtrix3) run headless via `xvfb-run`, plus `Pillow` (PIL) to crop the 2×2 `mrview` capture down to its single orthographic quadrant.
+- **With `--volume-render`**: `vtk` (off-screen software ray casting; no display/`xvfb-run` needed) plus `Pillow` (PIL) to encode the render to PNG.
+
+Both `vtk` and `Pillow` are imported lazily only when `--bg-image`/`--volume-render` are actually used, and their absence degrades gracefully (empty snapshot, printed warning) rather than raising — but for the intended `--bg-image` workflows they are required in practice.

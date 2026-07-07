@@ -61,13 +61,13 @@ KUL_NIS is a set of bash/python wrappers around established neuroimaging softwar
 
 | Software | Version (tested) | Used for |
 |---|---|---|
-| [MRtrix3](https://www.mrtrix.org/) | latest | dwiprep, mrconvert/mrview, tractography, fixel-based analysis, figures |
+| [MRtrix3](https://www.mrtrix.org/) | **3.0.4-543-g86eb1ea8** (`dev` branch, 2023 build) | dwiprep, mrconvert/mrview, tractography, fixel-based analysis, figures |
 | [FSL](https://fsl.fmrib.ox.ac.uk/) | 6.x | topup/eddy distortion correction, melodic resting-state, fslmaths |
 | [ANTs](https://github.com/ANTsX/ANTs) | latest | registration (rigid/SyN), N4 bias correction |
 | [dcm2bids](https://github.com/UNFmontreal/Dcm2Bids) | **≥ 3.0** | dicom → BIDS (v2 supported only via `KUL_dcm2bids_v2bkup.sh`) |
 | [dcm2niix](https://github.com/rordenlab/dcm2niix) | latest | dicom → NIfTI backend for dcm2bids |
 | python3 | ≥ 3.8 | helper scripts (`KUL_nii2dcm.py`, `KUL_EDs_b2masks.py`, etc.) |
-| `xvfb` / `xvfb-run` | — | headless `mrview` screenshots in the clinical pipeline |
+| `xvfb` / `xvfb-run` | **required** | headless `mrview` screenshots in `KUL_clinical_fmridti.sh` — every `mrview` call is wrapped in `xvfb-run`; without it, figure/PACS screenshot generation fails (the script checks and warns at runtime if `xvfb-run` is not on `PATH`) |
 | [p7zip](https://www.7-zip.org/) (`7z`) | — | encrypted backup archives (`-B` option) |
 | [dcmtk](https://dicom.offis.de/dcmtk) (`dcmsend`) | — | push DICOMs to PACS / Orthanc (`tools/send_2_orthanc.sh`) |
 
@@ -75,11 +75,15 @@ KUL_NIS is a set of bash/python wrappers around established neuroimaging softwar
 
 | Package | Used for |
 |---|---|
-| [SimpleITK](https://simpleitk.org/) | reading DICOM geometry in `KUL_nii2dcm.py` |
-| [Pillow](https://python-pillow.org/) (PIL) | PNG loading and resizing in `KUL_nii2dcm.py` |
+| [SimpleITK](https://simpleitk.org/) | reading donor DICOM metadata/geometry and NIfTI/TIFF input, and writing the output DICOM series in `KUL_nii2dcm.py` (no separate DICOM library needed) |
+| [Pillow](https://python-pillow.org/) (PIL) | PNG loading, cropping and resizing in `KUL_nii2dcm.py`; version-agnostic (works with both pre- and post-9.1 Pillow resampling APIs). Also required by `KUL_EDs_b2masks.py --bg-image` snapshots (mrview quadrant crop and VTK render encoding) |
 | [numpy](https://numpy.org/) | array math throughout |
 | [nibabel](https://nipy.org/nibabel/) | NIfTI I/O in Python scripts |
-| [scipy](https://scipy.org/) | image operations in `KUL_EDs_b2masks.py` |
+| [scipy](https://scipy.org/) | distance transforms / morphology in `KUL_EDs_b2masks.py` |
+| [matplotlib](https://matplotlib.org/) | **required** by `KUL_EDs_b2masks.py` — renders the default QC snapshot (Agg backend) whenever `--bg-image` is not given, and is the fallback if the `mrview`/VTK render fails |
+| [vtk](https://vtk.org/) | optional; `KUL_EDs_b2masks.py --bg-image --volume-render` only (off-screen glass-brain snapshot, no display/`xvfb-run` needed) |
+
+> See [KUL_nii2dcm](/docs/KUL_nii2dcm/KUL_nii2dcm.md) for the full option/dependency list, including `python3` (the script requires `python3` explicitly, not `python`).
 
 ### Pipeline / analysis dependencies (tool-specific)
 
@@ -95,7 +99,7 @@ KUL_NIS is a set of bash/python wrappers around established neuroimaging softwar
 | [hd-glio-auto](https://github.com/NeuroAI-HD/HD-GLIO-AUTO) | latest | AI glioma segmentation (clinical types 1–3) |
 | [resseg](https://github.com/fepegar/resseg) | latest | resection-cavity segmentation |
 | [LoRE](https://github.com/TissueVisionMics/lore) (`lore_dwi2decomposition`, `lore_decomposition2contrast`) | latest | low-rank DWI decomposition / microstructure contrasts (`-D run_dwiprep_lore_sd.txt`) |
-| [scilpy](https://github.com/scilus/scilpy) | **2.3.0** | tractography post-processing (`KUL_tracts_ocd`, `KUL_FWT`); install as conda env named `scilpy` |
+| [scilpy](https://github.com/scilus/scilpy) | **2.3.0** | tractography post-processing (`KUL_tracts_ocd`, `KUL_FWT`); install as a conda env and pass its name to `KUL_clinical_fmridti.sh -f <env_name>` (no hardcoded default) |
 | [qsiprep](https://qsiprep.readthedocs.io/) | latest | alternative dMRI preprocessing (`KUL_qsiprep`) |
 
 ### Sibling KUL repositories
@@ -103,7 +107,7 @@ KUL_NIS is a set of bash/python wrappers around established neuroimaging softwar
 These are separate repos that the clinical pipeline calls and must be installed alongside KUL_NIS:
 
 - [**KUL_VBG**](https://github.com/KUL-Radneuron/KUL_VBG) — Virtual Brain Grafting: enables FreeSurfer/FastSurfer in patients with large lesions. Brain extraction uses `mri_synthstrip` (FreeSurfer built-in; `-B 1` in the clinical pipeline).
-- [**KUL_FWT**](https://github.com/KUL-Radneuron/KUL_FWT) — automated CSD probabilistic tractography pipeline.
+- [**KUL_FWT**](https://github.com/KUL-Radneuron/KUL_FWT) — automated CSD probabilistic tractography pipeline. `KUL_clinical_fmridti.sh` no longer auto-prepends a `../KUL_FWT` sibling folder to `PATH`; make sure `KUL_FWT_make_VOIs.sh` / `KUL_FWT_make_TCKs.sh` are already resolvable on `PATH` before running the clinical pipeline. Tractography post-processing also requires a scilpy conda environment — pass its name with `KUL_clinical_fmridti.sh -f <env_name>`.
 - [**KUL_DTI_ALPS**](KUL_DTI_ALPS/) — DTI-ALPS index calculation using MNI-space ROIs (bundled as a subdirectory of KUL_NIS_unified).
 - [Karawun](https://github.com/DevelopmentalImagingMCRI/karawun) — convert tractography/segmentation results to Brainlab Neurosurgery format.
 
@@ -186,8 +190,8 @@ Swiss-knife distance tool for binary NIfTI masks: minimum Euclidean, Hausdorff, 
 
 Pipeline results (tracts, activation maps) can be converted back to DICOM so they can be reviewed in a clinical PACS or imported into Brainlab for neuronavigation. In the clinical pipeline this is triggered with `KUL_clinical_fmridti.sh -R <underlay>`, **after** reviewing the figures.
 
-### KUL_nii2dcm
-Wraps rendered PNG screenshots into a DICOM series, using a donor DICOM from the same study/session so the result links correctly in PACS and supports multi-planar reconstruction (`KUL_nii2dcm.py`).
+### [KUL_nii2dcm](/docs/KUL_nii2dcm/KUL_nii2dcm.md)
+Wraps rendered PNG screenshots into a DICOM series, using a donor DICOM from the same study/session so the result links correctly in PACS and supports multi-planar reconstruction (`KUL_nii2dcm.py`). Click the link in the header for options and dependencies.
 
 ### Karawun
 Converts tractography/segmentation results into the Brainlab Neurosurgery format (`KUL_karawun_prepare.sh`, `KUL_karawun2brainlab.sh`). See [Karawun](https://github.com/DevelopmentalImagingMCRI/karawun).

@@ -82,8 +82,18 @@ Optional:
          if omitted and interactive, you are prompted for one threshold per map)
   -a   opacity of SPM/Melodic (fMRI) activation overlays (0=transparent, 1=opaque; default 0.7)
          lower values let underlying anatomy show through on figures AND PACS DICOMs
+  -D   dwiprep config file to use from study_config/ (default: run_dwiprep.txt)
+         use e.g. -D run_dwiprep_lore_sd.txt to run lore-sd based FOD estimation
+  -S   fMRI SUSAN smoothing FWHM in mm (default: adaptive = mean voxel size)
+  -P   FWE-corrected p-value for Bizzi fMRI thresholding (default: 0.01)
   -n   number of threads (default 48)
   -v   verbosity (0=silent, 1=normal, 2=verbose; default 1)
+  -X   use FastSurfer instead of plain recon-all for the reconstruction step
+         in types 4, 5, 6 (faster, requires GPU; default is FreeSurfer 8.2.0 recon-all)
+  -f   name of the conda environment to activate for scilpy-based tractography
+         post-processing (KUL_FWT step). There is no default — if omitted, an
+         empty environment name is passed to conda activate, which will fail;
+         always pass -f (e.g. -f scilpy) unless your environment is already active.
 ```
 
 ### Figure / overlay appearance (`-a`, `-e`, `-T`)
@@ -107,4 +117,8 @@ To push the PACS DICOMs to an Orthanc/PACS node, see `tools/send_2_orthanc.sh`.
 
 ## Dependencies
 
-This pipeline ties together most of KUL_NIS, so it needs the full software stack — see the **Requirements** section of the main [README](/README.md). The key external tools it invokes are: dcm2bids/dcm2niix, ANTs, FSL, FreeSurfer (6.0.0) / FastSurfer, fmriprep, MRtrix3, SPM12 (MATLAB), synb0-disco, hd-glio-auto, resseg, MSBP, **KUL_VBG**, **KUL_FWT**, Karawun, and `xvfb` (for headless `mrview` screenshots). `KUL_nii2dcm.py` additionally needs python3 with SimpleITK, Pillow and numpy.
+This pipeline ties together most of KUL_NIS, so it needs the full software stack — see the **Requirements** section of the main [README](/README.md). The key external tools it invokes are: dcm2bids/dcm2niix, ANTs, FSL, FreeSurfer (8.2.0, or FastSurfer with `-X`), fmriprep, MRtrix3 (**3.0.4-543-g86eb1ea8**, `dev` branch, 2023 build), SPM12 (MATLAB), synb0-disco, hd-glio-auto, resseg, MSBP, **KUL_VBG**, **KUL_FWT** (via the scilpy conda env, see `-f`), Karawun, and `xvfb-run` (**required** for headless `mrview` screenshots — see below). `KUL_nii2dcm.py` additionally needs python3 with SimpleITK, Pillow and numpy.
+
+### Headless `mrview` screenshots (`xvfb-run`)
+
+Every figure/PACS screenshot in this pipeline is captured by running `mrview` off-screen via `xvfb-run`. `xvfb-run` must be installed and on the `PATH` (`sudo apt install -y xvfb libgl1-mesa-dri`); the script checks for it at the point screenshots are generated and prints a warning if it is missing, but will otherwise fail when it tries to render figures. On systems where MATLAB/MCR (used by SPM12) is also installed, the `mrview` calls are additionally run through a filtered environment that strips the MCR's bundled Qt5 from `LD_LIBRARY_PATH` and forces software rendering (`LIBGL_ALWAYS_SOFTWARE=1`), otherwise `mrview` can abort with `Could not find the Qt platform plugin xcb/offscreen`. Override the `mrview` binary with `MRVIEW_BIN=/path/to/mrview` if `PATH` resolution is ambiguous.
