@@ -916,13 +916,16 @@ if [ $results -gt 0 ];then
         _render_one_spm "$_spm" "$_spmname"
     done
 
-    # ── Combined multi-label fMRI overlay for Karawun ──────────────────────
+    # ── Per-task scaled fMRI labels for Karawun/Brainlab ────────────────────
     # RESULTS/sub-.../SPM now holds exactly one (hardwired wc_p001unc_k50)
-    # map per task. Binarize each at its resolved threshold, multiply by a
-    # stable per-task integer label (1..N, tasks sorted alphabetically), and
-    # voxel-wise-max-combine into one multi-valued label volume for Karawun's
-    # neuronav label import. Only runs once Karawun prep has produced its own
-    # T1w.nii.gz (the grid every Karawun label is regridded onto).
+    # map per task. Binarize each at its resolved threshold and multiply by a
+    # stable per-task integer (1..N, tasks sorted alphabetically) so each task
+    # gets a distinct value — written as SEPARATE files, matching the existing
+    # Karawun/Brainlab convention (see KUL_karawun2brainlab.sh: each tract/task
+    # is its own scaled .nii, and `importTractography -l <dir>/*` already
+    # takes multiple separate label files directly — no combining needed).
+    # Only runs once Karawun prep has produced its own T1w.nii.gz (the grid
+    # every Karawun label is regridded onto).
     if [ -f "Karawun/sub-${participant}/T1w.nii.gz" ]; then
         _spm_task_names=()
         for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii; do
@@ -932,11 +935,11 @@ if [ $results -gt 0 ];then
         done
         if [ ${#_spm_task_names[@]} -gt 0 ]; then
             IFS=$'\n' _spm_task_names_sorted=($(sort <<<"${_spm_task_names[*]}")); unset IFS
-            _label_tmpfiles=()
+            mkdir -p "Karawun/sub-${participant}/labels"
             for _idx in "${!_spm_task_names_sorted[@]}"; do
                 _spmname="${_spm_task_names_sorted[$_idx]}"
                 _label_int=$((_idx + 1))
-                echo "Karawun multi-label: assigning label ${_label_int} to task '${_spmname}'"
+                echo "Karawun fMRI label: task '${_spmname}' scaled to value ${_label_int}"
                 _spmfile="$globalresultsdir/SPM/${_spmname}.nii"
                 [ -f "$_spmfile" ] || _spmfile="$globalresultsdir/SPM/${_spmname}.nii.gz"
                 [ -f "$_spmfile" ] || continue
@@ -950,22 +953,13 @@ if [ $results -gt 0 ];then
                     _label_thresh=$(awk "BEGIN {print $_label_max_T/3}")
                 fi
 
-                _label_tmp=$(mktemp /tmp/karawun_label_XXXXXX.nii.gz)
                 mrgrid "$_spmfile" regrid -template "Karawun/sub-${participant}/T1w.nii.gz" - -quiet | \
-                    mrcalc - $_label_thresh -ge $_label_int -mult "$_label_tmp" -force -quiet
-                _label_tmpfiles+=("$_label_tmp")
+                    mrcalc - $_label_thresh -ge $_label_int -mult \
+                    "Karawun/sub-${participant}/labels/afMRI_${_spmname}.nii.gz" -force -quiet
             done
-
-            if [ ${#_label_tmpfiles[@]} -gt 0 ]; then
-                mkdir -p "Karawun/sub-${participant}/labels"
-                mrmath "${_label_tmpfiles[@]}" max \
-                    "Karawun/sub-${participant}/labels/afMRI_multilabel.nii.gz" -force -quiet
-                echo "Karawun multi-label overlay written: Karawun/sub-${participant}/labels/afMRI_multilabel.nii.gz"
-            fi
-            rm -f "${_label_tmpfiles[@]}" 2>/dev/null
         fi
     else
-        echo "Karawun/sub-${participant}/T1w.nii.gz not found — skipping Karawun multi-label overlay (run Karawun prep first)"
+        echo "Karawun/sub-${participant}/T1w.nii.gz not found — skipping Karawun fMRI labels (run Karawun prep first)"
     fi
 
     for _spm in "$globalresultsdir/Melodic/"*.nii.gz "$globalresultsdir/Melodic/"*.nii; do

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (working tree, 2026-07-09, batch 3 — wire -U through)
+## Unreleased (working tree, 2026-07-09, batch 3 — wire -U through; fix Karawun labels)
 
 ### KUL_clinical_fmridti.sh
 - Added `-U` (EXPERIMENTAL opt-in), passed straight through to
@@ -8,6 +8,18 @@
   lore_sd FOD (see batch 2) was only reachable by calling
   `KUL_FWT_make_TCKs.sh` directly — `KUL_run_FWT`'s call to it used a fixed
   flag list with no pass-through. Without `-U`, behavior is unchanged.
+- **Corrected the Karawun fMRI label output from batch 2.** The earlier
+  implementation combined all tasks' thresholded/scaled maps into one
+  `afMRI_multilabel.nii.gz` via voxel-wise max. That doesn't match how this
+  is actually consumed: the existing `KUL_karawun2brainlab.sh` establishes
+  the real convention — each tract/task is its own separately-scaled
+  `.nii` file (`mrcalc <mask> <thresh> -gt <color> -mult`), and
+  `importTractography -l <dir>/*` already accepts multiple separate label
+  files directly. Combining was solving a non-existent problem. Now writes
+  one `Karawun/sub-*/labels/afMRI_<taskname>.nii.gz` per task, each scaled
+  to its own distinct integer value (still 1..N, tasks sorted
+  alphabetically) — no merging, no `mrmath`, no tie-break-on-overlap
+  behavior to worry about.
 
 ## Unreleased (working tree, 2026-07-09, batch 2 — wishlist items 1/3/5)
 
