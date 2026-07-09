@@ -1,5 +1,56 @@
 # Changelog
 
+## Unreleased (working tree, 2026-07-09, batch 2 — wishlist items 1/3/5)
+
+### KUL_fmriproc_spm_new.sh / KUL_fmriproc_nilearn_new.sh
+- Hardwired the downstream-selected fMRI output: only the `wc` (with
+  confounds) + `p001unc_k50` Bizzi-thresholded map per task now lands in
+  `RESULTS/sub-*/SPM` (`globalresultsdir`). Every other combination — nc
+  variant, FWE-thresholded variant, and the raw unthresholded map — now
+  goes to the new `RESULTS/sub-*/SPM_all` (`globalresultsdir_all`) instead.
+
+### KUL_clinical_fmridti.sh
+- `SPM_all` added alongside `SPM` in the redo-cleanup and initial mkdir
+  blocks.
+- The report-figure loop (Bizzi-thresholded map -> REPORT) now only picks
+  up the `*_wc` stats folder, matching the hardwired selection.
+- New: a combined multi-label fMRI overlay for Karawun. In the interactive
+  figure/threshold flow, each task's canonical SPM map is regridded onto
+  `Karawun/sub-*/T1w.nii.gz` (continuous data regridded *before*
+  thresholding, matching the existing VOI/tract-label idiom in
+  `KUL_karawun_prepare.sh` — avoids corrupting a binary mask with
+  interpolation), binarized at its resolved threshold, multiplied by a
+  stable per-task integer label (tasks sorted alphabetically, 1..N), and
+  voxel-wise max-combined into `Karawun/sub-*/labels/afMRI_multilabel.nii.gz`.
+  Known tie-break: where two tasks' activations overlap spatially, the
+  higher-numbered task's label wins (max-combine). Skipped with a message
+  if Karawun prep hasn't produced `T1w.nii.gz` yet.
+
+### KUL_preproc_all.sh / study_config templates
+- `use_native_dwi` now defaults to `1` (native resolution) both in
+  `KUL_preproc_all.sh`'s fallback and in every checked-in
+  `study_config/**/run_dwiprep*.txt` template (previously defaulted to `0`,
+  i.e. upsampled), matching `KUL_dwiprep.sh`'s own `-u` default.
+- Verified (no code change needed): the lore_sd chain already threads
+  through end-to-end regardless of native vs. upsampled — `KUL_dwiprep.sh`
+  → `KUL_dwiprep_anat.sh` (FOD/contrast registration to T1w) →
+  `KUL_FWT_make_TCKs.sh` (auto-prefers lore_sd ODF over dhollander CSD FOD
+  when present).
+
+### KUL_dwiprep.sh / KUL_dwiprep_anat.sh — experimental `rfa_modulated_fod`
+- `KUL_dwiprep.sh`: after lore_sd's `rfa.mif` contrast is computed, also
+  computes `response/lore_sd/rfa_modulated_fod.mif = odf.mif .* rfa.mif`
+  (voxel-wise FOD-amplitude modulation by the rfa contrast) — a first
+  experiment aimed at improving tractography specificity through
+  pathology by suppressing FOD amplitude in low-rfa tissue. Computed
+  unconditionally whenever lore_sd runs (cheap), on the native odf.mif/
+  rfa.mif pair (same grid `KUL_dwiprep_anat.sh` already registers odf.mif
+  from).
+- `KUL_dwiprep_anat.sh`: registers `rfa_modulated_fod.mif` ->
+  `rfa_modulated_fod_reg2T1w.mif` the same way as plain `odf.mif`.
+- **Opt-in only** — see `KUL_FWT` changelog for the consumer side. Without
+  explicitly opting in, tractography behavior is unchanged.
+
 ## Unreleased (working tree, 2026-07-09)
 
 ### KUL_clinical_fmridti.sh

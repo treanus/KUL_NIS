@@ -928,6 +928,21 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			kul_echo " lore_sd contrasts already done, skipping..."
 		fi
 
+		# Experimental: rfa-modulated FOD (odf .* rfa), a first attempt at using the
+		# rfa contrast to suppress FOD amplitude in low-rfa (e.g. edematous/infiltrated)
+		# tissue, aimed at improving tractography specificity through pathology.
+		# Computed unconditionally on the native odf.mif/rfa.mif pair (same grid that
+		# KUL_dwiprep_anat.sh registers odf.mif from) so it can be registered to T1w
+		# the same way. Not used by anything unless explicitly opted into downstream.
+		if [ ! -f response/lore_sd/rfa_modulated_fod.mif ]; then
+			kul_echo "Calculating rfa-modulated lore_sd FOD (experimental)..."
+			task_in="mrcalc response/lore_sd/odf.mif response/lore_sd_contrasts/rfa.mif -mult \
+			response/lore_sd/rfa_modulated_fod.mif -force -nthreads $ncpu"
+			KUL_task_exec $verbose_level "kul_dwiprep part 7: lore_sd rfa-modulated FOD" "7_lore_sd_rfa_modulated_fod"
+		else
+			kul_echo " lore_sd rfa-modulated FOD already done, skipping..."
+		fi
+
 		if [ $use_upsampled -eq 0 ]; then
 			if [ ! -f response/lore_sd_contrasts/rfa_resampled.mif ]; then
 				kul_echo "Resampling lore_sd contrasts to 1.3mm isotropic..."

@@ -345,6 +345,11 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
                             response/lore_sd_contrasts/${contrast}_reg2T1w.mif -nthreads $ncpu -force
                     fi
                 done
+                # Experimental rfa-modulated FOD (odf .* rfa) — same registration as odf.mif
+                if [ -f response/lore_sd/rfa_modulated_fod.mif ]; then
+                    mrtransform response/lore_sd/rfa_modulated_fod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
+                        response/lore_sd/rfa_modulated_fod_reg2T1w.mif -reorient_fod yes -nthreads $ncpu -force
+                fi
             fi
 
             # create mask of the dwi data (that is registered to the T1w)
