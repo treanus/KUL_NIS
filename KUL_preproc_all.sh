@@ -538,7 +538,7 @@ function task_KUL_dwiprep {
         extra_options_loresd=""
         if [[ "$dwipreproc_options" == *"lore_sd"* ]]; then
             if [ -z "$loresd_env" ]; then
-                kul_echo "ERROR: dwiprep_options requests lore_sd but no loresd_env is set in $conf" >&2
+                echo "ERROR: dwiprep_options requests lore_sd but no loresd_env is set in $conf" >&2
                 exit 1
             fi
             extra_options_loresd=" -f $loresd_env "

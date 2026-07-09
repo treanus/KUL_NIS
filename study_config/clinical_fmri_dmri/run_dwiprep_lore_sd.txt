@@ -10,7 +10,7 @@
 #	if a processing step failed or was interupted,
 # 	or you scanned an extra session you need to delete the results and redo processing
 
-BIDS_participants:
+BIDS_participants: 
 
 # dwiprep processing
 #  dwiprep_options: space-separated list of FOD methods (dhollander, tax, tournier, lore_sd)

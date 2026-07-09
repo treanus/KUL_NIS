@@ -4,7 +4,7 @@
 #  use with: KUL_clinical_fmridti.sh -D run_dwiprep_lore_sd.txt ...
 
 # Here you specify which subjects to process
-BIDS_participants:
+BIDS_participants: 
 
 # dwiprep processing
 #  dwiprep_options: space-separated list of FOD methods (dhollander, tax, tournier, lore_sd)
