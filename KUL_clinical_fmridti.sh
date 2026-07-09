@@ -80,6 +80,9 @@ Optional arguments:
           spm    : KUL_fmriproc_spm_new.sh    (MATLAB/SPM12, requires a MATLAB license)
           nilearn: KUL_fmriproc_nilearn_new.sh (python3 nilearn/nibabel/numpy/pandas, no MATLAB)
           both engines are auto-scheduled across $ncpu cores via their -c option
+     -U:  EXPERIMENTAL opt-in: pass -U through to KUL_FWT_make_TCKs.sh so it prefers the
+          rfa-modulated lore_sd FOD (rfa_modulated_fod_reg2T1w.mif, from KUL_dwiprep.sh),
+          if found, over the plain lore_sd ODF. Without -U, tractography is unchanged.
 
 USAGE
 
@@ -114,6 +117,7 @@ smooth_fwhm=5
 pfwe=0.01
 use_fastsurfer=0
 fmri_engine="spm"
+use_rfa_mod_fod=0
 declare -A spm_thresh_map=()
 
 # Set required options
@@ -127,7 +131,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:XBrse" OPT; do
+	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:XBrseU" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -192,6 +196,9 @@ else
         ;;
         E) # fMRI GLM engine: spm or nilearn
             fmri_engine=$OPTARG
+        ;;
+        U) # EXPERIMENTAL opt-in: prefer the rfa-modulated lore_sd FOD in KUL_FWT, if found
+            use_rfa_mod_fod=1
         ;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -1646,6 +1653,8 @@ function KUL_run_FWT {
             KUL_task_exec $verbose_level "KUL_FWT voi generation" "12_FWTvoi" || { kul_echo "FWT VOI generation failed — NOT writing FWT.done"; return 1; }
 
             KUL_activate_conda_env ${scilpy}
+            _fwt_rfa_opt=""
+            [ $use_rfa_mod_fod -eq 1 ] && _fwt_rfa_opt="-U"
             task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
             -F ${_fs_apas} \
             -c $cwd/study_config/${config} \
@@ -1653,7 +1662,7 @@ function KUL_run_FWT {
             -o $kulderivativesdir/sub-${participant}/FWT \
             -T 1 -a iFOD2 \
             -f 1 \
-            -Q -S \
+            -Q -S ${_fwt_rfa_opt} \
             -n $ncpu"
             KUL_task_exec $verbose_level "KUL_FWT tract generation" "12_FWTtck" || { kul_echo "FWT tract generation failed — NOT writing FWT.done"; return 1; }
 

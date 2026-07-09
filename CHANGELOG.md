@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased (working tree, 2026-07-09, batch 3 — wire -U through)
+
+### KUL_clinical_fmridti.sh
+- Added `-U` (EXPERIMENTAL opt-in), passed straight through to
+  `KUL_FWT_make_TCKs.sh -U` in `KUL_run_FWT`. Previously the rfa-modulated
+  lore_sd FOD (see batch 2) was only reachable by calling
+  `KUL_FWT_make_TCKs.sh` directly — `KUL_run_FWT`'s call to it used a fixed
+  flag list with no pass-through. Without `-U`, behavior is unchanged.
+
 ## Unreleased (working tree, 2026-07-09, batch 2 — wishlist items 1/3/5)
 
 ### KUL_fmriproc_spm_new.sh / KUL_fmriproc_nilearn_new.sh
