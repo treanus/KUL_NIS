@@ -315,7 +315,7 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
                 dwi_reg/rigid_out0GenericAffine_mrtrix.txt -force
 
             mrtransform dwi_preproced.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \
-                dwi_preproced_reg2T1w.mif -nthreads $ncpu -force 
+                dwi_preproced_reg2T1w.mif -nthreads $ncpu -force -reorient_fod no  -force
 
             if [ -f response/dhollander_wmfod.mif ]; then    
                 mrtransform response/dhollander_wmfod.mif -linear dwi_reg/rigid_out0GenericAffine_mrtrix.txt \

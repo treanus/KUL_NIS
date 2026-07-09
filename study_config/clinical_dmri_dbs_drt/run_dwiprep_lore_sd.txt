@@ -8,12 +8,14 @@ BIDS_participants:
 
 # dwiprep processing
 #  dwiprep_options: space-separated list of FOD methods (dhollander, tax, tournier, lore_sd)
-#  use_native_dwi: 0 = use upsampled data (dwi_preproced.mif, 1.3mm iso, default)
-#                  1 = use native resolution data (dwi/biascorr.mif); lore_sd outputs are
-#                      resampled to 1.3mm afterwards for downstream compatibility
+#  use_native_dwi: 1 = use native resolution data (dwi/biascorr.mif, default); lore_sd
+#                      outputs are resampled to 1.3mm afterwards for downstream compatibility
+#                  0 = use upsampled data (dwi_preproced.mif, 1.3mm iso)
 do_dwiprep: 1
 dwiprep_options: dhollander lore_sd
-use_native_dwi: 0
+#  loresd_env: name of the conda env with lore_sd installed (required when lore_sd is in dwiprep_options)
+loresd_env:
+use_native_dwi: 1
 synbzero_disco_instead_of_topup: 0
 rev_phase_for_topup_only: 1
 dwi2mask_method: 4

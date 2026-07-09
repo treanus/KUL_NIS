@@ -18,7 +18,7 @@ BIDS_participants:
 #  simultaneous: defines how many subjects to process simultaneously
 do_dwiprep: 1
 dwiprep_options: dhollander
-use_native_dwi: 0
+use_native_dwi: 1
 synbzero_disco_instead_of_topup: 1
 rev_phase_for_topup_only: 1
 dwi2mask_method: 4

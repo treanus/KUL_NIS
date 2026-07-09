@@ -7,7 +7,9 @@
 # @ Ahmed Radwan - UZ/KUL - ahmed.radwan@uzleuven.be
 #
 # v0.1 - dd 19/01/2019 - jurassic version
-version="v2.0 - dd 03/07/2027"
+version="v2.0-nilearn - dd 08/07/2026"
+# Nilearn port: first-level GLM done in Python/Nilearn instead of MATLAB/SPM12.
+# Requires: python3 with nilearn, nibabel, numpy, pandas (no MATLAB, no SPM).
 
 kul_main_dir=$(dirname "$0")
 script=$(basename "$0")
@@ -38,11 +40,11 @@ function Usage {
 
 cat <<USAGE
 
-`basename $0` performs an automated task based fMRI spm12 GLM analysis assuming:
+`basename $0` performs an automated task based fMRI Nilearn GLM analysis assuming:
     - a 30 seconds REST followed by 30 seconds TASK epochs
     - having run fmriprep with aroma
 
-Note: requires matlab and spm12 installed
+Note: requires python3 with nilearn, nibabel, numpy, pandas (no matlab/spm)
 
 Usage:
 
@@ -65,23 +67,21 @@ Optional arguments:
      -P:  FWE-corrected p-value for Bizzi thresholding (default: 0.01)
             e.g. -P 0.01, -P 0.005, -P 0.001
      -c:  MAX CORES the script may use (auto-scheduling). RECOMMENDED.
-            One number (e.g. -c 48, matching the parent pipeline budget) and
-            the script sets -j/-J/-T per task:
+            Give this one number (e.g. -c 48, matching the parent pipeline's
+            thread budget) and the script decides -j/-J/-n/-T per task:
               prep : prep_jobs = min(#runs, cores)
-              GLM  : jobs = min(#analyses, cores); MATLAB threads = cores/jobs
-            NOTE each parallel GLM is a full MATLAB instance (RAM + possibly a
-            license seat each), so keep -c within your license/RAM limits.
-     -j:  (manual) number of SPM/MATLAB analyses in parallel (default: 1)
+              GLM  : jobs = min(#analyses, cores); n_jobs = cores/jobs; BLAS=1
+            so cores are always packed - many analyses -> more parallel jobs;
+            few analyses -> each GLM uses more cores. Overrides -j/-J/-n/-T.
+     -j:  (manual) number of GLM analyses in parallel (default: 1 = serial)
      -J:  (manual) number of preprocessing (mask+SUSAN) jobs in parallel
             (default: same as -j; SUSAN is light so this can be higher)
-     -T:  (manual) MATLAB computational threads per instance
-            (default: 0 = unrestricted, i.e. one MATLAB uses all cores)
+     -n:  (manual) Nilearn n_jobs = cores INSIDE a single GLM fit (default: 1)
+     -T:  (manual) BLAS/OMP threads per GLM job (default: 1)
      -v:  verbose (0=silent, 1=normal, 2=verbose; default=1)
 
-   Use -c for hands-off scheduling, or the -j/-J/-T knobs for manual control.
-   SPM has no within-GLM n_jobs like Nilearn, so leftover cores are given to
-   MATLAB's internal multithreading (maxNumCompThreads) rather than a voxel-loop
-   split - a weaker speed-up per analysis than the Nilearn port.
+   Use -c for hands-off scheduling, or the -j/-J/-n/-T knobs for manual control.
+   Manual CPU budget (GLM phase): roughly  -j x -n x -T  <=  physical cores.
 
 
 USAGE
@@ -97,9 +97,10 @@ verbose_level=1
 smooth_fwhm=0  # 0 = adaptive (mean voxel size)
 pfwe=0.01
 max_cores=0       # -c : total core budget for auto-scheduling (0 = manual mode)
-parallel_jobs=1   # -j : concurrent SPM/MATLAB analyses (1 = serial)
+parallel_jobs=1   # -j : concurrent GLM analyses (1 = serial, current behaviour)
 prep_jobs=0       # -J : concurrent preprocessing jobs (0 -> default to -j)
-matlab_threads=0  # -T : MATLAB comp threads per instance (0 = unrestricted)
+nl_njobs=1        # -n : Nilearn n_jobs inside a single GLM fit
+nl_threads=1      # -T : BLAS/OMP threads per parallel job
 
 
 # Set required options
@@ -112,7 +113,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "p:s:S:P:c:j:J:T:v:" OPT; do
+    while getopts "p:s:S:P:c:j:J:n:T:v:" OPT; do
 
         case $OPT in
         p) #participant
@@ -132,14 +133,17 @@ else
         c) #max cores (auto-scheduling)
             max_cores=$OPTARG
         ;;
-        j) #parallel SPM analyses
+        j) #parallel GLM analyses
             parallel_jobs=$OPTARG
         ;;
         J) #parallel preprocessing jobs
             prep_jobs=$OPTARG
         ;;
-        T) #MATLAB comp threads per instance
-            matlab_threads=$OPTARG
+        n) #nilearn n_jobs inside one GLM
+            nl_njobs=$OPTARG
+        ;;
+        T) #BLAS threads per job
+            nl_threads=$OPTARG
         ;;
         v) #verbose
             verbose_level=$OPTARG
@@ -209,53 +213,6 @@ function KUL_throttle {
     done
 }
 
-function KUL_threshold_SPM_Bizzi {
-    if [ ! -f "$fmriresults/SPM.mat" ]; then
-        echo " Bizzi thresholding skipped: SPM.mat not found in $fmriresults"
-        return
-    fi
-    # Detect _wc suffix from fmriresults path so output names don't collide
-    local wc_suffix=""
-    [[ "$fmriresults" == *_wc ]] && wc_suffix="_wc"
-    spm_bizzi_script="${scriptsdir}/thresh_Bizzi_${fmrifile}${wc_suffix}.m"
-    spm_bizzi_script=${spm_bizzi_script/run-/run}
-    cp "$kul_main_dir/share/spm12/spm12_threshold_Bizzi.m" "$spm_bizzi_script"
-    sed -i.bck "s|###FMRIRESULTS###|$fmriresults|" "$spm_bizzi_script"
-    sed -i.bck "s|###PFWE###|$pfwe|g" "$spm_bizzi_script"
-    rm -f "${spm_bizzi_script}.bck"
-    local mct=""
-    [ "${matlab_threads:-0}" -gt 0 ] && mct="maxNumCompThreads(${matlab_threads});"
-    cmd="$matlab_exe -nodisplay -nosplash -nodesktop -r \"${mct}run('$spm_bizzi_script');exit;\""
-    if [ $verbose_level -lt 2 ]; then
-        local job_log="KUL_LOG/$script/sub-${participant}_${fmrifile}${wc_suffix}.log"
-        mkdir -p "$(dirname "$job_log")"
-        eval "$cmd" >> "$job_log" 2>&1
-    else
-        eval "$cmd"
-    fi
-    pfwe_tag=$(echo "$pfwe" | sed 's/0\.//' | sed 's/0*$//')
-    fwe_tag="FWE${pfwe_tag}_k50"
-    mni_to_t1w=$(find_first_match "${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_*from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5" "MNI-to-T1w transform")
-    find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
-    reference=${find_T1w[0]}
-    for thresh_tag in "p001unc_k50" "${fwe_tag}"; do
-        thresh_nii="$fmriresults/spmT_0001_${thresh_tag}.nii"
-        if [ -f "$thresh_nii" ]; then
-            input="$thresh_nii"
-            # Hardwired downstream selection: only wc + p001unc_k50 lands in
-            # globalresultsdir (RESULTS/.../SPM); everything else goes to
-            # globalresultsdir_all (RESULTS/.../SPM_all).
-            if [ "$wc_suffix" == "_wc" ] && [ "$thresh_tag" == "p001unc_k50" ]; then
-                output="${globalresultsdir}/afMRI_${fmrifile}${wc_suffix}_${thresh_tag}.nii"
-            else
-                output="${globalresultsdir_all}/afMRI_${fmrifile}${wc_suffix}_${thresh_tag}.nii"
-            fi
-            transform="$mni_to_t1w"
-            KUL_antsApply_Transform
-        fi
-    done
-}
-
 function KUL_tsv_filter {
     awk -F'\t' -v cols="trans_x,trans_y,trans_z,rot_x,rot_y,rot_z,a_comp_cor_00,a_comp_cor_01,a_comp_cor_02,a_comp_cor_03,a_comp_cor_04" '
     BEGIN {
@@ -283,13 +240,10 @@ function KUL_tsv_filter {
 
 function KUL_prep_run {
     # Heavy per-run preprocessing: brain-mask -> SUSAN smooth -> re-mask, plus
-    # confound filtering. Independent per run (writes only this run's files), so
-    # safe to run in parallel. Reads the GLOBAL g_* arrays by index ($1) - these
-    # span ALL runs of ALL tasks, so the prep pool parallelizes across tasks.
-    # IMPORTANT: the _masked intermediates go to $prep_tmpdir (a SUBDIR of
-    # fmridatadir). SPM selects its input by a non-recursive FPList filter on the
-    # task name inside fmridatadir, so only the final _smooth.nii must live there
-    # - otherwise the masked/boldref files would be picked up as extra scans.
+    # confound filtering. Fully independent per run (writes only to this run's
+    # deterministic filenames), so it is safe to run in parallel. Reads the
+    # GLOBAL g_* arrays by index ($1) - these span ALL runs of ALL tasks, so the
+    # prep pool parallelizes across tasks, not just within one.
     local i="$1"
     local task_file="${g_bold[$i]}"
     local mask="${g_mask[$i]}"
@@ -301,142 +255,156 @@ function KUL_prep_run {
 
     echo "  [prep] run $i ($(basename $task_file))"
 
-    # brain-mask the preproc BOLD BEFORE smoothing (halo removal; see header)
-    local masked_file="$prep_tmpdir/$(basename ${task_file} ".nii.gz")_masked.nii.gz"
+    # ---- brain-mask the preproc BOLD BEFORE smoothing --------------------
+    # fmriprep (>=23.2) leaves the MNI/func output UNMASKED. With a tight FOV
+    # the sinc/Lanczos resampling extrapolates a bright halo past the superior
+    # brain edge; SUSAN would smear it into cortex. Zero it out first
+    # (mask -> smooth -> mask), and mask the SUSAN reference too.
+    local masked_file="$fmridatadir/$(basename ${task_file} ".nii.gz")_masked.nii.gz"
     if [ ! -f "$masked_file" ]; then
+        echo "  [prep] masking $task_file -> $masked_file"
         fslmaths "$task_file" -mas "$mask" "$masked_file"
     fi
 
     # brightness threshold = 0.6666 * in-brain median
     local p50=$(fslstats "$masked_file" -k "$mask" -p 50)
     local bt=$(echo "$p50 * 0.66666" | bc -l)
+    echo "  [prep] brightness threshold: $bt"
 
     # mask the SUSAN reference (boldref) with the same brain mask
-    local boldref_masked="$prep_tmpdir/$(basename ${boldref} ".nii.gz")_masked.nii.gz"
+    local boldref_masked="$fmridatadir/$(basename ${boldref} ".nii.gz")_masked.nii.gz"
     if [ ! -f "$boldref_masked" ]; then
         fslmaths "$boldref" -mas "$mask" "$boldref_masked"
     fi
 
     # SUSAN smoothing (masked input + masked USAN, then clip the output)
     if [ ! -f "$smooth_file" ]; then
+        echo "  [prep] SUSAN smoothing -> $smooth_file"
         susan "$masked_file" $bt $sigma 3 1 1 "$boldref_masked" $bt "$smooth_file"
         fslmaths "$smooth_file" -mas "$mask" "$smooth_file"
         gunzip -f "$smooth_file.gz"
+    else
+        echo "  [prep] smoothed file already exists: $smooth_file"
     fi
 
     # filter confounds (KUL_tsv_filter reads $filter_input / $filter_output)
+    echo "  [prep] filtering confounds $filter_input -> $filter_output"
     KUL_tsv_filter
 }
 
-function KUL_compute_SPM_matlab {
-
-    # which type of SPM analysis
+function KUL_compute_nilearn {
+    # Nilearn first-level GLM (replaces KUL_compute_SPM_matlab + KUL_threshold_SPM_Bizzi).
+    # Caller must set: nl_bolds[] nl_confounds_list[] nl_tr nl_mask nl_taskname fmrifile spm_type
     if [ $spm_type -eq 1 ]; then
-        echo "   SPM analysis without confounds"
+        echo "   Nilearn analysis without confounds"
         fmriresults="$computedir/RESULTS/stats_$fmrifile"
-        # prepare the job and config files
-        spm_participant_config_file="${scriptsdir}/stats_${fmrifile}.m" #participant config file
-        spm_participant_job_file="${scriptsdir}/stats_${fmrifile}_job.m" #participant job file
-        spm_hrfderivs="[0 0]"
+        nl_hrf_deriv=0
+        use_confounds=0
         global_result=${globalresultsdir_all}/afMRI_${fmrifile}.nii
+        wc_suffix=""
     else
-        echo "   SPM analysis with confounds"
+        echo "   Nilearn analysis with confounds"
         fmriresults="$computedir/RESULTS/stats_${fmrifile}_wc"
-        # prepare the job and config files
-        spm_participant_config_file="${scriptsdir}/stats_${fmrifile}_wc.m" #participant config file
-        spm_participant_job_file="${scriptsdir}/stats_${fmrifile}_job_wc.m" #participant job file
-        spm_hrfderivs="[1 0]"
+        nl_hrf_deriv=1
+        use_confounds=1
         global_result=${globalresultsdir_all}/afMRI_${fmrifile}_wc.nii
+        wc_suffix="_wc"
     fi
 
     # clean a possible old result
-    rm -rf $fmriresults
-    mkdir -p $fmriresults
+    rm -rf "$fmriresults"
+    mkdir -p "$fmriresults"
 
-    # get rid of - in filename, since this breaks -r in matlab
-    spm_participant_config_file=${spm_participant_config_file/run-/run}
-    spm_participant_job_file=${spm_participant_job_file/run-/run}
-    cp $spm_template_config_file $spm_participant_config_file
-    cp $spm_template_job_file $spm_participant_job_file
-    sed -i.bck "s|###JOBFILE###|$spm_participant_job_file|" $spm_participant_config_file
-    sed -i.bck "s|###FMRIDIR###|$fmridatadir|" $spm_participant_job_file
-    #sed -i.bck "s|###FMRIFILE###|$fmrifile|" $spm_participant_job_file
-    sed -i.bck "s|###FMRIRESULTS###|$fmriresults|" $spm_participant_job_file
-    sed -i.bck "s|###HRFDERIVS###|$spm_hrfderivs|" $spm_participant_job_file
-    #sed -i.bck "s|###TR###|$TR|" $spm_participant_job_file
-    #sed -i.bck "s|###CONFOUNDSFILE###|$run_confounds|" $spm_participant_job_file
-
-    
-    if [ $spm_nruns -eq 1 ]; then
-        # Here $i is the index of the current seperate run analyis
-        spm_taskname=${tf_taskname[$i]}
-        spm_TR=${tf_TR[$i]}
-        if [ $spm_type -eq 1 ]; then
-            spm_confounds_file=""
-        else
-            spm_confounds_file="${tf_confounds[$i]}"
-        fi
-        sed -i.bck "s|###FMRIFILE###|$spm_taskname|" $spm_participant_job_file
-        sed -i.bck "s|###CONFOUNDSFILE###|$spm_confounds_file|" $spm_participant_job_file
-        sed -i.bck "s|###TR###|$spm_TR|" $spm_participant_job_file
-    
-    else
-        # Here multiple runs together - we assume all runs have the same TR
-        spm_TR=${tf_TR[0]}
-        sed -i.bck "s|###TR###|$spm_TR|" $spm_participant_job_file
-
-        for ((j=0; j<spm_nruns; j++)); do
-            spm_taskname="${tf_taskname[$j]}"
-            if [ $spm_type -eq 1 ]; then
-                spm_confounds_file=""
-            else
-                spm_confounds_file="${tf_confounds[$j]}"
-            fi
-            sed -i.bck "s|###FMRIFILE$j###|$spm_taskname|" $spm_participant_job_file
-            cmd="sed -i.bck \"s|###CONFOUNDSFILE$j###|$spm_confounds_file|\" $spm_participant_job_file"
-            eval $cmd
-            
-        done
+    # assemble the (possibly multi-run) --bold and --confounds argument lists
+    local bold_args=""
+    for b in "${nl_bolds[@]}"; do bold_args="$bold_args \"$b\""; done
+    local conf_args=""
+    if [ $use_confounds -eq 1 ]; then
+        conf_args="--confounds"
+        for c in "${nl_confounds_list[@]}"; do conf_args="$conf_args \"$c\""; done
     fi
 
-    rm -f "${spm_participant_config_file}.bck"
-    rm -f "${spm_participant_job_file}.bck"
-
-    # call matlab and execute
-    # cap MATLAB computational threads when parallelizing (0 = unrestricted);
-    # write each analysis to its own log so parallel output does not interleave.
-    local mct=""
-    [ "${matlab_threads:-0}" -gt 0 ] && mct="maxNumCompThreads(${matlab_threads});"
-    local job_tag="$fmrifile"; [ $spm_type -eq 2 ] && job_tag="${fmrifile}_wc"
-    cmd="$matlab_exe -nodisplay -nosplash -nodesktop -r \"${mct}run('$spm_participant_config_file');exit;\""
-    echo "$cmd"
+    cmd="$python_exe \"$nilearn_glm_script\" \
+        --bold $bold_args \
+        --mask \"$nl_mask\" \
+        --tr $nl_tr \
+        --task-name \"$nl_taskname\" \
+        --output-dir \"$fmriresults\" \
+        --rest-dur 30 --task-dur 30 --first rest \
+        --hrf-derivative $nl_hrf_deriv \
+        --pfwe $pfwe --cluster-k 50 \
+        --n-jobs $nl_njobs \
+        $conf_args"
+    echo "  $cmd"
+    # Cap BLAS/OMP threads so parallel jobs (-j) don't oversubscribe the CPU,
+    # and give each job its own log so parallel output doesn't interleave.
+    local thr="${nl_threads:-1}"
+    local env_pfx="OMP_NUM_THREADS=$thr OPENBLAS_NUM_THREADS=$thr MKL_NUM_THREADS=$thr NUMEXPR_NUM_THREADS=$thr"
     if [ $verbose_level -lt 2 ]; then
-        local job_log="KUL_LOG/$script/sub-${participant}_${job_tag}.log"
+        local job_log="KUL_LOG/$script/sub-${participant}_${fmrifile}${wc_suffix}.log"
         mkdir -p "$(dirname "$job_log")"
-        eval "$cmd" >> "$job_log" 2>&1
+        eval "$env_pfx $cmd" >> "$job_log" 2>&1
     else
-        eval "$cmd"
+        eval "$env_pfx $cmd"
     fi
 
-    # SPM output is in MNI space; warp back to T1w space for display
-    input=$fmriresults/spmT_0001.nii
-    output=$global_result
-    transform=$(find_first_match "${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_*from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5" "MNI-to-T1w transform")
-    find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
+    # Nilearn output is in MNI space; warp back to T1w space for display.
+    local mni_to_t1w=$(find_first_match "${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_*from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5" "MNI-to-T1w transform")
+    local find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
     reference=${find_T1w[0]}
-    KUL_antsApply_Transform
+    transform="$mni_to_t1w"
 
-} 
+    # unthresholded stat map
+    if [ -f "$fmriresults/spmT_0001.nii" ]; then
+        input="$fmriresults/spmT_0001.nii"
+        output="$global_result"
+        KUL_antsApply_Transform
+    fi
+
+    # thresholded maps (same tags as the old Bizzi step, so downstream is unchanged)
+    pfwe_tag=$(echo "$pfwe" | sed 's/0\.//' | sed 's/0*$//')
+    fwe_tag="FWE${pfwe_tag}_k50"
+    for thresh_tag in "p001unc_k50" "${fwe_tag}"; do
+        thresh_nii="$fmriresults/spmT_0001_${thresh_tag}.nii"
+        if [ -f "$thresh_nii" ]; then
+            input="$thresh_nii"
+            # Hardwired downstream selection: only wc + p001unc_k50 lands in
+            # globalresultsdir (RESULTS/.../SPM); everything else goes to
+            # globalresultsdir_all (RESULTS/.../SPM_all).
+            if [ "$wc_suffix" == "_wc" ] && [ "$thresh_tag" == "p001unc_k50" ]; then
+                output="${globalresultsdir}/afMRI_${fmrifile}${wc_suffix}_${thresh_tag}.nii"
+            else
+                output="${globalresultsdir_all}/afMRI_${fmrifile}${wc_suffix}_${thresh_tag}.nii"
+            fi
+            transform="$mni_to_t1w"
+            KUL_antsApply_Transform
+        fi
+    done
+}
 
 # MAIN --------------------------------------------------------------
-matlab_exe=$(which matlab)
+python_exe=$(which python3)
+# the Nilearn GLM worker lives next to this script (share/nilearn/)
+nilearn_glm_script="$kul_main_dir/share/nilearn/KUL_nilearn_glm.py"
 
-if [ $KUL_DEBUG -gt 0 ]; then 
-    echo "matlab lives at $matlab_exe"
+if [ $KUL_DEBUG -gt 0 ]; then
+    echo "python3 lives at $python_exe"
+    echo "nilearn glm script: $nilearn_glm_script"
 fi
 
-if [[ -z "$matlab_exe" ]]; then
-    echo "Matlab is required but not found on path. Exitting"
+if [[ -z "$python_exe" ]]; then
+    echo "python3 is required but not found on path. Exitting"
+    exit 1
+fi
+
+if [ ! -f "$nilearn_glm_script" ]; then
+    echo "Nilearn GLM worker not found at $nilearn_glm_script. Exitting"
+    exit 1
+fi
+
+if ! "$python_exe" -c "import nilearn, nibabel, numpy, pandas" 2>/dev/null ; then
+    echo "python3 is missing required packages. Install with:" >&2
+    echo "    pip install nilearn nibabel numpy pandas" >&2
     exit 1
 fi
 
@@ -448,13 +416,12 @@ KUL_check_participant
 kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute
 computedir="$kulderivativesdir/sub-$participant/SPM"
 fmridatadir="$computedir/fmridata"
-prep_tmpdir="$fmridatadir/intermediate"   # masked intermediates (kept out of FPList)
 scriptsdir="$computedir/scripts"
 confoundsdir="$computedir/confounds"
 fmriprepdir="${cwd}/fmriprep/sub-$participant"
 # globalresultsdir holds ONLY the hardwired downstream-selected outcome (wc,
-# p001unc_k50 Bizzi-thresholded) per task; every other combination (nc, FWE,
-# raw unthresholded) goes to globalresultsdir_all instead.
+# p001unc_k50 thresholded) per task; every other combination (nc, FWE, raw
+# unthresholded) goes to globalresultsdir_all instead.
 globalresultsdir=$cwd/RESULTS/sub-$participant/SPM
 globalresultsdir_all=$cwd/RESULTS/sub-$participant/SPM_all
 
@@ -468,7 +435,6 @@ if [ $KUL_DEBUG -gt 0 ]; then
 fi
 
 mkdir -p $fmridatadir
-mkdir -p $prep_tmpdir
 mkdir -p $scriptsdir
 mkdir -p $confoundsdir
 mkdir -p $computedir/RESULTS
@@ -481,7 +447,8 @@ fmriprep_output_type="_space-MNI152NLin2009cAsym"
 
 
 if [ $verbose_level -lt 2 ] ; then
-    str_silent_SPM=" >> KUL_LOG/$script/sub-${participant}_spm12.log"
+    mkdir -p "KUL_LOG/$script"
+    str_silent_SPM=" >> KUL_LOG/$script/sub-${participant}_nilearn.log"
 fi
 
 if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
@@ -565,13 +532,11 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
     wait   # barrier: ALL preprocessing done before any GLM starts
 
     # =====================================================================
-    # PHASE 3 (parallel, heavy): SPM/MATLAB GLM analyses for ALL tasks in ONE
-    # pool. Total analyses A = 2 per run (nc/wc) + 2 per multi-run task
-    # (aggregate nc/wc). Auto-schedule MATLAB threads from that total. Each
-    # analysis is a separate MATLAB instance writing to its own stats_*/afMRI_*
-    # outputs; backgrounding snapshots the per-analysis session arrays
-    # (tf_taskname/tf_confounds/tf_TR), spm_nruns, templates, i, fmrifile,
-    # spm_type. compute+threshold are grouped (threshold needs the SPM.mat).
+    # PHASE 3 (parallel, heavy): GLM analyses for ALL tasks in ONE pool, so
+    # Lip and Taal analyses run together within the core budget (not task by
+    # task). Total analyses A = 2 per run (nc/wc) over every run, + 2 per
+    # multi-run task (aggregate nc/wc). Auto-schedule from that total, dispatch
+    # everything, then a single barrier.
     # =====================================================================
     # count total analyses across all tasks
     A_total=$(( 2 * n_runs_total ))
@@ -583,53 +548,45 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
 
     if [ "$max_cores" -gt 0 ]; then
         parallel_jobs=$(( A_total < max_cores ? A_total : max_cores )); [ "$parallel_jobs" -lt 1 ] && parallel_jobs=1
-        matlab_threads=$(( max_cores / parallel_jobs )); [ "$matlab_threads" -lt 1 ] && matlab_threads=1
-        echo "[auto] GLM: cores=$max_cores total_analyses=$A_total -> -j$parallel_jobs MATLAB threads/job=$matlab_threads"
+        nl_njobs=$(( max_cores / parallel_jobs )); [ "$nl_njobs" -lt 1 ] && nl_njobs=1
+        nl_threads=1
+        echo "[auto] GLM: cores=$max_cores total_analyses=$A_total -> -j$parallel_jobs -n$nl_njobs -T1"
     fi
-    echo "Dispatching ALL SPM GLM analyses across tasks (total=$A_total; parallel_jobs=$parallel_jobs, matlab_threads=$matlab_threads)"
+    echo "Dispatching ALL GLM analyses across tasks (total=$A_total; parallel_jobs=$parallel_jobs, n_jobs=$nl_njobs)"
 
     # --- per-run analyses for every run of every task ---
-    spm_nruns=1
     for k in "${!g_bold[@]}"; do
-        spm_template_config_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_1run.m"
-        spm_template_job_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_1run_job.m"
-        # single-element session arrays consumed by KUL_compute_SPM_matlab ($i=0)
-        tf_taskname=("${g_taskname[$k]}"); tf_confounds=("${g_confounds[$k]}"); tf_TR=("${g_TR[$k]}")
-        i=0
         fmrifile="${g_taskname[$k]}"
+        nl_bolds=("${g_smooth[$k]}")
+        nl_confounds_list=("${g_confounds[$k]}")
+        nl_tr="${g_TR[$k]}"
+        nl_mask="${g_mask[$k]}"
+        nl_taskname="${g_taskname[$k]}"
         for spm_type in 1 2; do
             KUL_throttle "$parallel_jobs"
-            { KUL_compute_SPM_matlab; KUL_threshold_SPM_Bizzi; } &
+            KUL_compute_nilearn &
         done
     done
 
-    # --- aggregate (multi-run) analyses per task ---
+    # --- aggregate (fixed-effects) analyses for each multi-run task ---
     for task in "${unique_tasks[@]}"; do
         [[ "$task" == *"rest"* ]] && continue
         idxs=(); for k in "${!g_task[@]}"; do [ "${g_task[$k]}" == "$task" ] && idxs+=("$k"); done
-        spm_nruns=${#idxs[@]}
-        [ "$spm_nruns" -gt 1 ] || continue
+        [ ${#idxs[@]} -gt 1 ] || continue
 
-        if [ "$spm_nruns" -eq 2 ]; then
-            spm_template_config_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_2runs.m"
-            spm_template_job_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_2runs_job.m"
-        elif [ "$spm_nruns" -eq 3 ]; then
-            spm_template_config_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_3runs.m"
-            spm_template_job_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_3runs_job.m"
-        else
-            echo "  Warning: aggregate not defined for >3 runs; skipping task $task aggregate."
-            continue
-        fi
+        # TR sanity check (aggregate assumes a common TR across runs)
+        _trs=(); for k in "${idxs[@]}"; do _trs+=("${g_TR[$k]}"); done
+        [ $(printf "%s\n" "${_trs[@]}" | sort -u | wc -l) -gt 1 ] && echo "  Warning: Multiple TRs for task $task."
 
-        # session arrays in run order for this task (consumed via j-loop + tf_TR[0])
-        tf_taskname=(); tf_confounds=(); tf_TR=()
-        for k in "${idxs[@]}"; do
-            tf_taskname+=("${g_taskname[$k]}"); tf_confounds+=("${g_confounds[$k]}"); tf_TR+=("${g_TR[$k]}")
-        done
         fmrifile="$task"
+        nl_bolds=(); nl_confounds_list=()
+        for k in "${idxs[@]}"; do nl_bolds+=("${g_smooth[$k]}"); nl_confounds_list+=("${g_confounds[$k]}"); done
+        nl_tr="${g_TR[${idxs[0]}]}"
+        nl_mask="${g_mask[${idxs[0]}]}"
+        nl_taskname="$task"
         for spm_type in 1 2; do
             KUL_throttle "$parallel_jobs"
-            { KUL_compute_SPM_matlab; KUL_threshold_SPM_Bizzi; } &
+            KUL_compute_nilearn &
         done
     done
 
@@ -641,7 +598,7 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
     #rm -rf $fmridatadir
 
     touch KUL_LOG/sub-${participant}_SPM.done
-    echo "Done computing SPM"
+    echo "Done computing Nilearn GLM"
 else
-    echo "SPM analysis already done"
+    echo "Nilearn analysis already done"
 fi

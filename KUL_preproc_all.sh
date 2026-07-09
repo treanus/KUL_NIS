@@ -535,9 +535,18 @@ function task_KUL_dwiprep {
             extra_options_native=" -u "
         fi
 
+        extra_options_loresd=""
+        if [[ "$dwipreproc_options" == *"lore_sd"* ]]; then
+            if [ -z "$loresd_env" ]; then
+                kul_echo "ERROR: dwiprep_options requests lore_sd but no loresd_env is set in $conf" >&2
+                exit 1
+            fi
+            extra_options_loresd=" -f $loresd_env "
+        fi
+
         task_dwiprep_cmd=$(echo "KUL_dwiprep.sh -p ${BIDS_participant} \
-            $extra_options_dwi2mask $extra_options_synb0 $extra_options_shard $extra_options_revphase $extra_options_native -n $ncpu_dwiprep \
-            -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1") 
+            $extra_options_dwi2mask $extra_options_synb0 $extra_options_shard $extra_options_revphase $extra_options_native $extra_options_loresd -n $ncpu_dwiprep \
+            -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1")
             # > $dwiprep_log 2>&1 ")
 
         #kul_echo "   using cmd: $task_dwiprep_cmd"
@@ -553,7 +562,7 @@ function task_KUL_dwiprep {
             mkdir -p VSC
             cp $kul_main_dir/VSC/master_dwiprep.pbs VSC/run_dwiprep.pbs
             task_command=$(echo "KUL_dwiprep.sh -p \${BIDS_participant} \
-    $extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase $extra_options_native -n $ncpu_dwiprep \
+    $extra_options_dwi2mask $extra_options_synb0 $extra_options_revphase $extra_options_native $extra_options_loresd -n $ncpu_dwiprep \
     -d \"$dwipreproc_options\" -e \"${eddy_options} \" -v 1 \
     > \$dwiprep_log 2>&1 ")
             kul_echo $task_command
@@ -1292,12 +1301,14 @@ if [ $expert -eq 1 ]; then
 
         eddy_options=$(grep eddy_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
 
+        loresd_env=$(grep loresd_env $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r' | sed 's/^ *//;s/ *$//')
+
         dwiprep_ncpu=$(grep dwiprep_ncpu $conf | grep -v \# | cut -d':' -f 2 | sed 's/[^0-9]//g')
         ncpu_dwiprep=$dwiprep_ncpu
 
         use_native_dwi=$(grep use_native_dwi $conf | grep -v \# | sed 's/[^0-9]//g')
         if [ -z "$use_native_dwi" ]; then
-            use_native_dwi=0
+            use_native_dwi=1
         fi
         
         #get bids_participants
@@ -1312,6 +1323,7 @@ if [ $expert -eq 1 ]; then
         kul_echo "  rev_phase_for_topup_only: $rev_phase_for_topup_only"
         kul_echo "  dwi2mask_method: $dwi2mask_method"
         kul_echo "  eddy_options: $eddy_options"
+        kul_echo "  loresd_env: $loresd_env"
         kul_echo "  dwiprep_ncpu: $dwiprep_ncpu"
         kul_echo "  BIDS_participants: ${BIDS_subjects[@]}"
         kul_echo "  number of BIDS_participants: $n_subj"

@@ -57,6 +57,9 @@ Optional arguments:
 	 -v:  show output from mrtrix commands (0=silent, 1=normal, 2=verbose; default=1)
 	 -r:  use reverse phase data only for topup and not for further processing
 	 -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 3=legacy; 4=synthstrip; default = 3)
+	 -x:  optional, give full path to custom output directory
+	 -f:  compulsory for lore-sd, provide the name for the conda env where lore_sd is installed
+	 		The script will quite if user asks for lore-sd but doesn't provide this
 
 
 Documentation:
@@ -109,7 +112,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:d:e:m:v:rbcu" OPT; do
+	while getopts "p:s:n:d:e:m:v:x:f:rbcu" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -146,6 +149,12 @@ else
 		;;
 		u) #use native (non-upsampled) data
 			use_upsampled=0
+		;;
+		x) #use this directory for preproc and output
+			preproc=$OPTARG
+		;;
+		f) # use the name specified for lore_sd env name 
+			loresd_env=$OPTARG
 		;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -186,6 +195,23 @@ elif [ $local_verbose_level -eq 2 ] ; then
 fi
 
 
+if [[ $dwipreproc_options == *"lore_sd"* ]]; then
+	# Did user specify conda env name?
+	if [[ -z "$loresd_env" ]]; then
+		echo "ERROR: lore_sd was requested in the dwipreproc options, but no conda env was given."
+		echo "       Supply the conda env that has lore_sd installed with:  -f <conda_env_name>"
+		exit 1
+	fi
+	# optional but recommended: confirm the env actually exists
+	if ! conda env list | awk '{print $1}' | grep -qx "$loresd_env"; then
+		echo "ERROR: conda env '$loresd_env' was not found (checked 'conda env list')."
+		exit 1
+	fi
+
+	echo "       conda env provided where lore_sd is installed $loresd_env"
+
+fi
+
 # REST OF SETTINGS ---
 
 # timestamp
@@ -206,72 +232,72 @@ fi
 
 ### Functions ---------------------------------------
 function KUL_dwiprep_convert {
-# test if conversion has been done
-if [ ! -f ${preproc}/dwi_orig.mif ]; then
+	# test if conversion has been done
+	if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
-	kul_echo " Preparing datasets from BIDS directory..."
-	#echo "preproc: $preproc"
+		kul_echo " Preparing datasets from BIDS directory..."
+		#echo "preproc: $preproc"
 
-	if [ $number_of_bids_dwi_found -eq 1 ]; then #FLAG, if comparing dMRI sequences, they should not be catted
+		if [ $number_of_bids_dwi_found -eq 1 ]; then #FLAG, if comparing dMRI sequences, they should not be catted
 
-		kul_echo "   only 1 dwi dataset, scaling not necessary"
-		dwi_base=${bids_dwi_found%%.*}
-		mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
-		-json_import ${dwi_base}.json -strides 1:3 -force \
-		-clear_property comments -nthreads $ncpu ${preproc}/dwi_orig.mif
-		
+			kul_echo "   only 1 dwi dataset, scaling not necessary"
+			dwi_base=${bids_dwi_found%%.*}
+			mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
+			-json_import ${dwi_base}.json -strides 1:3 -force \
+			-clear_property comments -nthreads $ncpu ${preproc}/dwi_orig.mif
+			
+		else
+
+			kul_echo "   found $number_of_bids_dwi_found dwi datasets, checking number_of slices (and adjusting), scaling & catting"
+
+			### find number of slices of the multiple datasets and correct if necessary
+			dwi_i=1
+			for dwi_file in $bids_dwi_found; do
+				dwi_base=${dwi_file%%.*}
+
+				# read the number of slices
+				ns_dwi[dwi_i]=$(mrinfo ${dwi_base}.nii.gz -size | awk '{print $(NF-1)}')
+				kul_echo "   dataset p${dwi_i} has ${ns_dwi[dwi_i]} as number of slices"
+				
+				((dwi_i++))
+			done
+
+			max=10000000
+			for i in "${ns_dwi[@]}"
+				do
+				# Update max if applicable
+				if [[ "$i" -lt "$max" ]]; then
+					max="$i"
+				fi
+			done
+
+			# echo "Max is: $max"
+			((max--))
+
+
+			# convert each file and make a mean b0
+			dwi_i=1
+			for dwi_file in $bids_dwi_found; do
+				dwi_base=${dwi_file%%.*}
+				#echo "dwi_base: $dwi_base"
+				
+				kul_echo "   converting ${dwi_base}.nii.gz to mif"
+				mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
+				-json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} \
+				-force -clear_property comments -nthreads $ncpu
+
+				((dwi_i++))
+			done
+
+			# dwicat the files together
+			kul_echo "   performing dwicat"
+			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif #-nocleanup 
+
+		fi
+
 	else
 
-		kul_echo "   found $number_of_bids_dwi_found dwi datasets, checking number_of slices (and adjusting), scaling & catting"
-
-		### find number of slices of the multiple datasets and correct if necessary
-		dwi_i=1
-		for dwi_file in $bids_dwi_found; do
-			dwi_base=${dwi_file%%.*}
-
-			# read the number of slices
-			ns_dwi[dwi_i]=$(mrinfo ${dwi_base}.nii.gz -size | awk '{print $(NF-1)}')
-			kul_echo "   dataset p${dwi_i} has ${ns_dwi[dwi_i]} as number of slices"
-			 
-			((dwi_i++))
-		done
-
-		max=10000000
-		for i in "${ns_dwi[@]}"
-			do
-			# Update max if applicable
-			if [[ "$i" -lt "$max" ]]; then
-				max="$i"
-			fi
-		done
-
-		# echo "Max is: $max"
-		((max--))
-
-
-		# convert each file and make a mean b0
-		dwi_i=1
-		for dwi_file in $bids_dwi_found; do
-			dwi_base=${dwi_file%%.*}
-			#echo "dwi_base: $dwi_base"
-			
-			kul_echo "   converting ${dwi_base}.nii.gz to mif"
-			mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
-			-json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} \
-			-force -clear_property comments -nthreads $ncpu
-
-			((dwi_i++))
-		done
-
-		# dwicat the files together
-		kul_echo "   performing dwicat"
-		dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif #-nocleanup 
-
-	fi
-
-else
-
-	kul_echo " Conversion has been done already... skipping to next step"
+		kul_echo " Conversion has been done already... skipping to next step"
 
 fi
 }
@@ -321,6 +347,16 @@ function kul_mrview_figure {
 
 }
 
+activate_conda_env () {
+    # make 'conda activate' available inside this non-interactive script
+    source "$(conda info --base)/etc/profile.d/conda.sh"
+    conda activate "$1" || { echo "ERROR: failed to activate conda env '$1'"; exit 1; }
+}
+
+deactivate_conda_env () {
+    conda deactivate
+}
+
 # --- MAIN ----------------
 # start
 bids_participant=BIDS/sub-${participant}
@@ -357,7 +393,11 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 	echo "bids_participant: $bids_participant"
 
 	# Create the Directory to write preprocessed data in
-	preproc=${cwd}/dwiprep/sub-${participant}/$(basename $bids_participant)
+	if [ ! $preproc ]; then
+		preproc=${cwd}/dwiprep/sub-${participant}/$(basename $bids_participant)
+	else 
+		mkdir -p ${preproc}
+	fi
 	echo "preproc: $preproc"
 
 	# Directory to put raw mif data in
@@ -854,12 +894,14 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 	fi
 
 	if [[ $dwipreproc_options == *"lore_sd"* ]]; then
+
+		activate_conda_env "$loresd_env"
 		mkdir -p response/lore_sd
 
 		if [ ! -f response/lore_sd/response.mif ]; then
 			kul_echo "Calculating lore_sd decomposition (response + ODF)..."
 			task_in="lore_dwi2decomposition ${dwi_input} response/lore_sd/ \
-			--mask ${dwi_mask_input} --cores $ncpu"
+			 --cores $ncpu" #--mask ${dwi_mask_input}
 			KUL_task_exec $verbose_level "kul_dwiprep part 6-7: lore_sd decomposition" "6_lore_sd_decomposition"
 		else
 			kul_echo " lore_sd decomposition already done, skipping..."
@@ -902,6 +944,9 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 				kul_echo " lore_sd contrast resampling already done, skipping..."
 			fi
 		fi
+
+		deactivate_conda_env
+
 	fi
 
 	# STEP 4 - DO QA ---------------------------------------------

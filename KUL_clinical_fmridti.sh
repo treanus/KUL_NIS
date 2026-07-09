@@ -75,7 +75,11 @@ Optional arguments:
      -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
      -X:  use FastSurfer instead of plain recon-all for the reconstruction step
           in types 4, 5, 6 (faster, requires GPU; default is FreeSurfer 8.2.0 recon-all)
-     -f:  use the name specified for activating the scilpy conda environment 
+     -f:  use the name specified for activating the scilpy conda environment
+     -E:  fMRI GLM engine to use: spm or nilearn (default: spm)
+          spm    : KUL_fmriproc_spm_new.sh    (MATLAB/SPM12, requires a MATLAB license)
+          nilearn: KUL_fmriproc_nilearn_new.sh (python3 nilearn/nibabel/numpy/pandas, no MATLAB)
+          both engines are auto-scheduled across $ncpu cores via their -c option
 
 USAGE
 
@@ -100,6 +104,7 @@ dbs=0
 scaffold=0
 alps=0
 msbp=0
+multiparc=0
 fwt=1
 orientations="TRA,SAG,COR"
 spm_edge=0
@@ -108,6 +113,7 @@ spm_opacity=0.7
 smooth_fwhm=5
 pfwe=0.01
 use_fastsurfer=0
+fmri_engine="spm"
 declare -A spm_thresh_map=()
 
 # Set required options
@@ -121,7 +127,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:R:F:O:a:BrseT:D:S:P:Xf:" OPT; do
+	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:XBrse" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -184,6 +190,9 @@ else
         f) # use the name specified for scilpy env name
             scilpy=$OPTARG
         ;;
+        E) # fMRI GLM engine: spm or nilearn
+            fmri_engine=$OPTARG
+        ;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
 			echo
@@ -203,12 +212,21 @@ else
 fi
 
 # check for required options
+# participant name is compulsory
 if [ $p_flag -eq 0 ] ; then
 	echo
 	echo "Option -p is required: give the BIDS name of the participant." >&2
 	echo
 	exit 2
 fi
+
+if [ "$fmri_engine" != "spm" ] && [ "$fmri_engine" != "nilearn" ]; then
+	echo
+	echo "Option -E must be 'spm' or 'nilearn' (got '$fmri_engine')." >&2
+	echo
+	exit 2
+fi
+echo " fMRI GLM engine set to: $fmri_engine"
 
 KUL_LOG_DIR="KUL_LOG/${script}/sub-${participant}"
 mkdir -p $KUL_LOG_DIR
@@ -227,23 +245,34 @@ fi
 
 # Determine what to process depending on patient lesion type
 if [ $type -eq 1 ]; then
-    hdglio=1; vbg=1; msbp=0; fwt=1; alps=0
+    hdglio=1; vbg=1; multiparc=0; fwt=1; alps=0
 elif [ $type -eq 2 ]; then
-    hdglio=1; vbg=2; msbp=0; fwt=1; alps=0
+    hdglio=1; vbg=2; multiparc=0; fwt=1; alps=0
 elif [ $type -eq 3 ]; then
-    hdglio=0; vbg=3; msbp=0; fwt=1; alps=0
+    hdglio=0; vbg=3; multiparc=0; fwt=1; alps=0
 elif [ $type -eq 4 ]; then
-    hdglio=0; vbg=0; msbp=0; fwt=1; alps=0
+    hdglio=0; vbg=0; multiparc=1; fwt=1; alps=0
 elif [ $type -eq 5 ]; then
-    hdglio=0; vbg=0; dbs=1; msbp=0; fwt=1; alps=0
+    hdglio=0; vbg=0; dbs=1; multiparc=1; fwt=1; alps=0
 elif [ $type -eq 6 ]; then
-    hdglio=0; vbg=0; dbs=2; msbp=0; fwt=1; alps=0
+    hdglio=0; vbg=0; dbs=2; multiparc=1; fwt=1; alps=0
 elif [ $type -eq 7 ]; then
-    hdglio=0; vbg=0; dbs=0; msbp=0; fwt=0; alps=1
+    hdglio=0; vbg=0; dbs=0; multiparc=0; fwt=0; alps=1
 fi
 
 figs=0
 
+# if fwt is required but scilpy conda env name not given quit and warn
+if [ $fwt -eq 1 ] && [ -z "$scilpy" ] ; then
+	echo
+	echo "Option -f is required for FWT (automated tractography): give the conda env name." >&2
+	echo
+	# exit 2
+fi
+
+if [ -n "$scilpy" ] ; then
+    echo " Scilpy conda env name for FWT set to $scilpy"
+fi
 
 # GLOBAL defs
 globalresultsdir=$cwd/RESULTS/sub-$participant
@@ -880,6 +909,58 @@ if [ $results -gt 0 ];then
         _render_one_spm "$_spm" "$_spmname"
     done
 
+    # ── Combined multi-label fMRI overlay for Karawun ──────────────────────
+    # RESULTS/sub-.../SPM now holds exactly one (hardwired wc_p001unc_k50)
+    # map per task. Binarize each at its resolved threshold, multiply by a
+    # stable per-task integer label (1..N, tasks sorted alphabetically), and
+    # voxel-wise-max-combine into one multi-valued label volume for Karawun's
+    # neuronav label import. Only runs once Karawun prep has produced its own
+    # T1w.nii.gz (the grid every Karawun label is regridded onto).
+    if [ -f "Karawun/sub-${participant}/T1w.nii.gz" ]; then
+        _spm_task_names=()
+        for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii; do
+            [ -f "$_spm" ] || continue
+            _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
+            _spm_task_names+=("$_spmname")
+        done
+        if [ ${#_spm_task_names[@]} -gt 0 ]; then
+            IFS=$'\n' _spm_task_names_sorted=($(sort <<<"${_spm_task_names[*]}")); unset IFS
+            _label_tmpfiles=()
+            for _idx in "${!_spm_task_names_sorted[@]}"; do
+                _spmname="${_spm_task_names_sorted[$_idx]}"
+                _label_int=$((_idx + 1))
+                echo "Karawun multi-label: assigning label ${_label_int} to task '${_spmname}'"
+                _spmfile="$globalresultsdir/SPM/${_spmname}.nii"
+                [ -f "$_spmfile" ] || _spmfile="$globalresultsdir/SPM/${_spmname}.nii.gz"
+                [ -f "$_spmfile" ] || continue
+
+                if [ -n "${spm_thresh_map[$_spmname]+x}" ]; then
+                    _label_thresh=${spm_thresh_map[$_spmname]}
+                elif [ -n "$spm_thresh_override" ]; then
+                    _label_thresh=$spm_thresh_override
+                else
+                    _label_max_T=$(mrstats -output max "$_spmfile")
+                    _label_thresh=$(awk "BEGIN {print $_label_max_T/3}")
+                fi
+
+                _label_tmp=$(mktemp /tmp/karawun_label_XXXXXX.nii.gz)
+                mrgrid "$_spmfile" regrid -template "Karawun/sub-${participant}/T1w.nii.gz" - -quiet | \
+                    mrcalc - $_label_thresh -ge $_label_int -mult "$_label_tmp" -force -quiet
+                _label_tmpfiles+=("$_label_tmp")
+            done
+
+            if [ ${#_label_tmpfiles[@]} -gt 0 ]; then
+                mkdir -p "Karawun/sub-${participant}/labels"
+                mrmath "${_label_tmpfiles[@]}" max \
+                    "Karawun/sub-${participant}/labels/afMRI_multilabel.nii.gz" -force -quiet
+                echo "Karawun multi-label overlay written: Karawun/sub-${participant}/labels/afMRI_multilabel.nii.gz"
+            fi
+            rm -f "${_label_tmpfiles[@]}" 2>/dev/null
+        fi
+    else
+        echo "Karawun/sub-${participant}/T1w.nii.gz not found — skipping Karawun multi-label overlay (run Karawun prep first)"
+    fi
+
     for _spm in "$globalresultsdir/Melodic/"*.nii.gz "$globalresultsdir/Melodic/"*.nii; do
         [ -f "$_spm" ] || continue
         _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
@@ -931,6 +1012,7 @@ function KUL_check_redo {
                 rm -f ${cwd}/KUL_LOG/sub-${participant}_SPM.done >/dev/null 2>&1
                 rm -fr $derivativesdir/SPM/* >/dev/null 2>&1
                 rm -fr ${cwd}/RESULTS/sub-${participant}/SPM/* >/dev/null 2>&1
+                rm -fr ${cwd}/RESULTS/sub-${participant}/SPM_all/* >/dev/null 2>&1
             fi
             read -p "Redo: Melodic? (y/n) " answ
             if [[ "$answ" == "y" ]]; then
@@ -1464,8 +1546,8 @@ function KUL_run_VBG {
             mkdir -p ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
             mkdir -p $derivativesdir/KUL_VBG
             
-            # See to it that freesurfer 6 is used
-            export FREESURFER_HOME=/usr/local/KUL_apps/freesurfer_6.0.0
+            # See to it that freesurfer 8.2.0 is used
+            export FREESURFER_HOME=/usr/local/KUL_apps/freesurfer_8.2.0
             export SUBJECTS_DIR=$FREESURFER_HOME/subjects
             export FS_LICENSE=$FREESURFER_HOME/license.txt
             source $FREESURFER_HOME/SetUpFreeSurfer.sh
@@ -1477,7 +1559,7 @@ function KUL_run_VBG {
                 -o $derivativesdir/KUL_VBG \
                 -m $derivativesdir/KUL_VBG \
                 $vbg_extra_axial \
-                -z T1 -b -B 1 -t -P 1 -n $ncpu"
+                -z T1 -b -B 1 -t -P 1 -M -O -H -n $ncpu"
             KUL_task_exec $verbose_level "KUL_VBG" "7_VBG"
 
             # copy the output of VBG to the derivatives freesurfer directory
@@ -1503,47 +1585,16 @@ function KUL_run_VBG {
     fi
 }
 
-function KUL_run_msbp {
-
-    if [ $msbp -ne 1 ]; then
-        echo "MSBP not required for this type of analysis"
-        return 0
-    fi
-
-    if [ ! -f KUL_LOG/sub-${participant}_MSBP.done ]; then
-
-        echo "Running MSBP"
-
-        # there seems tpo be a problem with docker if the fsaverage dir is a soft link; so we delete the link and hardcopy it
-        rm -fr $cwd/BIDS/derivatives/freesurfer/fsaverage
-        cp -r $FREESURFER_HOME/subjects/fsaverage $cwd/BIDS/derivatives/freesurfer/fsaverage
-
-        task_in="docker run --rm -u $(id -u) -v $cwd/BIDS:/bids_dir \
-         -v $cwd/BIDS/derivatives:/output_dir \
-         -v $FS_LICENSE:/opt/freesurfer/license.txt \
-         sebastientourbier/multiscalebrainparcellator:v1.1.1 /bids_dir /output_dir participant \
-         --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
-         --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
-         --multiproc_number_of_cores $ncpu"
-        KUL_task_exec $verbose_level "MSBP" "10_msbp" || { kul_echo "MSBP failed — NOT writing MSBP.done"; return 1; }
-
-        echo "Done MSBP"
-        touch KUL_LOG/sub-${participant}_MSBP.done
-        
-    else
-        echo "MSBP already done"
-    fi
-}
 
 function KUL_run_multiparc {
-    # Types 4, 5, 6: no VBG, but FWT still needs aparc+aseg.
+    # Types 4, 5, 6: no VBG, but FWT still needs aparc+aseg and multiparc output.
     # Calls KUL_FS_multiparc.sh which handles recon-all (or FastSurfer with -X)
     # then adds Lausanne2018 x5, Glasser, thalamic, and brainstem parcellations.
     if [ $vbg -gt 0 ] || [ $fwt -eq 0 ]; then
         return 0
     fi
 
-    if [ ! -f KUL_LOG/sub-${participant}_multiparc.done ]; then
+    if [ $multiparc -gt 0 ] && [ ! -f KUL_LOG/sub-${participant}_multiparc.done ]; then
 
         _fs_multiparc="${kul_main_dir}/KUL_FS_multiparc.sh"
         _fastsurfer_flag=""
@@ -1554,7 +1605,7 @@ function KUL_run_multiparc {
             -f ${cwd}/BIDS/derivatives/freesurfer \
             -i ${T1w[0]} \
             -n ${ncpu} ${_fastsurfer_flag}"
-        KUL_task_exec $verbose_level "KUL_FS_multiparc (recon-all + parcellation)" "10_multiparc" || { kul_echo "KUL_FS_multiparc failed — NOT writing multiparc.done"; return 1; }
+        KUL_task_exec $verbose_level "KUL_FS_multiparc (recon-all + parcellation)" "09_multiparc" || { kul_echo "KUL_FS_multiparc failed — NOT writing multiparc.done"; return 1; }
 
         touch KUL_LOG/sub-${participant}_multiparc.done
 
@@ -1690,13 +1741,20 @@ function KUL_fmriproc {
     if [ $n_fMRI -gt 0 ];then
 
         if [ ! -f ${cwd}/KUL_LOG/sub-${participant}_SPM.done ]; then
-            task_in="KUL_fmriproc_spm_new.sh -p $participant -S $smooth_fwhm -P $pfwe"
-            KUL_task_exec $verbose_level "KUL_fmriproc_spm_new" "7_fmriproc_spm"
+            if [ "$fmri_engine" == "nilearn" ]; then
+                task_in="KUL_fmriproc_nilearn_new.sh -p $participant -S $smooth_fwhm -P $pfwe -c $ncpu"
+                KUL_task_exec $verbose_level "KUL_fmriproc_nilearn_new" "7_fmriproc_nilearn"
+            else
+                task_in="KUL_fmriproc_spm_new.sh -p $participant -S $smooth_fwhm -P $pfwe -c $ncpu"
+                KUL_task_exec $verbose_level "KUL_fmriproc_spm_new" "7_fmriproc_spm"
+            fi
 
-            # add to report using Bizzi-thresholded maps (p<0.001 unc, k>=50)
-            for bizzi_map in $derivativesdir/SPM/*/spmT_0001_p001unc_k50.nii; do
+            # add to report using the hardwired wc (with-confounds) Bizzi-thresholded
+            # maps only (p<0.001 unc, k>=50) — matches the RESULTS/.../SPM selection
+            for bizzi_map in $derivativesdir/SPM/*_wc/spmT_0001_p001unc_k50.nii; do
                 [ -f "$bizzi_map" ] || continue
                 task=$(basename $(dirname $bizzi_map))
+                task=${task%_wc}
                 KUL_mrview_figure.sh -p ${participant} -u RESULTS/sub-${participant}/Anat/T1w.nii.gz \
                     -o "$bizzi_map" -t 2 -d REPORT -f 05_afMRI_${task}_p001unc_k50
             done
@@ -1826,6 +1884,7 @@ kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute
 mkdir -p $kulderivativesdir
 mkdir -p $globalresultsdir/Anat
 mkdir -p $globalresultsdir/SPM
+mkdir -p $globalresultsdir/SPM_all
 mkdir -p $globalresultsdir/Melodic
 mkdir -p $globalresultsdir/Tracto
 mkdir -p $globalresultsdir/PACS/fMRI
@@ -1857,72 +1916,57 @@ echo "Starting KUL_clinical_fmridti"
 KUL_check_data
 KUL_check_redo
 
-
 # STEP 1 - run bias correction
 KUL_anatomical_biascorrect
-
 
 # STEP 2 - register all anatomical other data to the T1w without contrast
 KUL_register_anatomical_images
 
-
 # STEP 3 - run tumor segmentation 
 KUL_segment_tumor
     
-
 # STEP 4 - run fmriprep and continue
 KUL_run_fmriprep &
 
-
 # STEP 5 - run dwiprep and continue
 KUL_run_dwiprep &
-
-
 wait
 
 # STEP 6 - generate Gd contrast T1w subtraction
 KUL_run_cT1w_subtraction
 
-
 # STEP 7 - get rid of the Gadolinium T1w image since it may conflict with msbp
 KUL_clear_cT1w
 
-
 # STEP 8 - run SPM & melodic
 KUL_fmriproc
-
 
 # STEP 9 - run VBG
 KUL_run_VBG 
 wait
 
-
 # STEP 9b - FastSurfer + KUL_multiparc (types 4, 5, 6 only — no VBG)
+# this should only run if VBG is not used!!
 KUL_run_multiparc
 wait
 
-
 # STEP 10 - run SPM/melodic/msbp
-KUL_run_msbp
-wait
+# this is not okay!
+# KUL_run_msbp
+# wait
 
-
-
-# STEP 11 run dwiprep_anat
+# STEP 10 run dwiprep_anat
 KUL_run_dwiprep_anat
 
-
-# STEP 12 run dwiprep_MNI (needed for DTI-ALPS; skipped for other types)
+# STEP 11 run dwiprep_MNI (needed for DTI-ALPS; skipped for other types)
 KUL_run_dwiprep_MNI
 
-# STEP 13 run DTI_ALPS calculation (type 7 only)
+# STEP 12a run DTI_ALPS calculation (type 7 only)
 KUL_calc_DTI_ALPS
 wait
 
-
-# STEP 14 - run Fun With Tracts
+# STEP 12b - run Fun With Tracts
 KUL_run_FWT
-
 
 # STEP 15 - Prepare Karawun folder automatically.
 # The importTractography command is printed at the end — run it manually after
