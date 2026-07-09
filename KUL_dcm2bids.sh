@@ -159,19 +159,18 @@ else
 
 fi
 
-# Version-detection preamble: warn if dcm2bids v2 is detected.
-# This script uses the v3 schema (dataType/modalityLabel/customLabels/sidecarChanges).
-# For v2 sites use KUL_dcm2bids_v2bkup.sh instead.
-_dcm2bids_ver=$(dcm2bids --version 2>/dev/null | grep -oP '\d+\.\d+' | head -1)
-_dcm2bids_major=$(echo "$_dcm2bids_ver" | cut -d. -f1)
-if [[ -n "$_dcm2bids_major" && "$_dcm2bids_major" -lt 3 ]]; then
-    echo "WARNING: dcm2bids v${_dcm2bids_ver} detected (v2 schema)."
-    echo "  This script requires dcm2bids v3 (v3 schema: dataType/modalityLabel)."
-    echo "  For v2 compatibility, use KUL_dcm2bids_v2bkup.sh instead."
-    echo "  Upgrade with: pip install --upgrade dcm2bids"
-    echo "  Continuing anyway — your config file schema must match the installed version."
+# Version-detection: dcm2bids' CLI changed its "force" flag between v2 and v3
+# (v2: --forceDcm2niix, v3+: --force_dcm2bids). Detect once here and reuse the
+# right flag when we actually invoke dcm2bids further down.
+dcm2bids_ver=$(dcm2bids --version 2>/dev/null | grep -oP '\d+\.\d+' | head -1)
+dcm2bids_major=$(echo "$dcm2bids_ver" | cut -d. -f1)
+if [[ -n "$dcm2bids_major" && "$dcm2bids_major" -lt 3 ]]; then
+    dcm2bids_force_flag="--forceDcm2niix"
+    echo "  dcm2bids v${dcm2bids_ver} detected, using v2 CLI flag ${dcm2bids_force_flag}" $log
+else
+    dcm2bids_force_flag="--force_dcm2bids"
+    echo "  dcm2bids v${dcm2bids_ver} detected, using v3 CLI flag ${dcm2bids_force_flag}" $log
 fi
-unset _dcm2bids_ver _dcm2bids_major
 
 # check if jq is installed and install it if not
 if [[ $(which jq) ]]; then
@@ -951,7 +950,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_T1='{"dataType": "anat", "modalityLabel": "T1w", "criteria": {  
+            sub_bids_T1='{"datatype": "anat", "suffix": "T1w", "criteria": {  
              "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
@@ -969,10 +968,10 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_T1='{"dataType": "anat", "modalityLabel": "T1w", "criteria": {  
+            sub_bids_T1='{"datatype": "anat", "suffix": "T1w", "criteria": {  
              "SeriesDescription": "*'${search_string}'*"},
-            "customLabels": "ce-gadolinium",
-            "sidecarChanges": {"KUL_dcm2bids": "yes","ContrastBolusIngredient": "gadolinium"}
+            "custom_entities": "ce-gadolinium",
+            "sidecar_changes": {"KUL_dcm2bids": "yes","ContrastBolusIngredient": "gadolinium"}
             }'
 
             sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
@@ -990,7 +989,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_T2='{"dataType": "anat", "modalityLabel": "T2w", "criteria": { 
+            sub_bids_T2='{"datatype": "anat", "suffix": "T2w", "criteria": { 
              "SeriesDescription": "*'${search_string}'*"}'
 
             # add an acq_label if any
@@ -998,7 +997,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             if [ "$acq_label" = "" ];then
                 sub_bids_T2b='}'
             else
-                sub_bids_T2b=', "customLabels": "acq-'${acq_label}'"}'
+                sub_bids_T2b=', "custom_entities": "acq-'${acq_label}'"}'
             fi
 
             echo ${sub_bids_T2}${sub_bids_T2b}
@@ -1017,7 +1016,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_PD='{"dataType": "anat", "modalityLabel": "PDw", "criteria": {  
+            sub_bids_PD='{"datatype": "anat", "suffix": "PDw", "criteria": {  
              "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_PD} | python -m json.tool)
@@ -1035,7 +1034,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_PD='{"dataType": "anat", "modalityLabel": "FGATIR", "criteria": {  
+            sub_bids_PD='{"datatype": "anat", "suffix": "FGATIR", "criteria": {  
              "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_PD} | python -m json.tool)
@@ -1055,11 +1054,11 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
             # Two explicit entries: magnitude (REAL, no PHASE) and phase (PHASE+REAL).
             # This excludes inline-derived MinIP images (ImageType starts with DERIVED).
-            sub_bids_SWIm='{"dataType": "anat", "modalityLabel": "SWI", "criteria": {
+            sub_bids_SWIm='{"datatype": "anat", "suffix": "SWI", "criteria": {
              "SeriesDescription": "*'${search_string}'*",
              "ImageType": ["ORIGINAL", "PRIMARY", "T1", "MIXED", "REAL"]}}'
 
-            sub_bids_SWIp='{"dataType": "anat", "modalityLabel": "SWIp", "criteria": {
+            sub_bids_SWIp='{"datatype": "anat", "suffix": "SWIp", "criteria": {
              "SeriesDescription": "*'${search_string}'*",
              "ImageType": ["ORIGINAL", "PRIMARY", "T1", "MIXED", "PHASE", "REAL"]}}'
 
@@ -1080,7 +1079,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_SWI='{"dataType": "anat", "modalityLabel": "MTI", "criteria": {  
+            sub_bids_SWI='{"datatype": "anat", "suffix": "MTI", "criteria": {  
              "SeriesDescription": "*'${search_string}'*","ImageType": [
                 "ORIGINAL","PRIMARY","M","FFE","M","FFE"]}}'
 
@@ -1099,7 +1098,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_SWI='{"dataType": "perf", "modalityLabel": "asl", 
+            sub_bids_SWI='{"datatype": "perf", "suffix": "asl", 
                 "criteria": {  
                     "SeriesDescription": "*'${search_string}'*",
                     "ImageType": [
@@ -1121,7 +1120,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_FL='{"dataType": "anat", "modalityLabel": "FLAIR", "criteria": {
+            sub_bids_FL='{"datatype": "anat", "suffix": "FLAIR", "criteria": {
              "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_FL} | python -m json.tool)
@@ -1138,7 +1137,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
             kul_dcmtags "${seq_file}"
 
-            sub_bids_DIR='{"dataType": "anat", "modalityLabel": "DIR", "criteria": {
+            sub_bids_DIR='{"datatype": "anat", "suffix": "DIR", "criteria": {
              "SeriesDescription": "*'${search_string}'*"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_DIR} | python -m json.tool)
@@ -1157,7 +1156,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
             # Capture only magnitude volumes (ImageType has no PHASE/IMAGINARY/REAL suffix).
             # Both TI1 and TI2 match; pipeline selects INV2 by highest TriggerDelayTime.
-            sub_bids_MP2='{"dataType": "anat", "modalityLabel": "MP2RAGE", "criteria": {
+            sub_bids_MP2='{"datatype": "anat", "suffix": "MP2RAGE", "criteria": {
              "SeriesDescription": "*'${search_string}'*",
              "ImageType": ["ORIGINAL", "PRIMARY", "T1", "MIXED"]}}'
 
@@ -1178,8 +1177,8 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             
             sub_bids_fm1='
             {
-                "dataType": "fmap",
-                "modalityLabel": "magnitude",
+                "datatype": "fmap",
+                "suffix": "magnitude",
                 "criteria": 
                     {
                     "SeriesDescription": "*'${search_string}'*",
@@ -1192,14 +1191,14 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             
             sub_bids_fm2='
             {
-                "dataType": "fmap",
-                "modalityLabel": "fieldmap",
+                "datatype": "fmap",
+                "suffix": "fieldmap",
                 "criteria": 
                     {
                     "SeriesDescription": "'*${search_string}'*",
                     "EchoNumber": 2
                     },
-                "sidecarChanges":
+                "sidecar_changes":
                 {"Units": "Hz","IntendedFor": "##REPLACE_ME_INTENDED_FOR##"}
             }'
             
@@ -1229,9 +1228,9 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # remove any whitespaces
             task_nospace="$(echo -e "${task}" | tr -d '[:space:]')"
 
-            sub_bids_fu1='{"dataType": "func","modalityLabel": 
+            sub_bids_fu1='{"datatype": "func","suffix": 
             "bold","criteria": {"SeriesDescription": "*'${search_string}'*"},
-            "customLabels": "task-'${task_nospace}''
+            "custom_entities": "task-'${task_nospace}''
 
             # add an acq_label if any
             if [ "$acq_label" = "" ];then
@@ -1240,9 +1239,9 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
                 sub_bids_fu1b='_acq-'${acq_label}'",'
             fi
 
-            sub_bids_fu1c='"sidecarChanges": {"KUL_dcm2bids": "yes","TaskName": "'${task}'"'
+            sub_bids_fu1c='"sidecar_changes": {"KUL_dcm2bids": "yes","TaskName": "'${task}'"'
 
-            # for siemens (& ge?) ess/trt is not necessary as sidecarChanges
+            # for siemens (& ge?) ess/trt is not necessary as sidecar_changes
             # also not for philips, when it cannot be calculated
             #echo "ess_trt_provided_by_vendor: $ees_trt_provided_by_vendor"
             #echo "ees_sec: $ees_sec"
@@ -1266,7 +1265,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
                     
             fi        
                     
-            # for siemens (& ge?) slicetiming is not necessary as sidecarChanges
+            # for siemens (& ge?) slicetiming is not necessary as sidecar_changes
             # also not for philips, when it cannot be calculated
             #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
             #echo "slice_time: $slice_time"
@@ -1311,9 +1310,9 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             sbref_task1=${sbref_tasks[0]}
             #echo $sbref_task1
 
-            sub_bids_sb1='{"dataType": "func","modalityLabel": 
+            sub_bids_sb1='{"datatype": "func","suffix": 
             "sbref","criteria": {"SeriesDescription": "*'${search_string}'*"}, 
-            "customLabels": "task-'${sbref_task1}''
+            "custom_entities": "task-'${sbref_task1}''
             
             if [ "$acq_label" = "" ];then
                 sub_bids_sb1b='"',
@@ -1321,9 +1320,9 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
                 sub_bids_sb1b='_acq-'${acq_label}'",'
             fi
             
-            sub_bids_sb1c='"sidecarChanges": {"KUL_dcm2bids": "yes","TaskName": "'${sbref_task1}'"'
+            sub_bids_sb1c='"sidecar_changes": {"KUL_dcm2bids": "yes","TaskName": "'${sbref_task1}'"'
 
-            # for siemens (& ge?) ess/trt is not necessary as sidecarChanges
+            # for siemens (& ge?) ess/trt is not necessary as sidecar_changes
             # also not for philips, when it cannot be calculated
             #echo "ess_trt_provided_by_vendor: $ees_trt_provided_by_vendor"
             #echo "ees_sec: $ees_sec"
@@ -1347,7 +1346,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
                     
             fi        
                     
-            # for siemens (& ge?) slicetiming is not necessary as sidecarChanges
+            # for siemens (& ge?) slicetiming is not necessary as sidecar_changes
             # also not for philips, when it cannot be calculated
             #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
             #echo "slice_time: $slice_time"
@@ -1385,21 +1384,21 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_dw1='{"dataType": "dwi","modalityLabel": "dwi",
+            sub_bids_dw1='{"datatype": "dwi","suffix": "dwi",
             "criteria": {"SeriesDescription": "*'${search_string}'*"},'
 
 
             if [ "$acq_label" = "" ];then
                 sub_bids_dw1b=""
             else
-                sub_bids_dw1b='"customLabels": "acq-'${acq_label}'",'
+                sub_bids_dw1b='"custom_entities": "acq-'${acq_label}'",'
             fi
 
 
-            sub_bids_dw1c='"sidecarChanges": {"KUL_dcm2bids": "yes"'
+            sub_bids_dw1c='"sidecar_changes": {"KUL_dcm2bids": "yes"'
             
 
-            # for siemens (& ge?) ess/trt is not necessary as sidecarChanges
+            # for siemens (& ge?) ess/trt is not necessary as sidecar_changes
             # also not for philips, when it cannot be calculated
             #echo "ees_trt_provided_by_vendor: $ees_trt_provided_by_vendor"
             #echo "ees_sec: $ees_sec"
@@ -1422,7 +1421,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
                     
             fi
                     
-            # for siemens (& ge?) slicetiming is not necessary as sidecarChanges
+            # for siemens (& ge?) slicetiming is not necessary as sidecar_changes
             # also not for philips, when it cannot be calculated
             #echo "slicetime_provided_by_vendor: $slicetime_provided_by_vendor"
             #echo "slice_time: $slice_time"
@@ -1491,11 +1490,40 @@ bids_conf_str="{${json_anon}
 #echo ${bids_conf_str}
 echo ${bids_conf_str} | python -m json.tool > ${bids_config_json_file}
 
+# The descriptions above are built with the dcm2bids v3 schema
+# (datatype/suffix/custom_entities/sidecar_changes). If a v2 dcm2bids is
+# installed, translate those keys back to the v2 schema
+# (dataType/modalityLabel/customLabels/sidecarChanges) it expects.
+if [[ -n "$dcm2bids_major" && "$dcm2bids_major" -lt 3 ]]; then
+    python3 - "$bids_config_json_file" <<'PYEOF'
+import json, sys
+
+path = sys.argv[1]
+rename = {
+    "datatype": "dataType",
+    "suffix": "modalityLabel",
+    "custom_entities": "customLabels",
+    "sidecar_changes": "sidecarChanges",
+}
+
+with open(path) as f:
+    data = json.load(f)
+
+for desc in data.get("descriptions", []):
+    for old, new in rename.items():
+        if old in desc:
+            desc[new] = desc.pop(old)
+
+with open(path, "w") as f:
+    json.dump(data, f, indent=4)
+PYEOF
+fi
+
 
 # MAIN HERE - WE RUN dcm2bids - HERE
 # invoke dcm2bids
 kul_e2cl "  Calling dcm2bids... (for the output see $dcm2niix_log_file)" $log
-if [ ! -d BIDS/.bidsignore ];then
+if [ ! -f BIDS/.bidsignore ];then
     mkdir -p BIDS
     cd BIDS
     dcm2bids_scaffold
@@ -1520,10 +1548,10 @@ else
 fi
 
 echo "dcm2bids  -d "${tmp}" -p $subj ${dcm2bids_flag} ${dcm2bids_session} -c $bids_config_json_file \
-    -o $bids_output -l DEBUG --clobber --forceDcm2niix > $dcm2niix_log_file"
+    -o $bids_output -l DEBUG --clobber ${dcm2bids_force_flag} > $dcm2niix_log_file"
 
 cmd="dcm2bids  -d "${tmp}" -p $subj ${dcm2bids_flag} ${dcm2bids_session} -c $bids_config_json_file \
-    -o $bids_output -l DEBUG --clobber --forceDcm2niix > $dcm2niix_log_file"
+    -o $bids_output -l DEBUG --clobber ${dcm2bids_force_flag} > $dcm2niix_log_file"
 echo $cmd
 eval $cmd 
 # Multi Echo func needs extra work. dcm2bids does not convert these correctly. "run" needs to be "echo"
