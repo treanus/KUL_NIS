@@ -1061,7 +1061,7 @@ if [ $expert -eq 1 ]; then
             #if [ $task_counter -gt $fmriprep_simultaneous_pbs ]; then
             #    task_counter=1
             #fi
-            KUL_task_exec $verbose_level "KUL_preproc_all running mriqc" "mriqc"
+            KUL_task_exec $verbose_level "KUL_preproc_all running mriqc" "mriqc" || kul_echo "WARNING: one or more mriqc jobs in this batch failed — check per-participant error logs"
 
         done
         
@@ -1178,7 +1178,7 @@ if [ $expert -eq 1 ]; then
             #if [ $task_counter -gt $fmriprep_simultaneous_pbs ]; then
             #    task_counter=1
             #fi
-            KUL_task_exec $verbose_level "KUL_preproc_all running fmriprep" "fmriprep"
+            KUL_task_exec $verbose_level "KUL_preproc_all running fmriprep" "fmriprep" || kul_echo "WARNING: one or more fmriprep jobs in this batch failed — check per-participant error logs"
 
         done
     
@@ -1272,7 +1272,7 @@ if [ $expert -eq 1 ]; then
 
             #kul_e2cl " freesurfer processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
             
-            KUL_task_exec $verbose_level "KUL_preproc_all running freesurfer" "freesurfer"
+            KUL_task_exec $verbose_level "KUL_preproc_all running freesurfer" "freesurfer" || kul_echo "WARNING: one or more freesurfer jobs in this batch failed — check per-participant error logs"
 
         done 
 
@@ -1376,7 +1376,7 @@ if [ $expert -eq 1 ]; then
 
             #kul_e2cl " dwiprep processes [${waitforpids[@]}] for subject(s) $fs_participants have finished" $log
             
-            KUL_task_exec $verbose_level "KUL_preproc_all running KUL_dwiprep" "dwiprep"
+            KUL_task_exec $verbose_level "KUL_preproc_all running KUL_dwiprep" "dwiprep" || kul_echo "WARNING: one or more dwiprep jobs in this batch failed — check per-participant error logs"
         
         done 
 

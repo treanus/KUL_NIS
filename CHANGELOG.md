@@ -1,5 +1,47 @@
 # Changelog
 
+## Unreleased (working tree, 2026-07-10 — logging/status-reporting correctness pass)
+
+Prompted by inconsistent status reporting across real test runs — some steps logged
+"success" despite the underlying command having actually failed, because their
+`KUL_task_exec` return value was never checked at the call site.
+
+### KUL_main_functions.sh
+- `KUL_task_exec` itself was already correct (captures the real exit code via `wait`).
+  Fixed two smaller bugs inside it:
+  - `kul_echo`'s `verbose_level == 0` case had no branch at all, so every message was
+    silently discarded (not even written to the log file) when running with `-v 0`.
+    Changed so level 0 behaves like level 1 (file-only, no terminal echo) — "quiet
+    terminal" should never mean "no record exists."
+  - The aggregate Success/Fail line at the end of `KUL_task_exec` used
+    `${kul_log_file}` unindexed, which defaults to array index `[0]` — when multiple
+    tasks are batched in one call, only the first task's log ever got this line. Now
+    loops over every task index so each task's own log file gets the line.
+
+### KUL_preproc_all.sh
+- 4 batch `KUL_task_exec` call sites (mriqc, fmriprep, freesurfer, dwiprep) discarded
+  the return value entirely — a failure for any participant in the batch was
+  completely invisible; the script just moved on. Added a `|| kul_echo "WARNING: ..."`
+  to each so a batch failure is now at least logged clearly. Not changed to `return`/
+  `exit`, since these are fire-and-forget batch launches across a loop of participant
+  groups with no per-call `.done` marker to gate — other batches should still run.
+
+### KUL_clinical_fmridti.sh
+- Gated the remaining ~7 ungated `KUL_task_exec` call sites, matching the pattern
+  already used correctly at 3-4 other sites in this file
+  (`KUL_task_exec ... || { kul_echo "...failed..."; return 1; }`):
+  - `KUL_run_VBG`: previously, a failed `KUL_VBG.sh` run still had its (possibly
+    incomplete/missing) output `cp -r`'d into the freesurfer derivatives directory
+    as if nothing had gone wrong. Now returns before the copy on failure.
+  - `KUL_run_dwiprep_anat`, `KUL_run_dwiprep_MNI`, `KUL_calc_DTI_ALPS`: each
+    unconditionally touched its own `.done` marker regardless of whether the
+    preceding step actually succeeded. Now gated the same way.
+  - `KUL_fmriproc` (nilearn/spm branch, melodic/conn branch): these two don't touch a
+    `.done` marker directly in this file (that happens inside the called sub-script
+    itself, out of scope here) so a hard `return 1` isn't appropriate — instead added
+    a clear `kul_echo` warning naming which `.done` marker will consequently not be
+    created, so a failure here is no longer silent.
+
 ## Unreleased (working tree, 2026-07-10 — make FWT tractometry opt-in)
 
 ### KUL_clinical_fmridti.sh

@@ -246,13 +246,18 @@ function KUL_task_exec {
     done
 
     ### STEP 5 - return the status of execution
-    if [ $errorcount -eq 0 ]; then
-        if [ $kul_verbose_level -eq 2 ]; then
-            echo -e "Success" | tee -a ${kul_log_file}
+    # log the aggregate Success/Fail into every task's own log file, not just kul_log_file[0]
+    # (the array's implicit default index when used unindexed) -- otherwise only the first
+    # of several batched tasks ever got this line.
+    for (( c=0; c<local_n_tasks; c++ )); do
+        if [ $errorcount -eq 0 ]; then
+            if [ $kul_verbose_level -eq 2 ]; then
+                echo -e "Success" | tee -a ${kul_log_file[c]}
+            fi
+        else
+            echo -e "Fail" | tee -a ${kul_log_file[c]}
         fi
-    else
-        echo -e "Fail" | tee -a ${kul_log_file}
-    fi
+    done
 
     unset task_in
     unset task_participant
@@ -335,7 +340,9 @@ function kul_echo {
     #if [ $silent -eq 0 ];then
     #    echo $1
     #fi
-    if [ $verbose_level -eq 1 ]; then
+    if [ $verbose_level -le 1 ]; then
+        # level 0 (silent terminal) still writes to the log file -- "quiet terminal"
+        # must never mean "no record exists"
         #echo "log: $log"
         echo ${info_to_log[@]} >> ${log}
     elif [ $verbose_level -eq 2 ]; then

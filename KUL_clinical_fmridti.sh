@@ -1571,7 +1571,7 @@ function KUL_run_VBG {
                 -m $derivativesdir/KUL_VBG \
                 $vbg_extra_axial \
                 -z T1 -b -B 1 -t -P 1 -M -O -H -n $ncpu"
-            KUL_task_exec $verbose_level "KUL_VBG" "7_VBG"
+            KUL_task_exec $verbose_level "KUL_VBG" "7_VBG" || { kul_echo "KUL_VBG failed — not copying possibly incomplete output to freesurfer derivatives"; return 1; }
 
             # copy the output of VBG to the derivatives freesurfer directory
             cp -r $derivativesdir/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant} \
@@ -1758,10 +1758,10 @@ function KUL_fmriproc {
         if [ ! -f ${cwd}/KUL_LOG/sub-${participant}_SPM.done ]; then
             if [ "$fmri_engine" == "nilearn" ]; then
                 task_in="KUL_fmriproc_nilearn_new.sh -p $participant -S $smooth_fwhm -P $pfwe -c $ncpu"
-                KUL_task_exec $verbose_level "KUL_fmriproc_nilearn_new" "7_fmriproc_nilearn"
+                KUL_task_exec $verbose_level "KUL_fmriproc_nilearn_new" "7_fmriproc_nilearn" || kul_echo "KUL_fmriproc_nilearn_new failed for sub-${participant} — SPM.done will not be created (check 7_fmriproc_nilearn.error.log)"
             else
                 task_in="KUL_fmriproc_spm_new.sh -p $participant -S $smooth_fwhm -P $pfwe -c $ncpu"
-                KUL_task_exec $verbose_level "KUL_fmriproc_spm_new" "7_fmriproc_spm"
+                KUL_task_exec $verbose_level "KUL_fmriproc_spm_new" "7_fmriproc_spm" || kul_echo "KUL_fmriproc_spm_new failed for sub-${participant} — SPM.done will not be created (check 7_fmriproc_spm.error.log)"
             fi
 
             # add to report using the hardwired wc (with-confounds) Bizzi-thresholded
@@ -1777,7 +1777,7 @@ function KUL_fmriproc {
 
         if [ ! -f ${cwd}/KUL_LOG/sub-${participant}_melodic.done ]; then
             task_in="KUL_fmriproc_conn.sh -p $participant"
-            KUL_task_exec $verbose_level "KUL_fmriproc_conn" "8_fmriproc_conn"
+            KUL_task_exec $verbose_level "KUL_fmriproc_conn" "8_fmriproc_conn" || kul_echo "KUL_fmriproc_conn failed for sub-${participant} — melodic.done will not be created (check 8_fmriproc_conn.error.log)"
 
             # add to report
             for spm in RESULTS/sub-${participant}/Melodic/*.nii; do
@@ -1801,7 +1801,7 @@ function KUL_run_dwiprep_anat {
     dwi_anat_check=${cwd}/KUL_LOG/sub-${participant}_dwiprep_anat.done
     if [ ! -f $dwi_anat_check ]; then
         task_in="KUL_dwiprep_anat.sh -p $participant -n $ncpu"
-        KUL_task_exec $verbose_level "KUL_dwiprep_anat" "11_dwiprep_anat"
+        KUL_task_exec $verbose_level "KUL_dwiprep_anat" "11_dwiprep_anat" || { kul_echo "KUL_dwiprep_anat failed — NOT writing dwiprep_anat.done"; return 1; }
 
         if [ -f dwiprep/sub-${participant}/sub-${participant}/qa/sub-${participant}_T1w_with_fa.png ]; then
             cp -f dwiprep/sub-${participant}/sub-${participant}/qa/sub-${participant}_T1w_with_fa.png \
@@ -1821,7 +1821,7 @@ function KUL_run_dwiprep_MNI {
     dwi_MNI_check=${cwd}/KUL_LOG/sub-${participant}_dwiprep_MNI.done
     if [ ! -f $dwi_MNI_check ]; then
         task_in="KUL_dwiprep_MNI.sh -p $participant -n $ncpu"
-        KUL_task_exec $verbose_level "KUL_dwiprep_MNI" "12_dwiprep_MNI"
+        KUL_task_exec $verbose_level "KUL_dwiprep_MNI" "12_dwiprep_MNI" || { kul_echo "KUL_dwiprep_MNI failed — NOT writing dwiprep_MNI.done"; return 1; }
 
         touch $dwi_MNI_check
     fi
@@ -1834,7 +1834,7 @@ function KUL_calc_DTI_ALPS {
         dti_ALPS_check=${cwd}/KUL_LOG/sub-${participant}_dti_ALPS.done
         if [ ! -f $dti_ALPS_check ]; then
             task_in="${kul_main_dir}/KUL_DTI_ALPS/KUL_calc_DTIALPS.sh -p $participant -n $ncpu"
-            KUL_task_exec $verbose_level "KUL_calc_DTIALPS" "13_dti_ALPS"
+            KUL_task_exec $verbose_level "KUL_calc_DTIALPS" "13_dti_ALPS" || { kul_echo "KUL_calc_DTIALPS failed — NOT writing dti_ALPS.done"; return 1; }
 
             touch $dti_ALPS_check
         fi
