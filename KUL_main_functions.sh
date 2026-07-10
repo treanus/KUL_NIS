@@ -124,6 +124,15 @@ function KUL_task_exec {
             kul_log_command[$local_n_tasks]="$local_main_logdir_participant/"${kul_log_files}.command""
         fi
 
+        # Truncate this task's log/error-log before writing to them. Both the auto-generated
+        # and the explicit kul_log_files naming schemes are fixed names, not per-run/timestamped
+        # -- without this, a retried step (e.g. after fixing a bad input path) kept appending to
+        # the same file forever, leaving a previous failed attempt's error output sitting
+        # alongside/before the current attempt's, which reads as a contradiction (e.g. a
+        # "Success" from a later attempt next to a stale "exitcode 2" from an earlier one).
+        : > "${kul_log_file[$local_n_tasks]}"
+        : > "${kul_errorlog_file[$local_n_tasks]}"
+
         ### STEP 2 - execute the task_in
         if [ $kul_verbose_level -lt 2 ]; then 
 

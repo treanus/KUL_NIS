@@ -7,6 +7,14 @@ Prompted by inconsistent status reporting across real test runs — some steps l
 `KUL_task_exec` return value was never checked at the call site.
 
 ### KUL_main_functions.sh
+- `kul_log_file`/`kul_errorlog_file` use a fixed, non-timestamped name per task label
+  (e.g. `7_VBG.log`), always written with `>>`/`tee -a`, and were never truncated.
+  Traced this to the exact real-world symptom that prompted this whole pass: a VBG run
+  that failed fast (bad lesion path, "exitcode 2" in `.error.log`) followed by a retry
+  219 minutes later that succeeded — but since neither file was ever cleared, the retry's
+  "Success" sat right next to the first attempt's stale failure, reading as a
+  contradiction. Now truncates both files right before each `KUL_task_exec` invocation
+  writes to them.
 - `KUL_task_exec` itself was already correct (captures the real exit code via `wait`).
   Fixed two smaller bugs inside it:
   - `kul_echo`'s `verbose_level == 0` case had no branch at all, so every message was
