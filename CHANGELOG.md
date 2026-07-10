@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased (working tree, 2026-07-10 — make FWT tractometry opt-in)
+
+### KUL_clinical_fmridti.sh
+- Added `-Q` (opt-in, off by default): runs `KUL_FWT_make_TCKs.sh -Q`
+  (per-bundle tractometry). Previously `-Q` was hardcoded on in
+  `KUL_run_FWT`. Found via a real timed test run: with ~50 bundle/hemisphere
+  combinations processed strictly sequentially (no bundle-level
+  parallelism), tractography+tractometry took 4+ hours for one participant.
+  Tracts/tractography themselves are still generated either way — only the
+  along-tract scalar-profiling pass is now gated behind `-Q`.
+
 ## Unreleased (working tree, 2026-07-09, batch 3 — wire -U through; fix Karawun labels)
 
 ### KUL_clinical_fmridti.sh

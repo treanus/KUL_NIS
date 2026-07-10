@@ -83,6 +83,10 @@ Optional arguments:
      -U:  EXPERIMENTAL opt-in: pass -U through to KUL_FWT_make_TCKs.sh so it prefers the
           rfa-modulated lore_sd FOD (rfa_modulated_fod_reg2T1w.mif, from KUL_dwiprep.sh),
           if found, over the plain lore_sd ODF. Without -U, tractography is unchanged.
+     -Q:  opt-in: run KUL_FWT's per-bundle tractometry (-Q, along-tract scalar profiles).
+          Off by default — adds substantial runtime (real per-bundle work across ~50
+          bundle/hemisphere combinations, processed sequentially, no parallelism yet).
+          Tractography/tracts themselves are generated either way.
 
 USAGE
 
@@ -118,6 +122,7 @@ pfwe=0.01
 use_fastsurfer=0
 fmri_engine="spm"
 use_rfa_mod_fod=0
+run_fwt_tractometry=0
 declare -A spm_thresh_map=()
 
 # Set required options
@@ -131,7 +136,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:XBrseU" OPT; do
+	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:XBrseUQ" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -199,6 +204,11 @@ else
         ;;
         U) # EXPERIMENTAL opt-in: prefer the rfa-modulated lore_sd FOD in KUL_FWT, if found
             use_rfa_mod_fod=1
+        ;;
+        Q) # opt-in: run KUL_FWT's per-bundle tractometry (-Q). Off by default —
+           # adds substantial runtime (real per-bundle work, ~50 bundle/hemisphere
+           # combinations processed sequentially with no bundle-level parallelism yet).
+            run_fwt_tractometry=1
         ;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -1649,6 +1659,8 @@ function KUL_run_FWT {
             KUL_activate_conda_env ${scilpy}
             _fwt_rfa_opt=""
             [ $use_rfa_mod_fod -eq 1 ] && _fwt_rfa_opt="-U"
+            _fwt_qq_opt=""
+            [ $run_fwt_tractometry -eq 1 ] && _fwt_qq_opt="-Q"
             task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
             -F ${_fs_apas} \
             -c $cwd/study_config/${config} \
@@ -1656,7 +1668,7 @@ function KUL_run_FWT {
             -o $kulderivativesdir/sub-${participant}/FWT \
             -T 1 -a iFOD2 \
             -f 1 \
-            -Q -S ${_fwt_rfa_opt} \
+            -S ${_fwt_rfa_opt} ${_fwt_qq_opt} \
             -n $ncpu"
             KUL_task_exec $verbose_level "KUL_FWT tract generation" "12_FWTtck" || { kul_echo "FWT tract generation failed — NOT writing FWT.done"; return 1; }
 
