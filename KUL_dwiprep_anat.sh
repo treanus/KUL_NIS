@@ -497,6 +497,8 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
 
             kul_echo " Applying the non-linear transformation of the dMRI to T1..."
 
+            (
+            set -e
             if [ -f response/dhollander_wmfod_reg2T1w.mif ]; then
                 mrtransform response/dhollander_wmfod_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
                     response/dhollander_wmfod_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force
@@ -512,6 +514,13 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
             if [ -f response/lore_sd/odf_reg2T1w.mif ]; then
                 mrtransform response/lore_sd/odf_reg2T1w.mif -warp dwi_reg/mrtrix_warp_corrected.mif \
                     response/lore_sd/odf_NLreg2T1w.mif -reorient_fod yes -nthreads $ncpu -force
+            fi
+            )
+            _nl_block_rc=$?
+
+            if [ ${_nl_block_rc} -ne 0 ]; then
+                echo "ERROR: non-linear FOD transform block failed (exit ${_nl_block_rc}) — NOT writing status.mrtransformNL.done"
+                exit 1
             fi
 
             kul_echo "done" > log/status.mrtransformNL.done
@@ -533,9 +542,16 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
             if [ ! -f log/status.freesurfer.done ]; then
 
                 kul_echo " Starting with additional freesurfer processing..."
+                # Run this whole block in a `set -e` subshell so any of the several raw
+                # commands below failing (none go through task_exec/KUL_task_exec) aborts
+                # the block instead of silently continuing to the unconditional
+                # status.freesurfer.done touch that used to follow regardless.
+                (
+                set -e
+
                 # test for location in bids_derivatives
                 #echo ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
-                if [ -d ${cwd}/BIDS/derivatives/freesurfer/sub-${participant} ]; then 
+                if [ -d ${cwd}/BIDS/derivatives/freesurfer/sub-${participant} ]; then
                     fs_subject_dir="${cwd}/BIDS/derivatives/freesurfer"
                     fs_subj="sub-${participant}"
                 else
@@ -554,7 +570,7 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
                 --annot lobes --base-offset 200
 
 
-                # Where is the freesurfer parcellation? 
+                # Where is the freesurfer parcellation?
                 fs_aparc=${fs_loc}/mri/aparc+aseg.mgz
                 fs_wmparc=${fs_loc}/mri/wmparc.mgz
 
@@ -568,7 +584,7 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
                 xfm_search=($(find ${cwd}/${fmriprep_subj} -type f -name "*from-orig_to-T1w_mode-image_xfm*"))
                 num_xfm=${#xfm_search[@]}
                 kul_echo "  Xfm files: number : $num_xfm"
-                kul_echo "    notably: ${xfm_search[@]}"    
+                kul_echo "    notably: ${xfm_search[@]}"
 
 
                 # NEED TO CHANGE: instead of ommiting first, test if xfm file has no tranform in it
@@ -583,6 +599,13 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
                     mv $fs_labels_tmp $fs_labels
                     mv $fs_wmlabels_tmp $fs_wmlabels
 
+                fi
+                )
+                _fs_block_rc=$?
+
+                if [ ${_fs_block_rc} -ne 0 ]; then
+                    echo "ERROR: freesurfer post-processing block failed (exit ${_fs_block_rc}) — NOT writing status.freesurfer.done"
+                    exit 1
                 fi
 
                 touch log/status.freesurfer.done
@@ -610,6 +633,8 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
             # Perform default mrtrix_fs labelconvert
             mkdir -p connectome
             if [ ! -f log/status.labelconvert.done ]; then
+                (
+                set -e
                 mrtrixdir=$(which mrconvert)
                 mrtrixdir=${mrtrixdir%mrtrix3*}/mrtrix3
                 kul_echo " Performig labelconvert..."
@@ -622,7 +647,15 @@ for i in `seq 0 $(($num_sessions_dwi-1))`; do
                 #labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
                 #    $kul_main_dir/share/fs2behrens_thalamus_seg_right.txt connectome/labelconvert_fs2behrens_thalamus_seg_right.nii.gz -force
                 #labelconvert $fs_labels $FREESURFER_HOME/FreeSurferColorLUT.txt \
-                #    $kul_main_dir/share/fs2behrens_thalamus_seg_left.txt connectome/labelconvert_fs2behrens_thalamus_seg_left.nii.gz -force   
+                #    $kul_main_dir/share/fs2behrens_thalamus_seg_left.txt connectome/labelconvert_fs2behrens_thalamus_seg_left.nii.gz -force
+                )
+                _lc_block_rc=$?
+
+                if [ ${_lc_block_rc} -ne 0 ]; then
+                    echo "ERROR: labelconvert block failed (exit ${_lc_block_rc}) — NOT writing status.labelconvert.done"
+                    exit 1
+                fi
+
                 touch log/status.labelconvert.done
 
             else

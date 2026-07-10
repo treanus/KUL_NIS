@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased (working tree, 2026-07-11 — extend status-reporting pass to flagged scripts)
+
+Follow-up to the 2026-07-10 pass below: a final grep sweep at the end of that pass
+turned up more `.done`-touching scripts outside its original scope
+(`KUL_preproc_all.sh`/`KUL_clinical_fmridti.sh` only). Applying the same audit here.
+
+### KUL_DRT.sh
+- `KUL_run_msbp`/`KUL_run_FWT`: gated their `KUL_task_exec` calls on return value
+  before touching `MSBP.done`/`FWT.done`, matching the established pattern.
+- The MAIN flow's separate, currently-live MSBP block (a raw `docker run`, not
+  routed through `task_exec`/`KUL_task_exec` at all — the `KUL_run_msbp` function
+  above it is actually dead code, never called) had zero status checking before
+  its own unconditional `touch MSBP.done`. Added an explicit exit-code check.
+- STEP 6's per-session `KUL_run_FWT` loop and STEP 5's `KUL_dwiprep_anat` call
+  discarded their return values entirely; now warn/abort respectively.
+
+### KUL_dwiprep_anat.sh
+- Three blocks (`status.mrtransformNL.done`, `status.freesurfer.done`,
+  `status.labelconvert.done`) each run several raw FreeSurfer/MRtrix commands
+  (none via `task_exec`/`KUL_task_exec`) followed by an unconditional `touch`.
+  Wrapped each block's commands in a `( set -e; ... )` subshell so any command
+  failing anywhere in the block aborts it, and gated the `touch` on the
+  subshell's exit code instead of always running regardless.
+
 ## Unreleased (working tree, 2026-07-10 — logging/status-reporting correctness pass)
 
 Prompted by inconsistent status reporting across real test runs — some steps logged

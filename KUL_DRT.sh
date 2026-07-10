@@ -162,11 +162,11 @@ function KUL_run_msbp {
          --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
          --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
          --multiproc_number_of_cores $ncpu"
-        KUL_task_exec $verbose_level "MSBP" "7_msbp"
+        KUL_task_exec $verbose_level "MSBP" "7_msbp" || { kul_echo "MSBP failed — NOT writing MSBP.done"; return 1; }
 
         echo "Done MSBP"
         touch KUL_LOG/sub-${participant}_MSBP.done
-        
+
     else
         echo "MSBP already done"
     fi
@@ -183,7 +183,7 @@ function KUL_run_FWT {
         -d $cwd/dwiprep/sub-${participant}/ses-${ses} \
         -o $kulderivativesdir/sub-${participant}/ses-${ses}/FWT \
         -n $ncpu"
-        KUL_task_exec $verbose_level "KUL_FWT voi generation" "FWTvoi"
+        KUL_task_exec $verbose_level "KUL_FWT voi generation" "FWTvoi" || { kul_echo "KUL_FWT VOI generation failed — NOT writing FWT.done"; return 1; }
 
 
         task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
@@ -196,7 +196,7 @@ function KUL_run_FWT {
         -f 1 \
         -Q -S \
         -n $ncpu"
-        KUL_task_exec $verbose_level "KUL_FWT tract generation" "FWTtck"
+        KUL_task_exec $verbose_level "KUL_FWT tract generation" "FWTtck" || { kul_echo "KUL_FWT tract generation failed — NOT writing FWT.done"; return 1; }
 
         #ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_map_BT_iFOD2.nii.gz $globalresultsdir/Tracto/
         #ln -s $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*/*fin_BT_iFOD2.tck $globalresultsdir/Tracto/
@@ -206,7 +206,7 @@ function KUL_run_FWT {
         #    "$globalresultsdir/Tracto/Tract-csd_#2.tck"
         #pdfunite $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf
         touch KUL_LOG/sub-${participant}_ses-${ses}_FWT.done
-        
+
     else
         echo "FWT already done"
     fi
@@ -299,11 +299,17 @@ if [ ! -f KUL_LOG/sub-${participant}_MSBP.done ]; then
          --participant_label $participant --isotropic_resolution 1.0 --thalamic_nuclei \
          --brainstem_structures --skip_bids_validator --fs_number_of_cores $ncpu \
          --multiproc_number_of_cores $ncpu
+        _msbp_rc=$?
         #KUL_task_exec $verbose_level "MSBP" "7_msbp"
+
+        if [ ${_msbp_rc} -ne 0 ]; then
+            echo "ERROR: MSBP docker run failed (exit ${_msbp_rc}) — NOT writing MSBP.done"
+            exit 1
+        fi
 
         echo "Done MSBP"
         touch KUL_LOG/sub-${participant}_MSBP.done
-        
+
     else
         echo "MSBP already done"
     fi
@@ -311,12 +317,12 @@ if [ ! -f KUL_LOG/sub-${participant}_MSBP.done ]; then
 
 # STEP 5 - run KUL_dwiprep_anat
 task_in="KUL_dwiprep_anat.sh -p $participant -n $ncpu -m"
-KUL_task_exec $verbose_level "KUL_dwiprep_anat" "6_dwiprep_anat"
+KUL_task_exec $verbose_level "KUL_dwiprep_anat" "6_dwiprep_anat" || { echo "ERROR: KUL_dwiprep_anat failed, aborting"; exit 1; }
 
 # STEP 6 - run FWT
 sessions=("T0 T1 T2")
 for s in $sessions; do
     echo "Running FWT on session $s"
     ses=$s
-    KUL_run_FWT
+    KUL_run_FWT || kul_echo "WARNING: KUL_run_FWT failed for session $s"
 done
