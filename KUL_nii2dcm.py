@@ -120,12 +120,37 @@ args = parser.parse_args()
 
 
 # Define functions
+def _axis_offset_and_dir(vec, flip, spacing, size):
+    """Return (corner_offset, display_dir) for one in-plane voxel axis.
+
+    `flip` says whether pixel index 0 along this screen axis sits at voxel
+    index N-1 rather than 0 (i.e. whether display order is reversed relative
+    to voxel-index order for this axis).
+    """
+    if flip:
+        offset = [(size - 1) * spacing * v for v in vec]
+        direction = [-v for v in vec]
+    else:
+        offset = [0.0, 0.0, 0.0]
+        direction = list(vec)
+    return offset, direction
+
+
 def compute_slice_geometry(underlay_geom, plane, slice_idx):
     """Return (image_position, row_dir, col_dir, slice_normal, slice_thickness) for a given slice.
 
-    mrview renders with anatomical orientation: TRA/COR left=L, TRA top=A, COR top=S.
-    Pixel (0,0) is therefore at the anatomically appropriate FOV corner, not necessarily
-    voxel (0,0,k). The correct corner depends on the direction-matrix sign.
+    mrview renders with a fixed anatomical display convention (superior/anterior
+    up, patient-right on the left) regardless of how a volume's own voxel axes
+    are signed or how oblique its direction matrix is. Per axis, whether pixel
+    index 0 sits at voxel index 0 or N-1 depends only on that axis's own
+    dominant anatomical sign — verified empirically against mrview by rendering
+    synthetic phantoms with anisotropic spacing, oblique (gantry-tilt-like)
+    rotation, and each axis's sign independently flipped:
+      i (L-R):  flips when i_dir[0] < 0
+      j (A-P):  flips when j_dir[1] < 0
+      k (S-I):  flips when k_dir[2] > 0
+    This one rule holds unchanged across TRA/COR/SAG since each plane just
+    picks 2 of the 3 axes for its row/col roles and the third as its normal.
     """
     origin, spacing, d, sz = underlay_geom
     i_dir = [d[0], d[3], d[6]]
@@ -133,51 +158,27 @@ def compute_slice_geometry(underlay_geom, plane, slice_idx):
     k_dir = [d[2], d[5], d[8]]
     N_i, N_j, N_k = sz[0], sz[1], sz[2]
 
+    i_off, i_disp = _axis_offset_and_dir(i_dir, i_dir[0] < 0, spacing[0], N_i)
+    j_off, j_disp = _axis_offset_and_dir(j_dir, j_dir[1] < 0, spacing[1], N_j)
+    k_off, k_disp = _axis_offset_and_dir(k_dir, k_dir[2] > 0, spacing[2], N_k)
+
     if plane == 'TRA':
-        # Horizontal L→R: if i_dir[0]>0 (i increases leftward) col=0 is at i=N_i-1
-        if i_dir[0] > 0:
-            i_off   = [(N_i - 1) * spacing[0] * v for v in i_dir]
-            row_dir = [-v for v in i_dir]
-        else:
-            i_off   = [0.0] * 3
-            row_dir = list(i_dir)
-        # Vertical A→P: if j_dir[1]<0 (j increases anteriorward) row=0 is at j=N_j-1
-        if j_dir[1] < 0:
-            j_off   = [(N_j - 1) * spacing[1] * v for v in j_dir]
-            col_dir = [-v for v in j_dir]
-        else:
-            j_off   = [0.0] * 3
-            col_dir = list(j_dir)
-        k_off    = [spacing[2] * slice_idx * v for v in k_dir]
-        position = [origin[x] + i_off[x] + j_off[x] + k_off[x] for x in range(3)]
+        row_off, row_dir = i_off, i_disp
+        col_off, col_dir = j_off, j_disp
+        slice_off = [spacing[2] * slice_idx * v for v in k_dir]
         normal, thick = list(k_dir), spacing[2]
-
     elif plane == 'COR':
-        # Horizontal L→R: same logic as TRA
-        if i_dir[0] > 0:
-            i_off   = [(N_i - 1) * spacing[0] * v for v in i_dir]
-            row_dir = [-v for v in i_dir]
-        else:
-            i_off   = [0.0] * 3
-            row_dir = list(i_dir)
-        # Vertical S→I: if k_dir[2]>0 (k increases superiorward) row=0 is at k=N_k-1
-        if k_dir[2] > 0:
-            k_off   = [(N_k - 1) * spacing[2] * v for v in k_dir]
-            col_dir = [-v for v in k_dir]
-        else:
-            k_off   = [0.0] * 3
-            col_dir = list(k_dir)
-        j_off    = [spacing[1] * slice_idx * v for v in j_dir]
-        position = [origin[x] + i_off[x] + k_off[x] + j_off[x] for x in range(3)]
+        row_off, row_dir = i_off, i_disp
+        col_off, col_dir = k_off, k_disp
+        slice_off = [spacing[1] * slice_idx * v for v in j_dir]
         normal, thick = list(j_dir), spacing[1]
-
-    else:  # SAG — in practice handled by --match-donor; kept for completeness
-        step     = [spacing[0] * slice_idx * v for v in i_dir]
-        row_dir  = list(j_dir)
-        col_dir  = [-v for v in k_dir]
+    else:  # SAG
+        row_off, row_dir = j_off, j_disp
+        col_off, col_dir = k_off, k_disp
+        slice_off = [spacing[0] * slice_idx * v for v in i_dir]
         normal, thick = list(i_dir), spacing[0]
-        position = [origin[x] + step[x] for x in range(3)]
 
+    position = [origin[x] + row_off[x] + col_off[x] + slice_off[x] for x in range(3)]
     return position, row_dir, col_dir, normal, thick
 
 
@@ -253,15 +254,18 @@ if args.verbose:
             pass
 
 tags_to_copy = [
-    "0002|0002",  # Media Storage SOP Class UID
     "0010|0010",  # Patient Name
     "0010|0020",  # Patient ID
     "0010|0030",  # Patient Birth Date
     "0010|0040",  # Patient Sex
-    # Study/Series/SOP UIDs are set explicitly in series_tag_values_b — do not copy from donor
+    # Study/Series/SOP UIDs are set explicitly in series_tag_values_b — do not copy from donor.
+    # SOP Class UID (0002|0002 / 0008|0016) is likewise NOT copied from the donor: these outputs
+    # are DERIVED/SECONDARY RGB captures, not real acquisitions, and copying the donor's own
+    # SOP Class (e.g. MR Image Storage) onto RGB pixel data makes GDCM's DICOM writer silently
+    # re-derive/reset Image Orientation Patient and Pixel Spacing from the image's own (default
+    # identity) geometry, discarding whatever was explicitly set via SetMetaData below.
     "0020|0010",  # Study ID
     "0020|0052",  # Frame of Reference UID — links series for cursor alignment in PACS
-    "0008|0016",  # SOP Class UID
     "0008|0020",  # Study Date
     "0008|0022",  # Acquisition Date
     "0008|0023",  # Content Date
@@ -272,6 +276,10 @@ tags_to_copy = [
     "0008|0060",  # Modality
     "0008|0080",  # Institution Name
 ]
+
+# Secondary Capture Image Storage: what these RGB-rendered outputs actually are,
+# regardless of the donor's own (real acquisition) SOP Class.
+_SC_SOP_CLASS = "1.2.840.10008.5.1.4.1.1.7"
 
 # Load underlay geometry for correct spatial metadata (enables PACS linking and MPR)
 underlay_geom = None
@@ -328,25 +336,13 @@ if args.match_donor and input_type == 'png_dir':
     # IOP for the output DICOMs comes from the underlay NIfTI (SAG orientation),
     # NOT from the donor — the donor is acquired axially, so its IOP is axial and
     # would produce completely wrong orientation for SAG output slices.
-    # The donor provides only Frame of Reference UID and patient/study metadata.
-    if underlay_geom is not None:
-        nifti_or_tmp, nifti_sp_tmp, nifti_d_tmp, nifti_sz_tmp = underlay_geom
-        out_row_dir   = _norm([-nifti_d_tmp[1], -nifti_d_tmp[4], -nifti_d_tmp[7]])  # -j (A→P in LPS = negate j)
-        col_raw_tmp   = [nifti_d_tmp[2], nifti_d_tmp[5], nifti_d_tmp[8]]        # k-axis
-        # negate k so superior is up in the image
-        col_orth_tmp  = [-col_raw_tmp[i] - _dot(out_row_dir, [-v for v in col_raw_tmp])
-                         * out_row_dir[i] for i in range(3)]
-        out_col_dir   = _norm(col_orth_tmp)
-        out_slice_dir = _cross(out_row_dir, out_col_dir)
-    else:
-        # Fallback: derive from donor (may be wrong if donor is not SAG)
-        row_raw       = [d3[0], d3[3], d3[6]]
-        col_raw_d     = [d3[1], d3[4], d3[7]]
-        out_row_dir   = _norm(row_raw)
-        col_orth_d    = [col_raw_d[i] - _dot(out_row_dir, col_raw_d) * out_row_dir[i]
-                         for i in range(3)]
-        out_col_dir   = _norm(col_orth_d)
-        out_slice_dir = _cross(out_row_dir, out_col_dir)
+    # The donor provides only Frame of Reference UID, patient/study metadata,
+    # and (below) the frame count/order + pixel matrix size to match.
+    if underlay_geom is None:
+        print('ERROR: donor-match mode requires --underlay for correct SAG orientation')
+        sys.exit(1)
+    nifti_or_tmp, nifti_sp_tmp, nifti_d_tmp, nifti_sz_tmp = underlay_geom
+    _, out_row_dir, out_col_dir, out_slice_dir, _ = compute_slice_geometry(underlay_geom, 'SAG', 0)
 
     # donor_slice_dir is still needed for per-frame loc computation
     donor_row_raw   = [d3[0], d3[3], d3[6]]
@@ -394,13 +390,18 @@ if args.match_donor and input_type == 'png_dir':
     # Compute rendering margin geometrically from the in-plane FOV and PNG dimensions.
     # Pixel-content thresholds are unreliable: both the rendering margin and the dark
     # brain exterior are near-zero with a black background (or both near-white with white).
-    # mrview fills min(PNG_W, PNG_H) pixels with the larger in-plane FOV dimension,
-    # so the margin is the leftover pixels split between both sides.
+    # mrview's mode-1 view uses ONE zoom for the whole volume (so anatomy doesn't visually
+    # resize when scrolling between orthogonal planes), based on the single largest
+    # physical extent across ALL 3 volume axes -- not just this plane's own 2 in-plane
+    # dimensions. Verified empirically against mrview with synthetic phantoms.
     sample_img  = Image.open(pngs[len(pngs) // 2])
     PNG_W, PNG_H = sample_img.size   # width × height in pixels
     j_fov = donor_cols * donor_ps    # horizontal in-plane FOV (mm) for SAG = n_j * sp
     k_fov = donor_rows * donor_ps    # vertical   in-plane FOV (mm) for SAG = n_k * sp
-    scale = min(PNG_W / j_fov, PNG_H / k_fov)   # px/mm (smaller dimension constrains)
+    _global_max_fov = max(nifti_sz_tmp[0] * nifti_sp_tmp[0],
+                          nifti_sz_tmp[1] * nifti_sp_tmp[1],
+                          nifti_sz_tmp[2] * nifti_sp_tmp[2])
+    scale = min(PNG_W, PNG_H) / _global_max_fov   # px/mm, matches mrview's fixed zoom
     content_W = round(j_fov * scale)             # expected rendered content width  (px)
     content_H = round(k_fov * scale)             # expected rendered content height (px)
     crop_left  = (PNG_W - content_W) // 2
@@ -425,6 +426,8 @@ if args.match_donor and input_type == 'png_dir':
                  _dcm_str(reader.GetMetaData("0020|000D"), _charset) if reader.HasMetaDataKey("0020|000D") else \
                  "1.2.826.0.1.3680043.2.1125." + modification_date + modification_time
     series_tag_values_b = [
+        ("0002|0002", _SC_SOP_CLASS),
+        ("0008|0016", _SC_SOP_CLASS),
         ("0008|0031", modification_time),
         ("0008|0021", modification_date),
         ("0008|0008", "DERIVED\\SECONDARY"),
@@ -449,25 +452,16 @@ if args.match_donor and input_type == 'png_dir':
         img_arr = img_arr[crop_top:crop_bot, crop_left:crop_right, :]
         img_resized = np.array(
             Image.fromarray(img_arr).resize((donor_cols, donor_rows), LANCZOS))
-        # IPP = physical position of top-left pixel for this SAG slice:
-        # (i=png_idx, j=N_j-1 [anterior], k=N_k-1 [superior]).
-        # Uses NIfTI geometry (same space as donor) so each slice steps
-        # laterally in x — correct for SAG, unique per slice.
-        _ni_j = nifti_sz_tmp[1]; _ni_k = nifti_sz_tmp[2]
-        _nij  = [nifti_d_tmp[1], nifti_d_tmp[4], nifti_d_tmp[7]]
-        _nik  = [nifti_d_tmp[2], nifti_d_tmp[5], nifti_d_tmp[8]]
-        _nii  = [nifti_d_tmp[0], nifti_d_tmp[3], nifti_d_tmp[6]]
-        ipp = [nifti_or_tmp[x]
-               + png_idx * nifti_sp_tmp[0] * _nii[x]
-               + (_ni_j - 1) * nifti_sp_tmp[1] * _nij[x]
-               + (_ni_k - 1) * nifti_sp_tmp[2] * _nik[x]
-               for x in range(3)]
+        # IPP = physical position of top-left pixel for this SAG slice, using
+        # the same per-axis flip convention as out_row_dir/out_col_dir above
+        # (verified against mrview's actual rendering, not assumed).
+        position, _, _, normal, _ = compute_slice_geometry(underlay_geom, 'SAG', png_idx)
 
         slice_2d = sitk.GetImageFromArray(img_resized, isVector=True)
         slice_2d.SetSpacing([donor_ps, donor_ps])
 
-        ipp_str = "\\".join(f"{v:.6f}" for v in ipp)
-        slice_loc = sum(ipp[x] * out_slice_dir[x] for x in range(3))
+        ipp_str = "\\".join(f"{v:.6f}" for v in position)
+        slice_loc = sum(position[x] * normal[x] for x in range(3))
 
         for tag, val in series_tags:
             slice_2d.SetMetaData(tag, val)
@@ -513,7 +507,12 @@ if input_type == 'png_dir' and underlay_geom is not None and args.plane in ('TRA
 
     sample_img = Image.open(pngs[len(pngs) // 2])
     PNG_W, PNG_H = sample_img.size
-    scale     = min(PNG_W / h_fov, PNG_H / v_fov)
+    # mrview's mode-1 view uses ONE zoom for the whole volume (so anatomy doesn't
+    # visually resize when scrolling between orthogonal planes), based on the single
+    # largest physical extent across ALL 3 volume axes -- not just this plane's own
+    # 2 in-plane dimensions. Verified empirically against mrview with synthetic phantoms.
+    _global_max_fov = max(N_i * nifti_sp[0], N_j * nifti_sp[1], N_k * nifti_sp[2])
+    scale     = min(PNG_W, PNG_H) / _global_max_fov
     content_W = round(h_fov * scale)
     content_H = round(v_fov * scale)
     crop_left  = (PNG_W - content_W) // 2
@@ -535,6 +534,8 @@ if input_type == 'png_dir' and underlay_geom is not None and args.plane in ('TRA
                   _dcm_str(reader.GetMetaData("0020|000D"), _charset) if reader.HasMetaDataKey("0020|000D") else \
                   "1.2.826.0.1.3680043.2.1125." + modification_date + modification_time
     series_tag_values_b = [
+        ("0002|0002", _SC_SOP_CLASS),
+        ("0008|0016", _SC_SOP_CLASS),
         ("0008|0031", modification_time),
         ("0008|0021", modification_date),
         ("0008|0008", "DERIVED\\SECONDARY"),
@@ -578,6 +579,16 @@ if input_type == 'png_dir' and underlay_geom is not None and args.plane in ('TRA
         slice_img.SetMetaData("0020|0013", str(i))
         slice_img.SetMetaData("0008|0012", modification_date)
         slice_img.SetMetaData("0008|0013", modification_time)
+        # Explicit unique SOP Instance UID per slice — without this, nothing
+        # sets one on these freshly-created images and KeepOriginalImageUIDOn()
+        # has nothing to "keep", so the writer falls back to auto-generating
+        # one per call. That fallback isn't guaranteed unique across a tight
+        # loop of many slices (this is what the SAG donor-match path already
+        # does explicitly below/above); a collision here means PACS silently
+        # drops/overwrites same-UID slices, leaving the series too short for
+        # MPR even though each individual slice looks fine on its own.
+        slice_img.SetMetaData("0008|0018",
+            "1.2.826.0.1.3680043.2.1125." + modification_date + modification_time + "." + _series_hash2 + "." + str(i))
 
         out_path = os.path.join(dcm_output, str(i).rjust(6, '0') + ".dcm")
         writer.SetFileName(out_path)
@@ -631,7 +642,6 @@ modification_date = time.strftime("%Y%m%d")
 
 # Image Orientation: use underlay geometry if available, else fall back to new_img direction
 if underlay_geom is not None:
-    _, _, col_dir, _, _ = compute_slice_geometry(underlay_geom, args.plane, 0)
     _, row_dir, col_dir, _, _ = compute_slice_geometry(underlay_geom, args.plane, 0)
     orientation_str = "\\".join(f"{v:.6f}" for v in row_dir + col_dir)
 else:
@@ -644,6 +654,8 @@ series_tag_values_a = [
     if reader.HasMetaDataKey(k)
 ]
 series_tag_values_b = [
+    ("0002|0002", _SC_SOP_CLASS),
+    ("0008|0016", _SC_SOP_CLASS),
     ("0008|0031", modification_time),
     ("0008|0021", modification_date),
     ("0008|0008", "DERIVED\\SECONDARY"),

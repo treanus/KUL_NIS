@@ -148,20 +148,40 @@ function KUL_compute_melodic {
     #    str_silent_melodic=" >> KUL_LOG/sub-${participant}_melodic.log"
     #fi
 
-    tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
+    # NOTE: searchtask has no res- token (fMRIPrep inserts "_res-2_" between
+    # _space-... and _desc-... when a :res-2 output-space modifier is used) —
+    # the * wildcards on either side of searchtask absorb that, same style as
+    # KUL_fmri_denoise.sh's own find pattern.
+    tasks=( $(find $fmriprepdir -name "*${searchtask}*.gz" -type f) )
+    if [ ${#tasks[@]} -eq 0 ]; then
+        echo "  ERROR: no BOLD files matched '*${searchtask}*.gz' under $fmriprepdir — melodic.done will NOT be created"
+        return 1
+    fi
+    denoiseddir="$computedir/denoised"
     # we loop over the found tasks
     for task in ${tasks[@]}; do
-        d1=${task#*_task-}
-        shorttask=${d1%_space*}
+        taskbase=$(basename $task)
+        d1=${taskbase#*_task-}
+        shorttask=${d1%%_space-*}
         #echo "$task -- $shorttask"
         echo " Analysing task $shorttask"
-        fmrifile="${shorttask}${searchtask}"
-        cp $fmriprepdir/*$fmrifile.gz $fmridatadir
-        gunzip $fmridatadir/*$fmrifile.gz
+
+        # Denoise (confound regression + bandpass, then SUSAN smoothing) via
+        # KUL_fmri_denoise.sh instead of the old raw-copy + ad-hoc fslmaths -s 3
+        # smoothing block — avoids double-smoothing since SUSAN already runs as
+        # the last step of KUL_fmri_denoise.sh.
+        task_in="$kul_main_dir/KUL_fmri_denoise.sh --fmriprep ${cwd}/fmriprep --out $denoiseddir --method nilearn --space MNI152NLin6Asym --sub sub-${participant} --task $shorttask"
+        KUL_task_exec $verbose_level "Denoising task $shorttask" "0_denoise_$shorttask"
+
+        run_label="${taskbase%_desc-preproc_bold.nii.gz}"
+        melodic_in_1="$denoiseddir/sub-${participant}/func/${run_label}_postproc_nilearn/${run_label}_desc-denoised_bold.nii.gz"
+        if [ ! -f "$melodic_in_1" ]; then
+            echo "  ERROR: expected denoised output not found, skipping task $shorttask: $melodic_in_1"
+            continue
+        fi
+
         fmriresults="$computedir/stats_$shorttask"
         mkdir -p $fmriresults
-        # edited by AR 04/11/2022
-        melodic_in_1="$fmridatadir/sub-${participant}_task-$fmrifile"
         # find the TR
         # edited by AR 04/11/2022
         tr=$(mrinfo $melodic_in_1 -spacing | cut -d " " -f 4)
@@ -169,7 +189,7 @@ function KUL_compute_melodic {
         # edited by AR 04/11/2022
         dyn=$(mrinfo $melodic_in_1 -size | cut -d " " -f 4)
         t_glm_con="$kul_main_dir/share/FSL/fsl_glm.con"
-        t_glm_mat="$kul_main_dir/share/FSL/fsl_glm_${dyn}dyn.mat"        
+        t_glm_mat="$kul_main_dir/share/FSL/fsl_glm_${dyn}dyn.mat"
         # set dimensionality and model for rs-/a-fMRI
         if [[ $shorttask == *"rest"* ]]; then
             dim="--dim=15"
@@ -179,26 +199,15 @@ function KUL_compute_melodic {
             model="--Tdes=$t_glm_mat --Tcon=$t_glm_con"
         fi
 
-        # edited by AR 04/11/2022
-        melodic_in_2="$(dirname ${melodic_in_1})/$(basename ${melodic_in_1} .nii.gz)_smooth_3mm.nii.gz"
-
-        # edited by AR 04/11/2022
-        # temporary smoothing solution for now, better to use FSL susan
-        if [[ ! -f "${melodic_in_2}" ]]; then
-            fslmaths ${melodic_in_1} -s 3 ${melodic_in_2}
-        fi
-        
-        # edited by AR 04/11/2022
-        #melodic -i Melodic/sub-Croes/fmridata/sub-Croes_task-LIP_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii -o test/ --report --Tdes=glm.mat --Tcon=glm.con
-        task_in="melodic -i $melodic_in_2 -o $fmriresults --report --tr=$tr --Oall $model $dim"
-        KUL_task_exec $verbose_level "Running melodic on $melodic_in_2" "1_melodic"
+        task_in="melodic -i $melodic_in_1 -o $fmriresults --report --tr=$tr --Oall $model $dim"
+        KUL_task_exec $verbose_level "Running melodic on $melodic_in_1" "1_melodic"
 
         # edited by AR 04/11/2022
         # now we compare to known networks
         mkdir -p $fmriresults/kul
         task_in="fslcc --noabs -p 3 -t .204 $kul_main_dir/atlases/Local/Sunaert2021/KUL_NIT_networks.nii.gz \
             $fmriresults/melodic_IC.nii.gz > $fmriresults/kul/kul_networks.txt"
-        KUL_task_exec $verbose_level "Running fslcc for $melodic_in_2" "2_fslcc"
+        KUL_task_exec $verbose_level "Running fslcc for $melodic_in_1" "2_fslcc"
 
 
         while IFS=$' ' read network ic stat; do
@@ -232,20 +241,17 @@ KUL_check_participant
 #  setup variables
 kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute
 computedir="$kulderivativesdir/sub-$participant/FSL_melodic"
-fmridatadir="$computedir/fmridata"
 scriptsdir="$computedir/scripts"
 fmriprepdir="fmriprep/sub-$participant/func"
 globalresultsdir="$cwd/RESULTS/sub-$participant/Melodic"
-searchtask="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
+searchtask="_space-MNI152NLin6Asym_desc-preproc_bold.nii"
 
-if [ $KUL_DEBUG -gt 0 ]; then 
+if [ $KUL_DEBUG -gt 0 ]; then
     echo "kulderivativesdir: $kulderivativesdir"
-    echo "fmridatadir: $fmridatadir"
     echo "fmriprepdir: $fmriprepdir"
     echo "globalresultsdir: $globalresultsdir"
 fi
 
-mkdir -p $fmridatadir
 mkdir -p $scriptsdir
 mkdir -p $computedir/RESULTS
 mkdir -p $globalresultsdir
@@ -258,10 +264,8 @@ fi
 
 
 if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
-    
+
     KUL_compute_melodic
-    # cleanup
-    rm -rf $fmridatadir
 
 else
     echo "Melodic analysis already done"

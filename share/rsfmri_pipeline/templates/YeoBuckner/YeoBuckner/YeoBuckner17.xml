@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<atlas version="1.0">
+<header>
+<name>YeoBuckner17</name>
+<type>Probabalistic</type>
+<images>
+<imagefile>/YeoBuckner17/YeoBuckner17_prob-2mm</imagefile>
+<summaryimagefile>/YeoBuckner17/YeoBuckner17_maxprob-thr25-2mm</summaryimagefile>
+</images>
+</header>
+<data>
+<label index="0" x="51" y="17" z="28">network_01</label>
+<label index="1" x="44" y="24" z="40">network_02</label>
+<label index="2" x="55" y="48" z="71">network_03</label>
+<label index="3" x="72" y="56" z="40">network_04</label>
+<label index="4" x="31" y="33" z="65">network_05</label>
+<label index="5" x="58" y="60" z="62">network_06</label>
+<label index="6" x="13" y="48" z="48">network_07</label>
+<label index="7" x="29" y="86" z="50">network_08</label>
+<label index="8" x="55" y="42" z="18">network_09</label>
+<label index="9" x="48" y="75" z="26">network_10</label>
+<label index="10" x="41" y="27" z="58">network_11</label>
+<label index="11" x="21" y="80" z="45">network_12</label>
+<label index="12" x="31" y="92" z="37">network_13</label>
+<label index="13" x="17" y="42" z="40">network_14</label>
+<label index="14" x="60" y="48" z="25">network_15</label>
+<label index="15" x="49" y="39" z="53">network_16</label>
+<label index="16" x="33" y="23" z="20">network_17</label>
+</data>
+</atlas>

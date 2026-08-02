@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<atlas version="1.0">
+<header>
+<name>YeoBuckner7</name>
+<type>Probabalistic</type>
+<images>
+<imagefile>/YeoBuckner7/YeoBuckner7_prob-2mm</imagefile>
+<summaryimagefile>/YeoBuckner7/YeoBuckner7_maxprob-thr25-2mm</summaryimagefile>
+</images>
+</header>
+<data>
+<label index="0" x="33" y="23" z="19">default</label>
+<label index="1" x="37" y="29" z="63">dorsal_attention</label>
+<label index="2" x="65" y="31" z="12">frontoparietal</label>
+<label index="3" x="54" y="44" z="18">limbic</label>
+<label index="4" x="23" y="54" z="43">somatomotor</label>
+<label index="5" x="75" y="45" z="50">ventral_attention</label>
+<label index="6" x="45" y="22" z="38">visual</label>
+</data>
+</atlas>

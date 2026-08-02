@@ -87,6 +87,11 @@ Optional arguments:
           Off by default — adds substantial runtime (real per-bundle work across ~50
           bundle/hemisphere combinations, processed sequentially, no parallelism yet).
           Tractography/tracts themselves are generated either way.
+     -N:  opt-in: run presurgical/eloquent-cortex rsfMRI network mapping
+          (KUL_run_rsfMRI_networks.sh) — give the name of the conda env with the
+          rsfmri_pipeline dependencies installed. Off unless this is given.
+     -C:  condition profile for -N, from share/rsfmri_pipeline/config/profiles.yaml
+          (default: Presurgical)
 
 USAGE
 
@@ -123,6 +128,9 @@ use_fastsurfer=0
 fmri_engine="spm"
 use_rfa_mod_fod=0
 run_fwt_tractometry=0
+rsfmri_networks=0
+rsfmri_env=""
+rsfmri_profile="Presurgical"
 declare -A spm_thresh_map=()
 
 # Set required options
@@ -136,7 +144,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:XBrseUQ" OPT; do
+	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:N:C:XBrseUQ" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -209,6 +217,14 @@ else
            # adds substantial runtime (real per-bundle work, ~50 bundle/hemisphere
            # combinations processed sequentially with no bundle-level parallelism yet).
             run_fwt_tractometry=1
+        ;;
+        N) # opt-in: run presurgical/eloquent-cortex rsfMRI network mapping
+           # (KUL_run_rsfMRI_networks.sh). Off unless a conda env name is given.
+            rsfmri_networks=1
+            rsfmri_env=$OPTARG
+        ;;
+        C) # condition profile for -N (default: Presurgical)
+            rsfmri_profile=$OPTARG
         ;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -294,6 +310,15 @@ fi
 # GLOBAL defs
 globalresultsdir=$cwd/RESULTS/sub-$participant
 derivativesdir=${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}
+# KUL_VBG writes very deep subject/session-nested paths internally
+# (output_VBG/sub-X/sub-X_FS_output/sub-X/...). Keep it flat and top-level,
+# a sibling of dwiprep/fmriprep/BIDS, matching how those tools are already
+# laid out (they're not nested under BIDS/derivatives/ either) and giving
+# the most path-length headroom against FreeSurfer 8.2.0's mris_register
+# buffer overflow on long SUBJECTS_DIR paths (see
+# VBG_FS820_mris_register_bugreport.md — the actual fix is the symlink
+# workaround in KUL_VBG.sh itself; this is extra margin, not the fix).
+vbg_dir=${cwd}/KUL_VBG
 
 function KUL_scaffold {
 
@@ -408,27 +433,44 @@ if [ $results -gt 0 ];then
     mrview_tracts[25]="Tract-csd_CSHDP_RT"
     mrview_rgb[25]="1,0.12,0.20"
 
-    mrview_tracts[26]="Tract-csd_Ant_Comm"
-    mrview_rgb[26]="0.5,0,0.5"
-    mrview_tracts[27]="Tract-csd_Post_Comm"
-    mrview_rgb[27]="0.8,0.4,0.8"
-    mrview_tracts[28]="Tract-csd_CC_PreF_Comm"
-    mrview_rgb[28]="0.2,0.8,0.8"
-    mrview_tracts[29]="Tract-csd_CC_Motor_Comm"
-    mrview_rgb[29]="0.8,0.4,0"
-    mrview_tracts[30]="Tract-csd_CC_PMandSM_Comm"
-    mrview_rgb[30]="1,0.5,0"
-    mrview_tracts[31]="Tract-csd_CC_Sensory_Comm"
-    mrview_rgb[31]="0.4,0.8,0.4"
-    mrview_tracts[32]="Tract-csd_CC_Parietal_Comm"
-    mrview_rgb[32]="0.4,0,0.8"
-    mrview_tracts[33]="Tract-csd_CC_Temporal_Comm"
-    mrview_rgb[33]="0.8,0,0.4"
-    mrview_tracts[34]="Tract-csd_CC_Occipital_Comm"
-    mrview_rgb[34]="0,0.6,0.8"
+    mrview_tracts[26]="Tract-csd_SLF_all_LT"
+    mrview_rgb[26]="0.1,0.6,1"
+    mrview_tracts[27]="Tract-csd_SLF_all_RT"
+    mrview_rgb[27]="1,0.6,0.1"
+    mrview_tracts[28]="Tract-csd_SLF_I_LT"
+    mrview_rgb[28]="0.5,0.9,0.9"
+    mrview_tracts[29]="Tract-csd_SLF_I_RT"
+    mrview_rgb[29]="0.9,0.5,0.9"
+    mrview_tracts[30]="Tract-csd_SLF_II_LT"
+    mrview_rgb[30]="0.3,0.3,0.9"
+    mrview_tracts[31]="Tract-csd_SLF_II_RT"
+    mrview_rgb[31]="0.9,0.3,0.3"
+    mrview_tracts[32]="Tract-csd_SLF_III_LT"
+    mrview_rgb[32]="0.1,0.8,0.3"
+    mrview_tracts[33]="Tract-csd_SLF_III_RT"
+    mrview_rgb[33]="0.8,0.1,0.5"
 
-    ntracts_paired=26   # indices 0-25: lateralized LT/RT pairs, step 2
-    ntracts_total=34    # index of last commissural tract (indices 26-34), step 1
+    mrview_tracts[34]="Tract-csd_Ant_Comm"
+    mrview_rgb[34]="0.5,0,0.5"
+    mrview_tracts[35]="Tract-csd_Post_Comm"
+    mrview_rgb[35]="0.8,0.4,0.8"
+    mrview_tracts[36]="Tract-csd_CC_PreF_Comm"
+    mrview_rgb[36]="0.2,0.8,0.8"
+    mrview_tracts[37]="Tract-csd_CC_Motor_Comm"
+    mrview_rgb[37]="0.8,0.4,0"
+    mrview_tracts[38]="Tract-csd_CC_PMandSM_Comm"
+    mrview_rgb[38]="1,0.5,0"
+    mrview_tracts[39]="Tract-csd_CC_Sensory_Comm"
+    mrview_rgb[39]="0.4,0.8,0.4"
+    mrview_tracts[40]="Tract-csd_CC_Parietal_Comm"
+    mrview_rgb[40]="0.4,0,0.8"
+    mrview_tracts[41]="Tract-csd_CC_Temporal_Comm"
+    mrview_rgb[41]="0.8,0,0.4"
+    mrview_tracts[42]="Tract-csd_CC_Occipital_Comm"
+    mrview_rgb[42]="0,0.6,0.8"
+
+    ntracts_paired=34   # indices 0-33: lateralized LT/RT pairs, step 2
+    ntracts_total=42    # index of last commissural tract (indices 34-42), step 1
 
     # Sync FWT output to RESULTS/Tracto before generating screenshots
     # Tract maps are resampled to T1w resolution so they can be compared
@@ -504,13 +546,23 @@ if [ $results -gt 0 ];then
 
     fi
 
-    mrview_resolution=256
+    mrview_resolution=512
 
     # Donor DICOM: used to copy patient/study metadata into PACS DICOMs.
     # Search Karawun first, then RESULTS/sub-*/DICOM (case-insensitive, .dcm and .ima).
     donor_dcm=$(find "Karawun/sub-${participant}/DICOM" \( -iname "*.dcm" -o -iname "*.ima" \) -type f 2>/dev/null | sort | head -1)
     if [ -z "$donor_dcm" ]; then
         donor_dcm=$(find "$globalresultsdir/DICOM" \( -iname "*.dcm" -o -iname "*.ima" \) -type f 2>/dev/null | sort | head -1)
+    fi
+    # Philips exports are often extensionless, so fall back to any file in
+    # these known DICOM-only directories (same trust model already used for
+    # the SmartBrain/Localizer donor copy above), excluding non-DICOM
+    # housekeeping files that sometimes ship alongside a DICOM export.
+    if [ -z "$donor_dcm" ]; then
+        donor_dcm=$(find "Karawun/sub-${participant}/DICOM" -type f -not -name ".*" -not -iname "DICOMDIR" 2>/dev/null | sort | head -1)
+    fi
+    if [ -z "$donor_dcm" ]; then
+        donor_dcm=$(find "$globalresultsdir/DICOM" -type f -not -name ".*" -not -iname "DICOMDIR" 2>/dev/null | sort | head -1)
     fi
     if [ $make_dcm -eq 1 ] && [ -z "$donor_dcm" ]; then
         echo ""
@@ -844,8 +896,13 @@ if [ $results -gt 0 ];then
         echo "No Projection tracts found"
     fi
 
+    # SLF (26-33: SLF_all/I/II/III, LT/RT) is an association tract, not
+    # commissural — it was previously grouped with Commissural below (a
+    # leftover from before SLF was added to the tract array without
+    # updating these ranges), so it never appeared in the Associative
+    # DICOM output despite being one.
     _assoc_tck=""
-    for _gi in 2 3 4 5 6 7 8 9 10 11 12 13 14 15 18 19; do
+    for _gi in 2 3 4 5 6 7 8 9 10 11 12 13 14 15 18 19 26 27 28 29 30 31 32 33; do
         [ -f "$globalresultsdir/Tracto/${mrview_tracts[$_gi]}.tck" ] && \
             _assoc_tck="$_assoc_tck -tractography.load $globalresultsdir/Tracto/${mrview_tracts[$_gi]}.tck -tractography.colour ${mrview_rgb[$_gi]}"
     done
@@ -855,8 +912,12 @@ if [ $results -gt 0 ];then
         echo "No Associative tracts found"
     fi
 
+    # Indices 34-42 are the true commissural tracts (Ant_Comm, Post_Comm,
+    # and the 7 CC_*_Comm segments — see ntracts_paired/ntracts_total above).
+    # The old range (26-34) both misclassified SLF as commissural and missed
+    # 8 of these 9 genuine commissural tracts (only Ant_Comm/34 was caught).
     _comm_tck=""
-    for _gi in 26 27 28 29 30 31 32 33 34; do
+    for _gi in 34 35 36 37 38 39 40 41 42; do
         [ -f "$globalresultsdir/Tracto/${mrview_tracts[$_gi]}.tck" ] && \
             _comm_tck="$_comm_tck -tractography.load $globalresultsdir/Tracto/${mrview_tracts[$_gi]}.tck -tractography.colour ${mrview_rgb[$_gi]}"
     done
@@ -963,9 +1024,14 @@ if [ $results -gt 0 ];then
                     _label_thresh=$(awk "BEGIN {print $_label_max_T/3}")
                 fi
 
+                # SPM/*.nii(.gz) filenames already come out of
+                # KUL_fmriproc_spm_new.sh prefixed with "afMRI_" — strip it
+                # before re-adding once here, so this doesn't produce
+                # afMRI_afMRI_... regardless of what the upstream naming does.
+                _label_basename="${_spmname#afMRI_}"
                 mrgrid "$_spmfile" regrid -template "Karawun/sub-${participant}/T1w.nii.gz" - -quiet | \
                     mrcalc - $_label_thresh -ge $_label_int -mult \
-                    "Karawun/sub-${participant}/labels/afMRI_${_spmname}.nii.gz" -force -quiet
+                    "Karawun/sub-${participant}/labels/afMRI_${_label_basename}.nii.gz" -force -quiet
             done
         fi
     else
@@ -1038,7 +1104,7 @@ function KUL_check_redo {
             read -p "Redo: KUL_VBG? (y/n) " answ
             if [[ "$answ" == "y" ]]; then
                 rm -f ${cwd}/KUL_LOG/sub-${participant}_VBG.log >/dev/null 2>&1
-                rm -fr $derivativesdir/KUL_VBG/* >/dev/null 2>&1
+                rm -fr $vbg_dir/* >/dev/null 2>&1
             fi
         fi
 
@@ -1377,7 +1443,7 @@ if [ ! -f KUL_LOG/sub-${participant}_FastSurfer.done ]; then
     fs_output="${cwd}/BIDS/derivatives/freesurfer"
     fasu_output="$derivativesdir/FastSurfer"
     if [ $vbg -eq 1 ];then
-        T1_4_parc=$derivativesdir/KUL_VBG/output_VBG/sub-${participant}/sub-Casier_T1_nat_4parc.mgz
+        T1_4_parc=$vbg_dir/output_VBG/sub-${participant}/sub-${participant}_T1_nat_4parc.mgz
     else
         T1_4_parc="${cwd}/$T1w"
     fi
@@ -1551,11 +1617,11 @@ function KUL_run_VBG {
             vbg_lesion="${cwd}/RESULTS/sub-${participant}/Lesion/lesion.nii.gz"
         fi
 
-        vbg_test="$derivativesdir/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_T1_nat_filled.nii.gz"
+        vbg_test="$vbg_dir/output_VBG/sub-${participant}/sub-${participant}_T1_nat_filled.nii.gz"
         if [[ ! -f $vbg_test ]]; then
             echo "Computing KUL_VBG"
             mkdir -p ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
-            mkdir -p $derivativesdir/KUL_VBG
+            mkdir -p $vbg_dir
             
             # See to it that freesurfer 8.2.0 is used
             export FREESURFER_HOME=/usr/local/KUL_apps/freesurfer_8.2.0
@@ -1567,20 +1633,20 @@ function KUL_run_VBG {
 
             task_in="KUL_VBG.sh -S ${participant} \
                 -l $vbg_lesion \
-                -o $derivativesdir/KUL_VBG \
-                -m $derivativesdir/KUL_VBG \
+                -o $vbg_dir \
+                -m $vbg_dir \
                 $vbg_extra_axial \
                 -z T1 -b -B 1 -t -P 1 -M -O -H -n $ncpu"
             KUL_task_exec $verbose_level "KUL_VBG" "7_VBG" || { kul_echo "KUL_VBG failed — not copying possibly incomplete output to freesurfer derivatives"; return 1; }
 
             # copy the output of VBG to the derivatives freesurfer directory
-            cp -r $derivativesdir/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant} \
+            cp -r $vbg_dir/output_VBG/sub-${participant}_FS_output/sub-${participant} \
                 BIDS/derivatives/freesurfer/
 
             # add to the report
             KUL_mrview_figure.sh -p ${participant} -u RESULTS/sub-${participant}/Anat/T1w.nii.gz \
                 -t 2 -d REPORT -f 04_VBG_input
-            KUL_mrview_figure.sh -p ${participant} -u BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_T1_nat_filled.nii.gz \
+            KUL_mrview_figure.sh -p ${participant} -u $vbg_dir/output_VBG/sub-${participant}/sub-${participant}_T1_nat_filled.nii.gz \
                 -t 2 -d REPORT -f 04_VBG_output
             #convert label:"Results of VBG:\nTop: Original T1w\nBottom: Filled T1w" REPORT/VBG_temp_caption.png
             montage REPORT/sub-${participant}_04_VBG_input.png REPORT/sub-${participant}_04_VBG_output.png -tile 1x2 -geometry +0+0 \
@@ -1639,7 +1705,7 @@ function KUL_run_FWT {
         if [ ! -f KUL_LOG/sub-${participant}_FWT.done ]; then
 
             # Resolve FS aparc+aseg path: prefer VBG FS output, fall back to standard freesurfer derivatives
-            _vbg_fs_apas="$derivativesdir/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/mri/aparc+aseg.mgz"
+            _vbg_fs_apas="$vbg_dir/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}/mri/aparc+aseg.mgz"
             _std_fs_apas="$cwd/BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz"
             if [ -f "$_vbg_fs_apas" ]; then
                 _fs_apas="$_vbg_fs_apas"
@@ -1794,6 +1860,18 @@ function KUL_fmriproc {
         fi
     fi
 
+}
+
+function KUL_run_rsfMRI_networks {
+    if [ $rsfmri_networks -eq 1 ]; then
+        rsfmri_check=${cwd}/KUL_LOG/sub-${participant}_rsfMRI_networks.done
+        if [ ! -f $rsfmri_check ]; then
+            task_in="KUL_run_rsfMRI_networks.sh -p $participant -c $rsfmri_env -P $rsfmri_profile -v $verbose_level"
+            KUL_task_exec $verbose_level "KUL_run_rsfMRI_networks" "9_rsfmri_networks" || kul_echo "KUL_run_rsfMRI_networks failed for sub-${participant} — rsfMRI_networks.done will not be created (check 9_rsfmri_networks.error.log)"
+        else
+            echo "rsfMRI networks already done"
+        fi
+    fi
 }
 
 function KUL_run_dwiprep_anat {
@@ -1955,6 +2033,9 @@ KUL_clear_cT1w
 
 # STEP 8 - run SPM & melodic
 KUL_fmriproc
+
+# STEP 8b - run rsfMRI network analysis (opt-in, -N)
+KUL_run_rsfMRI_networks
 
 # STEP 9 - run VBG
 KUL_run_VBG 

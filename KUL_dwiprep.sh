@@ -603,11 +603,18 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
 				fi
 
+				fsl_topup_nthr_opt=""
+				if topup --help 2>&1 | grep -q -- '--nthr'; then
+					fsl_topup_nthr_opt=" --nthr=$ncpu"
+				else
+					kul_echo "topup on this FSL install does not advertise --nthr support; running without an explicit thread count"
+				fi
+
 				task_in="topup --imain=shard/topup_in.nii \
 					--datain=shard/topup_datain.txt \
 					--out=shard/field \
 					--fout=shard/fieldmap.nii.gz \
-					--config=$topup_cfg --nthr=$ncpu --verbose"
+					--config=$topup_cfg${fsl_topup_nthr_opt} --verbose"
 				#	--subsamp=1,1,1,1,1,1,1,1,1 \
             	#	--miter=10,10,10,10,10,20,20,30,30 \
             	#	--lambda=0.00033,0.000067,0.0000067,0.000001,0.00000033,0.000000033,0.0000000033,0.000000000033,0.00000000000067"

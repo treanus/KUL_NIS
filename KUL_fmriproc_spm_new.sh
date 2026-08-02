@@ -513,7 +513,14 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
     g_sigma=(); g_smooth=(); g_confounds=(); g_mask=(); g_boldref=(); g_filterinput=()
     for match in "${fmriprep_match[@]}"; do
         _coarse_task=$(basename "$match" | sed -E 's/.*_task-([A-Za-z0-9]+).*_desc-preproc_bold\.nii\.gz/\1/')
-        [[ "$_coarse_task" == *"rest"* ]] && continue
+        # Exclude resting-state runs from this task/activation GLM pipeline.
+        # "*rest*" alone misses task labels like "rsfMRI" (no literal "rest"
+        # substring), which then got processed as an activation task and
+        # ended up named afMRI_rsfMRI_... — case-insensitive match on both
+        # "rest" and "rsfmri" so any of task-rest/task-RestingState/task-rsfMRI
+        # naming is excluded.
+        _coarse_task_lc=$(echo "$_coarse_task" | tr '[:upper:]' '[:lower:]')
+        [[ "$_coarse_task_lc" == *"rest"* || "$_coarse_task_lc" == *"rsfmri"* ]] && continue
         task_file="$match"
 
         taskname=$(basename "$task_file" | sed -E 's/.*_task-([A-Za-z0-9]+(_run-[0-9]+)?).*_desc-preproc_bold\.nii\.gz/\1/')

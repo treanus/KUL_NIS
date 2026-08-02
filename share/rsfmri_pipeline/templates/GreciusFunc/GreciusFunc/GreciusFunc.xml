@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<atlas version="1.0">
+<header>
+<name>GreciusFunc</name>
+<type>Probabalistic</type>
+<images>
+<imagefile>/GreciusFunc/GreciusFunc_prob-2mm</imagefile>
+<summaryimagefile>/GreciusFunc/GreciusFunc_maxprob-thr25-2mm</summaryimagefile>
+</images>
+</header>
+<data>
+<label index="0" x="72" y="61" z="36">Auditory</label>
+<label index="1" x="50" y="57" z="40">Basal_Ganglia</label>
+<label index="2" x="65" y="29" z="58">L_ExecutiveControlNetwork</label>
+<label index="3" x="72" y="35" z="46">Language</label>
+<label index="4" x="44" y="27" z="55">Precuneus</label>
+<label index="5" x="64" y="29" z="15">R_ExecutiveControlNetwork</label>
+<label index="6" x="45" y="32" z="29">Sensorimotor</label>
+<label index="7" x="70" y="67" z="52">Visuospatial</label>
+<label index="8" x="44" y="68" z="66">anterior_Salience</label>
+<label index="9" x="46" y="87" z="42">dorsalDefaultModeNetwork</label>
+<label index="10" x="27" y="23" z="31">high_Visual</label>
+<label index="11" x="74" y="44" z="54">post_Salience</label>
+<label index="12" x="42" y="24" z="42">prim_Visual</label>
+<label index="13" x="44" y="35" z="63">ventralDefaultModeNetwork</label>
+</data>
+</atlas>

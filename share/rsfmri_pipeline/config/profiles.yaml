@@ -1,0 +1,545 @@
+# Condition Profiles
+#
+# Each profile defines which seeds and RSN masks to use for a given clinical
+# context. The pipeline is invoked with --profile <name>.
+#
+# Seed catalog entries reference atlases defined in atlases.yaml.
+# Each seed produces one SBA map; all seeds in a profile are run independently.
+#
+# Fields per profile:
+#   description  : free-text summary
+#   seeds        : list of named seeds to run SBA on
+#   rsn_networks : RSN masks used for Step 2 FC matrix and Step 3 union masks
+#   ica_dims     : override ICA dimensionality per network (optional)
+#   lateralised  : true = run seeds separately per hemisphere (for asymmetric pathology)
+#   notes        : methodological or clinical notes
+#
+# Seed entries:
+#   name    : human-readable label
+#   atlas   : key from atlases.yaml (must be type: anatomical)
+#   labels  : list of label substrings to match (case-insensitive)
+#   hemi    : "both" | "L" | "R"  (default: both)
+
+# ==============================================================================
+# SEED CATALOG
+# Defined once here, referenced by name in profiles below.
+# ==============================================================================
+
+seeds:
+
+  # Sensorimotor
+  motor_cortex:
+    atlas  : ho_cort
+    labels : ["Precentral Gyrus", "Postcentral Gyrus"]
+    hemi   : both
+
+  SMA:
+    atlas  : ho_cort
+    labels : ["Juxtapositional Lobule Cortex"]   # SMA / pre-SMA region in HO
+    hemi   : both
+
+  # Default Mode
+  PCC:
+    atlas  : ho_cort
+    labels : ["Cingulate Gyrus, posterior division", "Precuneous Cortex"]
+    hemi   : both
+
+  mPFC:
+    atlas  : ho_cort
+    labels : ["Paracingulate Gyrus", "Frontal Medial Cortex"]
+    hemi   : both
+
+  angular_gyrus:
+    atlas  : ho_cort
+    labels : ["Angular Gyrus"]
+    hemi   : both
+
+  # Attention
+  IPS:
+    atlas  : ho_cort
+    labels : ["Superior Parietal Lobule", "Supramarginal Gyrus, posterior division"]
+    hemi   : both
+
+  FEF:
+    atlas  : hcp_mmp1
+    labels : ["FEF"]    # frontal eye fields, HCP label
+    hemi   : both
+
+  # Language — subject-specific from SynthSeg --parc (DKT cortical labels)
+  Broca:
+    atlas          : synthseg_subject
+    synthseg_labels: [1018, 1020]   # L pars opercularis + pars triangularis
+    hemi           : L
+
+  Wernicke:
+    atlas          : synthseg_subject
+    synthseg_labels: [1030, 1031]   # L superior temporal + supramarginal
+    hemi           : L
+
+  IFG:
+    atlas          : synthseg_subject
+    synthseg_labels: [1018, 1020]   # L IFG (same parcels as Broca)
+    hemi           : L
+
+  STG:
+    atlas          : synthseg_subject
+    synthseg_labels: [1030]         # L superior temporal gyrus
+    hemi           : L
+
+  # Salience
+  anterior_insula:
+    atlas  : ho_cort
+    labels : ["Insular Cortex"]
+    hemi   : both
+
+  dACC:
+    atlas  : ho_cort
+    labels : ["Cingulate Gyrus, anterior division", "Paracingulate Gyrus"]
+    hemi   : both
+
+  sgACC:
+    atlas  : ho_cort_subject
+    labels : ["Subcallosal Cortex"]    # Brodmann 25 / sgACC — propagated through subject GM
+    hemi   : both
+
+  # Frontal executive
+  DLPFC:
+    atlas  : ho_cort
+    labels : ["Middle Frontal Gyrus"]
+    hemi   : both
+
+  VLPFC:
+    atlas  : ho_cort
+    labels : ["Inferior Frontal Gyrus, pars triangularis"]
+    hemi   : both
+
+  OFC:
+    atlas  : ho_cort
+    labels : ["Frontal Orbital Cortex", "Frontal Pole"]
+    hemi   : both
+
+  # Subcortical — mesolimbic / reward
+  NAcc:
+    atlas  : ho_sub
+    labels : ["Accumbens"]
+    hemi   : both
+
+  NAcc_limbic_striatum:
+    atlas  : fsl_striatum_subject
+    labels : ["limbic"]
+    hemi   : both
+
+  amygdala:
+    atlas  : ho_sub
+    labels : ["Amygdala"]
+    hemi   : both
+
+  hippocampus:
+    atlas  : ho_sub
+    labels : ["Hippocampus"]
+    hemi   : both
+
+  entorhinal:
+    atlas          : synthseg_subject
+    synthseg_labels: [1006, 2006]   # L/R entorhinal cortex (DKT label)
+    hemi           : both
+
+  # Subcortical — frontostriatal
+  caudate_executive:
+    atlas  : fsl_striatum_subject
+    labels : ["executive"]
+    hemi   : both
+
+  caudate_HO:
+    atlas  : ho_sub
+    labels : ["Caudate"]
+    hemi   : both
+
+  putamen_motor:
+    atlas  : fsl_striatum_subject
+    labels : ["caudal-Motor", "rostral-Motor"]
+    hemi   : both
+
+  putamen_HO:
+    atlas  : ho_sub
+    labels : ["Putamen"]
+    hemi   : both
+
+  # Thalamus
+  thalamus_prefrontal:
+    atlas          : synthseg_subject
+    synthseg_labels: [10, 49]       # L/R thalamus (whole; no subdivision in SynthSeg)
+    hemi           : both
+
+  thalamus_motor:
+    atlas          : synthseg_subject
+    synthseg_labels: [10, 49]       # L/R thalamus
+    hemi           : both
+
+  # Social brain
+  STS:
+    atlas  : ho_cort
+    labels : ["Superior Temporal Gyrus, anterior division",
+              "Middle Temporal Gyrus, anterior division"]
+    hemi   : both
+
+  TPJ:
+    atlas  : ho_cort
+    labels : ["Angular Gyrus", "Supramarginal Gyrus, anterior division"]
+    hemi   : both
+
+  # Anterior temporal (FTD-sv)
+  temporal_pole:
+    atlas  : ho_cort
+    labels : ["Temporal Pole"]
+    hemi   : both
+
+  # Posterior parietal / IPL (lvPPA)
+  IPL:
+    atlas  : ho_cort
+    labels : ["Angular Gyrus", "Supramarginal Gyrus, posterior division"]
+    hemi   : L
+
+
+# ==============================================================================
+# CONDITION PROFILES
+# ==============================================================================
+
+profiles:
+
+  # ----------------------------------------------------------------------------
+  Full:
+    description : "All networks — general surgical mapping / research baseline"
+    seeds:
+      - motor_cortex
+      - SMA
+      - PCC
+      - mPFC
+      - angular_gyrus
+      - IPS
+      - Broca
+      - Wernicke
+      - anterior_insula
+      - dACC
+      - DLPFC
+      - OFC
+      - NAcc
+      - NAcc_limbic_striatum
+      - amygdala
+      - hippocampus
+    rsn_networks:
+      - SMN
+      - DMN
+      - DAN
+      - Language
+      - Salience
+      - Visual
+      - Mesolimbic
+    ica_dims:
+      SMN       : 5
+      DMN       : 5
+      DAN       : 4
+      Language  : 5
+      Salience  : 3
+      Visual    : 4
+      Mesolimbic: 4
+
+  # ----------------------------------------------------------------------------
+  Anhedonia:
+    description : >
+      Anhedonia / reward deficit — mesolimbic dopaminergic circuit and DMN.
+      Applicable to MDD with prominent anhedonia, substance use, schizophrenia.
+    seeds:
+      - NAcc
+      - NAcc_limbic_striatum
+      - amygdala
+      - hippocampus
+      - OFC
+      - sgACC
+    rsn_networks:
+      - Mesolimbic
+      - DMN
+      - Salience
+    ica_dims:
+      Mesolimbic: 4
+      DMN       : 5
+      Salience  : 3
+
+  # ----------------------------------------------------------------------------
+  MDD:
+    description : >
+      Major Depressive Disorder — subgenual ACC anchored limbic-cortical circuit,
+      DMN hyperconnectivity, and DLPFC hypoconnectivity.
+    seeds:
+      - sgACC
+      - amygdala
+      - hippocampus
+      - NAcc
+      - NAcc_limbic_striatum
+      - DLPFC
+      - OFC
+      - PCC
+    rsn_networks:
+      - DMN
+      - Mesolimbic
+      - Salience
+      - Frontoparietal
+    ica_dims:
+      DMN        : 5
+      Mesolimbic : 4
+      Salience   : 3
+      Frontoparietal: 4
+
+  # ----------------------------------------------------------------------------
+  Bipolar:
+    description : >
+      Bipolar Disorder — frontolimbic dysregulation with prominent thalamic and
+      amygdala-VLPFC dysconnection distinguishing it from MDD.
+    seeds:
+      - amygdala
+      - VLPFC
+      - OFC
+      - dACC
+      - sgACC
+      - thalamus_prefrontal
+      - hippocampus
+    rsn_networks:
+      - DMN
+      - Salience
+      - Frontoparietal
+      - Mesolimbic
+    ica_dims:
+      DMN           : 5
+      Salience      : 3
+      Frontoparietal: 4
+      Mesolimbic    : 4
+
+  # ----------------------------------------------------------------------------
+  ADHD:
+    description : >
+      ADHD — frontostriatal executive loop, reward/motivation circuit,
+      DMN interference with attention, and response inhibition.
+    seeds:
+      - caudate_executive
+      - putamen_motor
+      - NAcc
+      - NAcc_limbic_striatum
+      - DLPFC
+      - IFG
+      - dACC
+    rsn_networks:
+      - Frontostriatal
+      - DAN
+      - DMN
+      - Salience
+    ica_dims:
+      Frontostriatal: 4
+      DAN           : 4
+      DMN           : 5
+      Salience      : 3
+    notes: >
+      Cerebellar seeds (SUIT atlas) to be added for timing/motor coordination.
+
+  # ----------------------------------------------------------------------------
+  OCD:
+    description : >
+      OCD — hyperactive orbitofronto-caudate CSTC loop with thalamic relay.
+    seeds:
+      - caudate_executive
+      - caudate_HO
+      - OFC
+      - dACC
+      - DLPFC
+      - thalamus_prefrontal
+    rsn_networks:
+      - Frontostriatal
+      - Salience
+      - Frontoparietal
+    ica_dims:
+      Frontostriatal: 4
+      Salience      : 3
+      Frontoparietal: 4
+
+  # ----------------------------------------------------------------------------
+  ASD:
+    description : >
+      Autism Spectrum Disorder — social brain underconnectivity,
+      DMN disruption, and salience network atypicality.
+    seeds:
+      - STS
+      - TPJ
+      - anterior_insula
+      - PCC
+      - mPFC
+    rsn_networks:
+      - DMN
+      - Salience
+      - DAN
+    ica_dims:
+      DMN    : 5
+      Salience: 3
+      DAN    : 4
+
+  # ----------------------------------------------------------------------------
+  Alzheimer:
+    description : >
+      Alzheimer's Disease — DMN disruption tracking amyloid deposition pattern,
+      MTL memory network, and cholinergic forebrain (approximate).
+    seeds:
+      - hippocampus
+      - entorhinal
+      - PCC
+      - angular_gyrus
+      - mPFC
+    rsn_networks:
+      - DMN
+      - Memory
+    ica_dims:
+      DMN   : 5
+      Memory: 4
+    notes: >
+      Nucleus basalis of Meynert seed requires basal forebrain atlas (not yet
+      integrated). Add when available.
+
+  # ----------------------------------------------------------------------------
+  FTD_bvFTD:
+    description : >
+      Behavioural variant FTD — salience network degeneration
+      (anterior insula and dACC as primary targets).
+    seeds:
+      - anterior_insula
+      - dACC
+      - OFC
+      - VLPFC
+    rsn_networks:
+      - Salience
+      - Frontoparietal
+    ica_dims:
+      Salience      : 3
+      Frontoparietal: 4
+
+  # ----------------------------------------------------------------------------
+  FTD_svPPA:
+    description : >
+      Semantic variant PPA — anterior temporal lobe and amygdala connectivity.
+    seeds:
+      - temporal_pole
+      - amygdala
+      - entorhinal
+    rsn_networks:
+      - Semantic
+      - Limbic
+    ica_dims:
+      Semantic: 4
+      Limbic  : 4
+
+  # ----------------------------------------------------------------------------
+  FTD_nfvPPA:
+    description : >
+      Non-fluent/agrammatic PPA — left dorsal language stream and premotor speech.
+    lateralised : true
+    seeds:
+      - Broca
+      - IFG
+      - SMA
+      - motor_cortex
+    rsn_networks:
+      - Language
+      - SMN
+    ica_dims:
+      Language: 5
+      SMN     : 5
+
+  # ----------------------------------------------------------------------------
+  FTD_lvPPA:
+    description : >
+      Logopenic variant PPA — posterior language network and left IPL.
+      Frequently associated with underlying AD pathology.
+    lateralised : true
+    seeds:
+      - Wernicke
+      - STG
+      - IPL
+      - PCC
+    rsn_networks:
+      - Language
+      - DMN
+    ica_dims:
+      Language: 5
+      DMN     : 5
+
+  # ----------------------------------------------------------------------------
+  PD:
+    description : >
+      Parkinson's Disease — nigrostriatal motor loop disruption,
+      thalamo-cortical motor circuit, and compensatory cerebellar connectivity.
+    seeds:
+      - putamen_motor
+      - putamen_HO
+      - thalamus_motor
+      - SMA
+      - motor_cortex
+    rsn_networks:
+      - SMN
+      - Frontostriatal
+    ica_dims:
+      SMN           : 5
+      Frontostriatal: 4
+    notes: >
+      STN seed requires DISTAL/FSL STN atlas (not yet integrated).
+      Cerebellar seeds require SUIT atlas (not yet integrated).
+
+  # ----------------------------------------------------------------------------
+  HippocampalSclerosis:
+    description : >
+      Hippocampal sclerosis / MTLE — ipsi- and contralateral hippocampal
+      connectivity, MTL network, and remote DMN disruption.
+      Lateralisation is critical: run L and R seeds separately.
+    lateralised : true
+    seeds:
+      - hippocampus
+      - entorhinal
+      - amygdala
+      - PCC
+    rsn_networks:
+      - DMN
+      - Memory
+      - Limbic
+    ica_dims:
+      DMN   : 5
+      Memory: 4
+      Limbic: 4
+    notes: >
+      Hippocampal subfield seeds (CA1–4, DG, subiculum) require ASHS or
+      FreeSurfer hippocampal subfields atlas (not yet integrated).
+      Always report lateralisation index alongside connectivity maps.
+
+  # ----------------------------------------------------------------------------
+  Presurgical:
+    description : >
+      Presurgical / eloquent-cortex mapping — sensorimotor and language
+      network delineation for tumor and epilepsy surgical planning.
+      Intended to pool ALL available BOLD runs for the subject (resting-state
+      and any task-fMRI runs, including runs where the task paradigm could
+      not be reliably performed) into the same seed-based/RSN-FC estimate:
+      intrinsic connectivity and task-driven co-activation both inform
+      eloquent-cortex localisation when a full task battery isn't feasible.
+    seeds:
+      - motor_cortex
+      - SMA
+      - Broca
+      - Wernicke
+      - IFG
+      - STG
+    rsn_networks:
+      - SMN
+      - Language
+    ica_dims:
+      SMN     : 5
+      Language: 5
+    notes: >
+      Focused subset of Full (motor/language only) for a report that's
+      directly actionable for surgical planning rather than a 16-seed
+      kitchen sink. Broca/Wernicke/IFG/STG are left-hemisphere by
+      definition in the seed catalog (typical left-dominant language
+      organisation) — re-run lateralised for suspected atypical dominance.

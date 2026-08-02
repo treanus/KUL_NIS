@@ -191,6 +191,96 @@ function KUL_karawun_get_voi {
     fi
 }
 
+# Known tract display-name/color/threshold metadata, keyed by the FWT bundle name
+# (tract_name_orig). Used to look up nice Brainlab labels/colors for bundles that
+# are actually found (see the auto-discovery loop in MAIN below) instead of the
+# previous approach of unconditionally attempting a hardcoded list of ~40 bundles
+# regardless of which ones this patient's FWT config actually generated -- that
+# meant any bundle not already in this list (e.g. a newly added FWT bundle, or a
+# custom one) was silently never picked up, no matter what -t was set to (-t does
+# not actually filter this list at all; it only changes the threshold formula for
+# type 1, see KUL_karawun_get_tract above).
+declare -A KUL_karawun_tract_meta=(
+    [AF_all_LT]="Arcuate_Fasc_Left|1|20|3"
+    [AF_all_RT]="Arcuate_Fasc_Right|2|20|3"
+    [CST_LT]="Corticospinal_Tract_Left|3|20|3"
+    [CST_RT]="Corticospinal_Tract_Right|4|20|3"
+    [PyT_SMA_LT]="Pyramidal_Tract_Supplementary_Motor_Left|4|20|3"
+    [PyT_SMA_RT]="Pyramidal_Tract_Supplementary_Motor_Right|3|20|3"
+    [CCing_LT]="Cingulum_cing_Left|5|20|3"
+    [TCing_LT]="Cingulum_temporal_Left|5|20|3"
+    [CCing_RT]="Cingulum_cing_Right|6|20|3"
+    [TCing_RT]="Cingulum_temporal_Right|6|20|3"
+    [FAT_LT]="FrontalAslant_Tract_Left|7|20|3"
+    [FAT_RT]="FrontalAslant_Tract_Right|8|20|3"
+    [IFOF_LT]="IFOF_Left|9|20|3"
+    [IFOF_RT]="IFOF_Right|10|20|3"
+    [ILF_LT]="InferiorLongitudinal_Fasc_Left|11|20|3"
+    [ILF_RT]="InferiorLongitudinal_Fasc_Right|12|20|3"
+    [UF_LT]="Uncinate_Fasc_Left|13|20|3"
+    [UF_RT]="Uncinate_Fasc_Right|14|20|3"
+    [OR_occlobe_LT]="Occiptal_Radition_Left|15|20|3"
+    [OR_occlobe_RT]="Occiptal_Radition_Right|16|20|3"
+    [ML_LT]="Medial_Lemniscus_Tract_Left|17|20|3"
+    [ML_RT]="Medial_Lemniscus_Tract_Right|18|20|3"
+    [MdLF_LT]="MiddleLongitudinal_Fasc_Left|29|20|3"
+    [MdLF_RT]="MiddleLongitudinal_Fasc_Right|30|20|3"
+    [Ant_Comm]="Anterior_Commissure|31|20|3"
+    [Post_Comm]="Posterior_Commissure|32|20|3"
+    [CC_Motor_Comm]="CC_Motor|33|20|3"
+    [CC_Occipital_Comm]="CC_Occipital|34|20|3"
+    [CC_Parietal_Comm]="CC_Parietal|35|20|3"
+    [CC_PMandSM_Comm]="CC_PreMotor_SupplMotor|36|20|3"
+    [CC_PreF_Comm]="CC_Prefrontal|37|20|3"
+    [CC_Sensory_Comm]="CC_Sensory|38|20|3"
+    [CC_Temporal_Comm]="CC_Temporal|39|20|3"
+    [DRT_LT]="DRT_Left|19|20|1"
+    [DRT_RT]="DRT_Right|20|20|1"
+    [ThR_S1_LT]="S1VC_Left|21|10|4"
+    [ThR_S1_RT]="S1VC_Right|22|10|4"
+    [CSHDP_LT]="CSHDP_Left|25|40|1"
+    [CSHDP_RT]="CSHDP_Right|26|40|1"
+    [ThR_Ant_LT]="ThR_Ant_LT|27|20|1"
+    [ThR_Ant_RT]="ThR_Ant_RT|28|20|1"
+)
+
+function KUL_karawun_auto_discover_tracts {
+    # Mirrors the auto-discovery pattern KUL_clinical_fmridti.sh already uses for
+    # screenshots/PACS export: glob over whatever *_output directories FWT actually
+    # produced for this participant, rather than assuming a fixed list. Any bundle
+    # found gets its known display name/color/thresholds from the table above if
+    # present, or a sensible auto-assigned fallback (raw FWT name, next unused
+    # color starting at 100) if it's a bundle this script doesn't recognise yet --
+    # so a new or custom bundle in the FWT config still reaches Karawun instead of
+    # being silently skipped.
+    local tck_root="BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output"
+    local next_auto_color=100
+
+    if [ ! -d "$tck_root" ]; then
+        echo "Does not exist: $tck_root"
+        return
+    fi
+
+    for tck_outdir in "$tck_root"/*_output; do
+        [ -d "$tck_outdir" ] || continue
+        tract_name_orig=$(basename "$tck_outdir" _output)
+
+        if [ -n "${KUL_karawun_tract_meta[$tract_name_orig]:-}" ]; then
+            IFS='|' read -r tract_name_final tract_color tract_threshold tract_corr_threshold \
+                <<< "${KUL_karawun_tract_meta[$tract_name_orig]}"
+        else
+            echo "  ${tract_name_orig}: not in the known tract table, using defaults (color ${next_auto_color})"
+            tract_name_final="$tract_name_orig"
+            tract_color=$next_auto_color
+            tract_threshold=20
+            tract_corr_threshold=3
+            next_auto_color=$((next_auto_color + 1))
+        fi
+
+        KUL_karawun_get_tract
+    done
+}
+
 #---- MAIN
 
 mkdir -p Karawun/sub-${participant}/labels
@@ -212,265 +302,12 @@ else
 fi
 
 
-    tract_name_orig="AF_all_LT"
-    tract_name_final="Arcuate_Fasc_Left"
-    tract_color=1
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
+    KUL_karawun_auto_discover_tracts
 
-    tract_name_orig="AF_all_RT"
-    tract_name_final="Arcuate_Fasc_Right"
-    tract_color=2
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CST_LT"
-    tract_name_final="Corticospinal_Tract_Left"
-    tract_color=3
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CST_RT"
-    tract_name_final="Corticospinal_Tract_Right"
-    tract_color=4
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="PyT_SMA_LT"
-    tract_name_final="Pyramidal_Tract_Supplementary_Motor_Left"
-    tract_color=4
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="PyT_SMA_RT"
-    tract_name_final="Pyramidal_Tract_Supplementary_Motor_Right"
-    tract_color=3
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CCing_LT"
-    tract_name_final="Cingulum_cing_Left"
-    tract_color=5
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="TCing_LT"
-    tract_name_final="Cingulum_temporal_Left"
-    tract_color=5
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CCing_RT"
-    tract_name_final="Cingulum_cing_Right"
-    tract_color=6
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="TCing_RT"
-    tract_name_final="Cingulum_temporal_Right"
-    tract_color=6
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="FAT_LT"
-    tract_name_final="FrontalAslant_Tract_Left"
-    tract_color=7
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="FAT_RT"
-    tract_name_final="FrontalAslant_Tract_Right"
-    tract_color=8
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="IFOF_LT"
-    tract_name_final="IFOF_Left"
-    tract_color=9
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="IFOF_RT"
-    tract_name_final="IFOF_Right"
-    tract_color=10
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="ILF_LT"
-    tract_name_final="InferiorLongitudinal_Fasc_Left"
-    tract_color=11
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="ILF_RT"
-    tract_name_final="InferiorLongitudinal_Fasc_Right"
-    tract_color=12
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="UF_LT"
-    tract_name_final="Uncinate_Fasc_Left"
-    tract_color=13
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="UF_RT"
-    tract_name_final="Uncinate_Fasc_Right"
-    tract_color=14
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="OR_occlobe_LT"
-    tract_name_final="Occiptal_Radition_Left"
-    tract_color=15
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-    
-    tract_name_orig="OR_occlobe_RT"
-    tract_name_final="Occiptal_Radition_Right"
-    tract_color=16
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="ML_LT"
-    tract_name_final="Medial_Lemniscus_Tract_Left"
-    tract_color=17
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="ML_RT"
-    tract_name_final="Medial_Lemniscus_Tract_Right"
-    tract_color=18
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="MdLF_LT"
-    tract_name_final="MiddleLongitudinal_Fasc_Left"
-    tract_color=29
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="MdLF_RT"
-    tract_name_final="MiddleLongitudinal_Fasc_Right"
-    tract_color=30
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="Ant_Comm"
-    tract_name_final="Anterior_Commissure"
-    tract_color=31
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="Post_Comm"
-    tract_name_final="Posterior_Commissure"
-    tract_color=32
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_Motor_Comm"
-    tract_name_final="CC_Motor"
-    tract_color=33
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_Occipital_Comm"
-    tract_name_final="CC_Occipital"
-    tract_color=34
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_Parietal_Comm"
-    tract_name_final="CC_Parietal"
-    tract_color=35
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_PMandSM_Comm"
-    tract_name_final="CC_PreMotor_SupplMotor"
-    tract_color=36
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_PreF_Comm"
-    tract_name_final="CC_Prefrontal"
-    tract_color=37
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_Sensory_Comm"
-    tract_name_final="CC_Sensory"
-    tract_color=38
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="CC_Temporal_Comm"
-    tract_name_final="CC_Temporal"
-    tract_color=39
-    tract_threshold=20
-    tract_corr_threshold=3
-    KUL_karawun_get_tract
-
-    tract_name_orig="DRT_LT"
-    tract_name_final="DRT_Left"
-    tract_color=19
-    tract_threshold=20
-    tract_corr_threshold=1
-    KUL_karawun_get_tract
-
-    tract_name_orig="DRT_RT"
-    tract_name_final="DRT_Right"
-    tract_color=20
-    tract_threshold=20
-    tract_corr_threshold=1
-    KUL_karawun_get_tract
-
-    tract_name_orig="ThR_S1_LT"
-    tract_name_final="S1VC_Left"
-    tract_color=21
-    tract_threshold=10
-    tract_corr_threshold=4
-    KUL_karawun_get_tract
-
-    tract_name_orig="ThR_S1_RT"
-    tract_name_final="S1VC_Right"
-    tract_color=22
-    tract_threshold=10
-    tract_corr_threshold=4
-    KUL_karawun_get_tract
-
+    # CSHDP is the one FWT bundle used both as a VOI-derived label (the distal
+    # STN-motor VOI itself) and, separately, as a full reconstructed tract -- the
+    # VOI form isn't produced under TCKs_output/*_output so it can't be picked up
+    # by the auto-discovery loop above and stays explicit here.
     tract_name_orig="CSHDP_LT"
     voi_name_final="DISTAL_STN_MOTOR_Left"
     voi_color=23
@@ -482,36 +319,6 @@ fi
     voi_color=24
     voi_threshold=0.1
     KUL_karawun_get_voi
-
-    tract_name_orig="CSHDP_LT"
-    tract_name_final="CSHDP_Left"
-    tract_color=25
-    tract_threshold=40
-    tract_corr_threshold=1
-    KUL_karawun_get_tract
-
-    tract_name_orig="CSHDP_RT"
-    tract_name_final="CSHDP_Right"
-    tract_color=26
-    tract_threshold=40
-    tract_corr_threshold=1
-    KUL_karawun_get_tract
-
-
-    tract_name_orig="ThR_Ant_LT"
-    tract_name_final="ThR_Ant_LT"
-    tract_color=27
-    tract_threshold=20
-    tract_corr_threshold=1
-    KUL_karawun_get_tract
-
-    tract_name_orig="ThR_Ant_RT"
-    tract_name_final="ThR_Ant_RT"
-    tract_color=28
-    tract_threshold=20
-    tract_corr_threshold=1
-    KUL_karawun_get_tract
-
 
 # give information
 echo "See to it that the DICOM directory contains a single slice of the SmartBrain"

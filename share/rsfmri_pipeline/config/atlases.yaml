@@ -1,0 +1,255 @@
+# Atlas Registry
+# Each entry defines one atlas available to the pipeline.
+#
+# Fields:
+#   source   : "fsl"      – file under $FSLDIR/data/atlases/
+#              "nilearn"  – fetched via nilearn.datasets
+#              "local"    – file under scripts/templates/
+#   type     : "anatomical" | "functional"
+#              Only anatomical atlases may be used as SBA seeds.
+#              Functional atlases are used for RSN masks only (Steps 2 & 3).
+#   space    : MNI template space the atlas is registered to
+#   res      : voxel resolution in mm (2 matches fMRIPrep res-2 outputs)
+#   labels   : "xml"  – read from paired XML label file (FSL convention)
+#              "txt"  – one label per line text file
+#              "nilearn" – returned by nilearn fetch call
+#   notes    : free-text, e.g. missing structures or known limitations
+
+atlases:
+
+  # --------------------------------------------------------------------------
+  # FSL atlases  (already on disk, no download needed)
+  # --------------------------------------------------------------------------
+
+  ho_cort:
+    source   : fsl
+    type     : anatomical
+    path     : HarvardOxford/HarvardOxford-cort-maxprob-thr25-2mm.nii.gz
+    xml      : HarvardOxford-Cortical.xml
+    space    : MNI152Lin
+    res      : 2
+    labels   : xml
+    notes    : >
+      48 cortical regions, bilateral (no Left/Right distinction in label names).
+      Good general cortical coverage. Lacks striatal subdivisions and thalamic
+      nuclei — use fsl_striatum / fsl_thalamus for those.
+
+  ho_sub:
+    source   : fsl
+    type     : anatomical
+    path     : HarvardOxford/HarvardOxford-sub-maxprob-thr25-2mm.nii.gz
+    xml      : HarvardOxford-Subcortical.xml
+    space    : MNI152Lin
+    res      : 2
+    labels   : xml
+    notes    : >
+      21 subcortical structures with Left/Right labels.
+      Covers hippocampus, amygdala, caudate, putamen, NAcc, thalamus.
+      Use fsl_striatum for connectivity-based striatal subdivisions.
+
+  fsl_striatum:
+    source   : fsl
+    type     : anatomical
+    path     : Striatum/striatum-con-label-thr25-7sub-2mm.nii.gz
+    xml      : Striatum-Connectivity-7sub.xml
+    space    : MNI152Lin
+    res      : 2
+    labels   : xml
+    notes    : >
+      7 connectivity-based striatal subdivisions: limbic (ventral/NAcc area),
+      executive, rostral-motor, caudal-motor, parietal, occipital, temporal.
+      Preferred over HO for any striatum seed (finer parcellation, functionally
+      meaningful boundaries). Bilateral (no Left/Right split).
+
+  fsl_thalamus:
+    source   : fsl
+    type     : anatomical
+    path     : Thalamus/Thalamus-maxprob-thr25-2mm.nii.gz
+    xml      : Thalamus.xml
+    space    : MNI152Lin
+    res      : 2
+    labels   : xml
+    notes    : >
+      7 thalamic subdivisions: Primary motor, Sensory, Occipital, Pre-frontal,
+      Pre-motor, Posterior parietal, Temporal.
+      Connectivity-based (not cytoarchitectonic). Bilateral.
+
+  juelich:
+    source   : fsl
+    type     : anatomical
+    path     : Juelich/Juelich-maxprob-thr25-2mm.nii.gz
+    xml      : Juelich.xml
+    space    : MNI152Lin
+    res      : 2
+    labels   : xml
+    notes    : >
+      Cytoarchitectonic atlas with histology-defined areas. Useful for primary
+      sensory/motor areas (BA1-4), STN region, and posterior cortex. Less
+      complete than HO for frontal lobe.
+
+  # --------------------------------------------------------------------------
+  # Local atlases  (under scripts/templates/)
+  # --------------------------------------------------------------------------
+
+  bip_language:
+    source   : local
+    type     : anatomical
+    path     : BIP_language_atlas/BIP_language_atlas/BIP/BIP_maxprob-thr25-2mm.nii.gz
+    xml      : BIP_language_atlas/BIP_language_atlas/BIP.xml
+    space    : MNI152Lin
+    res      : 2
+    labels   : xml
+    notes    : >
+      Surgical-grade language atlas covering Broca's area, Wernicke's area,
+      arcuate fasciculus terminations, and supplementary speech areas.
+      Left hemisphere only. Preferred over HO for language network seeds.
+
+  hcp_mmp1:
+    source   : local
+    type     : anatomical
+    path     : HCP-MMP1/HCP-MMP1/HCP-MMP1/HCP-MMP1_2mm.nii.gz
+    xml      : HCP-MMP1/HCP-MMP1/HCP-MMP1.xml
+    space    : MNI152NLin6Asym
+    res      : 2
+    labels   : xml
+    notes    : >
+      360 cortical parcels (180 per hemisphere) from the HCP multi-modal
+      parcellation (Glasser et al. 2016). Finest cortical granularity available.
+      Use for high-resolution cortical seed definitions (e.g. hand knob for SMN,
+      FEF for DAN, specific language areas).
+
+  grecius_func:
+    source   : local
+    type     : functional
+    path     : GreciusFunc/GreciusFunc/GreciusFunc/GreciusFunc_maxprob-thr25-2mm.nii.gz
+    xml      : GreciusFunc/GreciusFunc/GreciusFunc.xml
+    space    : MNI152Lin
+    res      : 2
+    labels   : xml
+    notes    : >
+      Functional RSN atlas. For RSN masks only — not for SBA seeds.
+
+  yeo7:
+    source   : local
+    type     : functional
+    path     : Yeo2011_resampled.nii.gz
+    space    : MNI152Lin
+    res      : 2
+    labels   : txt
+    label_file : Yeo2011.txt
+    notes    : >
+      Yeo 2011 7-network parcellation. Coarse RSN masks.
+      For RSN masks only — not for SBA seeds.
+
+  yeo_buckner17:
+    source   : local
+    type     : functional
+    path     : YeoBuckner/YeoBuckner/YeoBuckner17/YeoBuckner17_maxprob-thr25-2mm.nii.gz
+    xml      : YeoBuckner/YeoBuckner/YeoBuckner17.xml
+    space    : MNI152Lin
+    res      : 2
+    labels   : xml
+    notes    : >
+      Yeo-Buckner 17-network parcellation. Finer RSN masks than yeo7.
+      For RSN masks only — not for SBA seeds.
+
+  # --------------------------------------------------------------------------
+  # nilearn-fetched atlases  (downloaded on first use, cached locally)
+  # --------------------------------------------------------------------------
+
+  schaefer400_17net:
+    source      : nilearn
+    type        : functional
+    fetch_fn    : fetch_atlas_schaefer_2018
+    fetch_args  :
+      n_rois        : 400
+      yeo_networks  : 17
+      resolution_mm : 2
+    space    : MNI152NLin2009cAsym
+    res      : 2
+    labels   : nilearn
+    notes    : >
+      400-parcel Schaefer 2018 parcellation with 17-network labels.
+      Used for RSN mask construction and RSN-level FC matrix.
+      Functional atlas — not for SBA seeds.
+
+  smith_rsn10:
+    source      : nilearn
+    type        : functional
+    fetch_fn    : fetch_atlas_smith_2009
+    fetch_key   : maps       # key in returned Bunch
+    space    : MNI152Lin
+    res      : 4
+    labels   : nilearn
+    notes    : >
+      Smith 2009 10-component ICA-derived RSN atlas (PNAS 2009).
+      4D image (one volume per RSN). Used for RSN-level FC matrix seeds.
+      Requires resampling to 2mm before use. Functional atlas only.
+
+  # --------------------------------------------------------------------------
+  # Subject-specific atlases (produced by step0_synthseg.sh)
+  # --------------------------------------------------------------------------
+
+  synthseg_subject:
+    source   : subject_synthseg
+    type     : anatomical
+    space    : MNI152NLin2009cAsym
+    res      : 2
+    notes    : >
+      FreeSurfer DKT cortical parcellation + subcortical segmentation produced
+      by mri_synthseg --parc, warped to MNI by step0. Seeds specify label IDs
+      directly via synthseg_labels in the seed catalog.
+      Subcortical: 10/49=Thalamus, 11/50=Caudate, 12/51=Putamen,
+      17/53=Hippocampus, 18/54=Amygdala, 26/58=Accumbens.
+      Cortical (L/R): 1006/2006=Entorhinal, 1018/2018=ParsOpercularis,
+      1020/2020=ParsTriangularis, 1030/2030=SuperiorTemporal,
+      1031/2031=Supramarginal.
+
+  ho_cort_subject:
+    source      : subject_propagated
+    base_atlas  : ho_cort
+    filename    : "sub-{subject}_ho_cort_subject_MNI.nii.gz"
+    type        : anatomical
+    space       : MNI152NLin2009cAsym
+    res         : 2
+    notes       : >
+      HarvardOxford cortical atlas propagated through subject's union GM mask
+      by step0. Label lookup uses the same HarvardOxford-Cortical.xml as
+      the base ho_cort atlas, so seed label strings are unchanged.
+
+  fsl_striatum_subject:
+    source      : subject_propagated
+    base_atlas  : fsl_striatum
+    filename    : "sub-{subject}_fsl_striatum_subject_MNI.nii.gz"
+    type        : anatomical
+    space       : MNI152NLin2009cAsym
+    res         : 2
+    notes       : >
+      FSL connectivity-based striatum atlas propagated through subject's union
+      GM mask by step0. Label lookup uses Striatum-Connectivity-7sub.xml.
+      Retains the 7 functional subdivisions (limbic, executive, motor, etc.)
+      as subject-specific masks.
+
+  # --------------------------------------------------------------------------
+  # Atlases to be added (not yet integrated)
+  # --------------------------------------------------------------------------
+
+  # suit_cerebellum:
+  #   source   : local          # download from SUIT toolbox
+  #   type     : anatomical
+  #   notes    : Required for PD and ADHD cerebellar seeds.
+
+  # fsl_stn:
+  #   source   : fsl
+  #   path     : STN/STN-maxprob-thr25-2mm.nii.gz
+  #   notes    : Subthalamic nucleus — required for PD DBS target mapping.
+
+  # ashs_hippo_subfields:
+  #   source   : local          # subject-specific, output of ASHS pipeline
+  #   type     : anatomical
+  #   notes    : Hippocampal subfields (CA1-4, DG, subiculum). Required for HS.
+
+  # basal_forebrain:
+  #   source   : local          # e.g. Zaborszky et al. 2008 atlas
+  #   type     : anatomical
+  #   notes    : Nucleus basalis of Meynert — required for AD cholinergic seed.

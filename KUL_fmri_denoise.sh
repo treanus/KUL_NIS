@@ -35,6 +35,8 @@ LP=0.09
 COLS_STR=""
 COLS_FILE=""
 ALL_CONFOUNDS=0
+GSR=0
+ACOMPCOR_N=5
 
 # ── Usage ──────────────────────────────────────────────────────────────────────
 usage() {
@@ -60,6 +62,18 @@ Denoising:
   --lp <Hz>                 Low-pass cutoff  (default: 0.09)
   --all-confounds           Use 24 motion regressors (adds squares + squared derivatives
                             to the default 12); still combined with aCompCor
+  --acompcor-n <N>          Number of WM/CSF aCompCor components each (default: 5).
+                            More components capture more physiological noise
+                            variance without touching gray-matter signal directly.
+  --gsr                     Add global_signal + its derivative to the confound
+                            regression (fMRIPrep already computes these in the
+                            confounds TSV -- no extra computation needed). Composes
+                            with any of the options above. Standard fix for
+                            widespread whole-brain "hyperconnectivity" from
+                            unremoved physiological/global noise, but can introduce
+                            artificial negative correlations elsewhere -- a known,
+                            debated tradeoff; opt-in rather than default for that
+                            reason.
   --cols "<c1 c2 ...>"      Fully override confound columns
   --cols-file <file.txt>    Read confound columns from file (one per line, # comments ok)
 
@@ -146,6 +160,8 @@ while [[ $# -gt 0 ]]; do
     --hp)         HP="$2"; shift 2;;
     --lp)         LP="$2"; shift 2;;
     --all-confounds) ALL_CONFOUNDS=1; shift;;
+    --acompcor-n) ACOMPCOR_N="$2"; shift 2;;
+    --gsr)        GSR=1; shift;;
     --cols)       COLS_STR="$2"; shift 2;;
     --cols-file)  COLS_FILE="$2"; shift 2;;
     -h|--help)    usage; exit 0;;
@@ -175,16 +191,25 @@ elif [[ "$METHOD" == "fsl" ]]; then
 fi
 
 # ── Confound columns ───────────────────────────────────────────────────────────
-# Default: 12 motion parameters (6 + derivatives) + 5 WM aCompCor + 5 CSF aCompCor
-# --all-confounds expands to 24 motion params (adds squares + squared derivatives)
-# Outlier spike regressors (motion_outlier*, non_steady_state_outlier*) are
-# added automatically per-run from the confounds TSV header.
+# Default: 12 motion parameters (6 + derivatives) + N WM aCompCor + N CSF aCompCor
+# (N set by --acompcor-n, default 5). --all-confounds expands to 24 motion
+# params (adds squares + squared derivatives). --gsr adds global_signal on top
+# of whichever of these (or --cols/--cols-file) is selected. Outlier spike
+# regressors (motion_outlier*, non_steady_state_outlier*) are added
+# automatically per-run from the confounds TSV header.
+ACOMPCOR_W_COLS=()
+ACOMPCOR_C_COLS=()
+for ((_i=0; _i<ACOMPCOR_N; _i++)); do
+  _idx=$(printf "%02d" "$_i")
+  ACOMPCOR_W_COLS+=("w_comp_cor_${_idx}")
+  ACOMPCOR_C_COLS+=("c_comp_cor_${_idx}")
+done
+
 DEFAULT_COLS=(
   trans_x trans_y trans_z rot_x rot_y rot_z
   trans_x_derivative1 trans_y_derivative1 trans_z_derivative1
   rot_x_derivative1 rot_y_derivative1 rot_z_derivative1
-  w_comp_cor_00 w_comp_cor_01 w_comp_cor_02 w_comp_cor_03 w_comp_cor_04
-  c_comp_cor_00 c_comp_cor_01 c_comp_cor_02 c_comp_cor_03 c_comp_cor_04
+  "${ACOMPCOR_W_COLS[@]}" "${ACOMPCOR_C_COLS[@]}"
 )
 
 ALL_COLS=(
@@ -195,8 +220,7 @@ ALL_COLS=(
   rot_x_power2 rot_y_power2 rot_z_power2
   trans_x_derivative1_power2 trans_y_derivative1_power2 trans_z_derivative1_power2
   rot_x_derivative1_power2 rot_y_derivative1_power2 rot_z_derivative1_power2
-  w_comp_cor_00 w_comp_cor_01 w_comp_cor_02 w_comp_cor_03 w_comp_cor_04
-  c_comp_cor_00 c_comp_cor_01 c_comp_cor_02 c_comp_cor_03 c_comp_cor_04
+  "${ACOMPCOR_W_COLS[@]}" "${ACOMPCOR_C_COLS[@]}"
 )
 
 COLS=()
@@ -215,6 +239,11 @@ elif [[ "$ALL_CONFOUNDS" -eq 1 ]]; then
 else
   COLS=("${DEFAULT_COLS[@]}")
 fi
+
+if [[ "$GSR" -eq 1 ]]; then
+  COLS+=(global_signal global_signal_derivative1)
+fi
+
 [[ "${#COLS[@]}" -gt 0 ]] || { echo "ERROR: no confound columns selected"; exit 1; }
 
 DT=$(echo "$FWHM/2.355" | bc -l)   # SUSAN spatial sigma (mm)
@@ -226,7 +255,7 @@ mapfile -t BOLDS < <(
   find "$FMRIPREP_DIR" \
     -path "$FMRIPREP_DIR/derivatives" -prune -o \
     -type f -path "*/func/*" \
-    -name "*_space-${SPACE}_*_desc-preproc_bold.nii.gz" -print \
+    -name "*_space-${SPACE}*_desc-preproc_bold.nii.gz" -print \
   | sort
 )
 
