@@ -90,11 +90,99 @@ Optional:
   -v   verbosity (0=silent, 1=normal, 2=verbose; default 1)
   -X   use FastSurfer instead of plain recon-all for the reconstruction step
          in types 4, 5, 6 (faster, requires GPU; default is FreeSurfer 8.2.0 recon-all)
-  -f   name of the conda environment to activate for scilpy-based tractography
-         post-processing (KUL_FWT step). There is no default — if omitted, an
-         empty environment name is passed to conda activate, which will fail;
-         always pass -f (e.g. -f scilpy) unless your environment is already active.
+  -E   fMRI GLM engine: spm or nilearn (default: spm). nilearn needs no
+         MATLAB/SPM12 license; it runs in the conda env $KUL_PYFMRI_ENV
+         (default 'pyfMRI') — see "Conda environments" below.
+  -N   opt-in: also run presurgical/eloquent-cortex rsfMRI network mapping
+         (KUL_run_rsfMRI_networks.sh). Off by default. Boolean — takes no
+         argument. Also runs in $KUL_PYFMRI_ENV.
+  -C   condition profile for -N, from share/rsfmri_pipeline/config/profiles.yaml
+         (default: Presurgical)
+  -U   EXPERIMENTAL opt-in: prefer the rfa-modulated lore_sd FOD in KUL_FWT,
+         if found, over the plain lore_sd ODF (only relevant with -D
+         run_dwiprep_lore_sd.txt). Off by default.
+  -Q   opt-in: run KUL_FWT's per-bundle tractometry (along-tract scalar
+         profiles). Off by default — adds real per-bundle runtime. Tracts
+         themselves are generated either way.
+  -f   conda env to use instead of $KUL_SCILPY_ENV (default 'scilpy') for FWT
+         (automated tractography). You shouldn't normally need this.
+  -y   conda env to use instead of $KUL_PYFMRI_ENV (default 'pyfMRI') for -N
+         and -E nilearn. You shouldn't normally need this either.
 ```
+
+## Conda environments
+
+Several steps need a conda env with specific Python/tractography packages. As
+of the installer's `env-pyfmri`/`env-scilpy`/`env-lore-sd` sections, these are
+created under **fixed, predictable names** — `pyfMRI`, `scilpy`, `lore_sd` —
+so you do **not** need to tell the pipeline which env to use for normal runs.
+
+> **The pipeline will quit if the expected env is missing.** If FWT (`-f`),
+> `-N`, `-E nilearn`, or a `-D` config requesting `lore_sd` can't find their
+> conda env (`scilpy`, `pyfMRI`, `pyfMRI`, `lore_sd` respectively) via `conda
+> env list`, the script exits immediately with an error naming the missing
+> env — it does **not** silently fall back to a bare `python3` or hang. Run
+> the corresponding `setup_environment.sh` section (e.g. `--only env-pyfmri`)
+> to create it, or override with `-f`/`-y`/`loresd_env:` in the `-D` config
+> if you're intentionally using a differently-named env.
+
+## Examples
+
+Paths and participant names below are fictitious — substitute your own study
+root layout and DICOM/BIDS naming.
+
+**0. First time for this patient (no study-root folder yet):**
+
+```
+mkdir -p /data/studies/glioma_batch3
+cd /data/studies/glioma_batch3
+KUL_clinical_fmridti.sh -p JaneDoe -s -t 1
+```
+`-s` does **not** run the pipeline — it creates a new
+`clinical_sub-JaneDoe_type1/` folder (named from `-p`/`-t`) containing a
+`DICOM/` and a `study_config/` pre-filled with the template configs for that
+processing type, then exits. Pass `-t` explicitly if you're scaffolding for
+anything other than the default type 1 — it selects which template configs
+get copied in (see the type table above). Drop your DICOMs into
+`clinical_sub-JaneDoe_type1/DICOM/`, adjust `study_config/` if needed, `cd`
+into that folder, then run again without `-s` (example 1 below).
+
+**1. Basic glioma work-up (type 1, default SPM engine), from a zip archive:**
+
+```
+cd /data/studies/glioma_batch3/clinical_sub-JaneDoe_type1
+KUL_clinical_fmridti.sh -p JaneDoe -d DICOM/JaneDoe.zip -n 32
+```
+Uses defaults throughout: `-t 1` (intra-axial glioma stream), `-E spm`
+(MATLAB/SPM12 GLM), FreeSurfer 8.2.0 recon-all, `scilpy`/`lore_sd` envs only
+pulled in if the relevant steps need them.
+
+**2. DBS case (type 3, manual lesion mask) with the nilearn GLM engine,
+lore_sd-based FOD estimation, rsfMRI network mapping, and per-bundle
+tractometry — a fuller "everything on" run:**
+
+```
+cd /data/studies/dbs_cohort/clinical_sub-M0012_type3
+mkdir -p RESULTS/sub-M0012/Lesion
+cp /data/segmentations/M0012_lesion.nii.gz RESULTS/sub-M0012/Lesion/lesion.nii.gz
+KUL_clinical_fmridti.sh -p M0012 -d ./DICOM/M0012 -t 3 \
+    -E nilearn -D run_dwiprep_lore_sd.txt -U -N -Q -n 32 -v 2
+```
+- `-t 3`: tumor with manual mask (the `lesion.nii.gz` you copied in above)
+- `-E nilearn`: task-fMRI GLM via nilearn instead of SPM12/MATLAB — runs in
+  the `pyfMRI` conda env automatically, no `-y` needed
+- `-D run_dwiprep_lore_sd.txt`: use the lore_sd dwiprep config (runs in the
+  `lore_sd` conda env automatically — the config's `loresd_env:` field can
+  stay blank)
+- `-U`: prefer the rfa-modulated lore_sd FOD in tractography, if present
+- `-N`: also run rsfMRI network mapping (also uses `pyfMRI` automatically)
+- `-Q`: run KUL_FWT's per-bundle tractometry (adds runtime)
+- `-v 2`: verbose logging
+
+Neither example passes `-f`, `-y`, or a `loresd_env:` override — the
+`scilpy`/`pyfMRI`/`lore_sd` envs are found automatically by their fixed
+names. You'd only add those if you deliberately installed one under a
+different name.
 
 ### Figure / overlay appearance (`-a`, `-e`, `-T`)
 
@@ -117,7 +205,7 @@ To push the PACS DICOMs to an Orthanc/PACS node, see `tools/send_2_orthanc.sh`.
 
 ## Dependencies
 
-This pipeline ties together most of KUL_NIS, so it needs the full software stack — see the **Requirements** section of the main [README](/README.md). The key external tools it invokes are: dcm2bids/dcm2niix, ANTs, FSL, FreeSurfer (8.2.0, or FastSurfer with `-X`), fmriprep, MRtrix3 (**3.0.4-543-g86eb1ea8**, `dev` branch, 2023 build), SPM12 (MATLAB), synb0-disco, hd-glio-auto, resseg, MSBP, **KUL_VBG**, **KUL_FWT** (via the scilpy conda env, see `-f`), Karawun, and `xvfb-run` (**required** for headless `mrview` screenshots — see below). `KUL_nii2dcm.py` additionally needs python3 with SimpleITK, Pillow and numpy.
+This pipeline ties together most of KUL_NIS, so it needs the full software stack — see the **Requirements** section of the main [README](/README.md). The key external tools it invokes are: dcm2bids/dcm2niix, ANTs, FSL, FreeSurfer (8.2.0, or FastSurfer with `-X`), fmriprep, MRtrix3 (**3.0.8-2097-g99963980**, `dev` branch, built with CMake+Ninja), SPM12 (MATLAB), synb0-disco, hd-glio-auto, resseg, MSBP, **KUL_VBG**, **KUL_FWT** (via the `scilpy` conda env, see "Conda environments" above), Karawun, and `xvfb-run` (**required** for headless `mrview` screenshots — see below). `KUL_nii2dcm.py` additionally needs python3 with SimpleITK, Pillow and numpy.
 
 ### Headless `mrview` screenshots (`xvfb-run`)
 

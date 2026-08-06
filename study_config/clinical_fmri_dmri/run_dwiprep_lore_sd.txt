@@ -23,12 +23,14 @@ BIDS_participants:
 #  simultaneous: defines how many subjects to process simultaneously
 do_dwiprep: 1
 dwiprep_options: dhollander lore_sd
-#  loresd_env: name of the conda env with lore_sd installed (required when lore_sd is in dwiprep_options)
+#  loresd_env: name of the conda env with lore_sd installed; defaults to $KUL_LORESD_ENV ('lore_sd', the fixed name the KUL_NIS installer creates it under) when left blank -- only set this if you used a different env name
 loresd_env:
 use_native_dwi: 1
 synbzero_disco_instead_of_topup: 1
 rev_phase_for_topup_only: 1
 dwi2mask_method: 4
+#  shard_recon: 1 to use shard-recon (SHARD reconstruction) instead of eddy for motion/distortion correction (see KUL_dwiprep.sh -c); default 0 (use eddy)
+shard_recon: 0
 eddy_options: --slm=linear --repol --niter=8
 dwiprep_ncpu: 64
 dwiprep_simultaneous: 1

@@ -61,7 +61,7 @@ KUL_NIS is a set of bash/python wrappers around established neuroimaging softwar
 
 | Software | Version (tested) | Used for |
 |---|---|---|
-| [MRtrix3](https://www.mrtrix.org/) | **3.0.4-543-g86eb1ea8** (`dev` branch, 2023 build) | dwiprep, mrconvert/mrview, tractography, fixel-based analysis, figures |
+| [MRtrix3](https://www.mrtrix.org/) | **3.0.8-2097-g99963980** (`dev` branch, built with CMake+Ninja — see SOFTWARE_ROOT_SETUP.md) | dwiprep, mrconvert/mrview, tractography, fixel-based analysis, figures |
 | [FSL](https://fsl.fmrib.ox.ac.uk/) | 6.x | topup/eddy distortion correction, melodic resting-state, fslmaths |
 | [ANTs](https://github.com/ANTsX/ANTs) | latest | registration (rigid/SyN), N4 bias correction |
 | [dcm2bids](https://github.com/UNFmontreal/Dcm2Bids) | **≥ 3.0** | dicom → BIDS (v2 supported only via `KUL_dcm2bids_v2bkup.sh`) |
@@ -99,7 +99,8 @@ KUL_NIS is a set of bash/python wrappers around established neuroimaging softwar
 | [hd-glio-auto](https://github.com/NeuroAI-HD/HD-GLIO-AUTO) | latest | AI glioma segmentation (clinical types 1–3) |
 | [resseg](https://github.com/fepegar/resseg) | latest | resection-cavity segmentation |
 | [LoRE](https://github.com/TissueVisionMics/lore) (`lore_dwi2decomposition`, `lore_decomposition2contrast`) | latest | low-rank DWI decomposition / microstructure contrasts (`-D run_dwiprep_lore_sd.txt`) |
-| [scilpy](https://github.com/scilus/scilpy) | **2.3.0** | tractography post-processing (`KUL_tracts_ocd`, `KUL_FWT`); install as a conda env and pass its name to `KUL_clinical_fmridti.sh -f <env_name>` (no hardcoded default) |
+| [scilpy](https://github.com/scilus/scilpy) | **2.3.0** | tractography post-processing (`KUL_tracts_ocd`, `KUL_FWT`); installed by `setup_environment.sh` as a conda env named `scilpy` — `KUL_clinical_fmridti.sh` finds it automatically; override with `-f <env_name>` only if you used a different name |
+| pyfMRI (nilearn/nibabel/numpy/scipy/pandas/matplotlib/pyyaml) | — | rsfMRI network mapping (`-N`) and the nilearn task-fMRI GLM engine (`-E nilearn`); installed by `setup_environment.sh`'s `env-pyfmri` section as a conda env named `pyfMRI` — found automatically; override with `-y <env_name>` only if you used a different name |
 | [qsiprep](https://qsiprep.readthedocs.io/) | latest | alternative dMRI preprocessing (`KUL_qsiprep`) |
 
 ### Sibling KUL repositories
@@ -107,7 +108,7 @@ KUL_NIS is a set of bash/python wrappers around established neuroimaging softwar
 These are separate repos that the clinical pipeline calls and must be installed alongside KUL_NIS:
 
 - [**KUL_VBG**](https://github.com/KUL-Radneuron/KUL_VBG) — Virtual Brain Grafting: enables FreeSurfer/FastSurfer in patients with large lesions. Brain extraction uses `mri_synthstrip` (FreeSurfer built-in; `-B 1` in the clinical pipeline).
-- [**KUL_FWT**](https://github.com/KUL-Radneuron/KUL_FWT) — automated CSD probabilistic tractography pipeline. `KUL_clinical_fmridti.sh` no longer auto-prepends a `../KUL_FWT` sibling folder to `PATH`; make sure `KUL_FWT_make_VOIs.sh` / `KUL_FWT_make_TCKs.sh` are already resolvable on `PATH` before running the clinical pipeline. Tractography post-processing also requires a scilpy conda environment — pass its name with `KUL_clinical_fmridti.sh -f <env_name>`.
+- [**KUL_FWT**](https://github.com/KUL-Radneuron/KUL_FWT) — automated CSD probabilistic tractography pipeline. `KUL_clinical_fmridti.sh` no longer auto-prepends a `../KUL_FWT` sibling folder to `PATH`; make sure `KUL_FWT_make_VOIs.sh` / `KUL_FWT_make_TCKs.sh` are already resolvable on `PATH` before running the clinical pipeline. Tractography post-processing also requires a scilpy conda environment — `setup_environment.sh` creates it as `scilpy` and `KUL_clinical_fmridti.sh` finds it automatically; override with `-f <env_name>` only if you used a different name.
 - [**KUL_DTI_ALPS**](KUL_DTI_ALPS/) — DTI-ALPS index calculation using MNI-space ROIs (bundled as a subdirectory of KUL_NIS_unified).
 - [Karawun](https://github.com/DevelopmentalImagingMCRI/karawun) — convert tractography/segmentation results to Brainlab Neurosurgery format.
 

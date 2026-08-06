@@ -23,6 +23,8 @@ use_native_dwi: 1
 synbzero_disco_instead_of_topup: 0
 rev_phase_for_topup_only: 0
 dwi2mask_method: 3
+#  shard_recon: 1 to use shard-recon (SHARD reconstruction) instead of eddy for motion/distortion correction (see KUL_dwiprep.sh -c); default 0 (use eddy)
+shard_recon: 0
 eddy_options: --slm=linear --repol
 dwiprep_ncpu: 15
 dwiprep_simultaneous: 1

@@ -27,20 +27,26 @@ cat <<USAGE
 
 Usage:
 
-  `basename $0` -p subject -c conda_env <OPT_ARGS>
+  `basename $0` -p subject <OPT_ARGS>
 
 Example:
 
-  `basename $0` -p pat001 -c rsfmri_env
+  `basename $0` -p pat001
+
+Requires the conda env named by \$KUL_PYFMRI_ENV (default 'pyfMRI'; numpy,
+nibabel, nilearn, pandas, scipy, matplotlib, pyyaml — created by the KUL_NIS
+installer's env-pyfmri section, see KUL_main_functions.sh). Exits if that env
+isn't found.
 
 Required arguments:
 
      -p:  participant
-     -c:  name of the conda env with the rsfmri_pipeline dependencies installed
-          (numpy, nibabel, nilearn, pandas, scipy, matplotlib, pyyaml)
 
 Optional arguments:
 
+     -c:  conda env to use instead of \$KUL_PYFMRI_ENV (default 'pyfMRI'; you
+          shouldn't normally need this — KUL_clinical_fmridti.sh's -y flag
+          sets it for you if you do)
      -P:  condition profile from share/rsfmri_pipeline/config/profiles.yaml (default: Presurgical)
      -I:  also generate masked-ICA thumbnail pages (opt-in; adds runtime)
      -v:  verbose (0=silent, 1=normal, 2=verbose; default=1)
@@ -60,7 +66,7 @@ include_ica=0
 
 # Set required options
 p_flag=0
-c_flag=0
+pyfmri_env="$KUL_PYFMRI_ENV"
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -75,9 +81,8 @@ else
             p_flag=1
             participant=$OPTARG
         ;;
-        c) #conda env
-            c_flag=1
-            rsfmri_env=$OPTARG
+        c) #conda env override (defaults to $KUL_PYFMRI_ENV)
+            pyfmri_env=$OPTARG
         ;;
         P) #condition profile
             rsfmri_profile=$OPTARG
@@ -113,13 +118,6 @@ if [ $p_flag -eq 0 ] ; then
     echo
     exit 2
 fi
-if [ $c_flag -eq 0 ] ; then
-    echo
-    echo "Option -c is required: give the name of the conda env with rsfmri_pipeline dependencies." >&2
-    echo
-    exit 2
-fi
-
 # MRTRIX and others verbose or not?
 if [ $verbose_level -lt 2 ] ; then
     export MRTRIX_QUIET=1
@@ -128,11 +126,12 @@ fi
 KUL_check_participant
 
 # conda env existence check (mirrors KUL_dwiprep.sh's lore_sd pattern)
-if ! conda env list | awk '{print $1}' | grep -qx "$rsfmri_env"; then
-    echo "ERROR: conda env '$rsfmri_env' was not found (checked 'conda env list')." >&2
+if ! conda env list | awk '{print $1}' | grep -qx "$pyfmri_env"; then
+    echo "ERROR: conda env '$pyfmri_env' was not found (checked 'conda env list')." >&2
+    echo "  Run the KUL_NIS installer's env-pyfmri section, or pass -c <env> to use a different one." >&2
     exit 1
 fi
-KUL_activate_conda_env "$rsfmri_env"
+KUL_activate_conda_env "$pyfmri_env"
 
 # MAIN --------------------------------------------------------------
 pipeline_dir="$kul_main_dir/share/rsfmri_pipeline"

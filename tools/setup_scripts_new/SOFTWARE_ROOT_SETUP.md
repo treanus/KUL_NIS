@@ -138,26 +138,58 @@ For the conda envs that use these editable (scilpy, HD-BET, karawun-dev), see
 
 ## 5. Neuroimaging tools — document only for now (still using the shared installs today)
 
-### mrtrix3 — ⚠️ pin carefully, latest `dev` is currently buggy
+### mrtrix3 — pinned to a recent `dev` commit, built with CMake
 
-Currently running: **`dev` branch, commit `5a3a8bf6` (`3.0.4-537-g5a3a8bf6`),
-built 2023-07-14.** This is a deliberately old, verified-good checkout — do
-**not** just `git pull` the `dev` branch to get something newer; per your own
-notes the current tip of `dev` has known regressions.
+Currently running: **`dev` branch, commit `99963980d` (`3.0.8-2097-g99963980`),
+built Aug 2026.**
 
-Note: `KUL_NIS/README.md` documents the requirement as `3.0.4-543-g86eb1ea8`
-— 6 commits newer than what's actually installed at
-`/usr/local/KUL_apps/mrtrix3`. Worth reconciling which one is really
-"good" before pinning the new install — they're close but not identical.
+This supersedes the previous pin (`86eb1ea8`, 3.0.4, July 2023 — itself six
+commits newer than an even older `5a3a8bf6` this doc used to flag as
+"known-good"). That old pin predated a real architectural shift upstream:
+in Oct 2023 (commit `06e8e4cde`), MRtrix3 removed the classic
+`./configure && ./build` scripts entirely and moved to CMake. Any commit
+before that point uses a build system that no longer exists on `dev`; any
+commit after it needs CMake. `section_mrtrix3` in `setup_environment.sh`
+now builds with CMake+Ninja accordingly — do not revert to
+`./configure && ./build` without also rolling `MRTRIX3_COMMIT` back to
+before that migration.
+
+Two gotchas hit during this migration, both handled in
+`section_mrtrix3`/`section_apt` now, worth knowing about if you're
+reproducing this by hand:
+- **Conda Qt6 contamination**: if a conda env with Qt6 (e.g. `pyfMRI`, via
+  matplotlib) is active/on `PATH` during `cmake -B build`, CMake's
+  `find_package(Qt6 ...)` can silently link against the *conda* Qt6 instead
+  of the system one, producing a `mrview` that fails at runtime with an
+  undefined Qt symbol version. Fixed with `-DCMAKE_IGNORE_PREFIX_PATH` and
+  an explicit `-DQt6_DIR`.
+- **Missing Qt6 SVG plugin**: `mrview`'s toolbar icons and tool cursors load
+  as `.svg` Qt resources via the generic `QPixmap(":/foo.svg")` constructor
+  — resolved through Qt's *runtime* image-format plugin system, not
+  compile-time linking. Without `qt6-svg-dev` installed, icons/cursors
+  silently fail (blank toolbar, `QCursor: Cannot create bitmap cursor;
+  invalid bitmap(s)` warnings) even though the build succeeds and `mrview`
+  opens.
 
 ```bash
-cd /mnt/DATA1/aradwa0/software/src
-git clone https://github.com/MRtrix3/mrtrix3.git
+git clone -b dev https://github.com/MRtrix3/mrtrix3.git
 cd mrtrix3
-git checkout 5a3a8bf6143cd0462f9ba8a5fbcda208970339aa   # known-good dev build in use today
-./configure
-./build
+git checkout 99963980d12cedb2fd4b63a65e502bf7102b8f72
+cmake -B build -GNinja \
+    -DCMAKE_INSTALL_PREFIX="$(pwd)" \
+    -DCMAKE_IGNORE_PREFIX_PATH="$SOFTWARE_ROOT/miniforge3" \
+    -DQt6_DIR=/usr/lib/x86_64-linux-gnu/cmake/Qt6
+cmake --build build
+cmake --install build
 ```
+
+**shard-recon (`dwimotioncorrect`/`mssh2amp`, `KUL_dwiprep.sh`'s
+`shard_recon: 1`) is currently broken by this migration** and disabled by
+default (`DO_SHARD_RECON=0`): its own build process (symlinking mrtrix3's
+`build` script) needs the classic build system, which no longer exists.
+shard-recon's own upstream (github.com/dchristiaens/shard-recon, last
+checked June 2025) has no CMake-based build yet. Not required by any
+shipped config (`shard_recon: 0` everywhere out of the box).
 
 ### ANTs
 

@@ -1527,7 +1527,16 @@ if [ ! -f BIDS/.bidsignore ];then
     mkdir -p BIDS
     cd BIDS
     dcm2bids_scaffold
-    echo "tmp_dcm2bids/*" > .bidsignore
+    # dcm2bids_scaffold writes participants.tsv with dummy placeholder rows
+    # (sub-01/sub-02/sub-03) and does not add real subjects itself; replace
+    # the placeholders with a row for the actual subject (n/a for the
+    # scaffold's other columns, per BIDS convention for missing values)
+    header=$(head -n 1 participants.tsv)
+    ncols=$(awk -F'\t' '{print NF}' <<< "$header")
+    row="sub-${subj}"
+    for ((i=2; i<=ncols; i++)); do row+=$'\t'"n/a"; done
+    { echo "$header"; echo "$row"; } > tmp_participants.tsv && mv tmp_participants.tsv participants.tsv
+    echo "tmp_dcm2bids/" > .bidsignore
     echo "**/anat/*SWI*" >> .bidsignore
     echo "**/anat/*SWIp*" >> .bidsignore
     echo "**/anat/*MTI*" >> .bidsignore

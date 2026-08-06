@@ -423,6 +423,27 @@ elif [ $KUL_DEBUG -gt 1 ]; then
     set -x
 fi
 
+# Single source of truth for the shared Python fMRI conda env name, used by
+# KUL_run_rsfMRI_networks.sh and KUL_fmriproc_nilearn_new.sh (created by
+# setup_environment.sh's env-pyfmri section). Both scripts fail fast if this
+# env doesn't exist, rather than silently falling back to a bare 'python3'.
+# Override by exporting KUL_PYFMRI_ENV before running, or via
+# KUL_clinical_fmridti.sh's -y flag, if you need a differently-named env.
+if [[ -z "$KUL_PYFMRI_ENV" ]]; then
+    KUL_PYFMRI_ENV="pyfMRI"
+fi
+
+# Same idea, for the other fixed-name conda envs the installer creates:
+# 'scilpy' (KUL_clinical_fmridti.sh's -f flag / KUL_FWT) and 'lore_sd'
+# (loresd_env in the -D dwiprep config). Overridable via env var, or the
+# corresponding -f flag / config field, if you need a differently-named env.
+if [[ -z "$KUL_SCILPY_ENV" ]]; then
+    KUL_SCILPY_ENV="scilpy"
+fi
+if [[ -z "$KUL_LORESD_ENV" ]]; then
+    KUL_LORESD_ENV="lore_sd"
+fi
+
 
 
 machine_type=$(uname)

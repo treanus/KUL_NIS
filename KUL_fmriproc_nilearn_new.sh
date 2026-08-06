@@ -44,7 +44,9 @@ cat <<USAGE
     - a 30 seconds REST followed by 30 seconds TASK epochs
     - having run fmriprep with aroma
 
-Note: requires python3 with nilearn, nibabel, numpy, pandas (no matlab/spm)
+Requires the conda env named by \$KUL_PYFMRI_ENV (default 'pyfMRI'; nilearn,
+nibabel, numpy, pandas — created by the KUL_NIS installer's env-pyfmri
+section, see KUL_main_functions.sh). Exits if that env isn't found.
 
 Usage:
 
@@ -78,6 +80,9 @@ Optional arguments:
             (default: same as -j; SUSAN is light so this can be higher)
      -n:  (manual) Nilearn n_jobs = cores INSIDE a single GLM fit (default: 1)
      -T:  (manual) BLAS/OMP threads per GLM job (default: 1)
+     -C:  conda env to use instead of \$KUL_PYFMRI_ENV (default 'pyfMRI'; you
+            shouldn't normally need this — KUL_clinical_fmridti.sh's -y flag
+            sets it for you if you do)
      -v:  verbose (0=silent, 1=normal, 2=verbose; default=1)
 
    Use -c for hands-off scheduling, or the -j/-J/-n/-T knobs for manual control.
@@ -106,6 +111,7 @@ nl_threads=1      # -T : BLAS/OMP threads per parallel job
 # Set required options
 p_flag=0
 s_flag=0
+pyfmri_env="$KUL_PYFMRI_ENV"
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -113,7 +119,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "p:s:S:P:c:j:J:n:T:v:" OPT; do
+    while getopts "p:s:S:P:c:j:J:n:T:C:v:" OPT; do
 
         case $OPT in
         p) #participant
@@ -144,6 +150,9 @@ else
         ;;
         T) #BLAS threads per job
             nl_threads=$OPTARG
+        ;;
+        C) #conda env override (defaults to $KUL_PYFMRI_ENV)
+            pyfmri_env=$OPTARG
         ;;
         v) #verbose
             verbose_level=$OPTARG
@@ -383,6 +392,14 @@ function KUL_compute_nilearn {
 }
 
 # MAIN --------------------------------------------------------------
+# conda env existence check (mirrors KUL_run_rsfMRI_networks.sh)
+if ! conda env list | awk '{print $1}' | grep -qx "$pyfmri_env"; then
+    echo "ERROR: conda env '$pyfmri_env' was not found (checked 'conda env list')." >&2
+    echo "  Run the KUL_NIS installer's env-pyfmri section, or pass -C <env> to use a different one." >&2
+    exit 1
+fi
+KUL_activate_conda_env "$pyfmri_env"
+
 python_exe=$(which python3)
 # the Nilearn GLM worker lives next to this script (share/nilearn/)
 nilearn_glm_script="$kul_main_dir/share/nilearn/KUL_nilearn_glm.py"
@@ -392,19 +409,13 @@ if [ $KUL_DEBUG -gt 0 ]; then
     echo "nilearn glm script: $nilearn_glm_script"
 fi
 
-if [[ -z "$python_exe" ]]; then
-    echo "python3 is required but not found on path. Exitting"
-    exit 1
-fi
-
 if [ ! -f "$nilearn_glm_script" ]; then
     echo "Nilearn GLM worker not found at $nilearn_glm_script. Exitting"
     exit 1
 fi
 
 if ! "$python_exe" -c "import nilearn, nibabel, numpy, pandas" 2>/dev/null ; then
-    echo "python3 is missing required packages. Install with:" >&2
-    echo "    pip install nilearn nibabel numpy pandas" >&2
+    echo "ERROR: conda env '$pyfmri_env' is missing required packages (nilearn, nibabel, numpy, pandas)." >&2
     exit 1
 fi
 

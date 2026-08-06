@@ -54,11 +54,19 @@ NCPU="${NCPU:-$(nproc)}"
 # Pinned versions/commits — see SOFTWARE_ROOT_SETUP.md for how these were
 # determined. These are the versions this pipeline is actually validated
 # against, not necessarily the latest upstream.
-MRTRIX3_COMMIT="86eb1ea8"                 # KUL_NIS/README.md's documented requirement
-                                           # (3.0.4-543-g86eb1ea8). SOFTWARE_ROOT_SETUP.md
-                                           # notes the machine it audited was actually on
-                                           # 5a3a8bf6 (6 commits older) — if this commit
-                                           # fails to build cleanly, fall back to that one.
+MRTRIX3_COMMIT="99963980d"                # 3.0.8-2097-g99963980 on the dev branch (Aug 2026).
+                                           # Bumped from the old 86eb1ea8 (3.0.4, July 2023) pin
+                                           # deliberately: as of MRtrix3's Oct 2023 CMake migration
+                                           # (commit 06e8e4cde removed the classic ./configure &&
+                                           # ./build scripts entirely), the dev branch only builds
+                                           # with CMake -- see section_mrtrix3 below. The old pin
+                                           # predated that migration and used the now-gone build
+                                           # system; this one requires it. If this commit fails to
+                                           # build, re-run with MRTRIX3_COMMIT=<hash> pointing at
+                                           # another dev commit -- do not fall back to a
+                                           # pre-Oct-2023 commit without also reverting
+                                           # section_mrtrix3 to the classic ./configure && ./build
+                                           # invocation.
 ANTS_COMMIT="40ee2d22"                    # v2.4.4.post20
 FSL_VERSION="6.0.7.23"                    # Latest as of July 2026 (was 6.0.6.5). Bumped for a
                                            # real eddy correctness fix in 6.0.7.8 (bad outlier
@@ -100,10 +108,17 @@ DO_ENV_RESSEG=1          # resection-cavity segmentation
 DO_ENV_KARAWUN=1         # Brainlab export (uses the simpler conda-forge KarawunEnv;
                          # see --karawun-dev below for the editable-install variant)
 DO_ENV_FASTSURFER=1      # needs a GPU to be useful; safe to leave on, just slow/CPU-only without one
-DO_ENV_RSFMRI=1          # KUL_NIS/share/rsfmri_pipeline (KUL_run_rsfMRI_networks.sh -c <env>)
+DO_ENV_PYFMRI=1          # KUL_NIS/share/rsfmri_pipeline + KUL_fmriproc_nilearn_new.sh (both hardcode the 'pyfMRI' env)
 DO_REPOS=1               # clone KUL_NIS/KUL_VBG/KUL_FWT at pinned branches
 DO_ENV_LORE_SD=1         # LoRE-SD (KUL_dwiprep -D run_dwiprep_lore_sd.txt) — regular pip package
 DO_MRTRIX3=1
+DO_SHARD_RECON=0         # dwimotioncorrect/mssh2amp — KUL_dwiprep.sh's shard_recon: 1 config
+                         # option (motion correction alternative to eddy). External MRtrix3
+                         # module, built against the mrtrix3 source tree above; not required
+                         # for any default config (shard_recon: 0 everywhere out of the box).
+                         # Defaults OFF: currently incompatible with the mrtrix3 dev/CMake pin
+                         # above (see section_shard_recon's comment) -- shard-recon has no
+                         # CMake-based build of its own yet. Set to 1 if that changes upstream.
 DO_ANTS=1
 DO_FSL=1
 DO_FREESURFER=1          # auto-downloads FreeSurfer 8.2.0 itself; only license.txt stays manual
@@ -133,7 +148,7 @@ NVIDIA_DRIVER_JUST_CHANGED=0
 
 # ── End configuration ─────────────────────────────────────────────────────────
 
-SCRIPT_SECTIONS="apt docker nvidia apptainer vscode miniforge env-dcm2bids clinical-pydeps env-scilpy env-hdbet env-resseg env-karawun env-fastsurfer env-rsfmri env-lore-sd repos mrtrix3 ants fsl freesurfer leaddbs-atlases itksnap psychopy datalad awscli r rstudio afni docker-images bashrc verify"
+SCRIPT_SECTIONS="apt docker nvidia apptainer vscode miniforge env-dcm2bids clinical-pydeps env-scilpy env-hdbet env-resseg env-karawun env-fastsurfer env-pyfmri env-lore-sd repos mrtrix3 shard-recon ants fsl freesurfer leaddbs-atlases itksnap psychopy datalad awscli r rstudio afni docker-images bashrc verify"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -508,6 +523,7 @@ section_apt() {
         python3 python3-dev python3-pip python3-venv \
         libeigen3-dev zlib1g-dev libfftw3-dev libtiff5-dev libpng-dev \
         libqt5opengl5-dev libqt5svg5-dev libgl1-mesa-dev libgl1-mesa-dri \
+        qt6-base-dev qt6-svg-dev \
         xvfb \
         p7zip-full \
         dcmtk \
@@ -898,7 +914,7 @@ KUL_NIS/README.md: v2.3.0)"
     [ -d "$dest" ] || run "git clone https://github.com/scilus/scilpy.git '$dest'"
     run "cd '$dest' && git checkout $SCILPY_COMMIT"
     run "cd '$dest' && '$(env_bin scilpy pip)' install -e . --no-deps"
-    ok "scilpy env ready. Point KUL_FWT/KUL_clinical_fmridti.sh at it with -f scilpy"
+    ok "scilpy env ready — used automatically by KUL_clinical_fmridti.sh's FWT step (default \$KUL_SCILPY_ENV)"
 }
 
 # ── 4b. HD-BET env (brain extraction) ─────────────────────────────────────────
@@ -1056,19 +1072,37 @@ KUL_NIS's README requires FastSurfer v3+ for FreeSurfer 8 compatibility."
     ok "FastSurfer section done (uv venv + wrapper shim — verify torch imports and reports cuda available if you have a GPU)"
 }
 
-# ── 4f. rsfMRI pipeline env (KUL_NIS/share/rsfmri_pipeline) ───────────────────
+# ── 4f. shared Python fMRI env (KUL_NIS/share/rsfmri_pipeline + nilearn tbfMRI) ─
+# Both KUL_run_rsfMRI_networks.sh and KUL_fmriproc_nilearn_new.sh hardcode this
+# exact env name and quit if it isn't found — there is no flag to point either
+# script at a differently-named env, so this section is not skippable in
+# practice: without it, both the rsfMRI network-mapping step (-N) and the
+# nilearn task-fMRI GLM engine (-E nilearn) in KUL_clinical_fmridti.sh fail
+# immediately (or, before this was consolidated, failed later and less
+# obviously against a bare `python3` lacking these packages).
 
-section_env_rsfmri() {
-    if env_exists rsfmri_env; then
-        ok "conda env 'rsfmri_env' already exists"
+section_env_pyfmri() {
+    if env_exists pyfMRI; then
+        ok "conda env 'pyfMRI' already exists"
         return
     fi
-    log "Creating 'rsfmri_env' (nilearn/nibabel/numpy/scipy/pandas/matplotlib/pyyaml — \
-KUL_run_rsfMRI_networks.sh's -c flag names this env; no hardcoded version pins upstream, \
-so this creates everything fresh together in one resolver pass to avoid ABI drift \
-between packages installed piecemeal over time)"
-    run "$(mamba_bin) create -n rsfmri_env -c conda-forge python=3.10 nilearn nibabel numpy scipy pandas matplotlib pyyaml -y"
-    ok "rsfmri_env ready. Pass it to KUL_run_rsfMRI_networks.sh with -c rsfmri_env"
+    # Migration: this env used to be named 'rsfmri_env'. If that's still
+    # around (and 'pyfMRI' isn't, checked above), rename it in place via
+    # clone+remove rather than re-downloading/re-resolving everything.
+    if env_exists rsfmri_env; then
+        log "Found legacy env 'rsfmri_env' — renaming to 'pyfMRI' (clone + remove)"
+        run "$(mamba_bin) create -n pyfMRI --clone rsfmri_env -y"
+        run "$(mamba_bin) env remove -n rsfmri_env -y"
+        ok "'rsfmri_env' migrated to 'pyfMRI'"
+        return
+    fi
+    log "Creating 'pyfMRI' (nilearn/nibabel/numpy/scipy/pandas/matplotlib/pyyaml — \
+shared by KUL_run_rsfMRI_networks.sh and KUL_fmriproc_nilearn_new.sh, both of which \
+hardcode this env name; no hardcoded version pins upstream, so this creates \
+everything fresh together in one resolver pass to avoid ABI drift between \
+packages installed piecemeal over time)"
+    run "$(mamba_bin) create -n pyfMRI -c conda-forge python=3.10 nilearn nibabel numpy scipy pandas matplotlib pyyaml -y"
+    ok "pyfMRI ready — used automatically by KUL_run_rsfMRI_networks.sh and KUL_fmriproc_nilearn_new.sh"
 }
 
 # ── 5. Sibling repos, pinned branches ──────────────────────────────────────────
@@ -1128,15 +1162,99 @@ section_mrtrix3() {
         return
     fi
     local dest="$SOFTWARE_ROOT/src/mrtrix3"
-    log "Building MRtrix3 @ $MRTRIX3_COMMIT (this takes a while)"
-    [ -d "$dest" ] || run "git clone https://github.com/MRtrix3/mrtrix3.git '$dest'"
+    log "Building MRtrix3 @ $MRTRIX3_COMMIT via CMake+Ninja (this takes a while)"
+
+    # As of Oct 2023 (commit 06e8e4cde) upstream removed the classic
+    # ./configure && ./build scripts entirely -- the dev branch only builds
+    # with CMake now. Installing with --prefix pointed back at the clone
+    # itself (rather than a separate install dir) keeps bin/lib/python
+    # layout compatible with the rest of this script (PATH/PYTHONPATH below
+    # are unchanged from the old classic-build layout: cmake --install
+    # still populates $dest/bin and $dest/lib/mrtrix3 the same way).
+    [ -d "$dest" ] || run "git clone -b dev https://github.com/MRtrix3/mrtrix3.git '$dest'"
     run "cd '$dest' && git checkout '$MRTRIX3_COMMIT'"
-    run "cd '$dest' && ./configure"
-    run "cd '$dest' && NUMBER_OF_PROCESSORS=$NCPU ./build"
-    warn "If this commit fails to build, SOFTWARE_ROOT_SETUP.md flags an older \
-known-good fallback: commit 5a3a8bf6 (3.0.4-537-g5a3a8bf6). Re-run with \
-MRTRIX3_COMMIT=5a3a8bf6 ./setup_environment.sh --only mrtrix3 if so."
+
+    # -DCMAKE_IGNORE_PREFIX_PATH excludes miniforge3 from find_package() searches
+    # entirely: without it, cmake can silently pick up a *conda* Qt6 (e.g. from
+    # the pyfMRI env, which pulls one in transitively via matplotlib) instead of
+    # the system one, producing a mrview that's built against one Qt6 but
+    # resolves a different, incompatible one (undefined symbol version errors)
+    # at runtime. -DQt6_DIR pins the exact system Qt6 CMake config as a second,
+    # more surgical guard against the same class of ambiguity.
+    local qt6_cmake_dir="/usr/lib/x86_64-linux-gnu/cmake/Qt6"
+    if [ ! -f "$qt6_cmake_dir/Qt6Config.cmake" ]; then
+        warn "Expected system Qt6 CMake config not found at $qt6_cmake_dir \
+(apt Qt6 package layout may differ on this OS/arch) -- mrtrix3's cmake configure \
+step below may pick up an unintended Qt6 (e.g. from a conda env). Check qt6-base-dev \
+is installed and locate its actual Qt6Config.cmake if this section fails."
+    fi
+    run "cd '$dest' && cmake -B build -GNinja \
+        -DCMAKE_INSTALL_PREFIX='$dest' \
+        -DCMAKE_IGNORE_PREFIX_PATH='$SOFTWARE_ROOT/miniforge3' \
+        -DQt6_DIR='$qt6_cmake_dir'"
+    run "cd '$dest' && cmake --build build -j$NCPU"
+    run "cd '$dest' && cmake --install build"
+
+    # mrview's toolbar icons and custom tool cursors are loaded at runtime as
+    # Qt resources ending in .svg (cpp/gui/cursor.cpp etc use the generic
+    # QPixmap(":/foo.svg") constructor) -- this resolves via Qt's *runtime*
+    # image-format plugin system, not compile-time linking (the gui
+    # CMakeLists.txt never links Qt6::Svg at all). Without qt6-svg-dev
+    # installed, every icon/cursor silently fails to load: mrview still
+    # opens, but with blank toolbar buttons and a repeated "QCursor: Cannot
+    # create bitmap cursor; invalid bitmap(s)" warning. apt (section_apt)
+    # installs qt6-svg-dev for exactly this reason -- if that's missing here,
+    # something upstream of this section didn't run.
+    if ! dpkg -s qt6-svg-dev >/dev/null 2>&1; then
+        warn "qt6-svg-dev not detected -- mrview will open but with missing \
+toolbar icons and broken tool cursors (QCursor 'invalid bitmap(s)' warnings). \
+Run: sudo apt install -y qt6-svg-dev"
+    fi
+
     ok "mrtrix3 built at $dest (add $dest/bin to PATH — done automatically in the bashrc section)"
+}
+
+# ── 6b. shard-recon (external MRtrix3 module) ─────────────────────────────────
+# dwimotioncorrect/mssh2amp, invoked by KUL_dwiprep.sh's shard_recon: 1 config
+# option (off in every shipped config by default). Built out-of-tree against
+# the mrtrix3 source above, following Daan Christiaens' own build
+# instructions (gitlab.com/ChD/shard-recon / github.com/dchristiaens/shard-recon):
+# symlink mrtrix3's `build` script and `bin/mrtrix3.py` into the shard-recon
+# checkout, then run `./build` there.
+#
+# CURRENTLY BROKEN against the mrtrix3 dev-branch/CMake pin above: upstream
+# removed the classic `build` script entirely in Oct 2023 (see MRTRIX3_COMMIT
+# comment), and shard-recon's own build process has no CMake equivalent as of
+# its latest commit (checked github.com/dchristiaens/shard-recon, last
+# activity June 2025 -- still documents the classic-build symlink method
+# only). DO_SHARD_RECON therefore defaults to 0. If shard-recon adds CMake
+# support upstream, or you build a second classic-build mrtrix3 tree
+# specifically for this, re-enable and adjust mrtrix_dest below accordingly.
+
+section_shard_recon() {
+    if have dwimotioncorrect; then
+        ok "shard-recon (dwimotioncorrect) already on PATH"
+        return
+    fi
+    local mrtrix_dest="$SOFTWARE_ROOT/src/mrtrix3"
+    # -f (regular file), not -x: the new CMake build/ is a *directory* and
+    # directories are typically traversable (+x) regardless of whether a
+    # classic build script exists, so an -x check alone would not reliably
+    # tell the two build layouts apart.
+    if [ ! -f "$mrtrix_dest/build" ] || [ ! -x "$mrtrix_dest/build" ] || [ ! -f "$mrtrix_dest/bin/mrtrix3.py" ]; then
+        warn "Skipping shard-recon: no classic-build mrtrix3 tree found at $mrtrix_dest \
+(expected a 'build' script there, not a CMake 'build/' directory). shard-recon has no \
+CMake-based build of its own as of its latest upstream commit — see the comment above \
+section_shard_recon in this script for details."
+        return
+    fi
+    local dest="$SOFTWARE_ROOT/src/shard-recon"
+    log "Building shard-recon (external MRtrix3 module for dwimotioncorrect/mssh2amp)"
+    [ -d "$dest" ] || run "git clone https://github.com/dchristiaens/shard-recon.git '$dest'"
+    [ -L "$dest/build" ] || run "ln -s '$mrtrix_dest/build' '$dest/build'"
+    [ -L "$dest/bin/mrtrix3.py" ] || run "mkdir -p '$dest/bin' && ln -s '$mrtrix_dest/bin/mrtrix3.py' '$dest/bin/mrtrix3.py'"
+    run "cd '$dest' && NUMBER_OF_PROCESSORS=$NCPU ./build"
+    ok "shard-recon built at $dest (add $dest/bin to PATH — done automatically in the bashrc section)"
 }
 
 # ── 7. ANTs (build from source) ───────────────────────────────────────────────
@@ -1694,6 +1812,9 @@ fi
 export PATH="\$SOFTWARE_ROOT/src/mrtrix3/bin:\$PATH"
 export PYTHONPATH="\$SOFTWARE_ROOT/src/mrtrix3/lib:\${PYTHONPATH:-}"
 
+# --- shard-recon (external mrtrix3 module, dwimotioncorrect/mssh2amp) ---
+export PATH="\$SOFTWARE_ROOT/src/shard-recon/bin:\$PATH"
+
 # --- ITK-SNAP ---
 export PATH="\$SOFTWARE_ROOT/src/itksnap/bin:\$PATH"
 
@@ -1770,6 +1891,12 @@ section_verify() {
         vok "MRtrix3" "$(mrconvert -version 2>&1 | head -1 | sed -e 's/^== *//' -e 's/ *==$//')"
     else
         vfail "MRtrix3" "mrconvert not found on PATH"
+    fi
+
+    if have dwimotioncorrect; then
+        vok "shard-recon" "dwimotioncorrect resolves"
+    else
+        vwarn "shard-recon" "dwimotioncorrect not found on PATH — only needed for shard_recon: 1 in a dwiprep config (off by default everywhere)"
     fi
 
     if have antsRegistrationSyN.sh; then
@@ -1941,7 +2068,7 @@ run 'sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restar
         else
             _verify_env_bin KarawunEnv "karawun importable" python -c "import karawun"
         fi
-        _verify_env_bin rsfmri_env "nilearn importable" python -c "import nilearn, nibabel, pandas, matplotlib, yaml"
+        _verify_env_bin pyfMRI "nilearn importable" python -c "import nilearn, nibabel, pandas, matplotlib, yaml"
         _verify_env_bin lore_sd "lore_dwi2decomposition resolves" lore_dwi2decomposition --help
     else
         vfail "miniforge" "not installed at $SOFTWARE_ROOT/miniforge3"
@@ -2041,10 +2168,11 @@ maybe_run_section env-hdbet        DO_ENV_HDBET          section_env_hdbet
 maybe_run_section env-resseg       DO_ENV_RESSEG          section_env_resseg
 maybe_run_section env-karawun      DO_ENV_KARAWUN         section_env_karawun
 maybe_run_section env-fastsurfer   DO_ENV_FASTSURFER      section_env_fastsurfer
-maybe_run_section env-rsfmri       DO_ENV_RSFMRI          section_env_rsfmri
+maybe_run_section env-pyfmri        DO_ENV_PYFMRI          section_env_pyfmri
 maybe_run_section env-lore-sd      DO_ENV_LORE_SD         section_env_lore_sd
 maybe_run_section repos            DO_REPOS               section_repos
 maybe_run_section mrtrix3          DO_MRTRIX3             section_mrtrix3
+maybe_run_section shard-recon      DO_SHARD_RECON         section_shard_recon
 maybe_run_section ants             DO_ANTS                section_ants
 maybe_run_section fsl              DO_FSL                 section_fsl
 maybe_run_section freesurfer DO_FREESURFER    section_freesurfer

@@ -27,9 +27,17 @@ Usage:
 
   `basename $0` <OPT_ARGS>
 
-Example:
+Examples (paths/names fictitious — see docs/KUL_clinical_fmridti/KUL_clinical_fmridti.md for more):
 
-  `basename $0` -p JohnDoe -d DICOM/JohnDoe.zip
+  # 0. first time for this patient: scaffold a DICOM/ + study_config/ folder, then exit
+  `basename $0` -p JaneDoe -s -t 1
+
+  # 1. basic glioma work-up (type 1, default SPM engine), from a zip archive
+  `basename $0` -p JaneDoe -d DICOM/JaneDoe.zip -n 32
+
+  # 2. DBS case (type 3, manual mask) + nilearn GLM + lore_sd FOD + rsfMRI networks + tractometry
+  `basename $0` -p M0012 -d ./DICOM/M0012 -t 3 \\
+      -E nilearn -D run_dwiprep_lore_sd.txt -U -N -Q -n 32 -v 2
 
 Required arguments:
 
@@ -75,7 +83,9 @@ Optional arguments:
      -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
      -X:  use FastSurfer instead of plain recon-all for the reconstruction step
           in types 4, 5, 6 (faster, requires GPU; default is FreeSurfer 8.2.0 recon-all)
-     -f:  use the name specified for activating the scilpy conda environment
+     -f:  conda env to use instead of \$KUL_SCILPY_ENV (default 'scilpy') for
+          FWT (automated tractography). You shouldn't normally need this —
+          the KUL_NIS installer creates 'scilpy' with what FWT needs.
      -E:  fMRI GLM engine to use: spm or nilearn (default: spm)
           spm    : KUL_fmriproc_spm_new.sh    (MATLAB/SPM12, requires a MATLAB license)
           nilearn: KUL_fmriproc_nilearn_new.sh (python3 nilearn/nibabel/numpy/pandas, no MATLAB)
@@ -88,10 +98,13 @@ Optional arguments:
           bundle/hemisphere combinations, processed sequentially, no parallelism yet).
           Tractography/tracts themselves are generated either way.
      -N:  opt-in: run presurgical/eloquent-cortex rsfMRI network mapping
-          (KUL_run_rsfMRI_networks.sh) — give the name of the conda env with the
-          rsfmri_pipeline dependencies installed. Off unless this is given.
+          (KUL_run_rsfMRI_networks.sh). Off by default.
      -C:  condition profile for -N, from share/rsfmri_pipeline/config/profiles.yaml
           (default: Presurgical)
+     -y:  conda env to use instead of \$KUL_PYFMRI_ENV (default 'pyfMRI') for
+          -N (rsfMRI network mapping) and -E nilearn (nilearn task-fMRI GLM).
+          You shouldn't normally need this — the KUL_NIS installer creates
+          'pyfMRI' with everything both steps need.
 
 USAGE
 
@@ -118,6 +131,7 @@ alps=0
 msbp=0
 multiparc=0
 fwt=1
+scilpy="$KUL_SCILPY_ENV"
 orientations="TRA,SAG,COR"
 spm_edge=0
 spm_thresh_override=""
@@ -129,8 +143,8 @@ fmri_engine="spm"
 use_rfa_mod_fod=0
 run_fwt_tractometry=0
 rsfmri_networks=0
-rsfmri_env=""
 rsfmri_profile="Presurgical"
+pyfmri_env_override=""
 declare -A spm_thresh_map=()
 
 # Set required options
@@ -144,7 +158,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:N:C:XBrseUQ" OPT; do
+	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:NC:y:XBrseUQ" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -204,7 +218,7 @@ else
         X) #use FastSurfer instead of plain recon-all for types 4/5/6
             use_fastsurfer=1
         ;;
-        f) # use the name specified for scilpy env name
+        f) # conda env override for FWT (default: $KUL_SCILPY_ENV)
             scilpy=$OPTARG
         ;;
         E) # fMRI GLM engine: spm or nilearn
@@ -219,12 +233,14 @@ else
             run_fwt_tractometry=1
         ;;
         N) # opt-in: run presurgical/eloquent-cortex rsfMRI network mapping
-           # (KUL_run_rsfMRI_networks.sh). Off unless a conda env name is given.
+           # (KUL_run_rsfMRI_networks.sh). Off by default.
             rsfmri_networks=1
-            rsfmri_env=$OPTARG
         ;;
         C) # condition profile for -N (default: Presurgical)
             rsfmri_profile=$OPTARG
+        ;;
+        y) # conda env override for -N and -E nilearn (default: $KUL_PYFMRI_ENV)
+            pyfmri_env_override=$OPTARG
         ;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -261,6 +277,31 @@ if [ "$fmri_engine" != "spm" ] && [ "$fmri_engine" != "nilearn" ]; then
 fi
 echo " fMRI GLM engine set to: $fmri_engine"
 
+# Pre-flight check of the -D dwiprep config: catch a lore_sd env
+# misconfiguration here, before fmriprep/dwiprep are launched, instead of
+# failing deep inside KUL_preproc_all.sh after other pipeline steps (and
+# their downstream dependents: VBG, dwiprep_MNI, FWT) have already run.
+if [ ! -f study_config/${dwiprep_config_file} ]; then
+    echo
+    echo "ERROR: dwiprep config file study_config/${dwiprep_config_file} (given with -D) does not exist." >&2
+    echo
+    exit 2
+fi
+dwiprep_do_check=$(grep -E "^do_dwiprep:" study_config/${dwiprep_config_file} | grep -v \# | cut -d':' -f2- | tr -d '\r' | sed 's/^ *//;s/ *$//')
+dwiprep_options_check=$(grep -E "^dwiprep_options:" study_config/${dwiprep_config_file} | grep -v \# | cut -d':' -f2-)
+loresd_env_check=$(grep -E "^loresd_env:" study_config/${dwiprep_config_file} | grep -v \# | cut -d':' -f2- | tr -d '\r' | sed 's/^ *//;s/ *$//')
+# blank in the config -> defaults to $KUL_LORESD_ENV (mirrors KUL_preproc_all.sh)
+[ -z "$loresd_env_check" ] && loresd_env_check="$KUL_LORESD_ENV"
+if [ "$dwiprep_do_check" = "1" ] && [[ "$dwiprep_options_check" == *"lore_sd"* ]] && ! conda env list | awk '{print $1}' | grep -qx "$loresd_env_check"; then
+    echo
+    echo "ERROR: study_config/${dwiprep_config_file} requests 'lore_sd', but conda env '$loresd_env_check' was not found (checked 'conda env list')." >&2
+    echo "  Run the KUL_NIS installer's env-lore-sd section, or set loresd_env: <env> in the config to use a different one." >&2
+    echo "  Available conda envs:" >&2
+    conda env list 2>/dev/null | tail -n +3 | awk '{print "    "$1}' >&2
+    echo
+    exit 2
+fi
+
 KUL_LOG_DIR="KUL_LOG/${script}/sub-${participant}"
 mkdir -p $KUL_LOG_DIR
 
@@ -295,12 +336,15 @@ fi
 
 figs=0
 
-# if fwt is required but scilpy conda env name not given quit and warn
-if [ $fwt -eq 1 ] && [ -z "$scilpy" ] ; then
+# fwt (automated tractography) needs the scilpy conda env; defaults to
+# $KUL_SCILPY_ENV (the fixed name the installer creates it under), override
+# with -f if you need a differently-named env
+if [ $fwt -eq 1 ] && ! conda env list | awk '{print $1}' | grep -qx "$scilpy" ; then
 	echo
-	echo "Option -f is required for FWT (automated tractography): give the conda env name." >&2
+	echo "ERROR: conda env '$scilpy' (for FWT) was not found (checked 'conda env list')." >&2
+	echo "  Run the KUL_NIS installer's env-scilpy section, or pass -f <env> to use a different one." >&2
 	echo
-	# exit 2
+	exit 2
 fi
 
 if [ -n "$scilpy" ] ; then
@@ -1623,8 +1667,19 @@ function KUL_run_VBG {
             mkdir -p ${cwd}/BIDS/derivatives/freesurfer/sub-${participant}
             mkdir -p $vbg_dir
             
-            # See to it that freesurfer 8.2.0 is used
-            export FREESURFER_HOME=/usr/local/KUL_apps/freesurfer_8.2.0
+            # Use whatever FreeSurfer is already configured on PATH (exported
+            # by setup_environment.sh) instead of a separately hardcoded path
+            # here, which can silently drift out of sync with the actual
+            # install location (as it did: this used to point at a directory
+            # that no longer exists).
+            if [ -z "$FREESURFER_HOME" ]; then
+                kul_echo "ERROR: FREESURFER_HOME is not set. Source setup_environment.sh before running this pipeline."
+                return 1
+            fi
+            if [ ! -f "$FREESURFER_HOME/license.txt" ] && [ ! -f "$FREESURFER_HOME/.license" ]; then
+                kul_echo "ERROR: no license.txt/.license found in FREESURFER_HOME ($FREESURFER_HOME)."
+                return 1
+            fi
             export SUBJECTS_DIR=$FREESURFER_HOME/subjects
             export FS_LICENSE=$FREESURFER_HOME/license.txt
             source $FREESURFER_HOME/SetUpFreeSurfer.sh
@@ -1823,7 +1878,9 @@ function KUL_fmriproc {
 
         if [ ! -f ${cwd}/KUL_LOG/sub-${participant}_SPM.done ]; then
             if [ "$fmri_engine" == "nilearn" ]; then
-                task_in="KUL_fmriproc_nilearn_new.sh -p $participant -S $smooth_fwhm -P $pfwe -c $ncpu"
+                _pyfmri_C_opt=""
+                [ -n "$pyfmri_env_override" ] && _pyfmri_C_opt="-C $pyfmri_env_override"
+                task_in="KUL_fmriproc_nilearn_new.sh -p $participant -S $smooth_fwhm -P $pfwe -c $ncpu $_pyfmri_C_opt"
                 KUL_task_exec $verbose_level "KUL_fmriproc_nilearn_new" "7_fmriproc_nilearn" || kul_echo "KUL_fmriproc_nilearn_new failed for sub-${participant} — SPM.done will not be created (check 7_fmriproc_nilearn.error.log)"
             else
                 task_in="KUL_fmriproc_spm_new.sh -p $participant -S $smooth_fwhm -P $pfwe -c $ncpu"
@@ -1866,7 +1923,9 @@ function KUL_run_rsfMRI_networks {
     if [ $rsfmri_networks -eq 1 ]; then
         rsfmri_check=${cwd}/KUL_LOG/sub-${participant}_rsfMRI_networks.done
         if [ ! -f $rsfmri_check ]; then
-            task_in="KUL_run_rsfMRI_networks.sh -p $participant -c $rsfmri_env -P $rsfmri_profile -v $verbose_level"
+            _pyfmri_c_opt=""
+            [ -n "$pyfmri_env_override" ] && _pyfmri_c_opt="-c $pyfmri_env_override"
+            task_in="KUL_run_rsfMRI_networks.sh -p $participant $_pyfmri_c_opt -P $rsfmri_profile -v $verbose_level"
             KUL_task_exec $verbose_level "KUL_run_rsfMRI_networks" "9_rsfmri_networks" || kul_echo "KUL_run_rsfMRI_networks failed for sub-${participant} — rsfMRI_networks.done will not be created (check 9_rsfmri_networks.error.log)"
         else
             echo "rsfMRI networks already done"

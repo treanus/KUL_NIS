@@ -1292,16 +1292,24 @@ if [ $expert -eq 1 ]; then
         dwipreproc_options=$dwiprep_options
         
         synbzero_disco_instead_of_topup=$(grep synbzero_disco_instead_of_topup $conf | grep -v \# | sed 's/[^0-9]//g')
+        [ -z "$synbzero_disco_instead_of_topup" ] && synbzero_disco_instead_of_topup=0
 
+        # optional config field; default to 0 (off) when absent from $conf so
+        # the numeric comparisons below ("-eq 1") don't choke on an empty string
         shard_recon=$(grep shard_recon $conf | grep -v \# | sed 's/[^0-9]//g')
-        
+        [ -z "$shard_recon" ] && shard_recon=0
+
         rev_phase_for_topup_only=$(grep rev_phase_for_topup_only $conf | grep -v \# | sed 's/[^0-9]//g')
+        [ -z "$rev_phase_for_topup_only" ] && rev_phase_for_topup_only=0
 
         dwi2mask_method=$(grep dwi2mask_method $conf | grep -v \# | cut -d':' -f 2 | sed 's/[^0-9]//g')
 
         eddy_options=$(grep eddy_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
 
+        # defaults to $KUL_LORESD_ENV (the fixed name the installer creates it
+        # under) when the config field is blank; only needed as an override
         loresd_env=$(grep loresd_env $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r' | sed 's/^ *//;s/ *$//')
+        [ -z "$loresd_env" ] && loresd_env="$KUL_LORESD_ENV"
 
         dwiprep_ncpu=$(grep dwiprep_ncpu $conf | grep -v \# | cut -d':' -f 2 | sed 's/[^0-9]//g')
         ncpu_dwiprep=$dwiprep_ncpu
