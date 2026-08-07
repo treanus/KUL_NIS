@@ -277,6 +277,43 @@ if [ "$fmri_engine" != "spm" ] && [ "$fmri_engine" != "nilearn" ]; then
 fi
 echo " fMRI GLM engine set to: $fmri_engine"
 
+function KUL_scaffold {
+
+    echo "Making scaffold for clinical_sub-${participant}_type${type}"
+    mkdir -p $cwd/clinical_sub-${participant}_type${type}/DICOM
+    mkdir -p $cwd/clinical_sub-${participant}_type${type}/study_config
+    rm -fr $cwd/clinical_sub-${participant}_type${type}/study_config/*
+    if [ $type -lt 5 ]; then
+        echo "Setting up for a tumor/epilepsy/... patient (type: $type)"
+        cp ${kul_main_dir}/study_config/clinical_fmri_dmri/* $cwd/clinical_sub-${participant}_type${type}/study_config
+    elif [ $type -eq 5 ]; then
+        echo "Setting up for a DBS patient (type: $type)"
+        cp ${kul_main_dir}/study_config/clinical_dmri_dbs_drt/* $cwd/clinical_sub-${participant}_type${type}/study_config
+    elif [ $type -eq 6 ]; then
+        echo "Setting up for a DBS patient (type: $type)"
+        cp ${kul_main_dir}/study_config/clinical_dmri_dbs_hdp/* $cwd/clinical_sub-${participant}_type${type}/study_config
+    elif [ $type -eq 7 ]; then
+        echo "Setting up for DTI-ALPS processing (type: $type)"
+        cp ${kul_main_dir}/study_config/DTI_ALPS_proc/* $cwd/clinical_sub-${participant}_type${type}/study_config
+    fi
+
+    exit 0
+
+}
+
+# Scaffold: explicit (-s) or automatic (first run for this patient, no study_config/ yet).
+# Must run before the pre-flight -D check below -- that check unconditionally looks for
+# study_config/${dwiprep_config_file} (default "run_dwiprep.txt") and exits with an error
+# if study_config/ doesn't exist yet, which would otherwise always pre-empt the automatic
+# scaffold on a genuinely fresh patient folder.
+if [ $scaffold -eq 1 ]; then
+    KUL_scaffold
+fi
+if [ ! -d $cwd/study_config ]; then
+    KUL_scaffold
+fi
+
+
 # Pre-flight check of the -D dwiprep config: catch a lore_sd env
 # misconfiguration here, before fmriprep/dwiprep are launched, instead of
 # failing deep inside KUL_preproc_all.sh after other pipeline steps (and
@@ -364,34 +401,6 @@ derivativesdir=${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}
 # workaround in KUL_VBG.sh itself; this is extra margin, not the fix).
 vbg_dir=${cwd}/KUL_VBG
 
-function KUL_scaffold {
-
-    echo "Making scaffold for clinical_sub-${participant}_type${type}"
-    mkdir -p $cwd/clinical_sub-${participant}_type${type}/DICOM
-    mkdir -p $cwd/clinical_sub-${participant}_type${type}/study_config
-    rm -fr $cwd/clinical_sub-${participant}_type${type}/study_config/*
-    if [ $type -lt 5 ]; then
-        echo "Setting up for a tumor/epilepsy/... patient (type: $type)"
-        cp ${kul_main_dir}/study_config/clinical_fmri_dmri/* $cwd/clinical_sub-${participant}_type${type}/study_config
-    elif [ $type -eq 5 ]; then
-        echo "Setting up for a DBS patient (type: $type)"
-        cp ${kul_main_dir}/study_config/clinical_dmri_dbs_drt/* $cwd/clinical_sub-${participant}_type${type}/study_config
-    elif [ $type -eq 6 ]; then
-        echo "Setting up for a DBS patient (type: $type)"
-        cp ${kul_main_dir}/study_config/clinical_dmri_dbs_hdp/* $cwd/clinical_sub-${participant}_type${type}/study_config
-    elif [ $type -eq 7 ]; then
-        echo "Setting up for DTI-ALPS processing (type: $type)"
-        cp ${kul_main_dir}/study_config/DTI_ALPS_proc/* $cwd/clinical_sub-${participant}_type${type}/study_config
-    fi
-
-    exit 0
-
-}
-
-# Scaffold
-if [ $scaffold -eq 1 ]; then
-    KUL_scaffold
-fi
 
 # The BACKUP and clean option
 if [ $bc -eq 1 ]; then
@@ -2020,12 +2029,6 @@ function KUL_run_cT1w_subtraction {
 
 
 # --- MAIN ---
-
-# Check if scaffolding has happend
-if [ ! -d $cwd/study_config ]; then
-    KUL_scaffold
-fi
-
 
 # STEP 1 - BIDS conversion
 KUL_convert2bids

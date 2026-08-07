@@ -676,7 +676,8 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			else
 				dwifslprep_ses=""
 			fi
-			dwifslpreproc_option="-topup_files ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${dwifslprep_ses}synb0/topup_"
+			dwifslpreproc_option="-topup_files ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${dwifslprep_ses}synb0/topup_ \
+				-topup_field ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${dwifslprep_ses}synb0/topup_fieldmap.nii.gz"
 		
 		elif [ $synb0 -eq 0 ] && [ $shard -eq 0 ] && [ $n_pe -gt 1 ]; then
 		
@@ -798,7 +799,11 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
 
 	# check if next 4 steps of dwi preprocessing are done
-	if [ ! -f dwi_preproced.mif ]; then
+	# (check both outputs: dwi_preproced.mif is always built here regardless of -u,
+	#  but dwi/biascorr.mif -- the input used downstream when use_upsampled=0 -- is only
+	#  produced inside this same block, so a leftover/stale dwi_preproced.mif from an
+	#  earlier interrupted run must not mask a missing biascorr.mif)
+	if [ ! -f dwi_preproced.mif ] || [ ! -f dwi/biascorr.mif ]; then
 
 		kul_echo "Start part 3 of preprocessing: dwibiascorrect, upsampling & creation of a final dwi_mask"
 
