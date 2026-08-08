@@ -170,7 +170,7 @@ function KUL_compute_melodic {
         # KUL_fmri_denoise.sh instead of the old raw-copy + ad-hoc fslmaths -s 3
         # smoothing block — avoids double-smoothing since SUSAN already runs as
         # the last step of KUL_fmri_denoise.sh.
-        task_in="$kul_main_dir/KUL_fmri_denoise.sh --fmriprep ${cwd}/fmriprep --out $denoiseddir --method nilearn --space MNI152NLin6Asym --sub sub-${participant} --task $shorttask"
+        task_in="$kul_main_dir/KUL_fmri_denoise.sh --fmriprep ${cwd}/fmriprep --out $denoiseddir --method nilearn --space MNI152NLin2009cAsym --sub sub-${participant} --task $shorttask"
         KUL_task_exec $verbose_level "Denoising task $shorttask" "0_denoise_$shorttask"
 
         run_label="${taskbase%_desc-preproc_bold.nii.gz}"
@@ -223,7 +223,7 @@ function KUL_compute_melodic {
             # since Melodic analysis was in MNI space, we transform back in native space
             input=$network_file
             output=$globalresultsdir/rsfMRI_${shorttask}_${network_name}_ic${ic}.nii
-            transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
+            transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
             find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
             reference=${find_T1w[0]}
             KUL_antsApply_Transform $str_silent_melodic
@@ -244,7 +244,7 @@ computedir="$kulderivativesdir/sub-$participant/FSL_melodic"
 scriptsdir="$computedir/scripts"
 fmriprepdir="fmriprep/sub-$participant/func"
 globalresultsdir="$cwd/RESULTS/sub-$participant/Melodic"
-searchtask="_space-MNI152NLin6Asym_res-2_desc-preproc_bold.nii"
+searchtask="_space-MNI152NLin2009cAsym_desc-preproc_bold.nii"
 
 if [ $KUL_DEBUG -gt 0 ]; then
     echo "kulderivativesdir: $kulderivativesdir"
