@@ -1125,9 +1125,12 @@ if [ $results -gt 0 ];then
             # themselves were never moved into the freed range. This finishes
             # that: the low values here are exactly the indices the tract table,
             # the DBS VOIs (23, 24) and the lesion (16) leave unused, so it
-            # works on stock karawun. Anything past those spills into 50+,
+            # works on stock karawun. Anything past those spills into 56-63,
             # which needs the extended-palette fork (values >30 clamp to the
-            # last entry on stock karawun).
+            # last entry on stock karawun). 56 and up, not 50: auto-assigned
+            # tract colours occupy 42-55, and the shipped tracks_list.txt has
+            # 34 bundles outside the known table, so starting at 50 would have
+            # let tracts walk straight into the fMRI range.
             #
             # The low seven are ordered by measured worst-case CIEDE2000
             # distance to every tract/lesion colour and to each other, best
@@ -1144,7 +1147,7 @@ if [ $results -gt 0 ];then
             # make every task past the third render identically. Degrading to a
             # merely-mediocre colour is a better failure than degrading to no
             # distinction at all.
-            _fmri_label_colors=(2 6 12 8 14 10 30 50 51 52 53 54 55 56 57 58)
+            _fmri_label_colors=(2 6 12 8 14 10 30 56 57 58 59 60 61 62 63)
 
             for _idx in "${!_spm_task_names_sorted[@]}"; do
                 _spmname="${_spm_task_names_sorted[$_idx]}"

@@ -1,4 +1,10 @@
 #!/bin/bash
+#
+# Interactive helper for adding a single fMRI activation label to an existing
+# Karawun folder by hand. NOT part of the automatic pipeline: KUL_clinical_fmridti.sh
+# writes the fMRI labels itself (search for _fmri_label_colors) when run with -R.
+# Use this only for one-off additions, and keep its palette values in sync with
+# the reserved pool there.
 
 extension=".nii"  # Replace with your desired extension
 directory="."  # Replace with your desired directory
@@ -55,31 +61,44 @@ else
     exit 1
 fi
 
-# Set values based on selected category
+# Set values based on selected category.
+#
+# These are Brainlab palette indices, and they must stay out of the ranges the
+# rest of the pipeline uses (see KUL_karawun_prepare.sh for the full budget):
+#   1-41 known tracts, 16 lesion, 42-55 auto-assigned tracts, fMRI elsewhere.
+#
+# They used to be 20-27, every one of which collided: 20/21/22/25/26/27 are
+# tract colours and 23/24 are the DBS STN VOIs. So a hand-made afMRI_TAAL label
+# came out the same colour as the left STN VOI, and afMRI_HAND the same as a
+# tract. Now drawn from the same reserved pool KUL_clinical_fmridti.sh uses,
+# ordered by measured CIEDE2000 separation from the tract colours.
+#
+# The first seven are inside 1-30 and so work on stock karawun; 56+ needs the
+# extended-palette fork.
 case $selected_category in
     "afMRI_HAND")
-        value=20
+        value=2
         ;;
     "afMRI_LIP")
-        value=21
+        value=6
         ;;
     "afMRI_FOOT")
-        value=22
+        value=12
         ;;
     "afMRI_TAAL")
-        value=23
+        value=8
         ;;
     "rsfMRI_HAND")
-        value=24
+        value=14
         ;;
     "rsfMRI_LIP")
-        value=25
+        value=10
         ;;
     "rsfMRI_FOOT")
-        value=26
+        value=30
         ;;
     "rsfMRI_TAAL")
-        value=27
+        value=56
         ;;
     *)
         echo "Invalid category."

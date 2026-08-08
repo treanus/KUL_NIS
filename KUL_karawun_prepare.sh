@@ -279,15 +279,28 @@ function KUL_karawun_auto_discover_tracts {
     # so a new or custom bundle in the FWT config still reaches Karawun instead of
     # being silently skipped.
     local tck_root="BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output"
-    # 42 = one past the highest index the known-tract table uses (41), so
-    # auto-assigned bundles start where the curated ones stop.
+    # Palette budget, with the extended 64-entry fork (indices 0-63, 0 = background):
+    #
+    #   1-41    known-tract table (fixed; changing these breaks scene continuity)
+    #   16      lesion (carved out of the table's unused low indices)
+    #   42-55   auto-assigned tracts  <- here
+    #   56-63   fMRI activation labels (see KUL_clinical_fmridti.sh)
+    #   plus 2,6,8,10,12,14,30 - low indices the table leaves free, used for the
+    #           first seven fMRI labels so they also work on stock karawun
+    #
+    # Demand can exceed supply: the shipped tracks_list.txt has 71 bundles, 34
+    # of them outside the table, and 41+34+8+1 = 84 > 63. So auto colours cycle
+    # within their own range instead of running upward without limit. Two
+    # unknown bundles sharing a colour is a mild annoyance; a bundle taking the
+    # colour of an fMRI activation is a misread waiting to happen.
     #
     # This was 100, which karawun's lookup_cie() clamps to the last palette
     # entry -- so every auto-discovered bundle came out the same colour as every
-    # other one, and as the 13 table entries that also sit above the palette
-    # size. Against the stock 31-colour palette 42 still clamps, so this is no
-    # worse today; against an extended palette it does the right thing.
-    local next_auto_color=42
+    # other one, and as the 13 table entries that also sit above the palette size.
+    local _auto_color_lo=42
+    local _auto_color_hi=55
+    local next_auto_color=$_auto_color_lo
+    local _auto_color_wrapped=0
 
     if [ ! -d "$tck_root" ]; then
         echo "Does not exist: $tck_root"
@@ -308,6 +321,15 @@ function KUL_karawun_auto_discover_tracts {
             tract_threshold=20
             tract_corr_threshold=3
             next_auto_color=$((next_auto_color + 1))
+            if [ $next_auto_color -gt $_auto_color_hi ]; then
+                next_auto_color=$_auto_color_lo
+                if [ $_auto_color_wrapped -eq 0 ]; then
+                    _auto_color_wrapped=1
+                    echo "  WARNING: more bundles outside the known-tract table than reserved" \
+                         "auto colours (${_auto_color_lo}-${_auto_color_hi}); colours will now repeat" \
+                         "between unknown bundles. Add them to KUL_karawun_tract_meta to fix."
+                fi
+            fi
         fi
 
         KUL_karawun_get_tract

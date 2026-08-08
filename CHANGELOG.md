@@ -55,6 +55,44 @@
   export. `bash -n` does not catch this. Both helpers now live above that block,
   with a comment explaining why they cannot be moved back.
 
+### Palette budget (this is now an explicit, verified allocation)
+
+With the extended 64-entry fork (indices 0-63, 0 = background):
+
+| range | use |
+|---|---|
+| 1-41 | known-tract table (fixed; changing these breaks scene continuity) |
+| 16 | lesion |
+| 23, 24 | DBS STN VOIs |
+| 42-55 | auto-assigned tracts (bundles outside the table) |
+| 2, 6, 8, 10, 12, 14, 30 | first seven fMRI labels — inside 1-30, so stock karawun works |
+| 56-63 | further fMRI labels (needs the fork) |
+
+Verified disjoint programmatically: no tract, lesion, VOI or fMRI colour can
+coincide, and nothing exceeds the ceiling of 63.
+
+Two things forced the ranges rather than a simple offset:
+
+- **Auto-assigned tract colours were unbounded.** They started at 42 and
+  incremented per unknown bundle. The shipped `tracks_list.txt` has 71 bundles,
+  34 of them outside the known table, so they would have run 42..75 — through
+  the fMRI range and past the palette ceiling. They now cycle within 42-55 and
+  warn once when they wrap. Two unknown bundles sharing a colour is a mild
+  annoyance; a bundle taking an fMRI activation's colour is a misread waiting
+  to happen.
+- **Total demand exceeds supply** (41 + 34 + 8 + 1 = 84 > 63), so some reuse is
+  unavoidable. Confining it to *within* the auto-tract range is the point.
+
+### Fixed (`KUL_make_fMRI_labels.sh`)
+
+This interactive helper — orphaned, nothing calls it — writes a hand-made fMRI
+label straight into `Karawun/*/labels/`. Every value it hardcoded collided:
+20/21/22/25/26/27 are tract colours and **23/24 are the DBS STN VOIs**, so a
+manually added `afMRI_TAAL` came out the same colour as the left STN VOI. It is
+the origin of the stale `afMRI_TAAL_thres_5.5.nii.gz` (value 23) found in a real
+patient's Karawun folder. Now draws from the same reserved pool, and its header
+says explicitly that it is a manual one-off helper, not part of the `-R` flow.
+
 ### Fixed (fMRI label colours)
 
 - **fMRI activation labels shared colours with tracts.** They were numbered
