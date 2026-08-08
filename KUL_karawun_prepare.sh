@@ -279,7 +279,15 @@ function KUL_karawun_auto_discover_tracts {
     # so a new or custom bundle in the FWT config still reaches Karawun instead of
     # being silently skipped.
     local tck_root="BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_TCKs_output"
-    local next_auto_color=100
+    # 42 = one past the highest index the known-tract table uses (41), so
+    # auto-assigned bundles start where the curated ones stop.
+    #
+    # This was 100, which karawun's lookup_cie() clamps to the last palette
+    # entry -- so every auto-discovered bundle came out the same colour as every
+    # other one, and as the 13 table entries that also sit above the palette
+    # size. Against the stock 31-colour palette 42 still clamps, so this is no
+    # worse today; against an extended palette it does the right thing.
+    local next_auto_color=42
 
     if [ ! -d "$tck_root" ]; then
         echo "Does not exist: $tck_root"
@@ -318,12 +326,72 @@ T1w_max=$(mrstats -output max $T1w_in)
 T1w_factor=$(scale=10; echo "($T1w_max-($T1w_min))/32767" | bc)
 mrcalc $T1w_in $T1w_min -sub $T1w_factor -div Karawun/sub-${participant}/T1w.nii.gz -force
 
+# FAT1w = sqrt(FA) * T1w (Goedemans et al., Imaging Neurosci 2024), loaded into
+# Brainlab as a second anatomical alongside the T1w. It makes the FA-to-T1w
+# registration directly inspectable, which is the QA step this whole folder
+# depends on -- if that registration has slipped, every tract in the scene is
+# wrong in the same direction and nothing else here would show it.
+#
+# KUL_FAT1w.py had become orphaned: nothing called it any more, so the file this
+# block looks for never existed and FAT1w was silently always empty. Generate it
+# here instead of assuming some earlier step did.
 FAT1="BIDS/derivatives/KUL_compute/sub-${participant}/KUL_FAT1/FAT1w.nii.gz"
+FA_reg2T1w="dwiprep/sub-${participant}/sub-${participant}/qa/fa_reg2T1w.nii.gz"
+
+if [ ! -f "$FAT1" ]; then
+    if [ -f "$FA_reg2T1w" ] && [ -f "$T1w_in" ]; then
+        echo "Computing FAT1w (FA-weighted T1w) for Brainlab QA"
+        # no -s: smoothing blurs exactly the tissue boundaries this image is
+        # meant to let you check the registration against
+        "${kul_main_dir}/KUL_FAT1w.py" -p "${participant}" || \
+            echo "WARNING: KUL_FAT1w.py failed - continuing without the FAT1w QA volume"
+    else
+        echo "No $FA_reg2T1w (run KUL_dwiprep_anat.sh first) - skipping the FAT1w QA volume"
+    fi
+fi
+
 if [ -f $FAT1 ]; then
     FAT1w="Karawun/sub-${participant}/FAT1w.nii.gz"
     cp $FAT1 $FAT1w
 else
     FAT1w=""
+fi
+
+# Lesion as a Brainlab label, so the tumour/cavity shows up in the same scene as
+# the tracts. Colour 16 is free in the 0-30 palette (see the colour convention
+# note above) and sits clear of the fMRI task labels, which count up from 1.
+lesion_color=16
+lesion_in=""
+for _lesion_cand in \
+    "RESULTS/sub-${participant}/Lesion/sub-${participant}_lesion_and_cavity.nii.gz" \
+    "RESULTS/sub-${participant}/Lesion/lesion.nii.gz"; do
+    if [ -f "$_lesion_cand" ]; then
+        lesion_in="$_lesion_cand"
+        break
+    fi
+done
+
+if [ -n "$lesion_in" ]; then
+    echo "Karawun lesion label: $(basename "$lesion_in") -> colour ${lesion_color}"
+    # GenericLabel, not mrgrid's nearest: it interpolates each label's indicator
+    # and takes the argmax, so boundaries follow the anatomy instead of the grid
+    # and no label is invented that wasn't in the input. Today this is a no-op --
+    # Karawun's T1w.nii.gz is the RESULTS T1w with only its intensities rescaled,
+    # so the grids are identical and any interpolator is exact -- but that is an
+    # assumption about an upstream step, and nearest is the option that degrades
+    # worst if it ever stops holding. No -t: identity transform, resample only.
+    _lesion_tmp="$(mktemp -d)"
+    mrcalc "$lesion_in" 0 -gt "${_lesion_tmp}/lesion_bin.nii.gz" -force -quiet && \
+    antsApplyTransforms -d 3 --float 1 --verbose 0 \
+        -i "${_lesion_tmp}/lesion_bin.nii.gz" \
+        -r Karawun/sub-${participant}/T1w.nii.gz \
+        -o "${_lesion_tmp}/lesion_rs.nii.gz" \
+        -n GenericLabel && \
+    mrcalc "${_lesion_tmp}/lesion_rs.nii.gz" 0 -gt ${lesion_color} -mult \
+        Karawun/sub-${participant}/labels/Lesion.nii.gz -force -quiet
+    rm -rf "${_lesion_tmp}"
+else
+    echo "No lesion mask found in RESULTS/sub-${participant}/Lesion/ - no Karawun lesion label"
 fi
 
 

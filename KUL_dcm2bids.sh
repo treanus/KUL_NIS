@@ -72,6 +72,10 @@ Usage:
     # ASL support is very limited (not BIDS compliant for now)
     # Indentifier, search-string 
     ASL,pCASL
+    # DSC perfusion (not BIDS compliant for now); pe_dir is used by
+    # KUL_dsc_perfusion.sh to restrict its EPI distortion correction
+    # Identifier,search-string,task,mb,pe_dir
+    DSC,T2_DSC_Perfusion,-,2,j
 
   explains that the T1w scan should be found by the search string "T1_PRE"
   func by rsfMRI, and has multiband_factor 6, and pe_dir = j
@@ -98,7 +102,7 @@ Usage:
     dwi,p2_b0,-,-,-,b0
     dwi,p3_b2500,-,-,-,b2500
     dwi,p4_b2500,-,-,-,rev
-    # fmap, SWI, MTC and ASL have not been tested on Siemens or GE
+    # fmap, SWI, MTC, ASL and DSC have not been tested on Siemens or GE
     
 Example:
 
@@ -1111,6 +1115,41 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
     fi
 
+    if [[ ${identifier} == "DSC" ]]; then
+
+        kul_find_relevant_dicom_file
+
+        if [ $seq_found -eq 1 ]; then
+
+            # read the relevant dicom tags
+            kul_dcmtags "${seq_file}"
+
+            # Matched on SeriesDescription alone, deliberately. The ASL block
+            # above also pins ImageType, but DSC ImageType strings vary a lot
+            # between vendors and software levels, and an over-tight criterion
+            # here fails by silently converting nothing at all. Give the search
+            # string enough of the sequence name to be unambiguous instead.
+            #
+            # pe_dir is carried into the sidecar because KUL_dsc_perfusion.sh
+            # restricts its EPI distortion correction to the phase-encoding
+            # axis, and reads that axis from here.
+            sub_bids_dsc1='{"datatype": "perf", "suffix": "dsc",
+                "criteria": {
+                    "SeriesDescription": "*'${search_string}'*"},
+                "sidecar_changes": {"KUL_dcm2bids": "yes"'
+
+            if [ "$pe_dir" = "" ] || [ "$pe_dir" = "-" ]; then
+                sub_bids_dsc2='}}'
+            else
+                sub_bids_dsc2=',"PhaseEncodingDirection": "'${pe_dir}'"}}'
+            fi
+
+            sub_bids_[$bs]=$(echo ${sub_bids_dsc1}${sub_bids_dsc2} | python -m json.tool)
+
+        fi
+
+    fi
+
     if [[ ${identifier} == "FLAIR" ]]; then
 
         kul_find_relevant_dicom_file
@@ -1545,6 +1584,7 @@ if [ ! -f BIDS/.bidsignore ];then
     echo "**/anat/*MP2RAGE*" >> .bidsignore
     echo "**/anat/*lesion_roi*" >> .bidsignore
     echo "**/perf/*asl*" >> .bidsignore
+    echo "**/perf/*dsc*" >> .bidsignore
     cd ..
 fi
 

@@ -97,6 +97,9 @@ Optional arguments:
           Off by default — adds substantial runtime (real per-bundle work across ~50
           bundle/hemisphere combinations, processed sequentially, no parallelism yet).
           Tractography/tracts themselves are generated either way.
+     -W:  skip DSC perfusion processing (KUL_dsc_perfusion.sh). By default it
+          runs automatically whenever a DSC series is present in BIDS/*/perf/,
+          the same way fMRI and dMRI data are picked up.
      -N:  opt-in: run presurgical/eloquent-cortex rsfMRI network mapping
           (KUL_run_rsfMRI_networks.sh). Off by default.
      -C:  condition profile for -N, from share/rsfmri_pipeline/config/profiles.yaml
@@ -143,6 +146,7 @@ fmri_engine="spm"
 use_rfa_mod_fod=0
 run_fwt_tractometry=0
 rsfmri_networks=0
+skip_dsc=0
 rsfmri_profile="Presurgical"
 pyfmri_env_override=""
 declare -A spm_thresh_map=()
@@ -158,7 +162,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:NC:y:XBrseUQ" OPT; do
+	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:NC:y:XBrseUQW" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -167,6 +171,9 @@ else
 		;;
         t) #type
 			type=$OPTARG
+		;;
+        W) #skip DSC perfusion
+			skip_dsc=1
 		;;
         d) #dicomzip
 			dicomzip=$OPTARG
@@ -400,6 +407,48 @@ derivativesdir=${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}
 # VBG_FS820_mris_register_bugreport.md — the actual fix is the symlink
 # workaround in KUL_VBG.sh itself; this is extra margin, not the fix).
 vbg_dir=${cwd}/KUL_VBG
+
+# NOTE: these two live here, above the `if [ $results -gt 0 ]` block below,
+# rather than with the other functions further down. That block runs at top
+# level and ends in `exit`, so any function defined after it has simply not been
+# executed yet when it runs -- bash registers a function when its definition
+# runs, not when the file is parsed. Calling KUL_resolve_lesion from the PACS
+# code inside that block while it was defined further down failed silently:
+# "command not found" on stderr, the `if` took the else branch, exit status 0,
+# and the lesion was just missing from the export. `bash -n` does not catch it.
+
+# Resolve the lesion mask this participant actually has, whatever produced it.
+# Types 1/2 get it from KUL_anat_segment_tumor; type 3 is the manual mask the
+# user drops in themselves. Echoes the path, or nothing if there is none.
+function KUL_resolve_lesion {
+    local _c
+    for _c in "$globalresultsdir/Lesion/sub-${participant}_lesion_and_cavity.nii.gz" \
+              "$globalresultsdir/Lesion/lesion.nii.gz"; do
+        if [ -f "$_c" ]; then
+            echo "$_c"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Put the lesion alongside the other T1w-space volumes in RESULTS/*/Anat, so it
+# sits with the underlays that feed the figures and the PACS export rather than
+# only in its own Lesion/ folder.
+function KUL_copy_lesion_to_anat {
+    local _lesion
+    _lesion=$(KUL_resolve_lesion) || { echo "No lesion mask to copy to Anat"; return 0; }
+
+    local _dst="$globalresultsdir/Anat/sub-${participant}_lesion.nii.gz"
+    if [ ! -f "$_dst" ] || [ "$_lesion" -nt "$_dst" ]; then
+        # binarised on the way over: the hd-glio output carries per-class values,
+        # and anything overlaying this wants a clean 0/1 mask
+        mrcalc "$_lesion" 0 -gt "$_dst" -force -quiet && \
+            echo "Copied $(basename "$_lesion") to Anat/ as $(basename "$_dst")"
+    fi
+}
+
+
 
 
 # The BACKUP and clean option
@@ -1099,6 +1148,54 @@ if [ $results -gt 0 ];then
         _render_one_spm "$_spm" "$_spmname"
     done
 
+    # ── Lesion & DSC perfusion → PACS ───────────────────────────────────────
+    # Same renderer as the fMRI maps, pointed at a separate output folder so
+    # these don't get mixed in with the SPM/Melodic series on PACS.
+    _extra_names=(); _extra_files=(); _extra_thresh=()
+
+    if _lesion_pacs=$(KUL_resolve_lesion); then
+        # a mask, so any threshold in (0,1) selects it; 0.5 is the obvious one
+        _extra_names+=("Lesion"); _extra_files+=("$_lesion_pacs"); _extra_thresh+=("0.5")
+    fi
+
+    # Fixed thresholds, not the auto max/3 used for the fMRI maps. These are
+    # NAWM-normalised ratios, so a threshold has a fixed clinical meaning that
+    # max/3 would throw away: 1.75 is the conventional high-grade glioma rCBV
+    # cutoff, and 1.0 on nrCBF is simply "above contralesional normal WM".
+    # -T still overrides both.
+    _perf_dir="$globalresultsdir/Perfusion"
+    for _pm in nrCBV_corrected:1.75 nrCBF:1.0; do
+        _pf="$_perf_dir/sub-${participant}_${_pm%%:*}.nii.gz"
+        [ -f "$_pf" ] || continue
+        _extra_names+=("${_pm%%:*}"); _extra_files+=("$_pf"); _extra_thresh+=("${_pm##*:}")
+    done
+
+    if [ ${#_extra_names[@]} -gt 0 ]; then
+        _saved_png="$spm_resultsdir_png"; _saved_dcm="$spm_resultsdir_dcm"
+        # _dcm_spm_set carries the user's fMRI map selection. These maps are not
+        # in it, and a non-empty set means "only these", so it would silently
+        # exclude them -- clear it for this pass and put it back afterwards.
+        _saved_sel=("${!_dcm_spm_set[@]}")
+        unset _dcm_spm_set; declare -A _dcm_spm_set=()
+
+        spm_resultsdir_png="$globalresultsdir/Clinical_figures_${_ulsuffix}"
+        spm_resultsdir_dcm="$globalresultsdir/PACS/Clinical_${_ulsuffix}"
+        mkdir -p "$spm_resultsdir_png" "$spm_resultsdir_dcm"
+
+        for _i in "${!_extra_names[@]}"; do
+            if [ -n "${_extra_thresh[$_i]}" ] && [ -z "$spm_thresh_override" ] && \
+               [ -z "${spm_thresh_map[${_extra_names[$_i]}]+x}" ]; then
+                spm_thresh_map["${_extra_names[$_i]}"]="${_extra_thresh[$_i]}"
+            fi
+            echo "PACS extra: ${_extra_names[$_i]} <- $(basename "${_extra_files[$_i]}")"
+            _render_one_spm "${_extra_files[$_i]}" "${_extra_names[$_i]}"
+        done
+
+        spm_resultsdir_png="$_saved_png"; spm_resultsdir_dcm="$_saved_dcm"
+        unset _dcm_spm_set; declare -A _dcm_spm_set=()
+        for _k in "${_saved_sel[@]}"; do _dcm_spm_set["$_k"]=1; done
+    fi
+
     exit
 
 fi
@@ -1401,6 +1498,10 @@ function KUL_check_data {
     if [ $n_dwi -eq 0 ]; then
         echo "WARNING: no dwi data"
     fi
+
+    find_dsc=($(find ${cwd}/BIDS/sub-${participant} -name "*_dsc.nii.gz"))
+    n_dsc=${#find_dsc[@]}
+    echo "  number of DSC perfusion series: $n_dsc"
     echo -e "\n\n"
 
 }
@@ -1944,6 +2045,47 @@ function KUL_run_rsfMRI_networks {
     fi
 }
 
+function KUL_run_dsc {
+
+    if [ $skip_dsc -eq 1 ]; then
+        echo "DSC perfusion processing skipped (-W)"
+        return 0
+    fi
+    if [ ${n_dsc:-0} -eq 0 ]; then
+        return 0
+    fi
+
+    if [ -f KUL_LOG/sub-${participant}_DSC.done ]; then
+        echo "DSC perfusion already done"
+        return 0
+    fi
+
+    # Runs after VBG/multiparc on purpose: the contralesional NAWM reference
+    # needs a FreeSurfer aseg, which only exists once one of those has run.
+    # KUL_dsc_perfusion.sh still writes the parametric maps if the aseg or the
+    # lesion mask is missing, and can be re-run later to add the ratios.
+    _dsc_anat="$globalresultsdir/Anat/cT1w_reg2_T1w.nii.gz"
+    [ -f "$_dsc_anat" ] || _dsc_anat="$globalresultsdir/Anat/T1w.nii.gz"
+
+    _dsc_y_opt=""
+    [ -n "$pyfmri_env_override" ] && _dsc_y_opt="-y $pyfmri_env_override"
+
+    task_in="${kul_main_dir}/KUL_dsc_perfusion.sh -p ${participant} \
+        -a ${_dsc_anat} ${_dsc_y_opt} \
+        -n ${ncpu} -v ${verbose_level}"
+    KUL_task_exec $verbose_level "KUL_dsc_perfusion (DSC perfusion maps)" "13_DSC" || \
+        { kul_echo "KUL_dsc_perfusion failed - NOT writing DSC.done"; return 1; }
+
+    dsc_png=REPORT/sub-${participant}_06_DSC_rCBV.png
+    if [ -f $dsc_png ]; then
+        echo "  DSC QC figure: $dsc_png"
+    fi
+
+    touch KUL_LOG/sub-${participant}_DSC.done
+
+}
+
+
 function KUL_run_dwiprep_anat {
 
     dwi_anat_check=${cwd}/KUL_LOG/sub-${participant}_dwiprep_anat.done
@@ -2081,6 +2223,9 @@ KUL_register_anatomical_images
 
 # STEP 3 - run tumor segmentation 
 KUL_segment_tumor
+
+# STEP 3b - make the lesion available alongside the other T1w-space volumes
+KUL_copy_lesion_to_anat
     
 # STEP 4 - run fmriprep and continue
 KUL_run_fmriprep &
@@ -2109,6 +2254,10 @@ wait
 # this should only run if VBG is not used!!
 KUL_run_multiparc
 wait
+
+# STEP 9c - DSC perfusion (runs whenever perf data exists, unless -W)
+# after VBG/multiparc, so the FreeSurfer aseg the NAWM reference needs exists
+KUL_run_dsc
 
 # STEP 10 - run SPM/melodic/msbp
 # this is not okay!

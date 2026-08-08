@@ -1,5 +1,176 @@
 # Changelog
 
+## Unreleased (committed locally, 2026-08-08 — Karawun lesion label, FAT1w QA, lesion/perfusion PACS)
+
+### Fixed
+
+- **`KUL_FAT1w.py` had become orphaned.** Nothing called it, so
+  `BIDS/derivatives/KUL_compute/sub-X/KUL_FAT1/FAT1w.nii.gz` was never created,
+  and the `if [ -f $FAT1 ]` guard in `KUL_karawun_prepare.sh` silently left
+  `FAT1w=""` on every run — the QA volume was quietly missing from every
+  Brainlab export. `KUL_karawun_prepare.sh` now generates it itself (no `-s`:
+  smoothing blurs the very boundaries the image exists to let you check). It
+  needs `dwiprep/sub-X/sub-X/qa/fa_reg2T1w.nii.gz`, so `KUL_dwiprep_anat.sh`
+  must have run; otherwise the step is skipped with a message.
+
+  This matters because FAT1w (= √FA · T1w, Goedemans et al., Imaging Neurosci
+  2024) is what makes the FA-to-T1w registration inspectable in Brainlab. If
+  that registration has slipped, every tract in the scene is displaced the same
+  way and nothing else in the export would show it.
+
+### New
+
+- **Lesion as a Brainlab label.** `sub-X_lesion_and_cavity.nii.gz` (types 1/2),
+  falling back to the manual `lesion.nii.gz` (type 3), is regridded onto the
+  Karawun T1w grid and written to `Karawun/sub-X/labels/Lesion.nii.gz` with
+  palette colour 16 — free in the 0-30 range and clear of the fMRI task labels,
+  which count up from 1. Resampled with `GenericLabel` (see below), which
+  interpolates each label's indicator and takes the argmax, so boundaries follow
+  the anatomy rather than the grid and no label is invented that was not in the
+  input.
+- **Lesion in `RESULTS/sub-X/Anat/`.** Binarised to
+  `sub-X_lesion.nii.gz` next to the other T1w-space volumes that feed the
+  figures and the PACS export, rather than living only in `Lesion/`.
+- **Lesion and DSC perfusion PACS series.** Under `-R`, the lesion mask and the
+  NAWM-normalised `nrCBV_corrected` / `nrCBF` maps are rendered through the same
+  `_render_one_spm` path as the fMRI maps, into `PACS/Clinical_<underlay>` and
+  `Clinical_figures_<underlay>` so they stay separate from the SPM/Melodic
+  series. The perfusion maps use fixed thresholds (1.75 on nrCBV, the
+  conventional high-grade glioma cutoff; 1.0 on nrCBF, "above contralesional
+  normal WM") rather than the auto `max/3` used for activation maps, since these
+  are normalised ratios whose thresholds carry a fixed clinical meaning. `-T`
+  still overrides. The user's interactive fMRI map selection (`_dcm_spm_set`) is
+  saved and cleared around this pass — a non-empty selection means "only these"
+  and would otherwise silently exclude the new series.
+
+### Fixed (found while reviewing the above)
+
+- **The lesion PACS export called `KUL_resolve_lesion` before it was defined.**
+  `KUL_clinical_fmridti.sh` runs the results/PACS work inside a top-level
+  `if [ $results -gt 0 ]` block that ends in `exit`, and the helper was defined
+  ~600 lines further down. Bash registers a function when its definition
+  *executes*, not when the file is parsed, so on the `-R` path that definition
+  was never reached. It failed silently: "command not found" on stderr, the `if`
+  took the else branch, exit status 0, and the lesion was simply absent from the
+  export. `bash -n` does not catch this. Both helpers now live above that block,
+  with a comment explaining why they cannot be moved back.
+
+### Changed (interpolation)
+
+- `KUL_dsc_perfusion.sh` passes `-p BSpline` to `antsMotionCorr` instead of
+  taking its `Linear` default. Motion correction is the first of two resamplings
+  the series goes through, and linear interpolation softens the data before the
+  sinc-interpolated distortion correction ever sees it — giving away the
+  resolution that second step exists to preserve. The blur leaks arterial signal
+  (an order of magnitude more dR2* than tissue) into neighbouring voxels and
+  biases peritumoral rCBV upward; unlike a per-voxel scale factor, that leak
+  does not cancel in the S(t)/S0 ratio.
+- The Karawun lesion label is resampled with `antsApplyTransforms -n GenericLabel`
+  rather than `mrgrid -interp nearest`. Today this is a no-op — Karawun's
+  `T1w.nii.gz` is the RESULTS T1w with only its intensities rescaled, so the
+  grids are identical and any interpolator is exact (verified: 2969 -> 2969
+  voxels) — but that is an assumption about an upstream step, and nearest is the
+  option that degrades worst if it stops holding.
+
+### Karawun palette
+
+`lookup_cie()` clamps any label value above the palette size (31 entries,
+indices 0-30) to the last colour, printing "Error - too many labels". The tract
+table assigns colours 31-41 to 13 bundles and `next_auto_color` started at 100,
+so all of those rendered as the *same* colour in Brainlab.
+
+`next_auto_color` is now 42, one past the table's highest index. Against the
+stock palette that still clamps, so it is no worse today; against an extended
+palette it does the right thing.
+
+The palette itself is a karawun-side change, committed in the karawun clone at
+`/opt/kul_software/src/karawun` on branch `kul-extended-palette` (see
+`KUL_PALETTE_NOTES.md` there): 31 -> 64 entries, indices 0-30 byte-identical to
+upstream and verified equal at the DICOM value level, so existing scenes are
+unaffected. The 33 appended colours are each at least CIEDE2000 11.6 from every
+other entry. For context the *existing* palette's worst pair is dE 2.80 (labels
+3 and 26), below the just-noticeable threshold. Extending it makes the existing
+31-41 table assignments work as intended with no further KUL_NIS change.
+
+That fork must be pinned for the `KarawunDev` install to benefit; `KarawunEnv`
+is a separate, non-editable conda-forge install that will not pick it up.
+
+## Unreleased (committed locally, 2026-08-08 — DSC perfusion support)
+
+Brings the standalone DSC workflow in `tools/KUL_DSC_analysis/`
+(`DSC_proc_script_WIP3.sh` + `Good_DSCLC_fit5.py`) into KUL_NIS as a first-class
+step for tumour patients. The originals are left in place untouched.
+
+### New
+
+- **`KUL_dsc_perfusion.sh`** — preprocessing (denoise, motion correction,
+  PE-restricted SyN distortion correction, N4), leakage-corrected
+  rCBV/rCBF/MTT/TTP/TT0/K1/K2, and normalisation against contralesional NAWM.
+  All maps land in the participant's T1w space, i.e. the same space as the
+  fMRI/tractography results, so they can go to PACS and Karawun. Stats go to
+  `RESULTS/sub-X/Perfusion/*_perfusion_{stats,summary}.tsv`.
+- **`share/dsc/KUL_dsc_fit.py`** — the quantification engine.
+- **`docs/KUL_dsc_perfusion/KUL_dsc_perfusion.md`**.
+
+### Changed
+
+- `KUL_dcm2bids.sh`: new `DSC` identifier writing the 4D series to the `perf/`
+  datatype directory (sibling of `anat`/`func`/`dwi`) as `*_dsc.nii.gz`, with
+  the `pe_dir` column carried into the sidecar as `PhaseEncodingDirection`.
+  `**/perf/*dsc*` added to `.bidsignore`, as for ASL — BIDS has no standardised
+  DSC suffix yet. Matched on `SeriesDescription` alone: DSC `ImageType` strings
+  vary too much between vendors for a tighter criterion to be safe.
+- `study_config/sequences.txt`: a `DSC,T2_DSC_Perfusion,-,2,j` entry.
+- `KUL_clinical_fmridti.sh`: runs DSC automatically whenever a series is present
+  (the way fMRI/dMRI are picked up), placed after VBG/multiparc so the
+  FreeSurfer aseg the NAWM reference needs exists. New `-W` skips it.
+
+### Fixed (carried over from the prototype)
+
+- `scipy.integrate.cumtrapz`/`simps` were removed in scipy ≥ 1.14 — the fit
+  could not import at all on a current environment.
+- **`DenoiseImage -d 4` corrupted the first and last frames of the series.** It
+  treats time as a fourth spatial axis, so its neighbourhoods are truncated at
+  the boundaries; measured at ~13 % darkening on frame 0 of a 50-frame series,
+  as deep as the bolus itself, contaminating rCBV in every voxel. The time axis
+  is now mirror-padded before denoising and cropped afterwards.
+- **The baseline window was hardcoded to frames 5–10.** A bolus arriving before
+  frame 10 put S₀ part-way down the bolus, flipping the sign of ΔR2\* and of
+  every downstream map, MTT included, with no warning. Now detected from the
+  data, with a hard guard on a non-positive AIF area.
+- TE was scraped from the `mrinfo` comments field with `"0.0"` prepended; now
+  read from the sidecar `EchoTime`, with a millisecond-vs-second sanity check.
+- The AIF candidate pool used an absolute signal-drop threshold that crashed PCA
+  when nothing cleared it, and was a no-op when anything did.
+- `mri_synthstrip -g` was unconditional, aborting on CPU-only nodes and on GPU
+  nodes whose FreeSurfer ships a CPU-only torch. Now probed once.
+- Hardcoded `/mnt/DATA1/aradwa0/...` paths and a directory-dependent
+  `python ./Good_DSCLC_fit5.py` call.
+
+### Method changes (opt out with `-L`)
+
+- Deconvolution now uses a `dt`-scaled AIF with truncated SVD (0.2·S_max)
+  instead of a z-scored AIF with `1/(S+1e-3)` damping, so rCBF is in 1/s and MTT
+  in seconds. On a phantom varying only bolus amplitude the legacy path gave an
+  rCBF lesion/normal ratio of 1.04 (no contrast); the new one gives 2.94, with
+  MTT correctly amplitude-invariant at 1.01.
+- Distortion correction is a direct rigid+affine+SyN to the anatomy with the
+  deformation restricted to the phase-encoding axis, replacing
+  `antsIntermodalityIntrasubject.sh` — which demanded a template and a
+  subject-to-template warp solely to emit template-space outputs nothing
+  consumed, making a full SyN registration to MNI a prerequisite of every run.
+- The per-voxel leakage-fit and deconvolution loops are vectorised.
+- The leakage model still regresses on the integral of the AIF rather than on a
+  non-enhancing reference tissue curve as textbook Boxerman-Schmainda-Weisskoff
+  does. Left as the prototype had it rather than changed silently; flagged in
+  the docs under "Known deviations" as worth revisiting.
+
+Committed locally, not pushed. Validated end-to-end on a synthetic DSC phantom
+with known ground truth (see `/opt/kul_software/tmp/KUL_DSC_phantom/`), not yet
+on clinical data -- the phantom cannot exercise AIF detection realistically, so
+the first real case is the actual test. Check the auto-detected `baseline_frames`
+in the log on that run.
+
 ## Unreleased (working tree, 2026-07-28 — auto-discover bundles in KUL_karawun_prepare.sh)
 
 `KUL_karawun_prepare.sh` unconditionally attempted a hardcoded list of ~40

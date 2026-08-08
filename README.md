@@ -9,6 +9,7 @@ KUL_NIS provides tools:
 	- FGATIR
 	- DIR (double inversion recovery, in development)
 	- ASL (not fully BIDS compatible yet)
+	- DSC perfusion (not fully BIDS compatible yet)
 	- MTR
 	- fMRI
 	- dMRI
@@ -115,6 +116,16 @@ These are separate repos that the clinical pipeline calls and must be installed 
 > Versions marked "latest" are not pinned by the code and track current releases. Versions in **bold** are explicitly set in study configs or the code itself and represent the values KUL_NIS is currently validated against.
 
 
+## User guide
+
+### [Tumour work-up with perfusion, Brainlab and PACS](/docs/KUL_tumour_workup/KUL_tumour_workup.md)
+
+Start-to-finish walkthrough of a glioma case: DICOM in, perfusion maps, tract
+labels and PACS series out. Covers the DSC perfusion step, the lesion as a
+Brainlab label, the FAT1w registration-QA volume, reading the perfusion numbers,
+and troubleshooting.
+
+
 ## Clinical pipeline (one command, dicom → figures/PACS)
 
 ### [KUL_clinical_fmridti](/docs/KUL_clinical_fmridti/KUL_clinical_fmridti.md)
@@ -164,6 +175,19 @@ This script will run an automated analysis using SPM12 of a standard blocked des
 
 This script will run an automated analysis using FSL melodic on active and resting-state fMRI data, after these have been preprocessed with fmriprep.
  
+## Tools for perfusion analysis
+
+### [KUL_dsc_perfusion](/docs/KUL_dsc_perfusion/KUL_dsc_perfusion.md)
+
+Processes DSC (dynamic susceptibility contrast) perfusion data of tumour
+patients: denoising, motion and EPI distortion correction, leakage-corrected
+rCBV/rCBF/MTT/TTP/TT0 estimation, and normalisation against contralesional
+normal-appearing white matter. All maps are delivered in the participant's T1w
+space, so they can be sent to PACS and Karawun alongside the fMRI and
+tractography results. Runs automatically from `KUL_clinical_fmridti.sh`
+whenever a DSC series is present, or standalone via `KUL_dsc_perfusion.sh`.
+
+
 ## Tools for dMRI analysis  
 
 ### KUL_dwiprep

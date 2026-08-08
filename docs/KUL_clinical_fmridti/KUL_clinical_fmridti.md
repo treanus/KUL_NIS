@@ -62,6 +62,44 @@ DICOM export to PACS is deliberately **not** automatic. The intended workflow is
 
 This is why `-R` is documented as "run this AFTER reviewing figures."
 
+### DSC perfusion
+
+If a DSC series is present in `BIDS/sub-{participant}/perf/`, `KUL_dsc_perfusion.sh`
+runs automatically — the same way fMRI and dMRI data are picked up — and `-W` skips it.
+It is scheduled after VBG/multiparc, because the contralesional NAWM reference needs a
+FreeSurfer `aseg`. See [KUL_dsc_perfusion](/docs/KUL_dsc_perfusion/KUL_dsc_perfusion.md).
+
+With `-R`, the NAWM-normalised `nrCBV_corrected` and `nrCBF` maps are also exported as
+PACS series into `PACS/Clinical_*`. These use **fixed** thresholds rather than the auto
+`max/3` applied to the fMRI maps, because they are normalised ratios whose thresholds
+carry a fixed clinical meaning: **1.75** on nrCBV (the conventional high-grade glioma
+cutoff) and **1.0** on nrCBF ("above contralesional normal white matter"). `-T` overrides
+both.
+
+### Lesion mask
+
+When a lesion mask exists — `sub-{participant}_lesion_and_cavity.nii.gz` from
+`KUL_anat_segment_tumor.sh` for types 1/2, or the manual `lesion.nii.gz` for type 3 — it is:
+
+- binarised into `RESULTS/.../Anat/sub-{participant}_lesion.nii.gz`, next to the other
+  T1w-space volumes that feed figures and PACS;
+- exported as a Brainlab label (`Karawun/sub-{participant}/labels/Lesion.nii.gz`,
+  palette colour 16), so the tumour appears in the same scene as the tracts;
+- rendered as a PACS series in `PACS/Clinical_*` under `-R`.
+
+### FAT1w QA volume for Brainlab
+
+`KUL_karawun_prepare.sh` now generates `FAT1w.nii.gz` (= √FA · T1w, after Goedemans et al.,
+*Imaging Neuroscience* 2024) via `KUL_FAT1w.py`, and loads it into Brainlab as a second
+anatomical alongside the T1w. It makes the FA-to-T1w registration directly inspectable —
+if that registration has slipped, every tract in the scene is displaced the same way and
+nothing else in the export would reveal it.
+
+This had regressed: nothing called `KUL_FAT1w.py` any more, so the file
+`KUL_karawun_prepare.sh` looked for never existed and the QA volume was silently omitted
+from every export. It needs `dwiprep/sub-X/sub-X/qa/fa_reg2T1w.nii.gz`, i.e.
+`KUL_dwiprep_anat.sh` must have run; without it the step is skipped with a message.
+
 ## Options
 
 ```
@@ -93,6 +131,8 @@ Optional:
   -E   fMRI GLM engine: spm or nilearn (default: spm). nilearn needs no
          MATLAB/SPM12 license; it runs in the conda env $KUL_PYFMRI_ENV
          (default 'pyfMRI') — see "Conda environments" below.
+  -W   skip DSC perfusion processing (KUL_dsc_perfusion.sh). It otherwise runs
+       automatically whenever a DSC series is present in BIDS/*/perf/
   -N   opt-in: also run presurgical/eloquent-cortex rsfMRI network mapping
          (KUL_run_rsfMRI_networks.sh). Off by default. Boolean — takes no
          argument. Also runs in $KUL_PYFMRI_ENV.
@@ -197,9 +237,11 @@ These three flags control how the fMRI activation overlays look. Because each sc
 ## Outputs
 
 - `RESULTS/sub-{participant}/` — anat, figures and intermediate results
-- `*_figures_*/` — PNG screenshots for review (Tracto and SPM/fMRI), per underlay and orientation
-- `RESULTS/.../PACS/` — DICOM series for PACS, created only with `-R` (via `KUL_nii2dcm.py`, using a donor DICOM for correct study/series linkage)
-- `Karawun/sub-{participant}/` — Brainlab-compatible export
+- `RESULTS/.../Anat/sub-{participant}_lesion.nii.gz` — the lesion mask (binarised) alongside the other T1w-space volumes, whichever processing type produced it
+- `RESULTS/.../Perfusion/` — DSC perfusion maps and lesion/NAWM ratios, when DSC data is present (see [KUL_dsc_perfusion](/docs/KUL_dsc_perfusion/KUL_dsc_perfusion.md))
+- `*_figures_*/` — PNG screenshots for review (Tracto, SPM/fMRI and Clinical), per underlay and orientation
+- `RESULTS/.../PACS/` — DICOM series for PACS, created only with `-R` (via `KUL_nii2dcm.py`, using a donor DICOM for correct study/series linkage). `PACS/Clinical_*` holds the lesion and DSC perfusion series; `PACS/fMRI_*` and `PACS/Tracto_*` hold the activation and tract series.
+- `Karawun/sub-{participant}/` — Brainlab-compatible export, including a `FAT1w.nii.gz` QA volume and a `labels/Lesion.nii.gz` label when a lesion mask exists
 
 To push the PACS DICOMs to an Orthanc/PACS node, see `tools/send_2_orthanc.sh`.
 
