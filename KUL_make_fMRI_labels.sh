@@ -65,7 +65,7 @@ fi
 #
 # These are Brainlab palette indices, and they must stay out of the ranges the
 # rest of the pipeline uses (see KUL_karawun_prepare.sh for the full budget):
-#   1-41 known tracts, 16 lesion, 42-55 auto-assigned tracts, fMRI elsewhere.
+#   1-41 known tracts, 42-49 auto tracts, 50 lesion, 51-63 fMRI.
 #
 # They used to be 20-27, every one of which collided: 20/21/22/25/26/27 are
 # tract colours and 23/24 are the DBS STN VOIs. So a hand-made afMRI_TAAL label
@@ -73,32 +73,32 @@ fi
 # tract. Now drawn from the same reserved pool KUL_clinical_fmridti.sh uses,
 # ordered by measured CIEDE2000 separation from the tract colours.
 #
-# The first seven are inside 1-30 and so work on stock karawun; 56+ needs the
-# extended-palette fork.
+# All of these are above 30, so they REQUIRE the extended-palette karawun fork;
+# stock karawun clamps anything above 30 to a single entry.
 case $selected_category in
     "afMRI_HAND")
-        value=2
+        value=51
         ;;
     "afMRI_LIP")
-        value=6
+        value=52
         ;;
     "afMRI_FOOT")
-        value=12
+        value=53
         ;;
     "afMRI_TAAL")
-        value=8
+        value=54
         ;;
     "rsfMRI_HAND")
-        value=14
+        value=55
         ;;
     "rsfMRI_LIP")
-        value=10
+        value=56
         ;;
     "rsfMRI_FOOT")
-        value=30
+        value=57
         ;;
     "rsfMRI_TAAL")
-        value=56
+        value=58
         ;;
     *)
         echo "Invalid category."

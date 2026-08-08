@@ -282,14 +282,18 @@ function KUL_karawun_auto_discover_tracts {
     # Palette budget, with the extended 64-entry fork (indices 0-63, 0 = background):
     #
     #   1-41    known-tract table (fixed; changing these breaks scene continuity)
-    #   16      lesion (carved out of the table's unused low indices)
-    #   42-55   auto-assigned tracts  <- here
-    #   56-63   fMRI activation labels (see KUL_clinical_fmridti.sh)
-    #   plus 2,6,8,10,12,14,30 - low indices the table leaves free, used for the
-    #           first seven fMRI labels so they also work on stock karawun
+    #           - 23, 24 sit in a gap the table leaves free, used by the DBS STN VOIs
+    #   42-49   auto-assigned tracts  <- here
+    #   50      lesion
+    #   51-63   fMRI activation labels (see KUL_clinical_fmridti.sh)
+    #
+    # Tracts get the whole low block, then one slot for the lesion, then fMRI.
+    # NOTE this means every fMRI label is above 30, so the extended-palette fork
+    # is REQUIRED for them: on stock karawun anything >30 clamps to the last
+    # entry and all activations would render identically.
     #
     # Demand can exceed supply: the shipped tracks_list.txt has 71 bundles, 34
-    # of them outside the table, and 41+34+8+1 = 84 > 63. So auto colours cycle
+    # of them outside the table, and 41+34+13+1 = 89 > 63. So auto colours cycle
     # within their own range instead of running upward without limit. Two
     # unknown bundles sharing a colour is a mild annoyance; a bundle taking the
     # colour of an fMRI activation is a misread waiting to happen.
@@ -298,7 +302,7 @@ function KUL_karawun_auto_discover_tracts {
     # entry -- so every auto-discovered bundle came out the same colour as every
     # other one, and as the 13 table entries that also sit above the palette size.
     local _auto_color_lo=42
-    local _auto_color_hi=55
+    local _auto_color_hi=49
     local next_auto_color=$_auto_color_lo
     local _auto_color_wrapped=0
 
@@ -394,9 +398,10 @@ else
 fi
 
 # Lesion as a Brainlab label, so the tumour/cavity shows up in the same scene as
-# the tracts. Colour 16 is free in the 0-30 palette (see the colour convention
-# note above) and sits clear of the fMRI task labels, which count up from 1.
-lesion_color=16
+# the tracts. Colour 50 sits in its own slot between the tract ranges below and
+# the fMRI range above (see the palette budget note in the auto-discovery
+# function), so it can never take a tract's or an activation's colour.
+lesion_color=50
 lesion_in=""
 for _lesion_cand in \
     "RESULTS/sub-${participant}/Lesion/sub-${participant}_lesion_and_cavity.nii.gz" \

@@ -62,11 +62,19 @@ With the extended 64-entry fork (indices 0-63, 0 = background):
 | range | use |
 |---|---|
 | 1-41 | known-tract table (fixed; changing these breaks scene continuity) |
-| 16 | lesion |
-| 23, 24 | DBS STN VOIs |
-| 42-55 | auto-assigned tracts (bundles outside the table) |
-| 2, 6, 8, 10, 12, 14, 30 | first seven fMRI labels — inside 1-30, so stock karawun works |
-| 56-63 | further fMRI labels (needs the fork) |
+| 23, 24 | DBS STN VOIs (pre-existing, in a gap the table leaves free) |
+| 42-49 | auto-assigned tracts (bundles outside the table) |
+| 50 | lesion |
+| 51-63 | fMRI activation labels |
+
+Tracts get the whole low block, then one slot for the lesion, then fMRI.
+`2, 6, 8, 10, 12, 14, 16, 30` are left free for future tract entries.
+
+**This makes the extended-palette fork a requirement for fMRI labels.** Every
+value above is >30, and stock karawun clamps anything >30 to its last entry, so
+without the fork every activation renders in the same colour as every other one.
+That is the deliberate trade for keeping the entire low block available to
+tracts.
 
 Verified disjoint programmatically: no tract, lesion, VOI or fMRI colour can
 coincide, and nothing exceeds the ceiling of 63.
@@ -80,7 +88,7 @@ Two things forced the ranges rather than a simple offset:
   warn once when they wrap. Two unknown bundles sharing a colour is a mild
   annoyance; a bundle taking an fMRI activation's colour is a misread waiting
   to happen.
-- **Total demand exceeds supply** (41 + 34 + 8 + 1 = 84 > 63), so some reuse is
+- **Total demand exceeds supply** (41 + 34 + 13 + 1 = 89 > 63), so some reuse is
   unavoidable. Confining it to *within* the auto-tract range is the point.
 
 ### Fixed (`KUL_make_fMRI_labels.sh`)

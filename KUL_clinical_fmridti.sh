@@ -1120,34 +1120,15 @@ if [ $results -gt 0 ];then
             # identically -- the one pair you most need to tell apart. Tasks 3,
             # 4 and 5 landed on CST_LT, CST_RT and Cingulum.
             #
-            # fe3b800 merged left/right colours for well-separated tracts to
-            # free budget "for fMRI labels without colliding", but the labels
-            # themselves were never moved into the freed range. This finishes
-            # that: the low values here are exactly the indices the tract table,
-            # the DBS VOIs (23, 24) and the lesion (16) leave unused, so it
-            # works on stock karawun. Anything past those spills into 56-63,
-            # which needs the extended-palette fork (values >30 clamp to the
-            # last entry on stock karawun). 56 and up, not 50: auto-assigned
-            # tract colours occupy 42-55, and the shipped tracks_list.txt has
-            # 34 bundles outside the known table, so starting at 50 would have
-            # let tracts walk straight into the fMRI range.
+            # Palette budget (see KUL_karawun_prepare.sh for the full map):
+            #   1-41 known tracts, 42-49 auto tracts, 50 lesion, 51-63 fMRI.
             #
-            # The low seven are ordered by measured worst-case CIEDE2000
-            # distance to every tract/lesion colour and to each other, best
-            # first, so the slots actually used on a typical 1-3 task case get
-            # the most distinguishable colours:
-            #   2 -> 15.3   6 -> 12.7   12 -> 9.9   8 -> 7.2
-            #   14 -> 6.9   10 -> 6.1   30 -> 4.1
-            # For reference, fMRI colour 2 sits dE 77.7 from the Arcuate, which
-            # is the comparison that motivated all of this.
-            #
-            # The fork's 50+ colours are better separated (~13) than low slots
-            # 4-7, but they are listed after, not before: on stock karawun
-            # anything >30 clamps to a single entry, so leading with them would
-            # make every task past the third render identically. Degrading to a
-            # merely-mediocre colour is a better failure than degrading to no
-            # distinction at all.
-            _fmri_label_colors=(2 6 12 8 14 10 30 56 57 58 59 60 61 62 63)
+            # REQUIRES the extended-palette karawun fork. Every value here is
+            # above 30, and stock karawun clamps anything above 30 to its last
+            # entry -- so without the fork every activation renders in the same
+            # colour as every other one. That is the deliberate trade for
+            # keeping the whole low block available to tracts.
+            _fmri_label_colors=(51 52 53 54 55 56 57 58 59 60 61 62 63)
 
             for _idx in "${!_spm_task_names_sorted[@]}"; do
                 _spmname="${_spm_task_names_sorted[$_idx]}"
@@ -1156,7 +1137,7 @@ if [ $results -gt 0 ];then
                 else
                     # more tasks than reserved colours; keep going past the end
                     # of the list rather than silently reusing one
-                    _label_int=$((59 + _idx - ${#_fmri_label_colors[@]}))
+                    _label_int=$((63 + _idx - ${#_fmri_label_colors[@]} + 1))
                     echo "WARNING: more fMRI maps than reserved label colours; using ${_label_int}"
                 fi
                 echo "Karawun fMRI label: task '${_spmname}' scaled to value ${_label_int}"
