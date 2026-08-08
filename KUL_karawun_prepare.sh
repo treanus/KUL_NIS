@@ -352,7 +352,21 @@ fi
 
 if [ -f $FAT1 ]; then
     FAT1w="Karawun/sub-${participant}/FAT1w.nii.gz"
-    cp $FAT1 $FAT1w
+
+    # Rescale into 16-bit range instead of copying as-is. karawun writes
+    # SmallestImagePixelValue/LargestImagePixelValue (0028,0106/0107) from the
+    # *original* intensities, not from the values it rescales the pixel data to,
+    # and both tags are US -- capped at 65535. FAT1w is sqrt(FA) * T1w, so it
+    # comes out well above that (97575 on the first real case), and
+    # importTractography aborts with
+    #   "'H' format requires 0 <= number <= 65535 ... (0028,0107) US: 97575".
+    # The T1w a few lines above is rescaled for the same reason.
+    fat1_min=$(mrstats -output min "$FAT1")
+    fat1_max=$(mrstats -output max "$FAT1")
+    # awk, not bc: mrstats can report in scientific notation, which bc cannot parse
+    fat1_factor=$(awk -v a="$fat1_max" -v b="$fat1_min" \
+        'BEGIN { d = (a - b) / 32767; if (d <= 0) d = 1; printf "%.10f", d }')
+    mrcalc "$FAT1" "$fat1_min" -sub "$fat1_factor" -div "$FAT1w" -force
 else
     FAT1w=""
 fi

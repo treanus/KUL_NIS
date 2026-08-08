@@ -55,6 +55,22 @@
   export. `bash -n` does not catch this. Both helpers now live above that block,
   with a comment explaining why they cannot be moved back.
 
+### Fixed (found by running the Brainlab import on real data)
+
+- **FAT1w overflowed the DICOM `LargestImagePixelValue` tag.** It was copied to
+  the Karawun folder unscaled. karawun writes `(0028,0106)`/`(0028,0107)` from
+  the image's *original* intensities rather than from the values it rescales the
+  pixel data to, and both tags are US — capped at 65535. FAT1w is
+  sqrt(FA) * T1w, which reached 97575 on the first real case, so
+  `importTractography` aborted with
+  `'H' format requires 0 <= number <= 65535 ... (0028,0107) US: 97575`.
+  It is now rescaled into 16-bit range before being handed over, the same way
+  the T1w beside it already was.
+
+  This path had never executed before — `KUL_FAT1w.py` was orphaned, so the
+  volume was never produced and the copy never ran. Restoring the QA volume is
+  what exposed it.
+
 ### Changed (interpolation)
 
 - `KUL_dsc_perfusion.sh` passes `-p BSpline` to `antsMotionCorr` instead of
