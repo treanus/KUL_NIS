@@ -9,9 +9,17 @@
 # v0.1 - dd 09/11/2018 - created
 version="v1.4 - dd 24/02/2026"
 
-# The multiband factor for shard-recon.
-# needs to be turned into a configurable parameter if shard-recon is used!
-mb=2
+# Multiband factor, used only by shard-recon (-c) for its slice-timing model
+# (-mb ${mb} -sorder 1,0). Left unset here on purpose: it is read from the dwi
+# BIDS sidecar's MultibandAccelerationFactor at the point of use, and -M
+# overrides that.
+#
+# This used to be hardcoded to 2. A wrong multiband factor does not crash
+# dwimotioncorrect -- it silently produces a wrong motion correction, because
+# the factor defines which slices were acquired simultaneously. Of the two
+# studies to hand, one is MB2 and the other MB3, so the hardcoded value was
+# already wrong for half of them with nothing to indicate it.
+mb=""
 
 # for some old studies, the header info is not available
 # in that case one can set an environment variable
@@ -53,6 +61,11 @@ Optional arguments:
 	 -n:  number of cpu for parallelisation (default 6)
 	 -b:  use Synb0-DISCO instead of topup (requires docker)
 	 -c:  use shard-recon instead of eddy
+	      NOTE: shard-recon is incompatible with current MRtrix3 -- see the
+	      warning printed when -c is given
+	 -M:  multiband factor for shard-recon (default: MultibandAccelerationFactor
+	      from the dwi BIDS sidecar). Only used with -c. A wrong value does not
+	      fail, it silently produces a wrong motion correction.
 	 -e:  options to pass to eddy (default "--slm=linear --repol")
 	 -v:  show output from mrtrix commands (0=silent, 1=normal, 2=verbose; default=1)
 	 -r:  use reverse phase data only for topup and not for further processing
@@ -112,7 +125,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:d:e:m:v:x:f:rbcu" OPT; do
+	while getopts "p:s:n:d:e:m:v:x:f:M:rbcu" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -146,6 +159,9 @@ else
 		;;
 		c) #shard
 			shard=1
+		;;
+		M) #multiband factor (shard-recon only; overrides the BIDS sidecar)
+			mb=$OPTARG
 		;;
 		u) #use native (non-upsampled) data
 			use_upsampled=0
@@ -717,7 +733,63 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		# note: maybe add -eddy_mask
 
 		if [ $shard -eq 1 ]; then
-			
+
+			# --- shard-recon compatibility --------------------------------
+			# shard-recon targets the MRtrix3 3.0.x python API: its scripts end
+			# in mrtrix3.execute(). The dev branch moved that entry point into
+			# mrtrix3.app._execute(usage, execute), so on a current MRtrix3
+			# every shard-recon command dies immediately with
+			#   AttributeError: module 'mrtrix3' has no attribute 'execute'
+			# Fail here with an explanation rather than after denoise, degibbs
+			# and topup have already run.
+			if ! dwimotioncorrect --help > /dev/null 2>&1; then
+				echo ""
+				echo "  ERROR: dwimotioncorrect is not runnable."
+				echo ""
+				echo "  If it fails with \"module 'mrtrix3' has no attribute 'execute'\","
+				echo "  shard-recon is built against an incompatible MRtrix3. It targets"
+				echo "  the 3.0.x python API; the dev/CMake branch replaced mrtrix3.execute()"
+				echo "  with mrtrix3.app._execute(usage, execute)."
+				echo "  Installed MRtrix3: $(mrconvert -version 2>/dev/null | head -1)"
+				echo ""
+				echo "  Fix: build a classic (non-CMake) MRtrix3 3.0.x and rebuild"
+				echo "  shard-recon against it, then put its bin/ first on PATH."
+				echo "  shard-recon's own build needs that classic tree anyway -- it has"
+				echo "  no CMake equivalent."
+				echo ""
+				echo "  Or drop -c / set shard_recon: 0 to use eddy instead."
+				echo ""
+				exit 1
+			fi
+
+			# --- multiband factor -----------------------------------------
+			# Only shard needs it. Prefer -M, else the dwi BIDS sidecar. Never
+			# guess: the factor says which slices were acquired simultaneously,
+			# so a wrong one yields a plausible-looking but wrong correction.
+			if [ -z "$mb" ]; then
+				_dwi_json=$(find ${cwd}/BIDS/sub-${participant} -name "*_dwi.json" -type f 2>/dev/null | sort | head -1)
+				if [ -n "$_dwi_json" ]; then
+					mb=$(python3 -c "
+import json,sys
+try: v=json.load(open('$_dwi_json')).get('MultibandAccelerationFactor')
+except Exception: sys.exit(0)
+if isinstance(v,(int,float)) and v>=1: print(int(v))
+" 2>/dev/null)
+				fi
+			fi
+			if [ -z "$mb" ]; then
+				echo ""
+				echo "  ERROR: could not determine the multiband factor for shard-recon."
+				echo "  Looked for MultibandAccelerationFactor in ${_dwi_json:-<no dwi json found>}"
+				echo "  Pass it explicitly with -M <factor>."
+				echo ""
+				echo "  Not defaulting on purpose: a wrong multiband factor does not fail,"
+				echo "  it silently produces a wrong motion correction."
+				echo ""
+				exit 1
+			fi
+			kul_echo "  shard-recon multiband factor: ${mb}"
+
 			mkdir -p shard
 
 			task_in1="mrinfo dwi/degibbs.mif -export_grad_mrtrix shard/grad.b -force"

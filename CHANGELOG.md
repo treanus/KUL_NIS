@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased (committed locally, 2026-08-08 — shard-recon: multiband factor and MRtrix3 incompatibility)
+
+### `mb` is no longer hardcoded
+
+`KUL_dwiprep.sh` hardcoded `mb=2` for shard-recon's slice-timing model
+(`-mb ${mb} -sorder 1,0`), with its own comment noting it "needs to be turned
+into a configurable parameter if shard-recon is used".
+
+That matters more than a stale default usually would: **a wrong multiband factor
+does not fail.** It tells dwimotioncorrect which slices were acquired
+simultaneously, so an incorrect value yields a plausible-looking but wrong motion
+correction, with nothing to indicate it. Of the two studies to hand, one is MB2
+and the other MB3 — so the hardcoded value was already wrong for half of them.
+
+Now read from the dwi BIDS sidecar's `MultibandAccelerationFactor` (present and
+correct in both studies checked), overridable with the new `-M`. If neither
+yields a value the run **stops** rather than defaulting, for the reason above.
+
+### shard-recon is incompatible with current MRtrix3 — now said out loud
+
+shard-recon targets the MRtrix3 **3.0.x** python API: its scripts end in
+`mrtrix3.execute()`. The dev/CMake branch moved that entry point to
+`mrtrix3.app._execute(usage, execute)`, so against the installed
+3.0.8-2099-geba5dd55 every shard-recon command dies immediately with
+
+```
+AttributeError: module 'mrtrix3' has no attribute 'execute'
+```
+
+`shard-recon/bin/mrtrix3.py` is a symlink into the MRtrix3 install, so it picks
+up whatever is there. This is not a PATH or build problem — the function it calls
+no longer exists.
+
+`KUL_dwiprep.sh -c` now probes `dwimotioncorrect` up front and exits with an
+explanation, instead of failing at "part 3" after denoise, degibbs and topup have
+already run. The fix it points to is a classic (non-CMake) MRtrix3 3.0.x with
+shard-recon rebuilt against it — which shard-recon's own build requires anyway,
+having no CMake equivalent.
+
+Documented in `-c`/`-M` usage text.
+
 ## Unreleased (committed locally, 2026-08-08 — rsfMRI FreeSurfer lookup never resolved)
 
 `step0_synthseg.sh` derives its default paths from its own location:
