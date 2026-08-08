@@ -55,6 +55,34 @@
   export. `bash -n` does not catch this. Both helpers now live above that block,
   with a comment explaining why they cannot be moved back.
 
+### New — thalamic VIM labels for ET DBS (type 2)
+
+`KUL_karawun_prepare.sh` now exports the thalamic VIM as a Brainlab label for
+type 2 (essential tremor / DRT) cases. The DRT tract already reached Brainlab;
+the target it is aimed at did not.
+
+Source is FreeSurfer's thalamic subnuclei segmentation (`segment_subregions
+thalamus`, run by `KUL_FS_multiparc.sh`), labels **8129 Left-VLp** and **8229
+Right-VLp** — VLp is the standard FreeSurfer analogue of the VIM target, there
+being no nucleus literally named VIM in that atlas. Resampled onto the Karawun
+grid with `mri_vol2vol --regheader --nearest`, written as `VIM_Left.nii.gz` /
+`VIM_Right.nii.gz` at colours **16** and **30**. A side with under 10 voxels is
+dropped with a warning rather than exported as a sliver.
+
+Worth contrasting with the STN VOIs beside it: those are an atlas region
+(DISTAL, *symmetrised*, so left and right are mirror images by construction)
+warped into the subject and repurposed from the tractography inclusion VOI. The
+VIM label is segmented from the subject's own T1w, so it carries real individual
+anatomy and genuine left/right asymmetry.
+
+The filename is globbed, not hardcoded: FS 8.x writes
+`ThalamicNuclei.FSvoxelSpace.mgz` while FS 7.x wrote
+`ThalamicNuclei.v12.T1.FSvoxelSpace.mgz`. The docstring in
+`KUL_FS_multiparc.sh` still named the 7.x file and has been corrected.
+
+Groundwork for a later refinement: intersecting this label with the DRT
+streamlines that actually pass through it, for a more specific target.
+
 ### Palette budget (this is now an explicit, verified allocation)
 
 With the extended 64-entry fork (indices 0-63, 0 = background):
@@ -63,12 +91,17 @@ With the extended 64-entry fork (indices 0-63, 0 = background):
 |---|---|
 | 1-41 | known-tract table (fixed; changing these breaks scene continuity) |
 | 23, 24 | DBS STN VOIs (pre-existing, in a gap the table leaves free) |
+| 16, 30 | thalamic VIM left/right (type 2 / ET), likewise in a free gap |
 | 42-49 | auto-assigned tracts (bundles outside the table) |
 | 50 | lesion |
 | 51-63 | fMRI activation labels |
 
 Tracts get the whole low block, then one slot for the lesion, then fMRI.
-`2, 6, 8, 10, 12, 14, 16, 30` are left free for future tract entries.
+`2, 6, 8, 10, 12, 14` are left free for future tract entries.
+
+Left/right bundle colours stay merged: splitting them needs exactly the 8 free
+low slots, which would leave nothing for VIM, and would change the colour of
+every right-sided bundle relative to scenes already reviewed. Deferred.
 
 **This makes the extended-palette fork a requirement for fMRI labels.** Every
 value above is >30, and stock karawun clamps anything >30 to its last entry, so

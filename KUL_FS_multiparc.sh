@@ -71,7 +71,7 @@ Outputs (written to <fs_subjects_dir>/<subject_id>/mri/):
   aparc+aseg.mgz                        (from recon-all)
   lausanne2018.scale1-5+aseg.mgz        Lausanne2018 cortical parcellation
   HCPMMP1+aseg.mgz                      Glasser HCP-MMP1
-  ThalamicNuclei.v12.T1.FSvoxelSpace.mgz
+  ThalamicNuclei.FSvoxelSpace.mgz       (FS 7.x wrote ThalamicNuclei.v12.T1.FSvoxelSpace.mgz)
   brainstemSsLabels.v12.FSvoxelSpace.mgz
 
 EOF

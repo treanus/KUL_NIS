@@ -283,6 +283,7 @@ function KUL_karawun_auto_discover_tracts {
     #
     #   1-41    known-tract table (fixed; changing these breaks scene continuity)
     #           - 23, 24 sit in a gap the table leaves free, used by the DBS STN VOIs
+    #           - 16, 30 likewise, used by the thalamic VIM labels (type 2 / ET)
     #   42-49   auto-assigned tracts  <- here
     #   50      lesion
     #   51-63   fMRI activation labels (see KUL_clinical_fmridti.sh)
@@ -433,6 +434,82 @@ if [ -n "$lesion_in" ]; then
     rm -rf "${_lesion_tmp}"
 else
     echo "No lesion mask found in RESULTS/sub-${participant}/Lesion/ - no Karawun lesion label"
+fi
+
+# Thalamic VIM as a Brainlab label, for ET DBS cases (type 2), where it is the
+# actual surgical target. The DRT tract already reaches Brainlab; without this
+# the target it is aimed at does not.
+#
+# Source is FreeSurfer's thalamic subnuclei segmentation (segment_subregions
+# thalamus, run by KUL_FS_multiparc.sh), labels 8129 Left-VLp / 8229 Right-VLp.
+# VLp -- ventral lateral posterior -- is the standard FreeSurfer analogue of the
+# VIM target; there is no nucleus literally named VIM in that atlas.
+#
+# Worth knowing how this differs from the STN VOIs above: those are an atlas
+# region (DISTAL, symmetrised, so L and R are mirror images by construction)
+# warped into the subject, repurposed from the tractography inclusion VOI. This
+# one is segmented from the subject's own T1w, so it carries real individual
+# anatomy and genuine L/R asymmetry.
+vim_color_left=16
+vim_color_right=30
+
+if [ $type -eq 2 ]; then
+
+    # same FreeSurfer resolution order used elsewhere in the pipeline
+    _vim_fs=""
+    for _cand in \
+        "BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}" \
+        "KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}" \
+        "BIDS/derivatives/freesurfer/sub-${participant}"; do
+        if [ -d "$_cand/mri" ]; then
+            _vim_fs="$_cand"
+            break
+        fi
+    done
+
+    # FS 8.x writes ThalamicNuclei.FSvoxelSpace.mgz; FS 7.x wrote
+    # ThalamicNuclei.v12.T1.FSvoxelSpace.mgz. Glob rather than hardcode -- the
+    # docstring in KUL_FS_multiparc.sh still names the 7.x file.
+    _vim_seg=""
+    if [ -n "$_vim_fs" ]; then
+        _vim_seg=$(ls "$_vim_fs"/mri/ThalamicNuclei*FSvoxelSpace.mgz 2>/dev/null | head -1)
+    fi
+
+    if [ -n "$_vim_seg" ] && [ -f "$_vim_seg" ]; then
+        echo "Karawun VIM labels: $(basename "$_vim_seg") -> VLp, colours ${vim_color_left}/${vim_color_right}"
+        _vim_tmp="$(mktemp -d)"
+
+        # onto the Karawun grid. --regheader, because the segmentation is on
+        # FreeSurfer's conformed grid and shares scanner coordinates with the
+        # T1w it was built from; --nearest since it is a label volume.
+        if mri_vol2vol --mov "$_vim_seg" --targ Karawun/sub-${participant}/T1w.nii.gz \
+            --regheader --o "${_vim_tmp}/thal.nii.gz" --nearest > /dev/null 2>&1; then
+
+            mrcalc "${_vim_tmp}/thal.nii.gz" 8129 -eq ${vim_color_left} -mult \
+                Karawun/sub-${participant}/labels/VIM_Left.nii.gz -force -quiet
+            mrcalc "${_vim_tmp}/thal.nii.gz" 8229 -eq ${vim_color_right} -mult \
+                Karawun/sub-${participant}/labels/VIM_Right.nii.gz -force -quiet
+
+            for _side in Left Right; do
+                _n=$(mrstats -output count -ignorezero \
+                    Karawun/sub-${participant}/labels/VIM_${_side}.nii.gz 2>/dev/null)
+                if [ -z "$_n" ] || [ "$_n" -lt 10 ]; then
+                    echo "  WARNING: VIM_${_side} has only ${_n:-0} voxels - dropping it."
+                    echo "    Check that the thalamic segmentation covers this side."
+                    rm -f Karawun/sub-${participant}/labels/VIM_${_side}.nii.gz
+                else
+                    echo "  VIM_${_side}: ${_n} voxels"
+                fi
+            done
+        else
+            echo "  WARNING: mri_vol2vol failed on $(basename "$_vim_seg") - no VIM labels"
+        fi
+        rm -rf "${_vim_tmp}"
+    else
+        echo "No thalamic segmentation found - no VIM labels."
+        echo "  Expected <FS subject>/mri/ThalamicNuclei*FSvoxelSpace.mgz, produced by"
+        echo "  KUL_FS_multiparc.sh (segment_subregions thalamus). Run that first."
+    fi
 fi
 
 
