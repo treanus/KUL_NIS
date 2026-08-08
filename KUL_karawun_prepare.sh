@@ -397,6 +397,44 @@ T1w_max=$(mrstats -output max $T1w_in)
 T1w_factor=$(scale=10; echo "($T1w_max-($T1w_min))/32767" | bc)
 mrcalc $T1w_in $T1w_min -sub $T1w_factor -div Karawun/sub-${participant}/T1w.nii.gz -force
 
+# Pre-flight: karawun refuses any volume whose three voxel dimensions all differ.
+#
+#   check_isotropy() in karawun.py:
+#       spu = np.unique(np.around(spacing, 6))
+#       if spu.shape[0] == 3: raise ValueError("No plane with isotropic voxels")
+#
+# It picks a slice plane and needs the in-plane voxels square. Two matching
+# dimensions is enough; all three distinct is fatal. This is an ACQUISITION
+# constraint -- if the T1w was scanned with three different voxel dimensions,
+# nothing downstream can fix it, and every volume resampled onto that grid
+# inherits the problem.
+#
+# Checked here rather than left to importTractography, which only raises at the
+# very end of the workflow -- after tractography, VBG, fMRI and the whole export
+# have already run. The comparison mirrors karawun's own rounding so the two
+# cannot disagree.
+_t1w_sp=($(mrinfo -spacing Karawun/sub-${participant}/T1w.nii.gz))
+_n_uniq=$(printf '%s\n' "${_t1w_sp[@]}" | awk '{printf "%.6f\n", $1}' | sort -u | wc -l)
+if [ "$_n_uniq" -eq 3 ]; then
+    echo ""
+    echo "  ***********************************************************************"
+    echo "  WARNING: T1w voxel sizes are ${_t1w_sp[0]} x ${_t1w_sp[1]} x ${_t1w_sp[2]}"
+    echo "  All three differ, so karawun's importTractography WILL FAIL with"
+    echo "    'No plane with isotropic voxels - stopping'"
+    echo "  It needs at least one plane with square (in-plane isotropic) voxels."
+    echo ""
+    echo "  This is an acquisition constraint. Fix it at the scanner for future"
+    echo "  cases; for this one, resample the T1w to an isotropic grid before"
+    echo "  re-running, e.g.:"
+    echo "    mrgrid <T1w> regrid -voxel 1,1,1 <T1w_iso>"
+    echo "  Everything else is resampled onto the T1w grid, so fixing the T1w"
+    echo "  fixes every label and anatomical in the export."
+    echo "  ***********************************************************************"
+    echo ""
+else
+    kul_echo "  T1w voxel sizes ${_t1w_sp[0]} x ${_t1w_sp[1]} x ${_t1w_sp[2]} - isotropic plane present, OK for karawun"
+fi
+
 # FAT1w = sqrt(FA) * T1w (Goedemans et al., Imaging Neurosci 2024), loaded into
 # Brainlab as a second anatomical alongside the T1w. It makes the FA-to-T1w
 # registration directly inspectable, which is the QA step this whole folder

@@ -43,6 +43,56 @@ the cheapest high-value QA step in the whole pipeline.
 
 ---
 
+## Acquisition requirement: one plane must have isotropic voxels
+
+**This constrains your scan protocol, and it is checked nowhere upstream.**
+
+`check_isotropy()` in karawun refuses any volume whose three voxel dimensions
+all differ:
+
+```python
+spu = np.unique(np.around(spacing, 6))
+if spu.shape[0] == 3:
+    raise ValueError("No plane with isotropic voxels - stopping - ...")
+```
+
+Karawun picks a slice plane to write DICOMs into and needs the **in-plane**
+voxels square. Two matching dimensions is enough; three distinct is fatal.
+
+| voxel size | |
+|---|---|
+| 1 × 1 × 1 | fine |
+| 0.9 × 0.833 × 0.833 | fine (in-plane isotropic) |
+| 1.8 × 1.8 × 4 | fine (typical clinical anisotropic slice) |
+| **0.9 × 0.86 × 4.2** | **rejected** |
+
+Two things make this worth knowing in advance:
+
+- **It is an acquisition constraint.** If the T1w was scanned with three
+  different voxel dimensions, no downstream step fixes it — you would have to
+  resample, which is lossy and changes the space every other result lives in.
+- **Fixing the T1w fixes everything.** Every label and anatomical in the export
+  is resampled onto the T1w grid, so they inherit its spacing. Satisfy it once,
+  for the T1w, and the whole export is safe.
+
+Stock karawun only raises this at `importTractography` — the very last step,
+after tractography, VBG, fMRI and the export have all run.
+`KUL_karawun_prepare.sh` therefore pre-checks the T1w and warns early, using the
+same rounding karawun does so the two cannot disagree.
+
+If you are stuck with an already-acquired anisotropic T1w:
+
+```bash
+mrgrid <T1w> regrid -voxel 1,1,1 <T1w_iso>
+```
+
+and re-run the pipeline against the resampled volume.
+
+Note the comparison rounds to 6 decimals, so two nominally-equal dimensions that
+differ only by floating-point drift still count as equal. Volumes produced by
+`antsApplyTransforms -r <T1w>` copy the reference geometry exactly and are safe
+by construction.
+
 ## Label colour convention
 
 **This is the part to read before changing anything.**

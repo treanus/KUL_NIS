@@ -28,6 +28,15 @@ fork, and
 [KUL_karawun_prepare](/docs/KUL_karawun_prepare/KUL_karawun_prepare.md) for the
 full label-colour convention.
 
+**Check your T1w voxel size if you will use Brainlab.** Karawun rejects any
+volume whose three voxel dimensions all differ — it needs at least one plane
+with square (in-plane isotropic) voxels. `1×1×1` and `0.9×0.833×0.833` are fine,
+`0.9×0.86×4.2` is not. This is an *acquisition* constraint: everything else is
+resampled onto the T1w grid and inherits its spacing, so getting the T1w right
+makes the whole export safe. Stock karawun only complains at the very last step,
+so `KUL_karawun_prepare.sh` pre-checks and warns early. See
+[KUL_karawun_prepare](/docs/KUL_karawun_prepare/KUL_karawun_prepare.md#acquisition-requirement-one-plane-must-have-isotropic-voxels).
+
 **Tell dcm2bids about your DSC sequence.** Add a line to
 `study_config/sequences.txt` with enough of the series description to be
 unambiguous:
