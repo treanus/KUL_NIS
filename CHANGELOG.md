@@ -1,5 +1,42 @@
 # Changelog
 
+## Unreleased (committed locally, 2026-08-08 — rsfMRI FreeSurfer lookup never resolved)
+
+`step0_synthseg.sh` derives its default paths from its own location:
+
+```bash
+BASE_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+```
+
+After relocation into `share/`, that resolves to the **KUL_NIS repo**, not the
+study directory. `KUL_run_rsfMRI_networks.sh` exported `RSFMRI_FMRIPREP_DIR`,
+`RSFMRI_DENOISED_DIR`, `RSFMRI_ANALYSIS_DIR` and `RSFMRI_SYNTHSEG_DIR` to
+compensate — but **not** `RSFMRI_FS_DIR`, and nothing overrode the VBG path at
+all. So the FreeSurfer lookups pointed at
+`<KUL_NIS>/BIDS/derivatives/freesurfer/...`, which cannot exist.
+
+Consequences, all silent:
+
+- Step 6 (Lausanne2018 scale3 subject-specific atlas) **never ran for any
+  subject**, regardless of whether the parcellation existed. Confirmed on a real
+  study whose `BIDS/derivatives/freesurfer/sub-X/mri/` held all five Lausanne
+  scales: no `*_lausanne_scale3_*` output had ever been produced.
+- The Lausanne-based somatotopic SBA seeding added in `636ae80` therefore could
+  never find its input as shipped.
+- The message it printed — "run KUL_FS_multiparc.sh first" — actively misled,
+  since multiparc had run and produced the files.
+
+Fixed by exporting `RSFMRI_FS_DIR` and a new `RSFMRI_VBG_DIR` from the caller,
+and having `step0_synthseg.sh` honour the latter for its VBG lookup. The VBG
+path *layout* in step0 was already correct (`output_VBG/sub-X_FS_output/sub-X`,
+verified against a real KUL_VBG output tree) — only its root was wrong.
+
+Note `KUL_clinical_fmridti.sh`'s FWT lookup uses a different VBG layout
+(`output_VBG/sub-X/sub-X_FS_output/sub-X`) which does not match what KUL_VBG
+writes. That one is harmless in practice — `KUL_run_VBG` copies the FS tree into
+`BIDS/derivatives/freesurfer/`, which is the fallback it lands on — so it is
+noted rather than changed here.
+
 ## Unreleased (committed locally, 2026-08-08 — Karawun lesion label, FAT1w QA, lesion/perfusion PACS)
 
 ### Fixed

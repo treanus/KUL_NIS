@@ -38,6 +38,9 @@ LOG_DIR="${SYNTHSEG_DIR}/logs"
 # when present, same precedence KUL_run_FWT already uses) is checked directly
 # in the per-subject loop below since it needs the subject ID either way.
 FS_DIR="${RSFMRI_FS_DIR:-${BASE_DIR}/BIDS/derivatives/freesurfer}"
+# Same reason FS_DIR is overridable: BASE_DIR resolves to the KUL_NIS repo, not
+# the study, whenever this script is called from its installed location.
+VBG_DIR="${RSFMRI_VBG_DIR:-${BASE_DIR}/KUL_VBG}"
 THREADS=4
 
 YEO_DIR="${PIPELINE_DIR}/Yeo_JNeurophysiol11_MNI152"
@@ -255,7 +258,7 @@ for SUBJ in "${SUBJECTS[@]}"; do
     # VBG's own FreeSurfer output is preferred when present, same precedence
     # KUL_run_FWT already uses for aparc+aseg -- fall back to the standard
     # freesurfer derivatives location otherwise.
-    LAUSANNE_VBG="${BASE_DIR}/KUL_VBG/output_VBG/sub-${SUBJ}_FS_output/sub-${SUBJ}/mri/lausanne2018.scale3+aseg.mgz"
+    LAUSANNE_VBG="${VBG_DIR}/output_VBG/sub-${SUBJ}_FS_output/sub-${SUBJ}/mri/lausanne2018.scale3+aseg.mgz"
     LAUSANNE_STD="${FS_DIR}/sub-${SUBJ}/mri/lausanne2018.scale3+aseg.mgz"
     OUT_LAUSANNE_T1W="${OUT_DIR}/sub-${SUBJ}_lausanne_scale3_T1w.nii.gz"
     OUT_LAUSANNE_MNI="${OUT_DIR}/sub-${SUBJ}_lausanne_scale3_MNI.nii.gz"

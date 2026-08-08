@@ -146,6 +146,15 @@ export RSFMRI_FMRIPREP_DIR="$cwd/fmriprep"
 export RSFMRI_DENOISED_DIR="$kulderivativesdir/rsfMRI_networks/denoised"
 export RSFMRI_ANALYSIS_DIR="$kulderivativesdir/rsfMRI_networks/analysis"
 export RSFMRI_SYNTHSEG_DIR="$RSFMRI_ANALYSIS_DIR/synthseg"
+# step0_synthseg.sh derives its default paths from its own location, which after
+# relocation into share/ resolves to the KUL_NIS repo rather than the study dir.
+# The three above were already exported; these two were not, so the FreeSurfer
+# and VBG lookups silently pointed at <KUL_NIS>/BIDS/derivatives/freesurfer --
+# a path that cannot exist. Every Lausanne lookup therefore failed regardless of
+# whether the subject actually had one, and reported "run KUL_FS_multiparc.sh
+# first" even when multiparc had produced all five scales.
+export RSFMRI_FS_DIR="$cwd/BIDS/derivatives/freesurfer"
+export RSFMRI_VBG_DIR="$cwd/KUL_VBG"
 
 if [ $KUL_DEBUG -gt 0 ]; then
     echo "pipeline_dir: $pipeline_dir"
@@ -153,6 +162,8 @@ if [ $KUL_DEBUG -gt 0 ]; then
     echo "RSFMRI_DENOISED_DIR: $RSFMRI_DENOISED_DIR"
     echo "RSFMRI_ANALYSIS_DIR: $RSFMRI_ANALYSIS_DIR"
     echo "RSFMRI_SYNTHSEG_DIR: $RSFMRI_SYNTHSEG_DIR"
+    echo "RSFMRI_FS_DIR: $RSFMRI_FS_DIR"
+    echo "RSFMRI_VBG_DIR: $RSFMRI_VBG_DIR"
     echo "globalresultsdir: $globalresultsdir"
 fi
 
