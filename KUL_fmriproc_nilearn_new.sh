@@ -452,6 +452,12 @@ mkdir -p $computedir/RESULTS
 mkdir -p $globalresultsdir
 mkdir -p $globalresultsdir_all
 
+# Output lands in RESULTS/.../SPM (same folder the SPM engine writes to, for
+# downstream consistency), so drop a marker noting nilearn was actually the
+# engine used -- otherwise nothing in that folder distinguishes it from an
+# SPM run.
+echo "engine: nilearn (KUL_fmriproc_nilearn_new.sh), generated $(date -Iseconds)" > "$globalresultsdir/engine_nilearn.txt"
+
 # Use MNI-space fmriprep output so SPM stats are in MNI and the MNI→T1w
 # warp-back at the end produces correctly aligned native-space results.
 fmriprep_output_type="_space-MNI152NLin2009cAsym"

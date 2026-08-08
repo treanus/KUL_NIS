@@ -195,5 +195,36 @@ KUL_task_exec $verbose_level "rsfMRI networks: PDF report" "rsfmri_4_report" || 
 
 cp -f "$RSFMRI_ANALYSIS_DIR/reports/sub-${participant}_rsfmri_networks_report.pdf" "$globalresultsdir/" 2>/dev/null
 
+# Also link the actual per-patient statmaps (seed-based and RSN-FC), not just
+# the PDF summary — these are the clinically relevant zscore/pval/loosig maps
+# consumed by step5_report.py, and previously only lived under
+# BIDS/derivatives/KUL_compute/rsfMRI_networks/analysis/{sba,rsn_fc}/, never
+# copied into RESULTS/ like every other modality's output.
+#
+# The pipeline computes these on the MNI152NLin2009cAsym-space denoised BOLD
+# (see the --space above), so — same as KUL_fmriproc_nilearn_new.sh does for
+# its own MNI-space GLM output — warp back to native T1w before landing in
+# RESULTS/, so they register onto the same T1w grid as SPM, Tracto and the
+# Karawun labels instead of sitting in a different space unannounced.
+mkdir -p "$globalresultsdir/sba" "$globalresultsdir/rsn_fc"
+_rsfmri_mni2t1w=$(compgen -G "${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_*from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5" | head -1)
+_rsfmri_t1w_ref=$(find "${cwd}/BIDS/sub-${participant}/anat/" -name "*_T1w.nii.gz" ! -name "*gadolinium*" 2>/dev/null | head -1)
+if [ -n "$_rsfmri_mni2t1w" ] && [ -n "$_rsfmri_t1w_ref" ]; then
+    for _statmap in "$RSFMRI_ANALYSIS_DIR/sba/sub-${participant}/"*.nii.gz "$RSFMRI_ANALYSIS_DIR/rsn_fc/sub-${participant}/"*.nii.gz; do
+        [ -f "$_statmap" ] || continue
+        case "$_statmap" in
+            */sba/*) _outdir="$globalresultsdir/sba" ;;
+            *)       _outdir="$globalresultsdir/rsn_fc" ;;
+        esac
+        antsApplyTransforms -d 3 --float 1 \
+            -i "$_statmap" -o "$_outdir/$(basename "$_statmap")" \
+            -r "$_rsfmri_t1w_ref" -t "$_rsfmri_mni2t1w" -n Linear
+    done
+else
+    echo "WARNING: MNI-to-T1w transform or native T1w not found for sub-${participant} — copying rsfMRI statmaps as-is (still in MNI space, not warped)"
+    cp -f "$RSFMRI_ANALYSIS_DIR/sba/sub-${participant}/"*.nii.gz "$globalresultsdir/sba/" 2>/dev/null
+    cp -f "$RSFMRI_ANALYSIS_DIR/rsn_fc/sub-${participant}/"*.nii.gz "$globalresultsdir/rsn_fc/" 2>/dev/null
+fi
+
 touch "$done_flag"
 echo "Done: rsfMRI networks for sub-${participant}"
