@@ -20,10 +20,13 @@ scipy, nibabel, matplotlib and scikit-learn; the last arrives via nilearn.
 The script exits early with a clear message if the env is missing.
 
 **Karawun.** Colour indices above 30 are clamped by stock karawun, so bundles
-assigned 31–41 all render in the same colour in Brainlab. If you use the KU
-Leuven fork with the extended 64-colour palette, install it into `KarawunDev`
-and pin it. Indices 0–30 are unchanged there, so existing scenes are unaffected.
-See `KUL_PALETTE_NOTES.md` in that fork.
+assigned 31–41 all render in the same colour in Brainlab — and so do all the
+fMRI activation labels, which live at 51–63. Install the KU Leuven
+extended-palette fork into `KarawunDev` and pin it. Indices 0–30 are unchanged
+there, so existing scenes are unaffected. See `KUL_PALETTE_NOTES.md` in that
+fork, and
+[KUL_karawun_prepare](/docs/KUL_karawun_prepare/KUL_karawun_prepare.md) for the
+full label-colour convention.
 
 **Tell dcm2bids about your DSC sequence.** Add a line to
 `study_config/sequences.txt` with enough of the series description to be
@@ -139,8 +142,8 @@ Karawun/sub-JaneDoe/
 ├── T1w.nii.gz
 ├── FAT1w.nii.gz          FA-weighted T1w — the registration QA volume
 ├── labels/
-│   ├── Lesion.nii.gz     the tumour, palette colour 16
-│   ├── afMRI_*.nii.gz    one per task
+│   ├── Lesion.nii.gz     the tumour, palette colour 50
+│   ├── afMRI_*.nii.gz    one per task, colours 51-63
 │   └── *_center.nii.gz   one per bundle
 └── tck/
 ```
@@ -240,8 +243,10 @@ added without recomputing the fit.
 in the wrong space, or entirely in cerebellum/brainstem. Overlay it on
 `RESULTS/sub-JaneDoe/Anat/T1w.nii.gz` and check.
 
-**A dozen bundles are the same colour in Brainlab** — stock karawun clamps
-colour indices above 30. Use the extended-palette fork.
+**A dozen bundles are the same colour in Brainlab, or all the fMRI activations
+are** — stock karawun clamps colour indices above 30. Use the extended-palette
+fork; see
+[KUL_karawun_prepare](/docs/KUL_karawun_prepare/KUL_karawun_prepare.md).
 
 **`mri_synthstrip: no usable GPU, falling back to CPU`** — informational. It
 happens on CPU-only nodes and on GPU nodes whose FreeSurfer ships a CPU-only

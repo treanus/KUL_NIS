@@ -84,7 +84,7 @@ When a lesion mask exists — `sub-{participant}_lesion_and_cavity.nii.gz` from
 - binarised into `RESULTS/.../Anat/sub-{participant}_lesion.nii.gz`, next to the other
   T1w-space volumes that feed figures and PACS;
 - exported as a Brainlab label (`Karawun/sub-{participant}/labels/Lesion.nii.gz`,
-  palette colour 16), so the tumour appears in the same scene as the tracts;
+  palette colour 50), so the tumour appears in the same scene as the tracts;
 - rendered as a PACS series in `PACS/Clinical_*` under `-R`.
 
 ### FAT1w QA volume for Brainlab
@@ -241,7 +241,7 @@ These three flags control how the fMRI activation overlays look. Because each sc
 - `RESULTS/.../Perfusion/` — DSC perfusion maps and lesion/NAWM ratios, when DSC data is present (see [KUL_dsc_perfusion](/docs/KUL_dsc_perfusion/KUL_dsc_perfusion.md))
 - `*_figures_*/` — PNG screenshots for review (Tracto, SPM/fMRI and Clinical), per underlay and orientation
 - `RESULTS/.../PACS/` — DICOM series for PACS, created only with `-R` (via `KUL_nii2dcm.py`, using a donor DICOM for correct study/series linkage). `PACS/Clinical_*` holds the lesion and DSC perfusion series; `PACS/fMRI_*` and `PACS/Tracto_*` hold the activation and tract series.
-- `Karawun/sub-{participant}/` — Brainlab-compatible export, including a `FAT1w.nii.gz` QA volume and a `labels/Lesion.nii.gz` label when a lesion mask exists
+- `Karawun/sub-{participant}/` — Brainlab-compatible export, including a `FAT1w.nii.gz` QA volume, a `labels/Lesion.nii.gz` label when a lesion mask exists, and the fMRI activation labels (colours 51-63). See [KUL_karawun_prepare](/docs/KUL_karawun_prepare/KUL_karawun_prepare.md) for the label-colour convention — a label's voxel value *is* its Brainlab colour, and the ranges are non-overlapping by design
 
 To push the PACS DICOMs to an Orthanc/PACS node, see `tools/send_2_orthanc.sh`.
 

@@ -42,6 +42,50 @@ Optional arguments:
      -a:  use the ACT output
      -v:  show output from commands
 
+What it writes to Karawun/sub-{participant}/:
+
+     T1w.nii.gz          rescaled anatomical
+     FAT1w.nii.gz        sqrt(FA) * T1w, the registration QA volume. Load it in
+                         Brainlab alongside the T1w: if the FA-to-T1w
+                         registration has slipped, every tract is displaced the
+                         same way and nothing else in the export shows it.
+     tck/*.tck           one per bundle
+     labels/*.nii.gz     one per bundle, plus Lesion (type 1) and VIM (type 2)
+
+LABEL COLOUR CONVENTION
+
+ Each label's voxel value IS its Brainlab colour: karawun's lookup_cie() uses it
+ to index a palette and writes RecommendedDisplayCIELabValue into the DICOM.
+ Two labels sharing a value are indistinguishable in the scene, so the values
+ are allocated in fixed, non-overlapping ranges:
+
+     1-41    known tracts, from KUL_karawun_tract_meta below
+      16,30  thalamic VIM left/right (type 2), in a gap the table leaves free
+      23,24  DBS STN VOIs (type 3), likewise
+     42-49   tracts NOT in the table, auto-assigned; cycles and warns on wrap
+     50      lesion (type 1)
+     51-63   fMRI activation labels -- written by KUL_clinical_fmridti.sh -R,
+             not by this script (see _fmri_label_colors there)
+
+ 2, 6, 8, 10, 12 and 14 are deliberately free for future tract entries.
+
+ Left and right share a colour for tracts with good hemispheric separation:
+ position already shows laterality in the 3D view, so colour encodes tract
+ *type*. CST, ML and PyT_SMA keep separate L/R colours because they run near
+ the midline in the brainstem, where position alone does not disambiguate.
+
+ THE PALETTE HAS 31 ENTRIES IN STOCK KARAWUN (indices 0-30). lookup_cie()
+ silently clamps anything higher to the last entry, printing "Error - too many
+ labels", so on stock karawun everything from 31 upward renders in ONE colour --
+ including all fMRI labels. The KU Leuven fork extends it to 64 entries
+ (0-63) with 1-30 byte-identical to upstream, so existing scenes are unchanged.
+ Pin that fork for the KarawunDev env, or the colour scheme above is fiction
+ above index 30.
+
+ If you change any value in KUL_karawun_tract_meta, you change what a surgeon
+ sees for a bundle they may already know by colour. Prefer a free index over
+ reassigning one that is in use.
+
 USAGE
 
 	exit 1

@@ -218,8 +218,10 @@ Pipeline results (tracts, activation maps) can be converted back to DICOM so the
 ### [KUL_nii2dcm](/docs/KUL_nii2dcm/KUL_nii2dcm.md)
 Wraps rendered PNG screenshots into a DICOM series, using a donor DICOM from the same study/session so the result links correctly in PACS and supports multi-planar reconstruction (`KUL_nii2dcm.py`). Click the link in the header for options and dependencies.
 
-### Karawun
-Converts tractography/segmentation results into the Brainlab Neurosurgery format (`KUL_karawun_prepare.sh`, `KUL_karawun2brainlab.sh`). See [Karawun](https://github.com/DevelopmentalImagingMCRI/karawun).
+### [KUL_karawun_prepare](/docs/KUL_karawun_prepare/KUL_karawun_prepare.md)
+Converts tractography/segmentation results into the Brainlab Neurosurgery format (`KUL_karawun_prepare.sh`, `KUL_karawun2brainlab.sh`), see [Karawun](https://github.com/DevelopmentalImagingMCRI/karawun). Writes the tract bundles, the FAT1w registration-QA volume, the lesion (tumour cases) and the thalamic VIM / STN target VOIs (DBS cases).
+
+**Read the doc before changing any label colour.** A Karawun label's voxel value *is* its Brainlab colour, so two labels sharing a value are indistinguishable in the scene. The values are allocated in fixed non-overlapping ranges — tracts 1-41, VIM 16/30, STN 23/24, auto-assigned tracts 42-49, lesion 50, fMRI 51-63 — and stock Karawun clamps everything above index 30 to a single colour, so the KU Leuven extended-palette fork must be pinned for `KarawunDev`.
 
 ### send_2_orthanc
 Pushes a directory of generated DICOMs to an Orthanc/PACS node with `dcmsend` (`tools/send_2_orthanc.sh`).
