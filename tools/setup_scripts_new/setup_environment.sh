@@ -82,7 +82,14 @@ FSL_VERSION="6.0.7.23"                    # Latest as of July 2026 (was 6.0.6.5)
                                            # this version pin.
 SCILPY_COMMIT="b2bf4ac95ab3dfbb622dfdb586988123ef88475e"   # 176 commits past tag 2.2.2
 HDBET_COMMIT="678e44d546a84de0f2a7fc245f176b82b7d912fd"    # 4 commits past tag v2.0.1
-KARAWUN_COMMIT="80ea5cf06910c5c58732542e80822f0e47f49dc0"  # 4 commits past tag v0.2.5.4
+KARAWUN_COMMIT="9ecbf8e6d6ff3f2edb15b200341ba7b0f0be7412"   # tag v0.2.6.0 on the real upstream
+                                                             # (DevelopmentalImagingMCRI/karawun, not
+                                                             # treanus/karawun -- that was a stale personal
+                                                             # fork frozen since 2021, since diverged from
+                                                             # and superseded by the real upstream, which
+                                                             # already folded in its fixes and much more).
+                                                             # Needs Python >=3.14 + pydicom==3.0.2 (see
+                                                             # section_env_karawun below).
 FMRIPREP_VERSION="25.1.4"
 PSYCHOPY_VERSION="${PSYCHOPY_VERSION:-2026.2.0}" # override with --psychopy-version, or the wizard prompt
 PSYCHOPY_VERSION_EXPLICIT=0
@@ -105,8 +112,14 @@ DO_CLINICAL_PYDEPS=1     # SimpleITK/Pillow/numpy/nibabel/scipy/matplotlib for K
 DO_ENV_SCILPY=1          # required — KUL_FWT's own filtering/RecoBundles step
 DO_ENV_HDBET=1           # brain extraction, used by KUL_dwiprep/KUL_anat_register
 DO_ENV_RESSEG=1          # resection-cavity segmentation
-DO_ENV_KARAWUN=1         # Brainlab export (uses the simpler conda-forge KarawunEnv;
-                         # see --karawun-dev below for the editable-install variant)
+DO_ENV_KARAWUN=1         # Brainlab export (uses the simpler conda-forge KarawunEnv by
+                         # default -- but that package is frozen at v0.2.5.4 (2021) and
+                         # will silently corrupt output DICOMs when the donor is a Philips
+                         # (or any) Enhanced/multi-frame DICOM: leftover NumberOfFrames /
+                         # PerFrameFunctionalGroupsSequence tags survive into what should be
+                         # single-frame slices. Confirmed on real patient data. Strongly
+                         # prefer --karawun-dev below, which builds against the real,
+                         # actively maintained upstream and has this fixed.)
 DO_ENV_FASTSURFER=1      # needs a GPU to be useful; safe to leave on, just slow/CPU-only without one
 DO_ENV_PYFMRI=1          # KUL_NIS/share/rsfmri_pipeline + KUL_fmriproc_nilearn_new.sh (both hardcode the 'pyfMRI' env)
 DO_REPOS=1               # clone KUL_NIS/KUL_VBG/KUL_FWT at pinned branches
@@ -136,8 +149,12 @@ DO_VERIFY=1              # final read-only health check + summary table; safe to
                          # run on its own any time, doesn't modify anything
 
 USE_KARAWUN_DEV=0        # 1 = editable git install (KarawunDev) instead of the plain
-                         # conda-forge package (KarawunEnv) — only needed if you're
-                         # developing karawun itself.
+                         # conda-forge package (KarawunEnv). Despite the name this isn't
+                         # just for developing karawun itself -- KarawunEnv is missing the
+                         # multi-frame DICOM fix (see DO_ENV_KARAWUN above) and there is no
+                         # newer conda-forge release to switch to, so this is currently the
+                         # only way to get a non-corrupting karawun. Recommended default 1
+                         # for any site that may see Philips (or other) Enhanced DICOM.
 INCLUDE_HDGLIOAUTO=1     # pulls jenspetersen/hd-glio-auto (verified live on Docker Hub, confirmed
                          # against HD-GLIO-AUTO's own README) alongside the other docker-images.
                          # Narrower use (tumor auto-seg) and GPU-heavy at run time, but the pull
@@ -979,12 +996,12 @@ section_env_karawun() {
             return
         fi
         log "Creating 'KarawunDev' (editable install, karawun $KARAWUN_COMMIT + dcm2bids 3.1.1)"
-        run "$(mamba_bin) create -n KarawunDev python=3.10 -y"
+        run "$(mamba_bin) create -n KarawunDev python=3.14 -y"
         run "'$(env_bin KarawunDev pip)' install dcm2bids>=3.1"
         local dest="$SOFTWARE_ROOT/src/karawun"
-        [ -d "$dest" ] || run "git clone https://github.com/treanus/karawun.git '$dest'"
+        [ -d "$dest" ] || run "git clone https://github.com/DevelopmentalImagingMCRI/karawun.git '$dest'"
         run "cd '$dest' && git checkout $KARAWUN_COMMIT"
-        run "cd '$dest' && '$(env_bin KarawunDev pip)' install -e . --no-deps"
+        run "cd '$dest' && '$(env_bin KarawunDev pip)' install -e ."
         ok "KarawunDev ready"
     else
         if env_exists KarawunEnv; then
@@ -994,6 +1011,7 @@ section_env_karawun() {
         log "Creating 'KarawunEnv' (plain conda-forge package, no git clone needed)"
         run "$(mamba_bin) create -n KarawunEnv python=3.8 karawun=0.2.5.4 -c conda-forge -y"
         ok "KarawunEnv ready (used by KUL_karawun_prepare.sh / KUL_karawun2brainlab.sh)"
+        warn "KarawunEnv (v0.2.5.4) will silently corrupt output DICOMs given an Enhanced/multi-frame donor (e.g. Philips) -- re-run with --karawun-dev if that's a possibility at your site"
     fi
 }
 
