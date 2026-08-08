@@ -540,14 +540,14 @@ if [ $results -gt 0 ];then
         _out_map="$globalresultsdir/Tracto/Tract-csd_${tract_name}.nii.gz"
         if [ -f "$fin_tck" ]; then
             cp "$fin_tck" "$globalresultsdir/Tracto/Tract-csd_${tract_name}.tck"
-            [ -f "$fin_map" ] && mrgrid "$fin_map" regrid -template "$_t1w_ref" "$_out_map" -force -quiet
+            [ -f "$fin_map" ] && mrgrid "$fin_map" regrid -template "$_t1w_ref" -interp linear "$_out_map" -force -quiet
         else
             use_tck=$(ls "${tck_outdir}/${tract_name}_filt"*"_BT_iFOD2.tck" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
             use_map=$(ls "${tck_outdir}/${tract_name}_filt"*"_map_BT_iFOD2.nii.gz" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
             if [ -n "$use_tck" ]; then
                 echo "  ${tract_name}: fin not found, using $(basename $use_tck)"
                 cp "$use_tck" "$globalresultsdir/Tracto/Tract-csd_${tract_name}.tck"
-                [ -n "$use_map" ] && mrgrid "$use_map" regrid -template "$_t1w_ref" "$_out_map" -force -quiet
+                [ -n "$use_map" ] && mrgrid "$use_map" regrid -template "$_t1w_ref" -interp linear "$_out_map" -force -quiet
             fi
         fi
     done
@@ -620,7 +620,9 @@ if [ $results -gt 0 ];then
     if [ $make_dcm -eq 1 ] && [ -z "$donor_dcm" ]; then
         echo ""
         echo "ERROR: No donor DICOM found in Karawun/sub-${participant}/DICOM/ or $globalresultsdir/DICOM/"
-        echo "       Copy a T1w DICOM series into one of those locations before running -R."
+        echo "       Copy one (a single file is enough) into either folder before running -R again:"
+        echo "         one slice from a high-resolution anatomical series (T1w, FLAIR, T2, ...)"
+        echo "         same donor is used for both PACS and Karawun/Brainlab output"
         echo "       DICOM output will be skipped for this run."
         echo ""
     elif [ -n "$donor_dcm" ]; then
@@ -1082,7 +1084,7 @@ if [ $results -gt 0 ];then
                 # before re-adding once here, so this doesn't produce
                 # afMRI_afMRI_... regardless of what the upstream naming does.
                 _label_basename="${_spmname#afMRI_}"
-                mrgrid "$_spmfile" regrid -template "Karawun/sub-${participant}/T1w.nii.gz" - -quiet | \
+                mrgrid "$_spmfile" regrid -template "Karawun/sub-${participant}/T1w.nii.gz" -interp linear - -quiet | \
                     mrcalc - $_label_thresh -ge $_label_int -mult \
                     "Karawun/sub-${participant}/labels/afMRI_${_label_basename}.nii.gz" -force -quiet
             done
@@ -1821,14 +1823,14 @@ function KUL_run_FWT {
             _out_map="$globalresultsdir/Tracto/Tract-csd_${tract_name}.nii.gz"
             if [ -f "$fin_tck" ]; then
                 cp "$fin_tck" "$globalresultsdir/Tracto/Tract-csd_${tract_name}.tck"
-                [ -f "$fin_map" ] && mrgrid "$fin_map" regrid -template "$_t1w_ref" "$_out_map" -force -quiet
+                [ -f "$fin_map" ] && mrgrid "$fin_map" regrid -template "$_t1w_ref" -interp linear "$_out_map" -force -quiet
             else
                 use_tck=$(ls "${tck_outdir}/${tract_name}_filt"*"_BT_iFOD2.tck" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
                 use_map=$(ls "${tck_outdir}/${tract_name}_filt"*"_map_BT_iFOD2.nii.gz" "${tck_outdir}/${tract_name}_filt"*"_BT_iFOD2_map.nii.gz" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
                 if [ -n "$use_tck" ]; then
                     echo "  ${tract_name}: fin not found, using $(basename $use_tck)"
                     cp "$use_tck" "$globalresultsdir/Tracto/Tract-csd_${tract_name}.tck"
-                    [ -n "$use_map" ] && mrgrid "$use_map" regrid -template "$_t1w_ref" "$_out_map" -force -quiet
+                    [ -n "$use_map" ] && mrgrid "$use_map" regrid -template "$_t1w_ref" -interp linear "$_out_map" -force -quiet
                 fi
             fi
         done
@@ -2126,25 +2128,31 @@ wait
 # STEP 12b - run Fun With Tracts
 KUL_run_FWT
 
-# STEP 15 - Prepare Karawun folder automatically.
-# The importTractography command is printed at the end — run it manually after
-# copying the SmartBrain DICOM donor into Karawun/sub-${participant}/DICOM/
+# STEP 15 - Prepare Karawun folder. No longer automatic: like the PACS
+# DICOM export, this only runs when explicitly requested via -R (review
+# the FWT tract/VOI output first). The importTractography command is
+# printed at the end — run it manually after copying a donor DICOM into
+# Karawun/sub-${participant}/DICOM/ (or RESULTS/sub-${participant}/DICOM/)
 # and curating the fMRI label maps.
-karawun_prepare_check=${cwd}/KUL_LOG/sub-${participant}_karawun_prepare.done
-if [ ! -f $karawun_prepare_check ]; then
-    if [ $type -lt 5 ]; then
-        kul_echo "Preparing Karawun folder"
-        KUL_karawun_prepare.sh -p ${participant} -t 1 -r 3
-    elif [ $type -eq 5 ]; then
-        kul_echo "Preparing Karawun folder (DBS ET)"
-        KUL_karawun_prepare.sh -p ${participant} -t 2 -r 10
-    elif [ $type -eq 6 ]; then
-        kul_echo "Preparing Karawun folder (DBS Parkinson)"
-        KUL_karawun_prepare.sh -p ${participant} -t 3 -r 10
+if [ $make_dcm -eq 1 ]; then
+    karawun_prepare_check=${cwd}/KUL_LOG/sub-${participant}_karawun_prepare.done
+    if [ ! -f $karawun_prepare_check ]; then
+        if [ $type -lt 5 ]; then
+            kul_echo "Preparing Karawun folder"
+            KUL_karawun_prepare.sh -p ${participant} -t 1 -r 3
+        elif [ $type -eq 5 ]; then
+            kul_echo "Preparing Karawun folder (DBS ET)"
+            KUL_karawun_prepare.sh -p ${participant} -t 2 -r 10
+        elif [ $type -eq 6 ]; then
+            kul_echo "Preparing Karawun folder (DBS Parkinson)"
+            KUL_karawun_prepare.sh -p ${participant} -t 3 -r 10
+        fi
+        touch $karawun_prepare_check
+    else
+        echo "Karawun folder already prepared"
     fi
-    touch $karawun_prepare_check
 else
-    echo "Karawun folder already prepared"
+    echo "Karawun folder prep skipped (run with -R to prepare it)"
 fi
 
 
@@ -2188,5 +2196,44 @@ fi
 # Review figures in RESULTS/sub-${participant}/, then run:
 #   KUL_clinical_fmridti.sh -p ${participant} -t ${type} -R <1|2|3|4> [-O orientations]
 # to generate PACS DICOMs.
+
+if [ $results -eq 0 ]; then
+    echo ""
+    echo "================================================================"
+    echo " Finished processing sub-${participant}."
+    echo ""
+    echo " Nothing has been sent to PACS/Karawun yet - that step needs an"
+    echo " explicit -R run on purpose, so you look at the output first:"
+    echo ""
+    echo "   1. Review the output maps and tractograms in"
+    echo "        $globalresultsdir/"
+    echo "        BIDS/derivatives/KUL_compute/sub-${participant}/FWT/"
+    echo "      The fMRI/tract thresholds used for PACS export are only"
+    echo "      computed when you run -F or -R below (auto = max/3 per"
+    echo "      map, or interactively/-T if you override) - this review"
+    echo "      is your chance to catch a threshold that looks wrong"
+    echo "      before it is baked into the exported DICOMs."
+    echo ""
+    echo "   2. Generate screenshots only, no PACS/Karawun push yet:"
+    echo "        KUL_clinical_fmridti.sh -p ${participant} -t ${type} -F <1-7> [-O orientations]"
+    echo ""
+    echo "   3. Before running -R, create RESULTS/sub-${participant}/DICOM/"
+    echo "      (it is not made for you) and drop a donor DICOM into it -"
+    echo "      a single file is enough, one slice from a high-resolution"
+    echo "      anatomical series (T1w, FLAIR, T2, ...). The same donor is"
+    echo "      used for both the PACS and the Karawun/Brainlab output, so"
+    echo "      keep it to one file/series for consistency."
+    echo ""
+    echo "   4. -R also triggers Karawun prep (it no longer runs on its"
+    echo "      own either). Once happy with the review and the donor"
+    echo "      DICOM is in place, run:"
+    echo "        KUL_clinical_fmridti.sh -p ${participant} -t ${type} -R <1-7> [-O orientations]"
+    echo "================================================================"
+    echo ""
+elif [ $make_dcm -eq 0 ]; then
+    echo ""
+    echo "Screenshots done - review them in $globalresultsdir/ before running -R to push to PACS/Karawun."
+    echo ""
+fi
 
 echo "Finished"

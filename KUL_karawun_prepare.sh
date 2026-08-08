@@ -137,12 +137,19 @@ function KUL_karawun_get_tract {
 
     if [ -f "$fin_tck" ]; then
         use_tck="$fin_tck"
-        use_map="$fin_map"
     else
         use_tck=$(ls "${tract_dir}/${tract_name_orig}_filt"*"_BT${ACT}_iFOD2.tck" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
-        use_map=$(ls "${tract_dir}/${tract_name_orig}_filt"*"_map_BT${ACT}_iFOD2.nii.gz" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
         if [ -n "$use_tck" ]; then
             echo "  ${tract_name_orig}: fin not found, using $(basename $use_tck)"
+        fi
+    fi
+
+    if [ -f "$fin_map" ]; then
+        use_map="$fin_map"
+    else
+        use_map=$(ls "${tract_dir}/${tract_name_orig}_filt"*"_map_BT${ACT}_iFOD2.nii.gz" "${tract_dir}/${tract_name_orig}_filt"*"_BT${ACT}_iFOD2_map.nii.gz" 2>/dev/null | grep -v "_inMNI" | sort -V | tail -1)
+        if [ -n "$use_map" ]; then
+            echo "  ${tract_name_orig}: fin map not found, using $(basename "$use_map")"
         fi
     fi
 
@@ -170,6 +177,7 @@ function KUL_karawun_get_tract {
         if [ -n "$use_map" ]; then
             mrgrid "$use_map" \
                 regrid -template Karawun/sub-${participant}/T1w.nii.gz \
+                -interp linear \
                 - | mrcalc - ${tract_threshold} -gt ${tract_color} -mul \
                 Karawun/sub-${participant}/labels/${tract_name_final}_center.nii.gz -force
         else
@@ -184,6 +192,7 @@ function KUL_karawun_get_voi {
     if [ -f BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_VOIs/${tract_name_orig}_VOIs/${tract_name_orig}_incs1/${tract_name_orig}_incs1_map.nii.gz ]; then
         mrgrid BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_VOIs/${tract_name_orig}_VOIs/${tract_name_orig}_incs1/${tract_name_orig}_incs1_map.nii.gz \
             regrid -template Karawun/sub-${participant}/T1w.nii.gz \
+            -interp linear \
             - | mrcalc - ${voi_threshold} -gt ${voi_color} -mul \
             Karawun/sub-${participant}/labels/${voi_name_final}.nii.gz -force
     else
@@ -200,31 +209,41 @@ function KUL_karawun_get_voi {
 # custom one) was silently never picked up, no matter what -t was set to (-t does
 # not actually filter this list at all; it only changes the threshold formula for
 # type 1, see KUL_karawun_get_tract above).
+# Color convention: value = Brainlab's RecommendedDisplayCIELabValue index
+# (karawun's lookup_cie(), 31-entry palette, indices 0-30 -- anything >30
+# silently clamps to the same last color, so 30 is the real usable ceiling).
+# For most tract families, left/right share the same color -- side is
+# already obvious from spatial position in the 3D view, so color instead
+# encodes tract *type*, which is what actually matters for interpretation,
+# and halving the color budget leaves room for fMRI labels without
+# colliding. Exception: tracts that pass through/near the brainstem or are
+# otherwise high-stakes/eloquent (CST, ML, PyT_SMA) keep separate L/R
+# colors -- the brainstem packs both sides close to midline with much less
+# spatial separation than cortical/subcortical tracts, so color is doing
+# real disambiguation work there that position alone doesn't replace.
 declare -A KUL_karawun_tract_meta=(
     [AF_all_LT]="Arcuate_Fasc_Left|1|20|3"
-    [AF_all_RT]="Arcuate_Fasc_Right|2|20|3"
+    [AF_all_RT]="Arcuate_Fasc_Right|1|20|3"
     [CST_LT]="Corticospinal_Tract_Left|3|20|3"
     [CST_RT]="Corticospinal_Tract_Right|4|20|3"
-    [PyT_SMA_LT]="Pyramidal_Tract_Supplementary_Motor_Left|4|20|3"
-    [PyT_SMA_RT]="Pyramidal_Tract_Supplementary_Motor_Right|3|20|3"
     [CCing_LT]="Cingulum_cing_Left|5|20|3"
     [TCing_LT]="Cingulum_temporal_Left|5|20|3"
-    [CCing_RT]="Cingulum_cing_Right|6|20|3"
-    [TCing_RT]="Cingulum_temporal_Right|6|20|3"
+    [CCing_RT]="Cingulum_cing_Right|5|20|3"
+    [TCing_RT]="Cingulum_temporal_Right|5|20|3"
     [FAT_LT]="FrontalAslant_Tract_Left|7|20|3"
-    [FAT_RT]="FrontalAslant_Tract_Right|8|20|3"
+    [FAT_RT]="FrontalAslant_Tract_Right|7|20|3"
     [IFOF_LT]="IFOF_Left|9|20|3"
-    [IFOF_RT]="IFOF_Right|10|20|3"
+    [IFOF_RT]="IFOF_Right|9|20|3"
     [ILF_LT]="InferiorLongitudinal_Fasc_Left|11|20|3"
-    [ILF_RT]="InferiorLongitudinal_Fasc_Right|12|20|3"
+    [ILF_RT]="InferiorLongitudinal_Fasc_Right|11|20|3"
     [UF_LT]="Uncinate_Fasc_Left|13|20|3"
-    [UF_RT]="Uncinate_Fasc_Right|14|20|3"
+    [UF_RT]="Uncinate_Fasc_Right|13|20|3"
     [OR_occlobe_LT]="Occiptal_Radition_Left|15|20|3"
-    [OR_occlobe_RT]="Occiptal_Radition_Right|16|20|3"
+    [OR_occlobe_RT]="Occiptal_Radition_Right|15|20|3"
     [ML_LT]="Medial_Lemniscus_Tract_Left|17|20|3"
     [ML_RT]="Medial_Lemniscus_Tract_Right|18|20|3"
     [MdLF_LT]="MiddleLongitudinal_Fasc_Left|29|20|3"
-    [MdLF_RT]="MiddleLongitudinal_Fasc_Right|30|20|3"
+    [MdLF_RT]="MiddleLongitudinal_Fasc_Right|29|20|3"
     [Ant_Comm]="Anterior_Commissure|31|20|3"
     [Post_Comm]="Posterior_Commissure|32|20|3"
     [CC_Motor_Comm]="CC_Motor|33|20|3"
@@ -242,6 +261,12 @@ declare -A KUL_karawun_tract_meta=(
     [CSHDP_RT]="CSHDP_Right|26|40|1"
     [ThR_Ant_LT]="ThR_Ant_LT|27|20|1"
     [ThR_Ant_RT]="ThR_Ant_RT|28|20|1"
+    # Placed at the end with their own unused colors (were previously
+    # colliding with CST_LT/RT's 3/4, swapped no less) rather than reusing
+    # any of the colors above, so existing/more heavily relied-on bundles
+    # like CST keep their familiar colors undisturbed.
+    [PyT_SMA_LT]="Pyramidal_Tract_Supplementary_Motor_Left|40|20|3"
+    [PyT_SMA_RT]="Pyramidal_Tract_Supplementary_Motor_Right|41|20|3"
 )
 
 function KUL_karawun_auto_discover_tracts {
@@ -307,21 +332,28 @@ fi
     # CSHDP is the one FWT bundle used both as a VOI-derived label (the distal
     # STN-motor VOI itself) and, separately, as a full reconstructed tract -- the
     # VOI form isn't produced under TCKs_output/*_output so it can't be picked up
-    # by the auto-discovery loop above and stays explicit here.
-    tract_name_orig="CSHDP_LT"
-    voi_name_final="DISTAL_STN_MOTOR_Left"
-    voi_color=23
-    voi_threshold=0.1
-    KUL_karawun_get_voi
+    # by the auto-discovery loop above and stays explicit here. Only relevant for
+    # type 3 (DBS Parkinson/CSHDP) -- gated so tumor/DBS-ET runs don't print
+    # spurious "Does not exist" lines for a VOI that was never computed for them.
+    if [ $type -eq 3 ]; then
+        tract_name_orig="CSHDP_LT"
+        voi_name_final="DISTAL_STN_MOTOR_Left"
+        voi_color=23
+        voi_threshold=0.1
+        KUL_karawun_get_voi
 
-    tract_name_orig="CSHDP_RT"
-    voi_name_final="DISTAL_STN_MOTOR_Right"
-    voi_color=24
-    voi_threshold=0.1
-    KUL_karawun_get_voi
+        tract_name_orig="CSHDP_RT"
+        voi_name_final="DISTAL_STN_MOTOR_Right"
+        voi_color=24
+        voi_threshold=0.1
+        KUL_karawun_get_voi
+    fi
 
 # give information
-echo "See to it that the DICOM directory contains a single slice of the SmartBrain"
+echo "See to it that Karawun/sub-${participant}/DICOM/ contains a donor DICOM"
+echo "(a single file is enough) before importing - use one slice from a"
+echo "high-resolution anatomical series (T1w, FLAIR, T2, ...). Use the same"
+echo "donor for the PACS export too, so the metadata stays consistent."
 echo "Then copy into terminal: "
 echo "conda activate KarawunDev"
 echo "importTractography -d Karawun/sub-${participant}/DICOM/*.dcm \
