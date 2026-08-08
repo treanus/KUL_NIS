@@ -55,6 +55,16 @@
   export. `bash -n` does not catch this. Both helpers now live above that block,
   with a comment explaining why they cannot be moved back.
 
+### Fixed — VIM FreeSurfer lookup picked the wrong tree
+
+Found on the first real test. The candidate loop selected the first FreeSurfer
+directory that *existed*, not the first that actually contained the thalamic
+segmentation. A tumour case can carry both a KUL_VBG FreeSurfer output and a
+plain one, and `segment_subregions` may have been run on only one — so the loop
+locked onto the VBG tree and reported "no thalamic segmentation found" while the
+file sat in `BIDS/derivatives/freesurfer/`. It now globs for
+`ThalamicNuclei*FSvoxelSpace.mgz` in each candidate and takes the first real hit.
+
 ### New — thalamic VIM labels for ET DBS (type 2)
 
 `KUL_karawun_prepare.sh` now exports the thalamic VIM as a Brainlab label for
@@ -68,6 +78,11 @@ being no nucleus literally named VIM in that atlas. Resampled onto the Karawun
 grid with `mri_vol2vol --regheader --nearest`, written as `VIM_Left.nii.gz` /
 `VIM_Right.nii.gz` at colours **16** and **30**. A side with under 10 voxels is
 dropped with a warning rather than exported as a sliver.
+
+Verified on real data (sub-VanRooyRosalia, FreeSurfer 8.2): physical volume is
+preserved across the resample onto the 0.625 mm³ Karawun grid — Left-VLp
+823.0 → 818.7 mm³, Right-VLp 752.0 → 757.5 mm³ (nearest-neighbour rounding,
+<1%), at values 16 and 30, with the left/right asymmetry intact.
 
 Worth contrasting with the STN VOIs beside it: those are an atlas region
 (DISTAL, *symmetrised*, so left and right are mirror images by construction)

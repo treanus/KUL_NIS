@@ -499,25 +499,29 @@ vim_color_right=30
 
 if [ $type -eq 2 ]; then
 
-    # same FreeSurfer resolution order used elsewhere in the pipeline
+    # Pick the first FreeSurfer dir that actually CONTAINS the thalamic
+    # segmentation, not merely the first that exists. A tumour case can have
+    # both a KUL_VBG FreeSurfer output and a plain one, and segment_subregions
+    # may well have been run on only one of them -- matching on directory
+    # existence alone silently selects the wrong tree and reports "not found"
+    # while the file sits in the other.
+    #
+    # FS 8.x writes ThalamicNuclei.FSvoxelSpace.mgz; FS 7.x wrote
+    # ThalamicNuclei.v12.T1.FSvoxelSpace.mgz. Glob rather than hardcode -- the
+    # docstring in KUL_FS_multiparc.sh still names the 7.x file.
     _vim_fs=""
+    _vim_seg=""
     for _cand in \
         "BIDS/derivatives/KUL_compute/sub-${participant}/KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}" \
         "KUL_VBG/output_VBG/sub-${participant}/sub-${participant}_FS_output/sub-${participant}" \
         "BIDS/derivatives/freesurfer/sub-${participant}"; do
-        if [ -d "$_cand/mri" ]; then
+        _hit=$(ls "$_cand"/mri/ThalamicNuclei*FSvoxelSpace.mgz 2>/dev/null | head -1)
+        if [ -n "$_hit" ]; then
             _vim_fs="$_cand"
+            _vim_seg="$_hit"
             break
         fi
     done
-
-    # FS 8.x writes ThalamicNuclei.FSvoxelSpace.mgz; FS 7.x wrote
-    # ThalamicNuclei.v12.T1.FSvoxelSpace.mgz. Glob rather than hardcode -- the
-    # docstring in KUL_FS_multiparc.sh still names the 7.x file.
-    _vim_seg=""
-    if [ -n "$_vim_fs" ]; then
-        _vim_seg=$(ls "$_vim_fs"/mri/ThalamicNuclei*FSvoxelSpace.mgz 2>/dev/null | head -1)
-    fi
 
     if [ -n "$_vim_seg" ] && [ -f "$_vim_seg" ]; then
         echo "Karawun VIM labels: $(basename "$_vim_seg") -> VLp, colours ${vim_color_left}/${vim_color_right}"
