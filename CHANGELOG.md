@@ -55,6 +55,28 @@
   export. `bash -n` does not catch this. Both helpers now live above that block,
   with a comment explaining why they cannot be moved back.
 
+### Fixed (fMRI label colours)
+
+- **fMRI activation labels shared colours with tracts.** They were numbered
+  `1..N`, and the tract table also starts at 1, so task 1 got colour 1 =
+  Arcuate Fasciculus: on a language case the activation and the language tract
+  rendered identically — the one pair you most need to tell apart. Tasks 3, 4
+  and 5 landed on CST_LT, CST_RT and Cingulum.
+
+  `fe3b800` merged left/right colours for well-separated tracts specifically to
+  free budget "for fMRI labels without colliding", but the labels were never
+  moved into the freed range, so indices 2, 6, 8, 10, 12, 14 and 30 sat unused
+  while the labels collided. This finishes that job: fMRI labels now draw from
+  an explicit reserved list, ordered by measured worst-case CIEDE2000 distance
+  to every tract and lesion colour, best first. fMRI colour 2 sits dE 77.7 from
+  the Arcuate, versus dE 0.00 before.
+
+  The list stays inside 1-30 for the first seven tasks so it works on stock
+  karawun, and only then spills into the fork's 50+ range. Those fork colours
+  are better separated (~13) than low slots 4-7, but are listed after rather
+  than before: on stock karawun anything >30 clamps to one entry, so leading
+  with them would make every task past the third render identically.
+
 ### Fixed (found by running the Brainlab import on real data)
 
 - **FAT1w overflowed the DICOM `LargestImagePixelValue` tag.** It was copied to
