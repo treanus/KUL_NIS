@@ -15,7 +15,7 @@ from pathlib import Path
 import nibabel as nib
 import numpy as np
 from nilearn import datasets, image
-from scipy.ndimage import label as ndimage_label
+from scipy.ndimage import binary_dilation, label as ndimage_label
 from scipy.stats import norm
 
 from config import (
@@ -104,6 +104,10 @@ def gm_prob_path(subject: str) -> Path:
 
 def synthseg_path(subject: str) -> Path:
     return SYNTHSEG_DIR / f"sub-{subject}" / f"sub-{subject}_synthseg_MNI.nii.gz"
+
+
+def lausanne_scale3_path(subject: str) -> Path:
+    return SYNTHSEG_DIR / f"sub-{subject}" / f"sub-{subject}_lausanne_scale3_MNI.nii.gz"
 
 
 def language_mask_path(subject: str) -> Path:
@@ -698,6 +702,41 @@ def _load_synthseg_mask(subject: str,
     return nib.Nifti1Image(mask, seg.affine)
 
 
+def _load_lausanne_mask(subject: str,
+                        lausanne_label_ids: list[int]) -> nib.Nifti1Image | None:
+    # Requires KUL_FS_multiparc.sh (multiparc=1) to have been run for this
+    # subject -- optional, so a missing file here is expected for patients
+    # processed with multiparc=0, not an error condition in itself.
+    p = lausanne_scale3_path(subject)
+    if not p.exists():
+        log.warning("Lausanne scale3 output missing for sub-%s (multiparc not run?) — skipping", subject)
+        return None
+    seg = nib.load(str(p))
+    data = np.round(seg.get_fdata()).astype(np.int32)
+    mask = np.isin(data, lausanne_label_ids)
+    n_raw = int(mask.sum())
+    if n_raw == 0:
+        log.warning("Lausanne labels %s empty for sub-%s", lausanne_label_ids, subject)
+        return None
+    # These are narrow gyral sub-parcels (Precentral/Paracentral split into
+    # 6/3 slices along a single gyrus) surviving two discrete resamples
+    # (FS-conformed -> T1w-native -> MNI 2mm, both nearest-neighbour-family
+    # interpolation to avoid blending across labels) -- both steps can only
+    # keep or drop a voxel, never reconstruct one, so a thin parcel can come
+    # out fragmented or reduced to a handful of isolated voxels. A 1-voxel
+    # dilation trades a small amount of boundary precision (some bleed into
+    # the immediately adjacent sub-parcel) for a seed mask robust enough for
+    # extract_mean_ts()'s flat per-voxel average not to be dominated by
+    # single-voxel noise. Only applied here -- other atlas sources use
+    # larger, more robust ROIs (whole DKT gyri, HO regions) that don't have
+    # this fragility.
+    mask = binary_dilation(mask, iterations=1)
+    n_dilated = int(mask.sum())
+    log.info("Lausanne seed labels=%s: %d voxels raw, %d after 1-voxel dilation (sub-%s)",
+             lausanne_label_ids, n_raw, n_dilated, subject)
+    return nib.Nifti1Image(mask.astype(np.uint8), seg.affine)
+
+
 # ---------------------------------------------------------------------------
 # Public: get seed mask
 # ---------------------------------------------------------------------------
@@ -747,6 +786,15 @@ def get_seed_mask(seed_name: str,
         mask_img = _load_synthseg_mask(subject, ss_labels)
         if mask_img is None:
             raise ValueError(f"SynthSeg mask empty for sub-{subject} labels={ss_labels}")
+    elif source == "subject_lausanne":
+        if subject is None:
+            raise ValueError(f"Atlas '{atlas_key}' (subject_lausanne) requires a subject ID")
+        lz_labels = seed_cfg.get("lausanne_labels")
+        if not lz_labels:
+            raise ValueError(f"Seed using atlas '{atlas_key}' must specify lausanne_labels")
+        mask_img = _load_lausanne_mask(subject, lz_labels)
+        if mask_img is None:
+            raise ValueError(f"Lausanne mask empty for sub-{subject} labels={lz_labels}")
     elif source == "subject_propagated":
         if subject is None:
             raise ValueError(f"Atlas '{atlas_key}' (subject_propagated) requires a subject ID")

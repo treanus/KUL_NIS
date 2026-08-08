@@ -38,6 +38,47 @@ seeds:
     labels : ["Juxtapositional Lobule Cortex"]   # SMA / pre-SMA region in HO
     hemi   : both
 
+  # Somatotopic (hand/foot/lip) -- OPTIONAL, requires KUL_FS_multiparc.sh
+  # (multiparc=1) to have been run for this subject; see lausanne_scale3_subject
+  # in atlases.yaml. Grouped from Lausanne2018 scale3's Precentral_1-6/
+  # Paracentral_1-3 sub-parcels by MNI-coordinate position along the motor
+  # strip (lateral+inferior -> medial+superior): Precentral_1-2 = face/lip,
+  # Precentral_3-4 = hand (Precentral_4's Y=-23.6 matches published "hand
+  # knob" coordinates most closely), Precentral_5-6 + Paracentral_1-3 = leg/
+  # foot (wraps onto the medial surface, classic paracentral lobule
+  # location). A geometric subdivision, not a functionally-validated
+  # somatotopic atlas -- treat boundaries as approximate, not exact.
+  # Label IDs from label-L2018_desc-scale3_atlas_readable_LUT.txt.
+  Lip_L:
+    atlas          : lausanne_scale3_subject
+    lausanne_labels: [155, 156]   # L.Precentral_1-2
+    hemi           : L
+
+  Lip_R:
+    atlas          : lausanne_scale3_subject
+    lausanne_labels: [31, 32]     # R.Precentral_1-2
+    hemi           : R
+
+  Hand_L:
+    atlas          : lausanne_scale3_subject
+    lausanne_labels: [157, 158]   # L.Precentral_3-4
+    hemi           : L
+
+  Hand_R:
+    atlas          : lausanne_scale3_subject
+    lausanne_labels: [33, 34]     # R.Precentral_3-4
+    hemi           : R
+
+  Foot_L:
+    atlas          : lausanne_scale3_subject
+    lausanne_labels: [159, 160, 161, 162, 163]   # L.Precentral_5-6 + L.Paracentral_1-3
+    hemi           : L
+
+  Foot_R:
+    atlas          : lausanne_scale3_subject
+    lausanne_labels: [35, 36, 37, 38, 39]        # R.Precentral_5-6 + R.Paracentral_1-3
+    hemi           : R
+
   # Default Mode
   PCC:
     atlas  : ho_cort
@@ -543,3 +584,56 @@ profiles:
       kitchen sink. Broca/Wernicke/IFG/STG are left-hemisphere by
       definition in the seed catalog (typical left-dominant language
       organisation) — re-run lateralised for suspected atypical dominance.
+
+  # ----------------------------------------------------------------------------
+  Presurgical_Somatotopic:
+    description : >
+      OPTIONAL variant of Presurgical — same sensorimotor/language mapping,
+      plus separate hand/foot/lip seeds (Lausanne2018 scale3 anatomical
+      sub-parcels of the precentral/paracentral gyrus) for surgical planning
+      where body-part-level motor differentiation matters, not just "this is
+      the sensorimotor network" as a whole. Requires KUL_FS_multiparc.sh
+      (multiparc=1) to have been run for this subject -- not every -t type
+      does this by default. If it wasn't run, the Lip/Hand/Foot seeds fail
+      individually (logged, non-fatal) and the rest of the profile still
+      completes -- see lausanne_scale3_subject in atlases.yaml.
+      Kept as a separate profile rather than folded into Presurgical itself
+      so the default surgical-planning path has no dependency on multiparc
+      and existing Presurgical runs are unaffected.
+      Deliberately unilateral, not bilateral: choosing this profile signals
+      you want maximum contrast between sensorimotor sub-networks (which
+      side, which body part), and pathology-driven asymmetry is often
+      exactly what's being localised -- pooling L+R into one seed would
+      blend a possibly-affected hemisphere's signal with the normal one and
+      wash out the laterality information that's the whole point of
+      reaching for this profile. If a coarser, more robust bilateral view is
+      what's actually needed instead, that's what Presurgical (the plain
+      bilateral motor_cortex seed) is for -- pick the profile that matches
+      what you need rather than mixing granularities within one profile.
+    seeds:
+      - Lip_L
+      - Lip_R
+      - Hand_L
+      - Hand_R
+      - Foot_L
+      - Foot_R
+      - SMA
+      - Broca
+      - Wernicke
+      - IFG
+      - STG
+    rsn_networks:
+      - SMN
+      - Language
+    ica_dims:
+      SMN     : 5
+      Language: 5
+    notes: >
+      Replaces Presurgical's single bilateral motor_cortex seed with six
+      separate somatotopic seeds; language seeds unchanged from Presurgical.
+      See the seed catalog's Lip_L/Lip_R/Hand_L/Hand_R/Foot_L/Foot_R entries
+      above for the specific Lausanne label IDs and the MNI-coordinate
+      reasoning behind the hand/foot/lip grouping -- a geometric subdivision,
+      not a functionally-validated somatotopic atlas, so treat boundaries as
+      approximate. Re-run lateralised for suspected atypical language
+      dominance, same as Presurgical.

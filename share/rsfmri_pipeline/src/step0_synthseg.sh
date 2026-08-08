@@ -34,6 +34,10 @@ PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 FMRIPREP_DIR="${RSFMRI_FMRIPREP_DIR:-${BASE_DIR}/fmriprep}"
 SYNTHSEG_DIR="${RSFMRI_SYNTHSEG_DIR:-${BASE_DIR}/analysis/synthseg}"
 LOG_DIR="${SYNTHSEG_DIR}/logs"
+# Standard freesurfer derivatives location; per-subject VBG output (preferred
+# when present, same precedence KUL_run_FWT already uses) is checked directly
+# in the per-subject loop below since it needs the subject ID either way.
+FS_DIR="${RSFMRI_FS_DIR:-${BASE_DIR}/BIDS/derivatives/freesurfer}"
 THREADS=4
 
 YEO_DIR="${PIPELINE_DIR}/Yeo_JNeurophysiol11_MNI152"
@@ -117,7 +121,7 @@ fi
 # ---------------------------------------------------------------------------
 # Check required tools and static inputs
 # ---------------------------------------------------------------------------
-for tool in mri_synthseg 5ttgen antsApplyTransforms ImageMath mrconvert mrcalc mrinfo; do
+for tool in mri_synthseg 5ttgen antsApplyTransforms ImageMath mrconvert mrcalc mrinfo mri_convert; do
     if ! command -v "${tool}" &>/dev/null; then
         echo "ERROR: ${tool} not found on PATH." >&2
         exit 1
@@ -247,6 +251,15 @@ for SUBJ in "${SUBJECTS[@]}"; do
     OUT_HO_CORT_SUBJ="${OUT_DIR}/sub-${SUBJ}_ho_cort_subject_MNI.nii.gz"
     OUT_FSL_STRIATUM_SUBJ="${OUT_DIR}/sub-${SUBJ}_fsl_striatum_subject_MNI.nii.gz"
     LOG_ATLAS="${LOG_DIR}/sub-${SUBJ}_atlas_propagation.log"
+
+    # VBG's own FreeSurfer output is preferred when present, same precedence
+    # KUL_run_FWT already uses for aparc+aseg -- fall back to the standard
+    # freesurfer derivatives location otherwise.
+    LAUSANNE_VBG="${BASE_DIR}/KUL_VBG/output_VBG/sub-${SUBJ}_FS_output/sub-${SUBJ}/mri/lausanne2018.scale3+aseg.mgz"
+    LAUSANNE_STD="${FS_DIR}/sub-${SUBJ}/mri/lausanne2018.scale3+aseg.mgz"
+    OUT_LAUSANNE_T1W="${OUT_DIR}/sub-${SUBJ}_lausanne_scale3_T1w.nii.gz"
+    OUT_LAUSANNE_MNI="${OUT_DIR}/sub-${SUBJ}_lausanne_scale3_MNI.nii.gz"
+    LOG_LAUSANNE="${LOG_DIR}/sub-${SUBJ}_lausanne_scale3.log"
 
     echo "============================================================"
     echo "Subject ${N_SUBJ}/${N_TOTAL}: sub-${SUBJ}  [$(ts)]"
@@ -557,6 +570,53 @@ for SUBJ in "${SUBJECTS[@]}"; do
                 echo "  [5d] fsl_striatum propagation SKIP: output exists"
                 img_info "${OUT_FSL_STRIATUM_SUBJ}"
             fi
+        fi
+    fi
+
+    # -----------------------------------------------------------------------
+    # Step 6: Lausanne2018 scale3 subject-specific atlas (hand/foot/lip SBA
+    # seeds -- KUL_FS_multiparc.sh's output, FreeSurfer-conformed space).
+    # Two-stage warp, same pattern already used for FS-derived label volumes
+    # elsewhere (KUL_dwiprep_anat.sh's aparc+aseg warp): mri_convert with
+    # -rl/-rt nearest handles the FS-conformed -> T1w-native resample (header-
+    # based, no separate registration needed), then warp_to_mni's existing
+    # GenericLabel antsApplyTransforms takes T1w-native -> MNI, same as every
+    # other subject-specific atlas in this script.
+    # -----------------------------------------------------------------------
+    step_header "6/6" "Lausanne2018 scale3 subject-specific atlas"
+
+    if [[ -f "${LAUSANNE_VBG}" ]]; then
+        LAUSANNE_SRC="${LAUSANNE_VBG}"
+    elif [[ -f "${LAUSANNE_STD}" ]]; then
+        LAUSANNE_SRC="${LAUSANNE_STD}"
+    else
+        LAUSANNE_SRC=""
+    fi
+
+    if [[ -z "${LAUSANNE_SRC}" ]]; then
+        echo "    SKIP: lausanne2018.scale3+aseg.mgz not found (checked VBG and standard freesurfer derivatives) -- run KUL_FS_multiparc.sh first" >&2
+    else
+        if [[ ! -f "${OUT_LAUSANNE_T1W}" || "${FORCE_DS}" -eq 1 ]]; then
+            echo "  [6a] mri_convert: FS-conformed -> T1w-native"
+            if mri_convert -rl "${T1W}" -rt nearest "${LAUSANNE_SRC}" "${OUT_LAUSANNE_T1W}" \
+                    > "${LOG_LAUSANNE}" 2>&1; then
+                echo "    DONE ($(ts))"; img_info "${OUT_LAUSANNE_T1W}"
+            else
+                echo "    FAILED — see ${LOG_LAUSANNE}" >&2; log_tail "${LOG_LAUSANNE}"
+                (( N_FAIL++ )) || true
+            fi
+        else
+            echo "  [6a] T1w-native SKIP: output exists"; img_info "${OUT_LAUSANNE_T1W}"
+        fi
+
+        if [[ ! -f "${OUT_LAUSANNE_T1W}" ]]; then
+            echo "  [6b] SKIP: T1w-native lausanne not available" >&2
+        elif [[ ! -f "${OUT_LAUSANNE_MNI}" || "${FORCE_DS}" -eq 1 ]]; then
+            echo "  [6b] warp T1w-native -> MNI"
+            warp_to_mni "${OUT_LAUSANNE_T1W}" "${OUT_LAUSANNE_MNI}" "${XFM}" "${LOG_LAUSANNE}" \
+                || (( N_FAIL++ )) || true
+        else
+            echo "  [6b] MNI lausanne SKIP: output exists"; img_info "${OUT_LAUSANNE_MNI}"
         fi
     fi
 

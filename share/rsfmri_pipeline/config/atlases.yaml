@@ -205,6 +205,29 @@ atlases:
       1020/2020=ParsTriangularis, 1030/2030=SuperiorTemporal,
       1031/2031=Supramarginal.
 
+  lausanne_scale3_subject:
+    source   : subject_lausanne
+    type     : anatomical
+    space    : MNI152NLin2009cAsym
+    res      : 2
+    notes    : >
+      OPTIONAL — requires KUL_FS_multiparc.sh to have been run for this
+      subject (multiparc=1; not every -t type does this by default). If
+      missing, seeds using this atlas fail individually (logged, non-fatal)
+      rather than aborting the run -- see step1_sba.py's get_seed_mask
+      try/except.
+      Lausanne2018 scale3 cortical parcellation, FreeSurfer-conformed space,
+      warped to MNI by step0 (mri_convert -rl/-rt nearest to T1w-native, then
+      the same GenericLabel warp used for every other subject-specific atlas
+      here). Seeds specify label IDs directly via lausanne_labels in the seed
+      catalog (see atlases/lausanne2008/label-L2018_desc-scale3_atlas_readable_LUT.txt
+      for the full list). Precentral/postcentral/paracentral sub-parcellation
+      relevant to somatotopic (hand/foot/lip) seed definitions, grouped by
+      MNI-coordinate position along the motor strip (see profiles.yaml seed
+      catalog comments for the specific label IDs and the coordinate
+      reasoning) — a geometric subdivision, not a functionally-validated
+      somatotopic atlas, so treat boundaries as approximate.
+
   ho_cort_subject:
     source      : subject_propagated
     base_atlas  : ho_cort
