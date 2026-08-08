@@ -1312,7 +1312,12 @@ function KUL_check_redo {
             read -p "Redo: KUL_FWT? (y/n) " answ
             if [[ "$answ" == "y" ]]; then
                 rm -f ${cwd}/KUL_LOG/sub-${participant}_FWT.done >/dev/null 2>&1
-                rm -fr $derivativesdir/KUL_FWT/* >/dev/null 2>&1
+                # KUL_FWT writes to $derivativesdir/FWT, not $derivativesdir/KUL_FWT. The old
+                # path matched nothing, so "redo" cleared the .done gate and left every
+                # <bundle>_VOIs.done marker and .tck in place -- make_VOIs then skipped every
+                # bundle as "already generated" and the rerun reproduced the previous result
+                # exactly, including after a recipe change.
+                rm -fr $derivativesdir/FWT/* >/dev/null 2>&1
             fi
         fi
 
