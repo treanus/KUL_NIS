@@ -505,6 +505,20 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			rm dwi/denoise.mif"
 		KUL_task_exec $verbose_level "kul_dwiprep part 2: mrdegibbs" "2_mrdegibbs"
 
+		# dwigradcheck: scanner/conversion gradient-table conventions (axis order,
+		# polarity) vary and silently produce wrong bvecs -- verify/correct here on
+		# the denoised+degibbs'd data (cleaner signal for its test-tractography-based
+		# coherence check than the raw data, and gradients are untouched by
+		# denoise/degibbs so this result is equivalent to checking pre-denoise),
+		# before the expensive motion/distortion correction step below gets run on
+		# a wrong gradient table.
+		kul_echo "dwigradcheck (pre-eddy)..."
+		task_in="dwigradcheck dwi/degibbs.mif -mask dwi/dwi_orig_mask.nii.gz \
+				-export_grad_mrtrix dwi/degibbs_grad_checked.b -force \
+			&& mrconvert dwi/degibbs.mif dwi/degibbs_gradchecked.mif -grad dwi/degibbs_grad_checked.b -nthreads $ncpu -force \
+			&& mv -f dwi/degibbs_gradchecked.mif dwi/degibbs.mif"
+		KUL_task_exec $verbose_level "kul_dwiprep part 2: dwigradcheck" "2_dwigradcheck"
+
 	else
 
 		kul_echo "part 1 of preprocessing has been done already... skipping to next step"
@@ -764,6 +778,17 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		dwi2mask_message="kul_dwiprep: make an intermediate mask"
 		dwi2mask_logfile="3_mask"
 		kul_dwi2mask
+
+		# dwigradcheck again, post-eddy: eddy rotates the per-volume gradient
+		# directions to compensate for estimated head motion, so re-verify the
+		# table that will actually be used for tensor fitting/tractography from
+		# here on, not just the pre-correction one checked in part 2.
+		kul_echo "dwigradcheck (post-eddy)..."
+		task_in="dwigradcheck dwi/geomcorr.mif -mask dwi/dwi_intermediate_mask.nii.gz \
+				-export_grad_mrtrix dwi/geomcorr_grad_checked.b -force \
+			&& mrconvert dwi/geomcorr.mif dwi/geomcorr_gradchecked.mif -grad dwi/geomcorr_grad_checked.b -nthreads $ncpu -force \
+			&& mv -f dwi/geomcorr_gradchecked.mif dwi/geomcorr.mif"
+		KUL_task_exec $verbose_level "kul_dwiprep part 3: dwigradcheck" "3_dwigradcheck"
 
 		temp_dir=$(ls -d *dwifslpreproc*/dwi_post_eddy.nii.gz 2>/dev/null | head -1 | xargs dirname)
 
