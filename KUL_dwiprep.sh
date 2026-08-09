@@ -56,7 +56,11 @@ Required arguments:
 Optional arguments:
 
 	 -d:  dwiprep options: can be dhollander, tax, tournier and/or lore_sd (default = dhollander) e.g. "tax dhollander"
-	 -u:  use native (non-upsampled) data for all FOD/DTI estimation (default: use upsampled dwi_preproced.mif)
+	 -u:  keep the native (acquired) resolution: dwi_preproced.mif is NOT upsampled to
+	      1.3 mm, so everything derived from it -- dwi_mask, dwi_preproced_reg2T1w, the
+	      tensor and qa/fa_reg2T1w.nii.gz, and hence KUL_FWT's VOI space -- stays at the
+	      acquired resolution too. Default is to upsample (the MRtrix FBA recommendation:
+	      estimate FODs on upsampled data rather than interpolating them afterwards).
 	 -s:  session (BIDS session)
 	 -n:  number of cpu for parallelisation (default 6)
 	 -b:  use Synb0-DISCO instead of topup (requires docker)
@@ -85,7 +89,7 @@ Documentation:
 		3/ mrdegibs
 		4/ dwifslpreproc or shard-recon, either using topup or synb0-disco
 		5/ dwibiascorrects
-		6/ upsampling to an isotropic resolution of 1.3 mm 
+		6/ upsampling to an isotropic resolution of 1.3 mm (skipped with -u, see below)
 		7/ creation of dwi_mask
 		8/ response estimation
 		9: outputs an ADC, FA en DEC image in the for quality assurance purpose
@@ -895,11 +899,30 @@ if isinstance(v,(int,float)) and v>=1: print(int(v))
 	fi
 
 
+	# A dwi_preproced.mif built with and without -u are indistinguishable by name, so a
+	# subject processed once, then re-run with the flag flipped, would silently reuse the
+	# wrong-resolution volume -- and every grid downstream (dwi_mask, the reg2T1w tensor,
+	# qa/fa_reg2T1w.nii.gz, KUL_FWT's whole VOI space) would follow the stale file rather
+	# than the requested setting. Check the actual voxel size, not just existence.
+	if [ -f dwi_preproced.mif ]; then
+		_dwip_vox=$(mrinfo -spacing dwi_preproced.mif 2>/dev/null | awk '{printf "%.2f", $1}')
+		if [ $use_upsampled -eq 1 ]; then
+			_dwip_want="1.30"
+		else
+			_dwip_want=$(mrinfo -spacing dwi/biascorr.mif 2>/dev/null | awk '{printf "%.2f", $1}')
+		fi
+		if [ -n "$_dwip_vox" ] && [ -n "$_dwip_want" ] && [ "$_dwip_vox" != "$_dwip_want" ]; then
+			kul_echo "WARNING: existing dwi_preproced.mif is ${_dwip_vox}mm but this run wants ${_dwip_want}mm"
+			kul_echo "  (use_native_dwi/-u was changed since it was made); rebuilding it"
+			rm -f dwi_preproced.mif dwi_mask.nii.gz
+		fi
+	fi
+
 	# check if next 4 steps of dwi preprocessing are done
-	# (check both outputs: dwi_preproced.mif is always built here regardless of -u,
-	#  but dwi/biascorr.mif -- the input used downstream when use_upsampled=0 -- is only
-	#  produced inside this same block, so a leftover/stale dwi_preproced.mif from an
-	#  earlier interrupted run must not mask a missing biascorr.mif)
+	# (check both outputs: dwi/biascorr.mif -- the input used downstream when
+	#  use_upsampled=0 -- is only produced inside this same block, so a leftover/stale
+	#  dwi_preproced.mif from an earlier interrupted run must not mask a missing
+	#  biascorr.mif)
 	if [ ! -f dwi_preproced.mif ] || [ ! -f dwi/biascorr.mif ]; then
 
 		kul_echo "Start part 3 of preprocessing: dwibiascorrect, upsampling & creation of a final dwi_mask"
@@ -910,18 +933,47 @@ if isinstance(v,(int,float)) and v>=1: print(int(v))
 			-bias dwi/biasfield.mif -nthreads $ncpu -force -mask dwi/dwi_intermediate_mask.nii.gz"
 		KUL_task_exec $verbose_level "kul_dwiprep part 4: dwibiascorrect" "4_dwibiascorrect"
 
-		
-		# upsample the images
-		kul_echo "    upsampling resolution..."
-		task_in="mrgrid -nthreads $ncpu -force -axis 1 5,5 dwi/biascorr.mif crop - | mrgrid -axis 1 5,5 -force - pad - | mrgrid -voxel 1.3 -force - regrid dwi/upsampled.mif"
-		KUL_task_exec $verbose_level "kul_dwiprep part 5: upsampling resolution" "5_upsample"
-	
 
-		# copy to main directory for subsequent processing
-		kul_echo "    saving..."
-		task_in="mrconvert dwi/upsampled.mif dwi_preproced.mif -set_property comments \"Preprocessed dMRI data.\" -nthreads $ncpu -force"
-		KUL_task_exec $verbose_level "kul_dwiprep part 5: saving" "5_saving"
-		rm dwi/upsampled.mif
+		# dwi_preproced.mif is the canonical preprocessed output and always exists.
+		# What changes with -u is its RESOLUTION.
+		#
+		# The upsampling to 1.3mm is the MRtrix fixel-based-analysis recommendation:
+		# estimate FODs on upsampled data rather than interpolating them afterwards.
+		# It used to run unconditionally, with -u only deciding whether *estimation*
+		# read the result -- which meant everything derived from dwi_preproced.mif
+		# stayed at 1.3mm no matter what the user asked for: the final dwi_mask, the
+		# rigid-registered dwi_preproced_reg2T1w, the tensor built from it, and hence
+		# qa/fa_reg2T1w.nii.gz, which is the space KUL_FWT builds every VOI in.
+		#
+		# That left native-mode runs with FODs at the acquired resolution and an FA at
+		# 1.3mm. Nothing complained, because tckgen interpolates its mask and
+		# mrtransform -linear (no -template) only rewrites the header -- but
+		# voxel2fixel does neither, so KUL_FWT's tractometry died on every bundle with
+		# a dimension mismatch, and the LoRE DEC needed a resampled copy of the ODF
+		# purely to match a mask that should not have been upsampled in the first place.
+		#
+		# Honouring -u here makes both modes internally consistent end to end, rather
+		# than patching each consumer that trips over the difference.
+		if [ $use_upsampled -eq 1 ]; then
+
+			# upsample the images
+			kul_echo "    upsampling resolution..."
+			task_in="mrgrid -nthreads $ncpu -force -axis 1 5,5 dwi/biascorr.mif crop - | mrgrid -axis 1 5,5 -force - pad - | mrgrid -voxel 1.3 -force - regrid dwi/upsampled.mif"
+			KUL_task_exec $verbose_level "kul_dwiprep part 5: upsampling resolution" "5_upsample"
+
+			# copy to main directory for subsequent processing
+			kul_echo "    saving..."
+			task_in="mrconvert dwi/upsampled.mif dwi_preproced.mif -set_property comments \"Preprocessed dMRI data.\" -nthreads $ncpu -force"
+			KUL_task_exec $verbose_level "kul_dwiprep part 5: saving" "5_saving"
+			rm dwi/upsampled.mif
+
+		else
+
+			kul_echo "    keeping native resolution (use_native_dwi/-u is set); not upsampling"
+			task_in="mrconvert dwi/biascorr.mif dwi_preproced.mif -set_property comments \"Preprocessed dMRI data (native resolution, not upsampled).\" -nthreads $ncpu -force"
+			KUL_task_exec $verbose_level "kul_dwiprep part 5: saving (native resolution)" "5_saving"
+
+		fi
 
 
 		# create a final mask of the dwi data
@@ -1037,16 +1089,11 @@ if isinstance(v,(int,float)) and v>=1: print(int(v))
 			kul_echo " lore_sd decomposition already done, skipping..."
 		fi
 
-		if [ $use_upsampled -eq 0 ]; then
-			if [ ! -f response/lore_sd/odf_resampled.mif ]; then
-				kul_echo "Resampling lore_sd ODF to 1.3mm isotropic..."
-				task_in="mrgrid response/lore_sd/odf.mif regrid -template dwi_preproced.mif \
-				response/lore_sd/odf_resampled.mif -force -nthreads $ncpu"
-				KUL_task_exec $verbose_level "kul_dwiprep part 7: lore_sd resample odf" "7_lore_sd_resample_odf"
-			else
-				kul_echo " lore_sd ODF resampling already done, skipping..."
-			fi
-		fi
+		# (The ODF used to be resampled to dwi_preproced.mif's grid here when -u was
+		#  set. That only existed because dwi_preproced.mif -- and therefore
+		#  dwi_mask.nii.gz -- was upsampled unconditionally, so a native-resolution ODF
+		#  could not be masked for the DEC below. dwi_preproced.mif now honours -u, so
+		#  odf.mif and the mask always share a grid and the copy is unnecessary.)
 
 		if [ ! -f response/lore_sd_contrasts/rfa.mif ]; then
 			kul_echo "Calculating lore_sd contrasts..."
@@ -1125,12 +1172,13 @@ if isinstance(v,(int,float)) and v>=1: print(int(v))
 		KUL_task_exec $verbose_level "kul_dwiprep part 8: dhollander DEC" "8_qa_dhollander_dec"
 	fi
 
+	# Uses odf.mif and ${dwi_mask_input} in both modes, like the dhollander/tax/tournier
+	# DECs above. The -u branch here used to read response/lore_sd/odf_resampled.mif
+	# against a hardcoded dwi_mask.nii.gz: the mask was 1.3mm even in native mode, so the
+	# ODF had to be upsampled to be maskable. Both the ODF and the mask now follow -u, so
+	# they always share a grid and odf_resampled.mif is neither produced nor needed.
 	if [[ $dwipreproc_options == *"lore_sd"* ]] && [ ! -f qa/lore_sd_dec.mif ]; then
-		if [ $use_upsampled -eq 0 ]; then
-			task_in="fod2dec response/lore_sd/odf_resampled.mif qa/lore_sd_dec.mif -force -mask dwi_mask.nii.gz"
-		else
-			task_in="fod2dec response/lore_sd/odf.mif qa/lore_sd_dec.mif -force -mask ${dwi_mask_input}"
-		fi
+		task_in="fod2dec response/lore_sd/odf.mif qa/lore_sd_dec.mif -force -mask ${dwi_mask_input}"
 		KUL_task_exec $verbose_level "kul_dwiprep part 8: lore_sd DEC" "8_qa_lore_sd_dec"
 	fi
 

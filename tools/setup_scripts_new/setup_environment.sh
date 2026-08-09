@@ -90,6 +90,17 @@ KARAWUN_COMMIT="9ecbf8e6d6ff3f2edb15b200341ba7b0f0be7412"   # tag v0.2.6.0 on th
                                                              # already folded in its fixes and much more).
                                                              # Needs Python >=3.14 + pydicom==3.0.2 (see
                                                              # section_env_karawun below).
+HDGLIOAUTO_COMMIT="6acaad8"      # NeuroAI-HD/HD-GLIO-AUTO, May 2022. Newer than the code baked into
+                                 # the jenspetersen/hd-glio-auto docker image, and fixes a real bug in
+                                 # it: volumes.txt reported tumour volumes in *voxels*, because
+                                 # np.sum(data == label) was never multiplied by the voxel volume.
+HDBET_V1_COMMIT="5f636017b067e5311d2288a2308a326bdfeca150"   # HD-BET 1.0, Mar 2020.
+                                 # Deliberately NOT $HDBET_COMMIT (2.0.1). HD-GLIO-AUTO's run.py calls
+                                 # 'hd-bet -i <file> -device 0'; in v2 the -device argument takes
+                                 # 'cuda'/'cpu'/'mps' and rejects '0', so the two are not
+                                 # interchangeable. This one lives in its own env and its own checkout;
+                                 # hd-bet-env (v2.0.1, used by KUL_dwiprep and KUL_anat_register) is
+                                 # untouched.
 FMRIPREP_VERSION="25.1.4"
 PSYCHOPY_VERSION="${PSYCHOPY_VERSION:-2026.2.0}" # override with --psychopy-version, or the wizard prompt
 PSYCHOPY_VERSION_EXPLICIT=0
@@ -112,6 +123,7 @@ DO_CLINICAL_PYDEPS=1     # SimpleITK/Pillow/numpy/nibabel/scipy/matplotlib for K
 DO_ENV_SCILPY=1          # required — KUL_FWT's own filtering/RecoBundles step
 DO_ENV_HDBET=1           # brain extraction, used by KUL_dwiprep/KUL_anat_register
 DO_ENV_RESSEG=1          # resection-cavity segmentation
+DO_ENV_HDGLIO=1          # HD-GLIO-AUTO tumour segmentation, native (no docker)
 DO_ENV_KARAWUN=1         # Brainlab export (uses the simpler conda-forge KarawunEnv by
                          # default -- but that package is frozen at v0.2.5.4 (2021) and
                          # will silently corrupt output DICOMs when the donor is a Philips
@@ -165,7 +177,7 @@ NVIDIA_DRIVER_JUST_CHANGED=0
 
 # ── End configuration ─────────────────────────────────────────────────────────
 
-SCRIPT_SECTIONS="apt docker nvidia apptainer vscode miniforge env-dcm2bids clinical-pydeps env-scilpy env-hdbet env-resseg env-karawun env-fastsurfer env-pyfmri env-lore-sd repos mrtrix3 shard-recon ants fsl freesurfer leaddbs-atlases itksnap psychopy datalad awscli r rstudio afni docker-images bashrc verify"
+SCRIPT_SECTIONS="apt docker nvidia apptainer vscode miniforge env-dcm2bids clinical-pydeps env-scilpy env-hdbet env-resseg env-hdglio env-karawun env-fastsurfer env-pyfmri env-lore-sd repos mrtrix3 shard-recon ants fsl freesurfer leaddbs-atlases itksnap psychopy datalad awscli r rstudio afni docker-images bashrc verify"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -971,9 +983,282 @@ section_env_hdbet() {
 
 # ── 4c. resseg env (resection-cavity segmentation) ────────────────────────────
 
+RESSEG_WEIGHTS_NAME="self_semi_37-b571f7ba.pth"
+RESSEG_WEIGHTS_URL="https://github.com/fepegar/resseg/raw/master/$RESSEG_WEIGHTS_NAME"
+
+# resseg ships no usable pretrained weights: 'pip install resseg' installs the
+# code but not the checkpoint, and the lookup in resseg/model.py is broken
+# anyway. It computes Path(__file__).parent.parent, which assumed model.py sat
+# one level below the repo root beside the checkpoint -- untrue since upstream
+# moved to a src/ layout (src/resseg/model.py -> parent.parent is src/, while
+# the checkpoint is at the repo root) and untrue for a pip install (where
+# parent.parent is site-packages/). Every resseg run therefore dies with
+#
+#   FileNotFoundError: .../site-packages/self_semi_37-b571f7ba.pth
+#
+# which in the pipeline surfaces only as "resseg run 1 might have failed" in a
+# log, leaving the resection cavity silently unsegmented.
+#
+# Note the checkpoint must NOT be dropped into site-packages/ to satisfy the
+# upstream path: Python's site module parses every *.pth file directly in that
+# directory as a UTF-8 path-configuration file at interpreter startup, so a
+# binary checkpoint there stops the environment's python from starting at all
+# ("Failed to import the site module"). It goes in resseg/weights/ instead,
+# which site does not scan.
+#
+# Idempotent, and deliberately run even when the env already exists, so an
+# existing broken install is repaired rather than skipped.
+_resseg_fix_weights() {
+    local sp weights model_py patcher
+    sp=$("$(env_bin resseg python)" -c \
+        "import os, resseg; print(os.path.dirname(resseg.__file__))" 2>/dev/null) || {
+        warn "resseg not importable — skipping weights fix"
+        return
+    }
+    weights="$sp/weights/$RESSEG_WEIGHTS_NAME"
+    model_py="$sp/model.py"
+
+    if [ ! -f "$weights" ]; then
+        log "Fetching resseg pretrained weights (~1 MB)"
+        run "mkdir -p '$sp/weights'"
+        run "curl -fsSL -o '$weights' '$RESSEG_WEIGHTS_URL'"
+    fi
+
+    if grep -q "KUL patch" "$model_py" 2>/dev/null; then
+        ok "resseg model.py already patched"
+        return
+    fi
+
+    log "Patching resseg/model.py to find its checkpoint"
+    [ "$DRY_RUN" -eq 1 ] && { echo "    [dry-run] patch $model_py"; return; }
+    cp -n "$model_py" "$model_py.orig" 2>/dev/null || true
+    patcher=$(mktemp) || return
+    cat > "$patcher" <<'PYEOF'
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+s = p.read_text()
+old = """    if pretrained:
+        repo_dir = Path(__file__).parent.parent
+        weights_path = repo_dir / 'self_semi_37-b571f7ba.pth'
+        state_dict = torch.load(weights_path)
+        model.load_state_dict(state_dict)
+    return model"""
+new = """    if pretrained:
+        # KUL patch (see setup_environment.sh, section_env_resseg) -- upstream
+        # looks for the checkpoint beside a repo root that no longer exists in
+        # either the src/ layout or a pip install. Never put the .pth directly
+        # in site-packages: python's site module parses those as text at
+        # startup and a binary one breaks the interpreter.
+        weights_name = 'self_semi_37-b571f7ba.pth'
+        candidates = (
+            Path(__file__).parent / 'weights' / weights_name,
+            Path(__file__).parent.parent / weights_name,
+            Path(__file__).parent.parent.parent / weights_name,
+            Path(torch.hub.get_dir()) / 'fepegar_resseg_master' / weights_name,
+        )
+        for weights_path in candidates:
+            if weights_path.is_file():
+                state_dict = torch.load(weights_path, map_location='cpu')
+                break
+        else:
+            state_dict = torch.hub.load_state_dict_from_url(
+                WEIGHTS_URL, progress=progress, map_location='cpu')
+        model.load_state_dict(state_dict)
+    return model"""
+if old not in s:
+    sys.exit("resseg/model.py does not match the expected upstream text; "
+             "not patching (check whether upstream has fixed this)")
+p.write_text(s.replace(old, new))
+PYEOF
+    if "$(env_bin resseg python)" "$patcher" "$model_py"; then
+        ok "resseg/model.py patched"
+    else
+        warn "could not patch resseg/model.py — resseg will fail to load its weights"
+    fi
+    rm -f "$patcher"
+}
+
+# ── 4d. hdglio env (HD-GLIO-AUTO, non-docker) ─────────────────────────────────
+#
+# KUL_anat_segment_tumor.sh needs HD-GLIO-AUTO for the tumour segmentation. The
+# upstream project distributes it as a docker image; this installs it natively,
+# which is what the pipeline's local-install branch expects.
+#
+# The image freezes a 2020 toolchain (python 3.6, torch 1.6, numpy 1.19,
+# SimpleITK 2.0). Installing the same software against a current Python breaks
+# in eleven separate places, and only some of them fail at install time -- the
+# rest surface mid-run, after minutes of GPU work. Every pin and patch below is
+# one of those; none is cosmetic. Verified end to end on a real 4-contrast
+# clinical study: 4m34s, segmentation.nii.gz + volumes.txt produced, volume
+# cross-checked against an independent count of the label map.
+#
+# Runtime also needs FSL on PATH (fslreorient2std, flirt, fslmaths).
+_hdglio_patch_sources() {
+    local f patcher
+    patcher=$(mktemp) || return 1
+    cat > "$patcher" <<'PYEOF'
+import sys
+from pathlib import Path
+
+hdbet, hdglioauto = Path(sys.argv[1]), Path(sys.argv[2])
+changed = []
+
+# (a) HD_BET/hd-bet has no shebang. setup.py lists it in scripts=[...]; the old
+#     'setup.py develop' wrapped it in an easy-install shim that supplied one,
+#     but modern pip copies the file verbatim, so bin/hd-bet starts with
+#     'import os' and exec() fails with OSError [Errno 8] Exec format error.
+p = hdbet / "HD_BET" / "hd-bet"
+s = p.read_text()
+if not s.startswith("#!"):
+    p.write_text("#!/usr/bin/env python\n" + s)
+    changed.append("HD_BET/hd-bet: added shebang")
+
+# (b) HD_BET/data_loading.py compares the whole segmentation ARRAY against a
+#     3-element size, where it means the array's shape. numpy <1.25 evaluated
+#     that as False with a DeprecationWarning (so the branch never ran, silently
+#     wrong); numpy >=1.25 raises ValueError and hd-bet dies at export, after
+#     inference has completed.
+p = hdbet / "HD_BET" / "data_loading.py"
+s = p.read_text()
+old = "if np.any(np.array(seg_old_size) != np.array(dct['size'])[[2, 1, 0]]):"
+new = "if np.any(np.array(seg_old_size.shape) != np.array(dct['size'])[[2, 1, 0]]):"
+if old in s:
+    p.write_text(s.replace(old, new))
+    changed.append("HD_BET/data_loading.py: compare shape, not array")
+
+# (c) scripts/run.py uses img.get_data(), removed in nibabel 5.0
+#     (ExpiredDeprecationError). asanyarray(dataobj) is the documented
+#     equivalent; get_fdata() would upcast the label map to float64. This one
+#     fires AFTER the segmentation is written, so the expensive work completes
+#     and the run then dies while reporting volumes.
+#     np.product was likewise removed in numpy 2.0.
+p = hdglioauto / "scripts" / "run.py"
+s = p.read_text()
+orig = s
+import re
+s = re.sub(r"(\w+)\.get_data\(\)", r"np.asanyarray(\1.dataobj)", s)
+s = s.replace("np.product(", "np.prod(")
+if s != orig:
+    p.write_text(s)
+    changed.append("HD-GLIO-AUTO/scripts/run.py: get_data -> asanyarray, product -> prod")
+
+print("\n".join("    patched " + c for c in changed) if changed
+      else "    sources already patched")
+PYEOF
+    "$SOFTWARE_ROOT/miniforge3/bin/python" "$patcher" \
+        "$SOFTWARE_ROOT/src/HD-BET_v1" "$SOFTWARE_ROOT/src/HD-GLIO-AUTO"
+    f=$?
+    rm -f "$patcher"
+    return $f
+}
+
+section_env_hdglio() {
+    local hdbet_dir="$SOFTWARE_ROOT/src/HD-BET_v1"
+    local auto_dir="$SOFTWARE_ROOT/src/HD-GLIO-AUTO"
+
+    [ -d "$auto_dir" ]  || run "git clone https://github.com/NeuroAI-HD/HD-GLIO-AUTO.git '$auto_dir'"
+    run "cd '$auto_dir' && git checkout $HDGLIOAUTO_COMMIT"
+    [ -d "$hdbet_dir" ] || run "git clone https://github.com/MIC-DKFZ/HD-BET.git '$hdbet_dir'"
+    run "cd '$hdbet_dir' && git checkout $HDBET_V1_COMMIT"
+
+    if env_exists hdglio; then
+        ok "conda env 'hdglio' already exists"
+    else
+        log "Creating 'hdglio' env (python 3.9, torch 1.13.1, nnunet 1.6.4, hd-glio 2.0, HD-BET 1.0)"
+        run "$(mamba_bin) create -n hdglio python=3.9 -y"
+
+        # One pip call, one resolver pass, for the reason documented in
+        # section_env_hdbet: splitting it lets a later unconstrained 'torch'
+        # requirement silently replace the CUDA build.
+        #
+        #   torch==1.13.1      nnunet 1.x predates torch 2.x. 1.13.1 is the last
+        #                      1.x, and cu117 wheels run on current drivers.
+        #   numpy<2            torch 1.13 was built against numpy 1.x. With numpy
+        #                      2 it INSTALLS FINE and then dies at the first
+        #                      array<->tensor conversion: "RuntimeError: Numpy is
+        #                      not available".
+        #   python-gdcm pin    pulled in via nnunet -> dicom2nifti. Newer versions
+        #                      have no cp39 wheel and their sdist has no
+        #                      CMakeLists.txt, so the source build fails.
+        #   batchgenerators    0.25 moved MultiThreadedAugmenter out of
+        #     ==0.21           batchgenerators.dataloading, which nnunet imports.
+        #   matplotlib         imported by nnunet, not declared by it.
+        #   SKLEARN_ALLOW_...  nnunet 1.6.4 requires the deprecated 'sklearn'
+        #                      shim, which now refuses to install without this.
+        local torch_tag
+        torch_tag=$(pick_torch_cuda_tag "$SOFTWARE_ROOT/miniforge3/bin/pip")
+        [ "$torch_tag" = "cpu" ] && warn "No usable GPU found — hd-glio will run on CPU (very slow)"
+        run "SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True '$(env_bin hdglio pip)' install \
+            --index-url https://download.pytorch.org/whl/cu117 \
+            --extra-index-url https://pypi.org/simple \
+            'torch==1.13.1' 'numpy<2' 'python-gdcm==3.0.24.1' 'nnunet==1.6.4' \
+            'hd-glio==2.0' 'batchgenerators==0.21' matplotlib -e '$hdbet_dir'"
+    fi
+
+    _hdglio_patch_sources
+    # The shebang patch changes what pip copies into bin/, so reinstall after it.
+    run "'$(env_bin hdglio pip)' install -q --force-reinstall --no-deps -e '$hdbet_dir'"
+    _hdglio_fix_weights
+    ok "hdglio env ready (used by KUL_anat_segment_tumor.sh; needs FSL on PATH at run time)"
+}
+
+# hd_glio and HD-BET both hardcode their weights to os.path.expanduser('~') with
+# no environment override, so on a shared install every user re-downloads ~400 MB
+# into their own home and the installer cannot provision them once. Point both at
+# a shared directory under SOFTWARE_ROOT, keeping ~ as the fallback so a
+# user-mode install still behaves as upstream intends.
+_hdglio_fix_weights() {
+    local share="$SOFTWARE_ROOT/share/hd_models"
+    local patcher
+    run "mkdir -p '$share/hd_glio_params' '$share/hd-bet_params'"
+    [ "$DRY_RUN" -eq 1 ] && { echo "    [dry-run] patch paths.py + fetch weights"; return; }
+
+    patcher=$(mktemp) || return
+    cat > "$patcher" <<'PYEOF'
+import sys
+from pathlib import Path
+
+share = sys.argv[1]
+for mod_path, folder in ((sys.argv[2], "hd_glio_params"), (sys.argv[3], "hd-bet_params")):
+    p = Path(mod_path)
+    s = p.read_text()
+    if "KUL patch" in s:
+        continue
+    p.write_text(
+        "import os\n"
+        "# KUL patch: prefer a shared, installer-provisioned parameter directory,\n"
+        "# so every user of a shared install does not re-download the weights into\n"
+        "# their own home. Falls back to upstream's ~/<name> when the shared one is\n"
+        "# absent (user-mode installs), and an explicit env var wins over both.\n"
+        "_shared = {shared!r}\n"
+        "folder_with_parameter_files = (\n"
+        "    os.environ.get('KUL_HD_PARAMS_DIR')\n"
+        "    or (_shared if os.path.isdir(_shared) else\n"
+        "        os.path.join(os.path.expanduser('~'), {folder!r}))\n"
+        ")\n".format(shared=str(Path(share) / folder), folder=folder)
+    )
+    print("    patched " + mod_path)
+PYEOF
+    # tail -1: importing hd_glio prints a multi-line citation banner to stdout,
+    # which would otherwise be captured as part of the path.
+    local glio_paths
+    glio_paths=$("$(env_bin hdglio python)" -c "import hd_glio.paths as m; print(m.__file__)" 2>/dev/null | tail -n 1)
+    "$(env_bin hdglio python)" "$patcher" "$share" \
+        "$glio_paths" \
+        "$SOFTWARE_ROOT/src/HD-BET_v1/HD_BET/paths.py"
+    rm -f "$patcher"
+
+    log "Fetching HD-GLIO / HD-BET model weights into $share (~400 MB, once)"
+    run "'$(env_bin hdglio python)' -c \"from hd_glio.setup_hd_glio import maybe_download_weights; maybe_download_weights()\""
+    run "'$(env_bin hdglio python)' -c \"from HD_BET.utils import maybe_download_parameters; [maybe_download_parameters(i) for i in range(5)]\""
+}
+
 section_env_resseg() {
     if env_exists resseg; then
         ok "conda env 'resseg' already exists"
+        _resseg_fix_weights
         return
     fi
     log "Creating 'resseg' env (python 3.8, resseg 0.3.7, antspyx 0.4.2)"
@@ -984,6 +1269,7 @@ section_env_resseg() {
     # fails building from source (conda toolchain doesn't see system crypt.h).
     run "'$(env_bin resseg pip)' install simpleitk==2.4.1"
     run "'$(env_bin resseg pip)' install resseg==0.3.7 antspyx==0.4.2"
+    _resseg_fix_weights
     ok "resseg env ready (used by KUL_anat_segment_tumor.sh)"
 }
 
@@ -2080,7 +2366,22 @@ run 'sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restar
 
         _verify_env_bin scilpy "scil_tractogram_filter_by_roi resolves" scil_tractogram_filter_by_roi --help
         _verify_env_bin hd-bet-env "hd-bet resolves" hd-bet --help
-        _verify_env_bin resseg "resseg importable" python -c "import resseg, ants"
+        # Instantiating the pretrained model, not just importing: 'import
+        # resseg, ants' succeeds on an install whose checkpoint is missing or
+        # unreachable, which is the failure mode that actually happens (see
+        # _resseg_fix_weights) and which otherwise only shows up mid-run.
+        _verify_env_bin resseg "resseg importable and pretrained weights load" \
+            python -c "import ants; from resseg.model import ressegnet; ressegnet()"
+
+        # Import the chain that actually broke during install (nnunet ->
+        # batchgenerators -> matplotlib), touch numpy<->torch (which fails at
+        # runtime, not import, under numpy 2), and confirm the weights resolve.
+        # A bare 'import hd_glio' passes on an install that cannot segment.
+        _verify_env_bin hdglio "hd-glio importable, torch/numpy interop, weights present" \
+            python -c "import numpy as np, torch, matplotlib; from batchgenerators.dataloading import MultiThreadedAugmenter; from nnunet.inference.predict import predict_cases; import os; from hd_glio import paths; torch.from_numpy(np.zeros((2,2), dtype=np.float32)); assert os.path.isdir(paths.folder_with_parameter_files), paths.folder_with_parameter_files"
+        # hd-bet v1 is a scripts=[] entry with no shebang upstream; this fails
+        # with 'Exec format error' if the source patch did not apply.
+        _verify_env_bin hdglio "hd-bet (v1) is executable" hd-bet --help
         if [ "$USE_KARAWUN_DEV" -eq 1 ]; then
             _verify_env_bin KarawunDev "karawun importable" python -c "import karawun"
         else
@@ -2184,6 +2485,7 @@ maybe_run_section clinical-pydeps  DO_CLINICAL_PYDEPS     section_clinical_pydep
 maybe_run_section env-scilpy       DO_ENV_SCILPY         section_env_scilpy
 maybe_run_section env-hdbet        DO_ENV_HDBET          section_env_hdbet
 maybe_run_section env-resseg       DO_ENV_RESSEG          section_env_resseg
+maybe_run_section env-hdglio       DO_ENV_HDGLIO          section_env_hdglio
 maybe_run_section env-karawun      DO_ENV_KARAWUN         section_env_karawun
 maybe_run_section env-fastsurfer   DO_ENV_FASTSURFER      section_env_fastsurfer
 maybe_run_section env-pyfmri        DO_ENV_PYFMRI          section_env_pyfmri

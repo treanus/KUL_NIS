@@ -204,8 +204,17 @@ function KUL_compute_melodic {
 
         # edited by AR 04/11/2022
         # now we compare to known networks
+        # KUL_NIT_networks.nii.gz is on the classic FSL-standard MNI152 2mm
+        # grid (91x109x91); melodic_IC.nii.gz is on fMRIPrep's actual
+        # MNI152NLin2009cAsym:res-2 grid (97x115x97) -- different template,
+        # fslcc requires matching grids and errors out ("Mismatch in image
+        # dimensions") otherwise. Use the pre-resampled NLin2009cAsym-space
+        # copy instead (see KUL_NIT_networks_space-MNI152NLin2009cAsym_res-2.nii.gz's
+        # generation -- mrgrid regrid -interp nearest, a one-off, not
+        # per-subject, same as the shared-atlas-resample pattern
+        # step0_synthseg.sh already uses).
         mkdir -p $fmriresults/kul
-        task_in="fslcc --noabs -p 3 -t .204 $kul_main_dir/atlases/Local/Sunaert2021/KUL_NIT_networks.nii.gz \
+        task_in="fslcc --noabs -p 3 -t .204 $kul_main_dir/atlases/Local/Sunaert2021/KUL_NIT_networks_space-MNI152NLin2009cAsym_res-2.nii.gz \
             $fmriresults/melodic_IC.nii.gz > $fmriresults/kul/kul_networks.txt"
         KUL_task_exec $verbose_level "Running fslcc for $melodic_in_1" "2_fslcc"
 
@@ -264,6 +273,21 @@ fi
 
 
 if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
+
+    # KUL_compute_melodic's denoise step below calls KUL_fmri_denoise.sh
+    # --method nilearn -- unlike KUL_run_rsfMRI_networks.sh/
+    # KUL_fmriproc_nilearn_new.sh, this script never activated the conda
+    # env nilearn actually lives in, so it silently ran under whatever
+    # environment KUL_clinical_fmridti.sh itself happened to be in and
+    # failed with "nilearn not installed" (masked at the KUL_task_exec
+    # level by an unrelated near-instant-failure duration-formatting
+    # error, which is what actually shows up in the console).
+    if ! conda env list | awk '{print $1}' | grep -qx "$KUL_PYFMRI_ENV"; then
+        echo "ERROR: conda env '$KUL_PYFMRI_ENV' was not found (checked 'conda env list')." >&2
+        echo "  Run the KUL_NIS installer's env-pyfmri section." >&2
+        exit 1
+    fi
+    KUL_activate_conda_env "$KUL_PYFMRI_ENV"
 
     KUL_compute_melodic
 

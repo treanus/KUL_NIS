@@ -182,23 +182,63 @@ function KUL_hd_glio_auto {
         cp -f $cwd/$FLAIR $hdglioinputdir/FLAIR.nii.gz
         cp -f $cwd/$T2w $hdglioinputdir/T2.nii.gz
         
-        # run HD-GLIO-AUTO using different methods
-            # 1. local install
-        if [ -f /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py ]; then
-            task_in="python /usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py -i $hdglioinputdir -o $hdgliooutputdir/output"
-            hdglio_type="local install HD-GLIO-AUTO"
-            KUL_task_exec $verbose_level "HD-GLIO-AUTO using $hdglio_type" "hdglioauto"
-        else
-            # 2. using pip
-            mkdir -p $hdglioinputdir/../hdbet
-            hd-bet -i $hdglioinputdir -o $hdglioinputdir/../hdbet --save_bet_mask
-            cp $hdglioinputdir/../hdbet/T1_bet.nii.gz $hdgliooutputdir/output/mask.nii.gz
-            
-            hd_glio_predict -t1 $hdglioinputdir/../hdbet/T1.nii.gz \
-                -t1c $hdglioinputdir/../hdbet/CT1.nii.gz \
-                -t2 $hdglioinputdir/../hdbet/T2.nii.gz \
-                -flair $hdglioinputdir/../hdbet/FLAIR.nii.gz \
-                -o $hdgliooutputdir/output/segmentation.nii.gz
+        # Run HD-GLIO-AUTO from the native (non-docker) install created by
+        # setup_environment.sh's env-hdglio section.
+        #
+        # run.py invokes 'hd-bet' and 'hd_glio_predict' as subprocesses, by name,
+        # so the hdglio env's bin must be on PATH -- and it must be *that* env's
+        # hd-bet: HD-GLIO-AUTO calls 'hd-bet -device 0', which HD-BET 2.x (the
+        # version in hd-bet-env, used elsewhere in KUL_NIS) rejects. The two are
+        # installed separately and deliberately. run.py also needs FSL on PATH
+        # for fslreorient2std/flirt/fslmaths.
+        #
+        # This used to fall back to bare 'hd-bet'/'hd_glio_predict' when the
+        # local install was absent. Those are not on PATH in any standard
+        # KUL_NIS setup, and the calls were not wrapped in KUL_task_exec, so the
+        # step failed with no log, no warning and no segmentation -- and the run
+        # continued to produce a lesion mask with the tumour missing from it.
+        # Failing loudly here is the point of this block.
+        # Search candidate software roots rather than trusting one variable:
+        # SOFTWARE_ROOT is exported by the installer's bashrc block, which is
+        # not guaranteed to have been sourced in the shell this runs from, and
+        # /usr/local/KUL_apps is where installs lived before that move.
+        local _hdglio_run="" _hdglio_bin="" _sw
+        for _sw in "${SOFTWARE_ROOT:-}" /opt/kul_software /usr/local/KUL_apps; do
+            [ -z "$_sw" ] && continue
+            if [ -f "$_sw/src/HD-GLIO-AUTO/scripts/run.py" ] && [ -x "$_sw/miniforge3/envs/hdglio/bin/python" ]; then
+                _hdglio_run="$_sw/src/HD-GLIO-AUTO/scripts/run.py"
+                _hdglio_bin="$_sw/miniforge3/envs/hdglio/bin"
+                break
+            fi
+        done
+
+        if [ -z "$_hdglio_run" ]; then
+            kul_echo "ERROR: HD-GLIO-AUTO is not installed."
+            kul_echo "  looked for <root>/src/HD-GLIO-AUTO/scripts/run.py together with"
+            kul_echo "  <root>/miniforge3/envs/hdglio/bin/python, under:"
+            kul_echo "    ${SOFTWARE_ROOT:-(SOFTWARE_ROOT unset)}, /opt/kul_software, /usr/local/KUL_apps"
+            kul_echo "  install it with:"
+            kul_echo "    tools/setup_scripts_new/setup_environment.sh --only env-hdglio"
+            kul_echo "  (a jenspetersen/hd-glio-auto docker image also exists, but this"
+            kul_echo "   script does not drive it -- the native install is what is used.)"
+            exit 1
+        fi
+
+        hdglio_type="native install ($_hdglio_run)"
+        local _path_before="$PATH"
+        export PATH="$_hdglio_bin:$PATH"
+        task_in="$_hdglio_bin/python $_hdglio_run -i $hdglioinputdir -o $hdgliooutputdir/output -v -np"
+        KUL_task_exec $verbose_level "HD-GLIO-AUTO using $hdglio_type" "hdglioauto"
+        export PATH="$_path_before"
+
+        # KUL_task_exec reports a non-zero exit, but the interesting failure is a
+        # missing output: run.py writes segmentation.nii.gz several minutes before
+        # it finishes, so a late crash can leave a usable-looking directory. Check
+        # the file the rest of this script actually consumes.
+        if [ ! -f ${hdgliooutputdir}/output/segmentation.nii.gz ]; then
+            kul_echo "ERROR: HD-GLIO-AUTO produced no segmentation.nii.gz."
+            kul_echo "  see ${KUL_LOG_DIR}/hdglioauto.error.log for what it did"
+            exit 1
         fi
 
     else

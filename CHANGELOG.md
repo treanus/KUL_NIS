@@ -1,5 +1,250 @@
 # Changelog
 
+## Unreleased (2026-08-09 — `use_native_dwi` now reaches the data it names)
+
+`KUL_dwiprep.sh -u` / `use_native_dwi: 1` promised native-resolution processing
+and only half delivered. The upsampling to 1.3 mm ran **unconditionally**; the
+flag merely decided whether *estimation* read the result. So a native-mode run
+produced FODs at the acquired resolution and everything else at 1.3 mm:
+`dwi_mask.nii.gz`, `dwi_preproced_reg2T1w.mif`, the tensor built from it, and
+therefore `qa/fa_reg2T1w.nii.gz` — which is the space KUL_FWT builds every VOI
+in.
+
+Nothing complained, because the two places that meet those grids both tolerate a
+mismatch: `tckgen` interpolates its mask, and `mrtransform -linear` without
+`-template` only rewrites the header. `voxel2fixel` does neither, which is why
+KUL_FWT's tractometry died on every bundle (see the KUL_FWT changelog) and why
+the LoRE DEC needed a resampled copy of the ODF to match a mask that should
+never have been upsampled.
+
+`dwi_preproced.mif` remains the canonical output and is still always produced —
+what changes with `-u` is its resolution. Both modes are now internally
+consistent end to end, so the fixel mismatch is impossible rather than patched at
+the point it surfaces.
+
+Also here:
+
+- **A stale-file guard.** A native and an upsampled `dwi_preproced.mif` are
+  indistinguishable by name, so re-running a subject with the flag flipped would
+  silently reuse the wrong-resolution volume and every downstream grid would
+  follow the file rather than the request. The voxel size is now checked, not
+  just existence.
+- **`odf_resampled.mif` removed.** It existed solely because the LoRE DEC read a
+  hardcoded `dwi_mask.nii.gz` while its neighbours used `${dwi_mask_input}`; with
+  the mask honouring `-u`, `odf.mif` can be masked directly. The DEC now matches
+  the dhollander/tax/tournier calls and cannot break on the removed file.
+- `-u`'s help text and the numbered description both claimed unconditional
+  upsampling; corrected.
+
+**Not yet exercised.** No dwiprep run has used this. Two known gaps:
+`KUL_dwiprep_anat.sh` gates on its own outputs, so on an *existing* subject the
+guard rebuilds `dwi_preproced.mif` while `dwi_preproced_reg2T1w`/`fa_reg2T1w`
+stay stale — flipping the flag on a processed subject needs those cleared too.
+And `KUL_dwiprep_group_fba.sh` still hardcodes `population_template -voxel_size
+1.3`, which is a legitimate template-space choice but is the one remaining place
+that assumes it.
+
+## Unreleased (2026-08-09 — HD-GLIO-AUTO installed natively; tumour segmentation failed silently)
+
+`KUL_anat_segment_tumor.sh` ran HD-GLIO through a local-install path
+(`/usr/local/KUL_apps/HD-GLIO-AUTO/scripts/run.py`) left behind by the move to
+`$SOFTWARE_ROOT`, then fell back to bare `hd-bet` / `hd_glio_predict` — neither
+on PATH in any standard setup. Neither call was wrapped in `KUL_task_exec`, so
+**the tumour segmentation produced nothing, with no log and no warning**, and the
+run continued to build a lesion mask without the tumour in it. `resseg` run 2
+then failed too: its input is derived from HD-GLIO's brain mask, not from run 1.
+
+`setup_environment.sh` gains `section_env_hdglio`, a native (non-docker) install:
+HD-GLIO-AUTO at `6acaad8`, HD-BET **1.0** at `5f63601` in its own env and
+checkout (HD-GLIO-AUTO calls `hd-bet -device 0`, which HD-BET 2.x rejects — the
+existing `hd-bet-env` is untouched), plus shared model weights under
+`$SOFTWARE_ROOT/share/hd_models`.
+
+Transplanting a 2020 image onto a current Python needed eleven fixes, of which
+three produce **no install-time signal at all**: `numpy<2` (installs fine, then
+`RuntimeError: Numpy is not available` at the first array↔tensor conversion), a
+missing shebang on `HD_BET/hd-bet` (`Exec format error`), and an upstream bug in
+`HD_BET/data_loading.py` that compares an array against a 3-element shape — which
+numpy <1.25 silently evaluated as `False` and numpy ≥1.25 raises on, after
+inference has completed. Three of the eleven patch **source files** in git
+checkouts, so they are reapplied idempotently rather than assumed.
+
+Verified end to end on a real 4-contrast clinical study: 4m34s,
+`segmentation.nii.gz` + `volumes.txt`, volume cross-checked against an
+independent count of the label map.
+
+`KUL_anat_segment_tumor.sh` now locates the install by searching
+`$SOFTWARE_ROOT`, `/opt/kul_software`, `/usr/local/KUL_apps` (verified to resolve
+with `SOFTWARE_ROOT` unset), puts the env's `bin` on PATH only for that call,
+wraps it in `KUL_task_exec`, exits with the install command if absent, and checks
+`segmentation.nii.gz` exists afterwards — `run.py` writes it minutes before it
+finishes, so a late crash otherwise leaves a directory that looks complete.
+
+## Unreleased (2026-08-09 — dcm2bids: BIDS validation, and it now stays quiet)
+
+The validator at the end of every conversion reported two real errors, both ours:
+
+- **`ContrastBolusIngredient: "gadolinium"`** — that field is a controlled enum;
+  the lowercase value failed schema validation on every post-contrast T1w this
+  has ever produced. Now `GADOLINIUM`.
+- **`tmp_dcm2bids/`** — `.bidsignore` covered its contents but not the directory
+  itself. Moved under `sourcedata/`, which BIDS recognises and does not validate.
+  Moved rather than deleted: it holds every series that did *not* match the
+  config, which is exactly what you need when a scan is missing.
+
+Plus the placeholder warnings: `BIDSVersion` had a stray leading `v`, `Name` was
+empty, and the README was *appended* to on every conversion (stacking duplicate
+paragraphs) rather than written.
+
+`GeneratedBy` was deliberately **not** added despite the validator recommending
+it: in BIDS that marks a dataset as a *derivative*, and derivative anatomicals
+then require `SkullStripped` in every sidecar — three cosmetic warnings become
+ten hard errors on what is correctly raw data.
+
+**The validator no longer runs by default** (`KUL_BIDS_VALIDATE=1` to enable).
+What remains on a correct conversion is metadata that simply is not in the
+DICOMs, and printing it every time trains you to ignore the output — which is
+worse than not running it, since real errors arrive the same way. The invocation
+is kept in the file with the reasoning next to it. `docker run -ti` also became
+`-i`: `-t` fails with "the input device is not a TTY" whenever this runs
+non-interactively, which silently skipped validation inside the pipeline.
+
+## Unreleased (2026-08-09 — melodic network comparison compared across templates)
+
+`KUL_fmriproc_conn.sh` ran `fslcc` between `KUL_NIT_networks.nii.gz` (classic
+FSL MNI152 2 mm, 91×109×91) and fMRIPrep's `melodic_IC.nii.gz`
+(MNI152NLin2009cAsym res-2, 97×115×97). Different templates, and `fslcc`
+requires matching grids, so it errored out. Now uses a pre-resampled
+NLin2009cAsym copy of the atlas, generated once (not per subject) the same way
+`step0_synthseg.sh` handles shared atlases.
+
+## Unreleased (2026-08-08 — resseg has never had working weights)
+
+`resseg` could not load its pretrained checkpoint, so **every resection-cavity
+segmentation this install has ever attempted failed**, reported only as
+`resseg run 1 might have failed` in a log while the pipeline carried on.
+
+Two causes, both upstream. `pip install resseg` ships no checkpoint. And
+`resseg/model.py` looks for it at `Path(__file__).parent.parent`, which assumed
+`model.py` sat one level below the repo root beside the weights — untrue since
+upstream moved to a `src/` layout (`src/resseg/model.py` → `parent.parent` is
+`src/`, weights are at the repo root) and untrue for a pip install (→
+`site-packages/`). It fails whichever copy of the package gets imported.
+
+`setup_environment.sh` now fetches the checkpoint into `resseg/weights/` and
+patches the lookup to search there first, falling back to the historical paths,
+the torch.hub checkout, and finally a download. Idempotent, and it runs even
+when the env already exists so existing broken installs are repaired.
+
+**The checkpoint must never be placed directly in `site-packages/`**, which is
+the obvious way to satisfy the upstream path. Python's `site` module parses
+every `*.pth` file there as a UTF-8 path-configuration file at interpreter
+startup, so a binary checkpoint makes that environment's python refuse to start
+(`Fatal Python error: init_import_size: Failed to import the site module`).
+Confirmed the hard way; noted in the code so nobody retries it.
+
+The install verifier now instantiates the pretrained model
+(`from resseg.model import ressegnet; ressegnet()`) instead of only doing
+`import resseg, ants`, which passed happily on a broken install and is why this
+went unnoticed. Checked both ways: it WARNs with the weights removed and the
+upstream `model.py` restored, and passes once repaired.
+
+Verified end to end on a real subject: the previously failing command produced
+`T1_cavity1.nii.gz` (6648 voxels) in 16.5 s.
+
+**Not fixed, and blocking the rest of that step:** `KUL_anat_segment_tumor.sh`
+runs HD-GLIO via a local install path that does not exist here, then falls back
+to bare `hd-bet` / `hd_glio_predict`, which are not on PATH (`hd-bet` lives only
+inside the `hd-bet-env` conda env; `hd_glio_predict` is not installed at all).
+Neither call is wrapped in `KUL_task_exec`, so this fails with **no log and no
+warning**, leaving no tumour segmentation. `resseg` run 2 then fails too — its
+input is built from HD-GLIO's brain mask, not from run 1's output. The
+installer already pulls `jenspetersen/hd-glio-auto` (present on this machine),
+but the script has no docker branch to use it.
+
+## Unreleased (2026-08-08 — dcm2bids: anchored search-strings, ASL on Siemens, vendor detection)
+
+Four bugs, all found on one Siemens MAGNETOM Cima.X (syngo MR XA61) study, and
+all failing quietly enough to reach the end of a pipeline run unnoticed.
+
+### Search-strings can now be anchored
+
+The second config column matched anywhere in the `SeriesDescription`
+(`t1_mprage` → `*t1_mprage*`). It can now be anchored: `^str`, `str$`, `^str$`.
+Unanchored stays the default, so every existing config is unaffected.
+
+This is not a convenience. A post-contrast series is very often named `c_` +
+the pre-contrast name, so one search-string matches both — and when a series
+matches two descriptions **dcm2bids places it nowhere**, logging `Several
+Pairing` and leaving it in `tmp_dcm2bids/`. On the study at hand that meant no
+post-contrast T1w at all, which `-t 1` needs, reported only as a warning inside
+dcm2bids' own log.
+
+The same scanner writes its console post-processing as sibling series
+(`..._Brainmask`, `..._SS`, `..._SS_N4`, `..._SS_N4_Dn`), all tagged `ORIGINAL`
+so no image-type filter separates them. `t2_space` matched all five, giving
+`run-01` … `run-05` of which four were derivatives. `^3D_t2_space_sag_cs3_iso$`
+now selects the acquisition alone.
+
+The `*…*` wrapping had been hand-written at 19 call sites; it is now built once
+per config line. One of those 19 had the leading `*` outside the quotes, where
+it was subject to pathname expansion — fixed in passing.
+
+### ASL converts on Siemens, and keeps the derived series
+
+The ASL identifier pinned `ImageType` to `ORIGINAL\PRIMARY\PERFUSION\NONE`, a
+Philips spelling. dcm2bids compares `ImageType` element-wise *and* requires
+equal length, so a Siemens pCASL (`ORIGINAL\PRIMARY\ASL\NONE\MAGNITUDE`) failed
+on the length check before one string was compared — and converted nothing,
+without an error, because "no series matched" is not one. Now matched on
+`SeriesDescription` alone, as DSC already was.
+
+An ASL protocol also yields several series sharing a `ProtocolName`: raw
+label/control plus the console's subtraction and rCBF maps. `acq_label` is now
+honoured, so they can be separated (`_acq-raw_asl`, `_acq-deltam_asl`,
+`_acq-cbf_asl`). The derived ones were additionally invisible to
+`kul_find_relevant_dicom_file`, which filters on `ORIGINAL` — correct for
+anatomicals, wrong for perfusion maps that are `DERIVED` by definition. ASL now
+falls back to an unfiltered search; no other identifier's behaviour changes.
+
+Still **not** BIDS-valid ASL: no `_aslcontext.tsv`, and `LabelingDuration`,
+`BackgroundSuppression` and `M0Type` are absent. `perf/*asl*` stays in
+`.bidsignore`. The per-volume `M0_SCAN`/`LABEL`/`CONTROL` labels do sit in
+`ImageComments`, so the context file is tractable when someone needs it.
+
+### Two ASL header traps, documented
+
+Both found while scoping that work, both capable of producing quietly wrong
+numbers rather than an error. Written up in the ASL section of
+[the dcm2bids doc](docs/KUL_dcm2bids/KUL_dcm2bids.md).
+
+**`PostLabelingDelay` in the sidecar may be the labeling duration.** The only
+timing in a standard DICOM tag is `(0018,9258) ASLPulseTrainDuration`, which
+the standard defines as the *labeling* pulse train duration; dcm2niix writes
+`PostLabelingDelay`. On the study to hand both are 1800 ms — confirmed against
+the vendor protocol (`sAsl.ulLabelingDuration`, `sAsl.sPostLabelingDelay[0]`) —
+so the sidecar is accidentally right and the two candidate sources cannot be
+told apart. Where labeling duration ≠ PLD, which is the usual case, the field
+could be mislabelled. CBF scales with both. Unresolved pending a protocol where
+the values differ; flagged rather than worked around.
+
+**`ASLContext` (0018,9257) is unreliable.** Per-frame, and on this scanner
+shifted by one with no `M0` state — it calls the proton-density M0 volume a
+LABEL. `ImageComments` is self-consistent. Any future `_aslcontext.tsv` must
+read `ImageComments` and validate the pattern, not trust the standard tag.
+
+### Vendor detection recognises the Siemens XA line
+
+`kul_dcmtags` tested `"$manufacturer" = "SIEMENS"`. XA scanners write `Siemens
+Healthineers`, so every XA study was treated as Philips and printed `It's NOT
+original dicom data (anonymised?)` once per series. Now a case-insensitive
+prefix match. Effect was cosmetic — dcm2niix fills the sidecar regardless,
+verified — but the message was alarming and wrong, and the Philips ees/trt
+calculation was being attempted on data with no Philips tags.
+
+Verified end to end on the Cima.X study: `ce-gadolinium_T1w` present, one `T2w`
+instead of five, three `perf/*_asl` series, zero spurious vendor warnings.
+
 ## Unreleased (committed locally, 2026-08-08 — shard-recon: multiband factor and MRtrix3 incompatibility)
 
 ### `mb` is no longer hardcoded

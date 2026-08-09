@@ -109,6 +109,57 @@ KUL_dcm2bids needs information how to identify e.g. the diffusion scan with b0 a
 KUL_dcm2bids will use the second column (I.e. the search pattern) to search through all dicom files to find e.g. a FLAIR.
 Note that the search-pattern needs to be unique to define a certain data type. 
 
+### Anchoring the search-string
+
+By default the search-string matches **anywhere** in the Series Description:
+`t1_mprage` becomes the pattern `*t1_mprage*`. Anchor it when one Series
+Description is a prefix or a superstring of another:
+
+| written in the config | matches |
+|---|---|
+| `string` | anywhere in the description (the default) |
+| `^string` | descriptions that **start with** `string` |
+| `string$` | descriptions that **end with** `string` |
+| `^string$` | descriptions **exactly equal to** `string` |
+
+You need this more often than you would expect, and the failure is not loud:
+
+**Post-contrast anatomicals.** Many scanners name the post-contrast series
+`c_` + the pre-contrast name — `t1_mprage_sag_0.9mm-iso` and
+`c_t1_mprage_sag_0.9mm-iso`. The search-string `t1_mprage` then matches *both*
+series. When one series matches two descriptions dcm2bids refuses to place it
+at all, logging
+
+```
+WARNING - sidecar.build_acquisitions | Several Pairing  <-  044_..c_t1_mprage_..
+WARNING -     ->  _T1w
+WARNING -     ->  _T1w
+```
+
+and leaving the scan in `BIDS/tmp_dcm2bids/`. **You end up with no
+post-contrast T1w at all**, from a warning buried in a log. Write
+`T1w,^t1_mprage` and the pre-contrast pattern no longer reaches the `c_` series.
+
+**Console-derived series.** Scanners that save their own post-processing
+alongside the acquisition produce siblings like `3D_T2_iso_Brainmask`,
+`3D_T2_iso_SS`, `3D_T2_iso_SS_N4`, `3D_T2_iso_SS_N4_Dn`. These are all tagged
+`ORIGINAL`, so no image-type filter separates them, and `3D_T2_iso` matches
+every one — giving you five `_T2w` runs of which four are derivatives. Write
+`T2w,^3D_T2_iso$`.
+
+If in doubt, check what a pattern actually selects before converting:
+
+```bash
+python3 -c "
+from fnmatch import fnmatch
+descs = [...]                     # your Series Descriptions
+print([d for d in descs if fnmatch(d.lower(), '*t1_mprage*'.lower())])"
+```
+
+Anchors are only interpreted by KUL_dcm2bids, which strips them before
+searching the dicom dump-file and hands the anchored pattern to dcm2bids. Any
+config written before they existed keeps working unchanged.
+
 
 
 The third column gives information about the fMRI task. 
@@ -157,7 +208,144 @@ An example config file can be found in [study_config/sequences.txt](/study_confi
 
 ### ASL
 
-- ASL: arterial spin labeling, images that have already been processed on the MR scanner (a rCVF map), this is not what is specified in the BIDS convention (those are native images)
+- ASL: arterial spin labeling. Converted into `perf/`, and listed in
+  `.bidsignore` — the sidecar does not carry the fields BIDS requires for ASL
+  (`LabelingDuration`, `BackgroundSuppression`, `M0Type`) and no
+  `_aslcontext.tsv` is written, so the tree would not validate.
+
+An ASL protocol normally yields **several** series that share a `ProtocolName`
+but differ in `SeriesDescription`: the raw label/control series, plus whatever
+the console derived from it. Give each one its own line and tell them apart
+with `acq_label`:
+
+```
+#Identifier,search-string,task,mb,pe_dir,acq_label
+ASL,pcasl_3d_pld1800,-,-,-,raw
+ASL,Perfusion_Weighted,-,-,-,deltam
+ASL,relCBF,-,-,-,cbf
+```
+
+giving `perf/sub-X_acq-raw_asl.nii.gz`, `_acq-deltam_asl.nii.gz` and
+`_acq-cbf_asl.nii.gz`.
+
+Two things are specific to ASL here:
+
+- **The derived series are accepted.** Every other identifier restricts itself
+  to `ORIGINAL` images, which keeps reformats and console post-processing out
+  of the tree. For perfusion the console's subtraction and rCBF maps are
+  genuinely wanted, and they are `DERIVED` by definition, so the ASL identifier
+  falls back to an unfiltered search when no `ORIGINAL` series matches.
+- **Matching is on `SeriesDescription` alone.** Pinning `ImageType` does not
+  survive contact with more than one vendor: dcm2bids compares `ImageType`
+  element-wise *and* requires the lists to be the same length, so a criterion
+  written for Philips (`ORIGINAL\PRIMARY\PERFUSION\NONE`) fails a Siemens pCASL
+  (`ORIGINAL\PRIMARY\ASL\NONE\MAGNITUDE`) on the length check before comparing
+  a single string — and converts nothing, silently, because "no series matched"
+  is not an error. Make the search-string specific instead.
+
+Nothing in KUL_NIS processes ASL yet; the conversion puts the data in the tree.
+
+#### Do not trust the ASL timing in the sidecar
+
+**`PostLabelingDelay` in a dcm2niix sidecar may actually be the labeling
+duration.** Check it against your protocol before using it for anything
+quantitative.
+
+On the Siemens study this was found on (MAGNETOM Cima.X, syngo MR XA61, 3D
+pCASL), the sidecar reads `PostLabelingDelay: 1.8`. The only timing value in
+any standard DICOM tag is
+
+```
+(0018,9258) ASLPulseTrainDuration  UL  1800
+```
+
+which the DICOM standard defines as the duration of the **labeling** pulse
+train — not the post-labeling delay. The vendor's own embedded protocol
+confirms that reading:
+
+```
+sAsl.ulLabelingDuration      = 1800000   µs
+sAsl.sPostLabelingDelay[0]   = 1800000   µs
+```
+
+On this protocol both happen to be 1800 ms, so the sidecar is accidentally
+correct and it is **not possible to tell from this study** whether dcm2niix
+read the standard tag or the vendor protocol. On any protocol where labeling
+duration ≠ PLD — the common case — a sidecar populated from `(0018,9258)`
+would report the labeling duration under the name `PostLabelingDelay`. CBF
+scales with both, so the error would be quantitative and invisible.
+
+Until someone confirms this on a protocol where the two values differ, treat
+the sidecar field as unverified and state the timings explicitly in the config
+file.
+
+On Siemens you can read the real values out of the embedded protocol:
+
+```bash
+strings <one.dcm> | grep -E "sAsl\.(ulLabelingDuration|sPostLabelingDelay\[0\]|ulSuppressionMode|ulDelayArraySize)"
+```
+
+Values are in microseconds. `ulDelayArraySize` > 1 means a multi-delay
+acquisition, for which a single `PostLabelingDelay` is wrong altogether.
+`ulSuppressionMode` records background suppression, but as an undocumented
+enum (observed: `8`, on a sequence whose product default is BS on) — non-zero
+is suggestive, not conclusive, so supply background suppression yourself rather
+than inferring it. None of this exists on Philips or GE: it is a Siemens
+private protocol dump, not part of the DICOM ASL module.
+
+#### Do not trust `ASLContext` either
+
+The DICOM MR Arterial Spin Labeling module has a per-frame `ASLContext`
+(0018,9257) that ought to be the authoritative source for an
+`_aslcontext.tsv`. On the same study it is wrong — shifted by one, and with no
+`M0` state at all:
+
+| volume | `ImageComments` (0020,4000) | `ASLContext` (0018,9257) |
+|---|---|---|
+| 1 | `M0_SCAN` | `LABEL` |
+| 2 | `LABEL` | `CONTROL` |
+| 3 | `CONTROL` | `LABEL` |
+| 4 | `LABEL` | `CONTROL` |
+
+It labels the proton-density M0 volume as a LABEL, which it cannot be.
+`ImageComments` is self-consistent (M0, then strict LABEL/CONTROL alternation).
+
+So anything deriving a volume-type list should read `ImageComments`, and should
+**validate** what it reads — first volume M0, strict alternation thereafter —
+and refuse rather than guess when the pattern does not hold. Built against the
+standard tag instead, every `_aslcontext.tsv` from this scanner would have been
+silently off by one.
+
+### DSC
+
+- DSC: dynamic susceptibility contrast perfusion. See
+  [KUL_dsc_perfusion](/docs/KUL_dsc_perfusion/KUL_dsc_perfusion.md).
+
+## Vendor detection
+
+`mb` and `pe_dir` (columns 4 and 5) are only needed on Philips, because Siemens
+and GE put the echo spacing, readout time and slice timing in the header.
+KUL_dcm2bids decides which path to take from `Manufacturer` (0008,0070),
+matching the vendor **prefix**, case-insensitively.
+
+That tag is not a controlled value. Older Siemens systems write `SIEMENS`; the
+XA line (VIDA, Cima.X, …) writes `Siemens Healthineers`. If your study prints
+
+```
+It's NOT original dicom data (anonymised?): ees/trt could not be calculated
+```
+
+once per series on data you know is not anonymised, the vendor test did not
+recognise the string. Check what your scanner actually writes:
+
+```bash
+dcminfo <one.dcm> -tag 0008 0070
+```
+
+and compare it against the test in `kul_dcmtags`. On Siemens the message is
+cosmetic — dcm2niix fills the sidecar either way — but it means the Philips
+`ees`/`trt` calculation is being attempted on data that has no
+Philips-private tags to calculate it from.
 
 
 ## Dependencies

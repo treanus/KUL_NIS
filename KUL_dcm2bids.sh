@@ -69,9 +69,12 @@ Usage:
     dwi,p2_b0,-,3,j-,b0
     dwi,p3_b2500,-,3,j-,b2500
     dwi,p4_b2500,-,3,j,rev
-    # ASL support is very limited (not BIDS compliant for now)
-    # Indentifier, search-string 
-    ASL,pCASL
+    # ASL (not BIDS compliant for now); one line per series of the protocol,
+    # told apart by acq_label. Scanner-derived series are accepted here.
+    # Identifier,search-string,task,mb,pe_dir,acq_label
+    ASL,pCASL,-,-,-,raw
+    ASL,Perfusion_Weighted,-,-,-,deltam
+    ASL,relCBF,-,-,-,cbf
     # DSC perfusion (not BIDS compliant for now); pe_dir is used by
     # KUL_dsc_perfusion.sh to restrict its EPI distortion correction
     # Identifier,search-string,task,mb,pe_dir
@@ -80,7 +83,22 @@ Usage:
   explains that the T1w scan should be found by the search string "T1_PRE"
   func by rsfMRI, and has multiband_factor 6, and pe_dir = j
   the sbref will be used for the tb_fMRI for both tasks (hands and nback)
-  
+
+  The search-string matches anywhere in the SeriesDescription by default.
+  Anchor it when one description is a prefix or superstring of another:
+
+    ^string    the description must START with string
+    string\$    ... must END with string
+    ^string\$   ... must be exactly string
+
+  You need this more often than you would think. A post-contrast T1w is often
+  named "c_" + the pre-contrast name, so "t1_mprage" matches both series;
+  dcm2bids then refuses to place either ("Several Pairing" in its log) and you
+  lose the scan with only a warning. Write ^t1_mprage for the pre-contrast one.
+  Likewise, scanners that save console post-processing alongside the scan
+  ("..._SS", "..._N4", "..._Brainmask") tag those series ORIGINAL too, so only
+  an anchor separates them from the acquisition itself: ^3D_T2\$
+
   For Siemens and GE dicom it can be as simple as:
     # Identifier,search-string,fmritask/inteded_for,mb,pe_dir,acq_label
     # Structural scans
@@ -216,7 +234,14 @@ function kul_dcmtags {
     #   GE most recent version also seem to work fine
 
     #echo $manufacturer
-    if [ "$manufacturer" = "SIEMENS" ]; then
+    #
+    # Match on the vendor prefix, case-insensitively. (0008,0070) is not a
+    # controlled value: older Siemens systems write "SIEMENS", the XA line
+    # (VIDA, Cima.X, ...) writes "Siemens Healthineers". An exact "SIEMENS"
+    # test silently sends every XA study down the Philips path, where it then
+    # reports "NOT original dicom data (anonymised?)" once per series because
+    # the Philips-private wfs/epifactor tags are absent -- alarming, and wrong.
+    if [[ "${manufacturer,,}" == siemens* ]]; then
 
         slicetime_provided_by_vendor=1
         ees_trt_provided_by_vendor=1
@@ -651,9 +676,31 @@ function kul_find_relevant_dicom_file {
 
     kul_e2cl "  Searching for ${identifier} using search_string $search_string" $log
 
-    # find the search_string in the dicom dump_file            
-    # search for search_string in dump_file, find ORIGINAL, remove dicom tags, sort, take first line, remove trailing space 
-    seq_file=$(grep "$search_string" $dump_file | grep ORIGINAL - | cut -f1 -d"[" | sort | head -n 1 | sed -e 's/[[:space:]]*$//')
+    # Find one representative dicom of this series, so kul_dcmtags has
+    # something to read the acquisition parameters from.
+    #
+    # We match on search_bare, i.e. the search-string with any ^ / $ anchors
+    # stripped: those anchor the description inside dcm2bids, but here we are
+    # grepping whole lines of "path + tags", where they would never match.
+    #
+    # search for search_bare in dump_file, find ORIGINAL, remove dicom tags, sort, take first line, remove trailing space
+    seq_file=$(grep "$search_bare" $dump_file | grep ORIGINAL - | cut -f1 -d"[" | sort | head -n 1 | sed -e 's/[[:space:]]*$//')
+
+    # Scanner-derived series (ImageType DERIVED\...) are excluded by the
+    # ORIGINAL filter above, which is what we want for anatomicals: it keeps
+    # reformats and console post-processing out of the BIDS tree. Perfusion is
+    # the exception -- the console's own subtraction and rCBF maps are
+    # genuinely wanted, and they are DERIVED by definition. Only the
+    # identifiers that set allow_derived=1 fall back to an unfiltered search.
+    if [ "$seq_file" = "" ] && [ ${allow_derived:-0} -eq 1 ]; then
+
+        seq_file=$(grep "$search_bare" $dump_file | cut -f1 -d"[" | sort | head -n 1 | sed -e 's/[[:space:]]*$//')
+
+        if [ ! "$seq_file" = "" ]; then
+            kul_e2cl "    (no ORIGINAL series matched; using a DERIVED one)" $log
+        fi
+
+    fi
 
     if [ "$seq_file" = "" ]; then
 
@@ -666,6 +713,8 @@ function kul_find_relevant_dicom_file {
         kul_e2cl "    a relevant ${identifier} dicom is $(basename "${seq_file}") " $log
 
     fi
+
+    allow_derived=0
 
 }
 
@@ -945,6 +994,43 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
  if [[ ! ${identifier} == \#* ]]; then
 
+    # Turn the search-string into the fnmatch pattern dcm2bids matches
+    # SeriesDescription against. Unanchored is the default and the historical
+    # behaviour: "t1_mprage" becomes "*t1_mprage*".
+    #
+    #   ^str    the description must START with str
+    #   str$    ... must END with str
+    #   ^str$   ... must equal str
+    #
+    # Anchors exist because one series description can be a prefix or
+    # superstring of another. The post-contrast T1w is literally "c_" + the
+    # pre-contrast one, so no unanchored substring selects the pre-contrast
+    # series alone -- and when a series matches two descriptions dcm2bids
+    # refuses to place it at all ("Several Pairing" in its log) rather than
+    # guess, so you silently lose the scan. Console-derived series are the
+    # other case: "3D_t2_space_sag_cs3_iso" is a prefix of that scanner's
+    # _Brainmask, _SS, _SS_N4 and _SS_N4_Dn derivatives, which are all tagged
+    # ORIGINAL and so cannot be filtered out by image type either.
+    #
+    # search_bare is the string with the anchors removed. It is what we grep
+    # the dicom dump-file with, since there we are matching whole lines of
+    # path + tags, not the description on its own.
+    search_bare="${search_string}"
+    _sp_lead="*"
+    _sp_trail="*"
+
+    if [[ "${search_bare}" == ^* ]]; then
+        _sp_lead=""
+        search_bare="${search_bare#^}"
+    fi
+
+    if [[ "${search_bare}" == *\$ ]]; then
+        _sp_trail=""
+        search_bare="${search_bare%\$}"
+    fi
+
+    search_pattern="${_sp_lead}${search_bare}${_sp_trail}"
+
     if [[ ${identifier} == "T1w" ]]; then 
         
         kul_find_relevant_dicom_file
@@ -955,7 +1041,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_T1='{"datatype": "anat", "suffix": "T1w", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*"}}'
+             "SeriesDescription": "'${search_pattern}'"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
 
@@ -973,9 +1059,9 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_T1='{"datatype": "anat", "suffix": "T1w", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*"},
+             "SeriesDescription": "'${search_pattern}'"},
             "custom_entities": "ce-gadolinium",
-            "sidecar_changes": {"KUL_dcm2bids": "yes","ContrastBolusIngredient": "gadolinium"}
+            "sidecar_changes": {"KUL_dcm2bids": "yes","ContrastBolusIngredient": "GADOLINIUM"}
             }'
 
             sub_bids_[$bs]=$(echo ${sub_bids_T1} | python -m json.tool )
@@ -994,7 +1080,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_T2='{"datatype": "anat", "suffix": "T2w", "criteria": { 
-             "SeriesDescription": "*'${search_string}'*"}'
+             "SeriesDescription": "'${search_pattern}'"}'
 
             # add an acq_label if any
             echo $acq_label
@@ -1021,7 +1107,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_PD='{"datatype": "anat", "suffix": "PDw", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*"}}'
+             "SeriesDescription": "'${search_pattern}'"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_PD} | python -m json.tool)
 
@@ -1039,7 +1125,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_PD='{"datatype": "anat", "suffix": "FGATIR", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*"}}'
+             "SeriesDescription": "'${search_pattern}'"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_PD} | python -m json.tool)
 
@@ -1059,11 +1145,11 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # Two explicit entries: magnitude (REAL, no PHASE) and phase (PHASE+REAL).
             # This excludes inline-derived MinIP images (ImageType starts with DERIVED).
             sub_bids_SWIm='{"datatype": "anat", "suffix": "SWI", "criteria": {
-             "SeriesDescription": "*'${search_string}'*",
+             "SeriesDescription": "'${search_pattern}'",
              "ImageType": ["ORIGINAL", "PRIMARY", "T1", "MIXED", "REAL"]}}'
 
             sub_bids_SWIp='{"datatype": "anat", "suffix": "SWIp", "criteria": {
-             "SeriesDescription": "*'${search_string}'*",
+             "SeriesDescription": "'${search_pattern}'",
              "ImageType": ["ORIGINAL", "PRIMARY", "T1", "MIXED", "PHASE", "REAL"]}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_SWIm} | python -m json.tool)
@@ -1084,7 +1170,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_SWI='{"datatype": "anat", "suffix": "MTI", "criteria": {  
-             "SeriesDescription": "*'${search_string}'*","ImageType": [
+             "SeriesDescription": "'${search_pattern}'","ImageType": [
                 "ORIGINAL","PRIMARY","M","FFE","M","FFE"]}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_SWI} | python -m json.tool)
@@ -1093,8 +1179,21 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
 
     fi
 
-    if [[ ${identifier} == "ASL" ]]; then 
-        
+    if [[ ${identifier} == "ASL" ]]; then
+
+        # An ASL protocol usually produces several series: the raw label /
+        # control series, plus whatever the console derived from it. They share
+        # a ProtocolName but differ in SeriesDescription, so give each one its
+        # own line and tell them apart with acq_label, e.g.
+        #
+        #   ASL,pcasl_3d_pld1800,-,-,-,raw
+        #   ASL,Perfusion_Weighted,-,-,-,deltam
+        #   ASL,relCBF,-,-,-,cbf
+        #
+        # The derived ones are ImageType DERIVED, so allow_derived is needed
+        # for kul_find_relevant_dicom_file to see them at all.
+        allow_derived=1
+
         kul_find_relevant_dicom_file
 
         if [ $seq_found -eq 1 ]; then
@@ -1102,14 +1201,26 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            sub_bids_SWI='{"datatype": "perf", "suffix": "asl", 
-                "criteria": {  
-                    "SeriesDescription": "*'${search_string}'*",
-                    "ImageType": [
-                        "ORIGINAL","PRIMARY","PERFUSION","NONE"
-                    ]}}'
+            # Matched on SeriesDescription alone, as for DSC. This used to also
+            # pin ImageType to ORIGINAL\PRIMARY\PERFUSION\NONE, which is one
+            # particular Philips spelling: dcm2bids compares ImageType
+            # element-wise and requires equal length, so a Siemens pCASL
+            # (ORIGINAL\PRIMARY\ASL\NONE\MAGNITUDE) failed on the length check
+            # before a single string was compared, and nothing converted --
+            # with no error, because "no series matched" is not an error.
+            sub_bids_asl1='{"datatype": "perf", "suffix": "asl",
+                "criteria": {
+                    "SeriesDescription": "'${search_pattern}'"},'
 
-            sub_bids_[$bs]=$(echo ${sub_bids_SWI} | python -m json.tool)
+            if [ "$acq_label" = "" ] || [ "$acq_label" = "-" ]; then
+                sub_bids_asl2=""
+            else
+                sub_bids_asl2='"custom_entities": "acq-'${acq_label}'",'
+            fi
+
+            sub_bids_asl3='"sidecar_changes": {"KUL_dcm2bids": "yes"}}'
+
+            sub_bids_[$bs]=$(echo ${sub_bids_asl1}${sub_bids_asl2}${sub_bids_asl3} | python -m json.tool)
 
         fi
 
@@ -1135,7 +1246,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # axis, and reads that axis from here.
             sub_bids_dsc1='{"datatype": "perf", "suffix": "dsc",
                 "criteria": {
-                    "SeriesDescription": "*'${search_string}'*"},
+                    "SeriesDescription": "'${search_pattern}'"},
                 "sidecar_changes": {"KUL_dcm2bids": "yes"'
 
             if [ "$pe_dir" = "" ] || [ "$pe_dir" = "-" ]; then
@@ -1160,7 +1271,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_FL='{"datatype": "anat", "suffix": "FLAIR", "criteria": {
-             "SeriesDescription": "*'${search_string}'*"}}'
+             "SeriesDescription": "'${search_pattern}'"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_FL} | python -m json.tool)
 
@@ -1177,7 +1288,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_DIR='{"datatype": "anat", "suffix": "DIR", "criteria": {
-             "SeriesDescription": "*'${search_string}'*"}}'
+             "SeriesDescription": "'${search_pattern}'"}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_DIR} | python -m json.tool)
 
@@ -1196,7 +1307,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # Capture only magnitude volumes (ImageType has no PHASE/IMAGINARY/REAL suffix).
             # Both TI1 and TI2 match; pipeline selects INV2 by highest TriggerDelayTime.
             sub_bids_MP2='{"datatype": "anat", "suffix": "MP2RAGE", "criteria": {
-             "SeriesDescription": "*'${search_string}'*",
+             "SeriesDescription": "'${search_pattern}'",
              "ImageType": ["ORIGINAL", "PRIMARY", "T1", "MIXED"]}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_MP2} | python -m json.tool)
@@ -1220,7 +1331,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
                 "suffix": "magnitude",
                 "criteria": 
                     {
-                    "SeriesDescription": "*'${search_string}'*",
+                    "SeriesDescription": "'${search_pattern}'",
                     "EchoNumber": 1
                     }
             }'
@@ -1234,7 +1345,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
                 "suffix": "fieldmap",
                 "criteria": 
                     {
-                    "SeriesDescription": "'*${search_string}'*",
+                    "SeriesDescription": "'${search_pattern}'",
                     "EchoNumber": 2
                     },
                 "sidecar_changes":
@@ -1268,7 +1379,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             task_nospace="$(echo -e "${task}" | tr -d '[:space:]')"
 
             sub_bids_fu1='{"datatype": "func","suffix": 
-            "bold","criteria": {"SeriesDescription": "*'${search_string}'*"},
+            "bold","criteria": {"SeriesDescription": "'${search_pattern}'"},
             "custom_entities": "task-'${task_nospace}''
 
             # add an acq_label if any
@@ -1350,7 +1461,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             #echo $sbref_task1
 
             sub_bids_sb1='{"datatype": "func","suffix": 
-            "sbref","criteria": {"SeriesDescription": "*'${search_string}'*"}, 
+            "sbref","criteria": {"SeriesDescription": "'${search_pattern}'"}, 
             "custom_entities": "task-'${sbref_task1}''
             
             if [ "$acq_label" = "" ];then
@@ -1424,7 +1535,7 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             kul_dcmtags "${seq_file}"
 
             sub_bids_dw1='{"datatype": "dwi","suffix": "dwi",
-            "criteria": {"SeriesDescription": "*'${search_string}'*"},'
+            "criteria": {"SeriesDescription": "'${search_pattern}'"},'
 
 
             if [ "$acq_label" = "" ];then
@@ -1726,20 +1837,95 @@ eval ${cleanup}
 
 
 # Fix BIDS validation
-# fix the README
-echo "This BIDS was made using KUL_NeuroImagingTools" >> ${bids_output}/README
-# fix Funding
-jq '.Funding = [""]' BIDS/dataset_description.json > tmp.json && mv tmp.json BIDS/dataset_description.json
-# fix Authors field
-jq '.Authors = ["Author One","Author Two"]' BIDS/dataset_description.json > tmp.json && mv tmp.json BIDS/dataset_description.json
+#
+# Named after the study directory this was run from, which is the convention
+# everywhere else in KUL_NIS (the participant is a subject, not the dataset).
+study_name=$(basename "$cwd")
+
+# dcm2bids_scaffold writes a dataset_description.json and README that the BIDS
+# validator then complains about, because they are placeholders. Filling them in
+# here means a clean conversion ends with a clean validator run, so that anything
+# the validator *does* report is worth reading -- which is the whole point of
+# running it.
+
+# The README has to be more than a single line, or the validator raises
+# README_FILE_SMALL. Written (not appended) so re-converting into an existing
+# BIDS directory does not stack up copies of the same paragraph.
+cat > ${bids_output}/README <<README_EOF
+# ${study_name}
+
+Converted from DICOM to BIDS with KUL_NeuroImagingTools (KUL_dcm2bids.sh),
+using the sequence definitions in the study's config file.
+
+Some data types here are not (yet) covered by the BIDS specification and are
+therefore listed in .bidsignore: SWI, MTI, FGATIR, DIR, MP2RAGE, lesion masks,
+and the perf/ ASL and DSC series. They are named consistently even so, and are
+read by the KUL_NIS pipeline scripts.
+
+Note that dcm2bids' working directory is kept at sourcedata/tmp_dcm2bids/. It
+holds every series that did NOT match a line in the config file, which is the
+first place to look when an expected scan is missing from the tree.
+README_EOF
+
+# dataset_description.json. Name and BIDSVersion are what the validator objects
+# to out of the scaffold: Name is empty, and the scaffold writes BIDSVersion as
+# "v1.9.0" -- the leading "v" makes it UNKNOWN_BIDS_VERSION, since the spec wants
+# a bare version string.
+# Note: do NOT add GeneratedBy here, however tempting -- the validator lists it
+# under JSON_KEY_RECOMMENDED. In BIDS, GeneratedBy is what marks a dataset as a
+# *derivative* dataset, and derivative anatomicals then require SkullStripped in
+# every sidecar. Adding it turns three cosmetic warnings into ten hard errors on
+# what is, correctly, raw data.
+jq --arg name "${study_name}" \
+   '.Name = $name
+    | .BIDSVersion = (.BIDSVersion | sub("^v"; ""))
+    | .Funding = [""]
+    | .Authors = ["Author One","Author Two"]' \
+   ${bids_output}/dataset_description.json > tmp.json && mv tmp.json ${bids_output}/dataset_description.json
 
 # Also fix the participants.json
 jq '. + { "age": {"LongName": "Age of the participant"} }' BIDS/participants.json > tmp.json && mv tmp.json BIDS/participants.json
 jq '. + { "sex": {"LongName": "Gender of the participant"} }' BIDS/participants.json > tmp.json && mv tmp.json BIDS/participants.json
 jq '. + { "group": {"LongName": "Group of the participant"} }' BIDS/participants.json > tmp.json && mv tmp.json BIDS/participants.json
 
-# Run BIDS validation
-docker run -ti --rm -v ${cwd}/${bids_output}:/data:ro bids/validator /data
+# dcm2bids leaves its working directory at <bids>/tmp_dcm2bids. Its *contents*
+# are covered by .bidsignore, but the validator still reports the directory
+# itself as NOT_INCLUDED. Move it under sourcedata/, which BIDS recognises and
+# does not validate. Deleting it would be simpler but throws away the record of
+# which series did not match the config -- the thing you need precisely when a
+# scan is missing.
+if [ -d ${bids_output}/tmp_dcm2bids ]; then
+    mkdir -p ${bids_output}/sourcedata
+    rm -rf ${bids_output}/sourcedata/tmp_dcm2bids
+    mv ${bids_output}/tmp_dcm2bids ${bids_output}/sourcedata/
+fi
+
+# Run BIDS validation -- OFF by default.
+#
+# What it reports on a correct conversion is a handful of *_RECOMMENDED warnings
+# for metadata that simply is not in the DICOMs (SequenceName, PulseSequenceType,
+# PartialFourierDirection, InstitutionalDepartmentName) plus optional
+# dataset_description keys. None of it is actionable, and printing it at the end
+# of every conversion trains you to ignore the output entirely -- which is worse
+# than not running it, because the errors that DO matter arrive the same way.
+#
+# The fixes above mean a clean conversion validates with zero errors, so it is
+# still worth running deliberately: when the config changes, when a new scanner
+# or sequence appears, or before sharing a dataset.
+#
+#   KUL_BIDS_VALIDATE=1 KUL_dcm2bids.sh ...      # to enable for one run
+#
+# or straight from the study directory at any time:
+#
+#   docker run -i --rm -v "$PWD/BIDS:/data:ro" bids/validator /data
+#
+# No -t on the docker call: it makes docker fail with "the input device is not a
+# TTY" whenever this runs from anything other than an interactive terminal (a
+# pipeline, cron, nohup), which silently skips validation anyway.
+if [ "${KUL_BIDS_VALIDATE:-0}" -eq 1 ]; then
+    kul_e2cl "Running the BIDS validator (KUL_BIDS_VALIDATE=1)" $log
+    docker run -i --rm -v ${cwd}/${bids_output}:/data:ro bids/validator /data
+fi
 
 
 kul_e2cl "Finished $script" $log
