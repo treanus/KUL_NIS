@@ -2047,6 +2047,7 @@ function KUL_fmriproc {
 
             # add to report
             for spm in RESULTS/sub-${participant}/Melodic/*.nii; do
+                [ -f "$spm" ] || continue
                 #echo $spm
                 max_T=$(mrstats -output max $spm)
                 #echo $max_T

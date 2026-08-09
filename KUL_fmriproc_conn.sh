@@ -244,7 +244,7 @@ computedir="$kulderivativesdir/sub-$participant/FSL_melodic"
 scriptsdir="$computedir/scripts"
 fmriprepdir="fmriprep/sub-$participant/func"
 globalresultsdir="$cwd/RESULTS/sub-$participant/Melodic"
-searchtask="_space-MNI152NLin2009cAsym_desc-preproc_bold.nii"
+searchtask="_space-MNI152NLin2009cAsym*_desc-preproc_bold.nii"
 
 if [ $KUL_DEBUG -gt 0 ]; then
     echo "kulderivativesdir: $kulderivativesdir"
