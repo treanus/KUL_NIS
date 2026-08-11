@@ -242,7 +242,7 @@ so you do **not** need to tell the pipeline which env to use for normal runs.
 > conda env (`scilpy`, `pyfMRI`, `pyfMRI`, `lore_sd` respectively) via `conda
 > env list`, the script exits immediately with an error naming the missing
 > env — it does **not** silently fall back to a bare `python3` or hang. Run
-> the corresponding `setup_environment.sh` section (e.g. `--only env-pyfmri`)
+> the corresponding KUL_Linux_setup section (e.g. `--only env-pyfmri`)
 > to create it, or override with `-f`/`-y`/`loresd_env:` in the `-D` config
 > if you're intentionally using a differently-named env.
 

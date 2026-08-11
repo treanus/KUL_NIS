@@ -100,8 +100,8 @@ KUL_NIS is a set of bash/python wrappers around established neuroimaging softwar
 | [hd-glio-auto](https://github.com/NeuroAI-HD/HD-GLIO-AUTO) | latest | AI glioma segmentation (clinical types 1–3) |
 | [resseg](https://github.com/fepegar/resseg) | latest | resection-cavity segmentation |
 | [LoRE](https://github.com/TissueVisionMics/lore) (`lore_dwi2decomposition`, `lore_decomposition2contrast`) | latest | low-rank DWI decomposition / microstructure contrasts (`-D run_dwiprep_lore_sd.txt`) |
-| [scilpy](https://github.com/scilus/scilpy) | **2.3.0** | tractography post-processing (`KUL_tracts_ocd`, `KUL_FWT`); installed by `setup_environment.sh` as a conda env named `scilpy` — `KUL_clinical_fmridti.sh` finds it automatically; override with `-f <env_name>` only if you used a different name |
-| pyfMRI (nilearn/nibabel/numpy/scipy/pandas/matplotlib/pyyaml) | — | rsfMRI network mapping (`-N`) and the nilearn task-fMRI GLM engine (`-E nilearn`); installed by `setup_environment.sh`'s `env-pyfmri` section as a conda env named `pyfMRI` — found automatically; override with `-y <env_name>` only if you used a different name |
+| [scilpy](https://github.com/scilus/scilpy) | **2.3.0** | tractography post-processing (`KUL_tracts_ocd`, `KUL_FWT`); installed by [KUL_Linux_setup](https://github.com/Rad-dude/KUL_Linux_setup) as a conda env named `scilpy` — `KUL_clinical_fmridti.sh` finds it automatically; override with `-f <env_name>` only if you used a different name |
+| pyfMRI (nilearn/nibabel/numpy/scipy/pandas/matplotlib/pyyaml) | — | rsfMRI network mapping (`-N`) and the nilearn task-fMRI GLM engine (`-E nilearn`); installed by [KUL_Linux_setup](https://github.com/Rad-dude/KUL_Linux_setup)'s `env-pyfmri` section as a conda env named `pyfMRI` — found automatically; override with `-y <env_name>` only if you used a different name |
 | [qsiprep](https://qsiprep.readthedocs.io/) | latest | alternative dMRI preprocessing (`KUL_qsiprep`) |
 
 ### Sibling KUL repositories
@@ -109,7 +109,7 @@ KUL_NIS is a set of bash/python wrappers around established neuroimaging softwar
 These are separate repos that the clinical pipeline calls and must be installed alongside KUL_NIS:
 
 - [**KUL_VBG**](https://github.com/KUL-Radneuron/KUL_VBG) — Virtual Brain Grafting: enables FreeSurfer/FastSurfer in patients with large lesions. Brain extraction uses `mri_synthstrip` (FreeSurfer built-in; `-B 1` in the clinical pipeline).
-- [**KUL_FWT**](https://github.com/KUL-Radneuron/KUL_FWT) — automated CSD probabilistic tractography pipeline. `KUL_clinical_fmridti.sh` no longer auto-prepends a `../KUL_FWT` sibling folder to `PATH`; make sure `KUL_FWT_make_VOIs.sh` / `KUL_FWT_make_TCKs.sh` are already resolvable on `PATH` before running the clinical pipeline. Tractography post-processing also requires a scilpy conda environment — `setup_environment.sh` creates it as `scilpy` and `KUL_clinical_fmridti.sh` finds it automatically; override with `-f <env_name>` only if you used a different name.
+- [**KUL_FWT**](https://github.com/KUL-Radneuron/KUL_FWT) — automated CSD probabilistic tractography pipeline. `KUL_clinical_fmridti.sh` no longer auto-prepends a `../KUL_FWT` sibling folder to `PATH`; make sure `KUL_FWT_make_VOIs.sh` / `KUL_FWT_make_TCKs.sh` are already resolvable on `PATH` before running the clinical pipeline. Tractography post-processing also requires a scilpy conda environment — [KUL_Linux_setup](https://github.com/Rad-dude/KUL_Linux_setup) creates it as `scilpy` and `KUL_clinical_fmridti.sh` finds it automatically; override with `-f <env_name>` only if you used a different name.
 - [**KUL_DTI_ALPS**](KUL_DTI_ALPS/) — DTI-ALPS index calculation using MNI-space ROIs (bundled as a subdirectory of KUL_NIS_unified).
 - [Karawun](https://github.com/DevelopmentalImagingMCRI/karawun) — convert tractography/segmentation results to Brainlab Neurosurgery format.
 

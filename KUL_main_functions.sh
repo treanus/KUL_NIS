@@ -425,7 +425,7 @@ fi
 
 # Single source of truth for the shared Python fMRI conda env name, used by
 # KUL_run_rsfMRI_networks.sh and KUL_fmriproc_nilearn_new.sh (created by
-# setup_environment.sh's env-pyfmri section). Both scripts fail fast if this
+# the KUL_Linux_setup installer's env-pyfmri section). Both scripts fail fast if this
 # env doesn't exist, rather than silently falling back to a bare 'python3'.
 # Override by exporting KUL_PYFMRI_ENV before running, or via
 # KUL_clinical_fmridti.sh's -y flag, if you need a differently-named env.

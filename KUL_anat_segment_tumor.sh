@@ -182,8 +182,8 @@ function KUL_hd_glio_auto {
         cp -f $cwd/$FLAIR $hdglioinputdir/FLAIR.nii.gz
         cp -f $cwd/$T2w $hdglioinputdir/T2.nii.gz
         
-        # Run HD-GLIO-AUTO from the native (non-docker) install created by
-        # setup_environment.sh's env-hdglio section.
+        # Run HD-GLIO-AUTO from the native (non-docker) install created by the
+        # installer's env-hdglio section (KUL_Linux_setup).
         #
         # run.py invokes 'hd-bet' and 'hd_glio_predict' as subprocesses, by name,
         # so the hdglio env's bin must be on PATH -- and it must be *that* env's
@@ -217,8 +217,9 @@ function KUL_hd_glio_auto {
             kul_echo "  looked for <root>/src/HD-GLIO-AUTO/scripts/run.py together with"
             kul_echo "  <root>/miniforge3/envs/hdglio/bin/python, under:"
             kul_echo "    ${SOFTWARE_ROOT:-(SOFTWARE_ROOT unset)}, /opt/kul_software, /usr/local/KUL_apps"
-            kul_echo "  install it with:"
-            kul_echo "    tools/setup_scripts_new/setup_environment.sh --only env-hdglio"
+            kul_echo "  install it with the KUL_Linux_setup installer:"
+            kul_echo "    https://github.com/Rad-dude/KUL_Linux_setup"
+            kul_echo "    ./setup_environment.sh --only env-hdglio"
             kul_echo "  (a jenspetersen/hd-glio-auto docker image also exists, but this"
             kul_echo "   script does not drive it -- the native install is what is used.)"
             exit 1

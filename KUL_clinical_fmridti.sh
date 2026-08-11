@@ -1854,12 +1854,12 @@ function KUL_run_VBG {
             mkdir -p $vbg_dir
             
             # Use whatever FreeSurfer is already configured on PATH (exported
-            # by setup_environment.sh) instead of a separately hardcoded path
+            # by the KUL_Linux_setup installer) instead of a separately hardcoded path
             # here, which can silently drift out of sync with the actual
             # install location (as it did: this used to point at a directory
             # that no longer exists).
             if [ -z "$FREESURFER_HOME" ]; then
-                kul_echo "ERROR: FREESURFER_HOME is not set. Source setup_environment.sh before running this pipeline."
+                kul_echo "ERROR: FREESURFER_HOME is not set. Source the KUL environment block (see KUL_Linux_setup) before running this pipeline."
                 return 1
             fi
             if [ ! -f "$FREESURFER_HOME/license.txt" ] && [ ! -f "$FREESURFER_HOME/.license" ]; then
