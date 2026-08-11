@@ -56,7 +56,16 @@ Optional arguments:
         7: processing stream for DTI_ALPS
      -d:  dicom zip file (or directory)
      -s:  scaffold (make a default DICOM and study_config)
-     -B:  make a backup and cleanup 
+     -B:  delete the regenerable intermediates, then archive everything that is
+          left into a password-protected ../Finished_<date>_sub-<p>_type<t>.7z
+          and exit. Removed: fmriprep_work, BIDS/tmp_dcm2bids, dwiprep raw/dwi
+          working dirs, the denoised BOLD variants and the SUSAN-smoothed GLM
+          inputs (all rebuilt from fmriprep output + confounds, and several GB
+          per subject). Kept: BIDS, fmriprep, dwiprep derivatives, RESULTS,
+          REPORT, Karawun and KUL_LOG - plus dwi/geomcorr.mif, the topup+eddy
+          corrected DWI, so that step never has to be re-run.
+          Note this is destructive and one-way - re-running afterwards has to
+          redo the denoise/smoothing steps.
      -r:  redo certain steps (program will ask)
      -R:  generate DICOMs for PACS and Karawun (run this AFTER reviewing figures)
         1: use cT1w as underlay
@@ -456,12 +465,37 @@ if [ $bc -eq 1 ]; then
     # clean some stuff
     clean_dwiprep="./dwiprep/sub-${participant}/sub-${participant}/*dwifsl*tmp* \
         ./dwiprep/sub-${participant}/sub-${participant}/raw \
-        ./dwiprep/sub-${participant}/sub-${participant}/dwi \
         ./dwiprep/sub-${participant}/sub-${participant}/dwi_orig*"
     clean_other="./fmriprep_work* \
         ./BIDS/tmp_dcm2bids"
 
-    rm -fr $clean_dwiprep $clean_other
+    # dwi/ is scratch (degibbs, biascorr, noiselevel, nonbzeros...) with one
+    # exception: geomcorr.mif is what dwifslpreproc produced, i.e. the output of
+    # topup+eddy -- by far the most expensive step here, and whose own scratch
+    # (*dwifsl*tmp*, ~19 GB) is deleted just above. Keeping it means bias
+    # correction and everything downstream can be redone without paying for eddy
+    # again. dwi_preproced.mif one level up is the POST-bias-correction volume,
+    # so it is not a substitute. geomcorr_grad_checked.b is the gradient table
+    # dwigradcheck corrected post-eddy and has to travel with it.
+    clean_dwi_dir="./dwiprep/sub-${participant}/sub-${participant}/dwi"
+
+    # Denoised BOLD copies and the SUSAN-smoothed GLM inputs. Both are whole 4D
+    # series regenerated from the fmriprep output and the confounds TSVs, so they
+    # are pure intermediates -- but they are large, and now multiplied: the task
+    # melodic, resting-state and pseudo-rest paths each keep their own variant
+    # (~6 GB combined on a 3-run subject, plus ~2 GB of smoothed copies). Left in
+    # place they were silently archived into the .7z.
+    clean_fmri="./BIDS/derivatives/KUL_compute/sub-${participant}/FSL_melodic/denoised \
+        ./BIDS/derivatives/KUL_compute/rsfMRI_networks/denoised \
+        ./BIDS/derivatives/KUL_compute/sub-${participant}/SPM/fmridata"
+
+    echo "Removing regenerable intermediates before archiving (keeping geomcorr.mif):"
+    { du -shc $clean_dwiprep $clean_other $clean_fmri 2>/dev/null | tail -1
+      find $clean_dwi_dir -type f -not -name 'geomcorr*' -print0 2>/dev/null \
+        | du -shc --files0-from=- 2>/dev/null | tail -1
+    } | awk '{print "  " $0}'
+    rm -fr $clean_dwiprep $clean_other $clean_fmri
+    find $clean_dwi_dir -type f -not -name 'geomcorr*' -delete 2>/dev/null
 
     while true; do
         read -s -p "Give a password to encrypt the backup with: " password
@@ -935,6 +969,73 @@ if [ $results -gt 0 ];then
         _btcks=()
     }
 
+    # ── fMRI (SPM & Melodic) → PACS ─────────────────────────────────────────
+    # Deliberately BEFORE the tract renders below. This section opens with two
+    # interactive prompts (per-map thresholds, then which maps to export as
+    # DICOM); when it sat after the tract loop the operator had to wait out
+    # every bundle render before they could answer, and could not leave the
+    # terminal. Tract rendering needs no input, so putting fMRI first lets the
+    # prompts be answered in the first seconds and the rest run unattended.
+    # Nothing here depends on the tract renders: _render_one_spm, _ulsuffix and
+    # spm_resultsdir_{png,dcm} are all defined further up.
+    # If interactive and no global -T override, ask for a per-map threshold list.
+    _all_spm_names=()
+    for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii \
+                "$globalresultsdir/Melodic/"*.nii.gz "$globalresultsdir/Melodic/"*.nii; do
+        [ -f "$_spm" ] || continue
+        _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
+        _all_spm_names+=("$_spmname")
+    done
+
+    if [ ${#_all_spm_names[@]} -gt 0 ] && [ -z "$spm_thresh_override" ] && [ -t 0 ]; then
+        echo "fMRI/Melodic maps found for PACS conversion:"
+        for _idx in "${!_all_spm_names[@]}"; do
+            echo "  $((_idx+1)). ${_all_spm_names[$_idx]}"
+        done
+        read -r -p "Enter threshold values, space-separated, in the same order as above (Enter = auto max/3 for all): " -a _thresh_input
+        if [ ${#_thresh_input[@]} -gt 0 ]; then
+            if [ ${#_thresh_input[@]} -ne ${#_all_spm_names[@]} ]; then
+                echo "Warning: got ${#_thresh_input[@]} value(s) for ${#_all_spm_names[@]} map(s) — ignoring, using auto threshold for all"
+            else
+                for _idx in "${!_all_spm_names[@]}"; do
+                    spm_thresh_map["${_all_spm_names[$_idx]}"]="${_thresh_input[$_idx]}"
+                done
+            fi
+        fi
+    fi
+
+    # When generating DICOMs (-R), let the user select which maps to export.
+    # Empty _dcm_spm_set means "all maps".
+    declare -A _dcm_spm_set=()
+    if [ $make_dcm -eq 1 ] && [ ${#_all_spm_names[@]} -gt 0 ] && [ -t 0 ] && [ -z "$spm_thresh_override" ]; then
+        echo ""
+        echo "Select fMRI/Melodic maps to export as PACS DICOMs (underlay: ${_ulsuffix}):"
+        for _idx in "${!_all_spm_names[@]}"; do
+            echo "  $((_idx+1)). ${_all_spm_names[$_idx]}"
+        done
+        read -r -p "Enter numbers to include (space-separated), or Enter for all: " -a _sel_input
+        if [ ${#_sel_input[@]} -gt 0 ]; then
+            for _num in "${_sel_input[@]}"; do
+                _sel_idx=$(( _num - 1 ))
+                if [ $_sel_idx -ge 0 ] && [ $_sel_idx -lt ${#_all_spm_names[@]} ]; then
+                    _dcm_spm_set["${_all_spm_names[$_sel_idx]}"]=1
+                else
+                    echo "Warning: ignoring out-of-range selection '$_num'"
+                fi
+            done
+            echo "Selected for DICOM export: ${!_dcm_spm_set[*]}"
+        else
+            echo "All maps selected for DICOM export."
+        fi
+    fi
+
+    for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii; do
+        [ -f "$_spm" ] || continue
+        _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
+        _render_one_spm "$_spm" "$_spmname"
+    done
+
+
     _btractnames=()
     _btcks=()
 
@@ -1032,64 +1133,6 @@ if [ $results -gt 0 ];then
     fi
 
     [ ${#_btractnames[@]} -gt 0 ] && _flush_bundle_batch
-
-    # ── SPM & Melodic → PACS ────────────────────────────────────────────────
-    # If interactive and no global -T override, ask for a per-map threshold list.
-    _all_spm_names=()
-    for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii \
-                "$globalresultsdir/Melodic/"*.nii.gz "$globalresultsdir/Melodic/"*.nii; do
-        [ -f "$_spm" ] || continue
-        _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
-        _all_spm_names+=("$_spmname")
-    done
-
-    if [ ${#_all_spm_names[@]} -gt 0 ] && [ -z "$spm_thresh_override" ] && [ -t 0 ]; then
-        echo "fMRI/Melodic maps found for PACS conversion:"
-        for _idx in "${!_all_spm_names[@]}"; do
-            echo "  $((_idx+1)). ${_all_spm_names[$_idx]}"
-        done
-        read -r -p "Enter threshold values, space-separated, in the same order as above (Enter = auto max/3 for all): " -a _thresh_input
-        if [ ${#_thresh_input[@]} -gt 0 ]; then
-            if [ ${#_thresh_input[@]} -ne ${#_all_spm_names[@]} ]; then
-                echo "Warning: got ${#_thresh_input[@]} value(s) for ${#_all_spm_names[@]} map(s) — ignoring, using auto threshold for all"
-            else
-                for _idx in "${!_all_spm_names[@]}"; do
-                    spm_thresh_map["${_all_spm_names[$_idx]}"]="${_thresh_input[$_idx]}"
-                done
-            fi
-        fi
-    fi
-
-    # When generating DICOMs (-R), let the user select which maps to export.
-    # Empty _dcm_spm_set means "all maps".
-    declare -A _dcm_spm_set=()
-    if [ $make_dcm -eq 1 ] && [ ${#_all_spm_names[@]} -gt 0 ] && [ -t 0 ] && [ -z "$spm_thresh_override" ]; then
-        echo ""
-        echo "Select fMRI/Melodic maps to export as PACS DICOMs (underlay: ${_ulsuffix}):"
-        for _idx in "${!_all_spm_names[@]}"; do
-            echo "  $((_idx+1)). ${_all_spm_names[$_idx]}"
-        done
-        read -r -p "Enter numbers to include (space-separated), or Enter for all: " -a _sel_input
-        if [ ${#_sel_input[@]} -gt 0 ]; then
-            for _num in "${_sel_input[@]}"; do
-                _sel_idx=$(( _num - 1 ))
-                if [ $_sel_idx -ge 0 ] && [ $_sel_idx -lt ${#_all_spm_names[@]} ]; then
-                    _dcm_spm_set["${_all_spm_names[$_sel_idx]}"]=1
-                else
-                    echo "Warning: ignoring out-of-range selection '$_num'"
-                fi
-            done
-            echo "Selected for DICOM export: ${!_dcm_spm_set[*]}"
-        else
-            echo "All maps selected for DICOM export."
-        fi
-    fi
-
-    for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii; do
-        [ -f "$_spm" ] || continue
-        _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
-        _render_one_spm "$_spm" "$_spmname"
-    done
 
     # ── Per-task scaled fMRI labels for Karawun/Brainlab ────────────────────
     # RESULTS/sub-.../SPM now holds exactly one (hardwired wc_p001unc_k50)
@@ -1968,6 +2011,55 @@ function KUL_run_FWT {
         done
         pdfunite $kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output/*_output/Screenshots/*fin_BT_iFOD2_inMNI_screenshot2_niGB.pdf $globalresultsdir/Tracto/Tracts_Summary.pdf 2>/dev/null || true
         cp -f $globalresultsdir/Tracto/Tracts_Summary.pdf REPORT/sub-${participant}_06_Tract_Summary.pdf 2>/dev/null || true
+
+        # Surface the -Q tractometry output, which otherwise never leaves KUL_compute.
+        # KUL_FWT writes the per-bundle spider report into <bundle>_output/QQ/, and
+        # nothing above copies it out: the loop takes only .tck and _fin_map, and
+        # RESULTS/Tracto is wiped at the top of this block, so hand-placed copies
+        # would not survive a re-run either.
+        #
+        # The .html alone, deliberately: it already renders every along-tract
+        # profile that the sibling *_scores_*_plot.pdf files show, the spider PDF's
+        # content as its interactive tower, and (since the connectivity table was
+        # added to it) the endpoint parcel pairs that the connectivity PNG/CSV
+        # encoded. It is fully self-contained -- inline SVG and JS, no external
+        # assets -- so it survives being copied away from its QQ directory.
+        #
+        # These appear only once the whole subject's FWT run is done
+        # (KUL_FWT_bundle_spider_plot.py runs after every bundle, since it
+        # normalizes each metric across bundles), so a partial run copies nothing
+        # and a later re-run picks them all up.
+        _qq_src="$kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output"
+        _qq_dst="REPORT/sub-${participant}_06_Tract_QQ"
+        # The screenshot contact sheet (KUL_FWT_bundle_report.py) links to each
+        # bundle's spider page by bare filename, so both have to land in the same
+        # directory for "metrics ->" to resolve. Hence the flat copy here rather
+        # than per-bundle subdirectories.
+        if compgen -G "${_qq_src}/*_output/QQ/*spider3d*.html" > /dev/null 2>&1 || \
+           compgen -G "${_qq_src}/sub-${participant}*_FWT_report.html" > /dev/null 2>&1; then
+            mkdir -p "$_qq_dst"
+            cp -f "${_qq_src}"/*_output/QQ/*spider3d*.html "$_qq_dst/" 2>/dev/null || true
+            cp -f "${_qq_src}"/sub-${participant}*_FWT_report.html "$_qq_dst/" 2>/dev/null || true
+            echo "  tractometry (QQ) reports copied to $_qq_dst"
+        fi
+
+        # Collect the .trk copies KUL_FWT_make_TCKs.sh writes next to each .tck
+        # (for freeview, which does not read MRtrix .tck). Conversion lives in FWT
+        # rather than here so it happens where the tracking reference is known --
+        # see the .trk comment there for why that reference is subj_FA and not the
+        # FS parcellation. Own directory, so Tracto stays .tck-only.
+        if compgen -G "$_qq_src/*_output/*_fin_*.trk" > /dev/null 2>&1; then
+            mkdir -p $globalresultsdir/TRK
+            rm -f $globalresultsdir/TRK/*.trk
+            _n_trk=0
+            for _src_trk in "$_qq_src"/*_output/*_fin_*.trk; do
+                _trk_name=$(basename "$(dirname "$_src_trk")" _output)
+                if cp -f "$_src_trk" "$globalresultsdir/TRK/Tract-csd_${_trk_name}.trk"; then
+                    _n_trk=$((_n_trk + 1))
+                fi
+            done
+            echo "  copied $_n_trk .trk bundles to $globalresultsdir/TRK"
+        fi
     fi
 }
 
@@ -2221,6 +2313,12 @@ mkdir -p $globalresultsdir/Tracto
 mkdir -p $globalresultsdir/PACS/fMRI
 mkdir -p $cwd/RESULTS
 mkdir -p $cwd/REPORT
+# Donor-DICOM drop points, created up front so -R needs no manual mkdir. Both are
+# searched (Karawun first, then RESULTS) and a single file in either is enough,
+# so the user drops one donor in one place rather than making a folder and
+# guessing which one matters.
+mkdir -p $cwd/Karawun/sub-${participant}/DICOM
+mkdir -p $globalresultsdir/DICOM
 
 if [ $KUL_DEBUG -gt 0 ]; then 
     echo "kulderivativesdir: $kulderivativesdir"
@@ -2275,17 +2373,24 @@ KUL_clear_cT1w
 # STEP 8 - run SPM & melodic
 KUL_fmriproc
 
-# STEP 8b - run rsfMRI network analysis (opt-in, -N)
-KUL_run_rsfMRI_networks
-
 # STEP 9 - run VBG
-KUL_run_VBG 
+KUL_run_VBG
 wait
 
 # STEP 9b - FastSurfer + KUL_multiparc (types 4, 5, 6 only — no VBG)
 # this should only run if VBG is not used!!
 KUL_run_multiparc
 wait
+
+# STEP 9b-bis - run rsfMRI network analysis (opt-in, -N)
+# After VBG/multiparc, not before: the pipeline's step0 warps
+# lausanne2018.scale3+aseg.mgz into its analysis space, and the seeds in the
+# Presurgical_Somatotopic profile (Lip/Hand/Foot L/R) are defined on it. That
+# file is written by KUL_VBG.sh -M on types 1/2/3 and by KUL_FS_multiparc.sh on
+# types 4/5/6 -- both of which used to run *after* this step, so step0 logged
+# "lausanne2018.scale3+aseg.mgz not found ... run KUL_FS_multiparc.sh first"
+# and silently dropped those seeds on every type.
+KUL_run_rsfMRI_networks
 
 # STEP 9c - DSC perfusion (runs whenever perf data exists, unless -W)
 # after VBG/multiparc, so the FreeSurfer aseg the NAWM reference needs exists
@@ -2318,19 +2423,32 @@ KUL_run_FWT
 if [ $make_dcm -eq 1 ]; then
     karawun_prepare_check=${cwd}/KUL_LOG/sub-${participant}_karawun_prepare.done
     if [ ! -f $karawun_prepare_check ]; then
+        _karawun_rc=0
         if [ $type -lt 5 ]; then
             kul_echo "Preparing Karawun folder"
-            KUL_karawun_prepare.sh -p ${participant} -t 1 -r 3
+            KUL_karawun_prepare.sh -p ${participant} -t 1 -r 3 || _karawun_rc=$?
         elif [ $type -eq 5 ]; then
             kul_echo "Preparing Karawun folder (DBS ET)"
-            KUL_karawun_prepare.sh -p ${participant} -t 2 -r 10
+            KUL_karawun_prepare.sh -p ${participant} -t 2 -r 10 || _karawun_rc=$?
         elif [ $type -eq 6 ]; then
             kul_echo "Preparing Karawun folder (DBS Parkinson)"
-            KUL_karawun_prepare.sh -p ${participant} -t 3 -r 10
+            KUL_karawun_prepare.sh -p ${participant} -t 3 -r 10 || _karawun_rc=$?
         fi
-        touch $karawun_prepare_check
+        # Only claim success if it succeeded: the marker was previously touched
+        # unconditionally, so a failed prep still gated every later -R run into
+        # printing "already prepared" over an incomplete Karawun folder.
+        if [ $_karawun_rc -eq 0 ]; then
+            touch $karawun_prepare_check
+        else
+            echo "ERROR: Karawun prep failed (exit $_karawun_rc) — NOT writing $karawun_prepare_check" >&2
+            echo "       fix the cause and re-run with -R; it will retry rather than skip." >&2
+        fi
     else
-        echo "Karawun folder already prepared"
+        # Deliberate: the Karawun folder (tracts, T1w, labels) does not depend on
+        # the -R underlay, so repeating -R with a different underlay regenerates
+        # the PACS DICOMs but correctly leaves Karawun alone. Delete the marker to
+        # force a rebuild.
+        echo "Karawun folder already prepared (delete KUL_LOG/sub-${participant}_karawun_prepare.done to rebuild)"
     fi
 else
     echo "Karawun folder prep skipped (run with -R to prepare it)"
@@ -2388,7 +2506,10 @@ if [ $results -eq 0 ]; then
     echo ""
     echo "   1. Review the output maps and tractograms in"
     echo "        $globalresultsdir/"
-    echo "        BIDS/derivatives/KUL_compute/sub-${participant}/FWT/"
+    echo "          Anat/  SPM/  Melodic/  Tracto/ (.tck)  TRK/ (.trk, freeview)"
+    echo "        REPORT/"
+    echo "          sub-${participant}_06_Tract_QQ/    one HTML per bundle, plus"
+    echo "          sub-${participant}_FWT_report.html  all bundle screenshots in one page"
     echo "      The fMRI/tract thresholds used for PACS export are only"
     echo "      computed when you run -F or -R below (auto = max/3 per"
     echo "      map, or interactively/-T if you override) - this review"
@@ -2398,17 +2519,29 @@ if [ $results -eq 0 ]; then
     echo "   2. Generate screenshots only, no PACS/Karawun push yet:"
     echo "        KUL_clinical_fmridti.sh -p ${participant} -t ${type} -F <1-7> [-O orientations]"
     echo ""
-    echo "   3. Before running -R, create RESULTS/sub-${participant}/DICOM/"
-    echo "      (it is not made for you) and drop a donor DICOM into it -"
-    echo "      a single file is enough, one slice from a high-resolution"
+    echo "   3. Drop ONE donor DICOM into either of these (both already exist):"
+    echo "        Karawun/sub-${participant}/DICOM/     <- searched first"
+    echo "        $globalresultsdir/DICOM/"
+    echo "      One file is enough - a single slice from a high-resolution"
     echo "      anatomical series (T1w, FLAIR, T2, ...). The same donor is"
-    echo "      used for both the PACS and the Karawun/Brainlab output, so"
-    echo "      keep it to one file/series for consistency."
+    echo "      used for both PACS and Karawun/Brainlab, so one is all you"
+    echo "      need; Karawun/ is the better place since the import command"
+    echo "      in step 5 reads from there."
     echo ""
     echo "   4. -R also triggers Karawun prep (it no longer runs on its"
     echo "      own either). Once happy with the review and the donor"
     echo "      DICOM is in place, run:"
     echo "        KUL_clinical_fmridti.sh -p ${participant} -t ${type} -R <1-7> [-O orientations]"
+    echo "      Re-running -R with a different underlay (e.g. -R 4 then -R 2)"
+    echo "      regenerates the PACS DICOMs for that underlay. Karawun prep is"
+    echo "      NOT repeated - its output does not depend on the underlay and is"
+    echo "      gated by KUL_LOG/sub-${participant}_karawun_prepare.done; delete"
+    echo "      that marker if you do want it rebuilt."
+    echo ""
+    echo "   5. -R does not push to Brainlab by itself. When Karawun prep"
+    echo "      finishes it prints the importTractography command to run"
+    echo "      manually (conda activate KarawunDev first); it writes"
+    echo "      Karawun/sub-${participant}/sub-${participant}_for_elements."
     echo "================================================================"
     echo ""
 elif [ $make_dcm -eq 0 ]; then

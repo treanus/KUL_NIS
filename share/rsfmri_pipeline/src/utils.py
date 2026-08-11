@@ -30,15 +30,36 @@ log = logging.getLogger(__name__)
 # File path helpers
 # ---------------------------------------------------------------------------
 
+def run_glob(run_id: str) -> str:
+    """
+    Glob fragment matching run_id's entities in BIDS order while tolerating
+    any extra entities between them (acq-, dir-, ce-, echo-, ...).
+
+    get_runs() builds run_id by joining the task- and run- matches and
+    discarding whatever sat between them, so "task-TAAL_run-01" has to match
+    a directory named "..._task-TAAL_acq-singleTE_run-01_...". Globbing
+    run_id as one contiguous substring cannot do that: it silently misses,
+    and every caller then falls through to its constructed-name fallback.
+
+    "task-TAAL_run-01" -> "task-TAAL*run-01"; a run-less "task-HAND" is
+    returned unchanged.
+    """
+    return "*".join(run_id.split("_"))
+
+
 def bold_path(subject: str, run_id: str) -> Path:
     func_dir = DENOISED_DIR / f"sub-{subject}" / "func"
     # Allow optional extra BIDS entities (e.g. acq-singleTE) between task and run
-    dirs = sorted(func_dir.glob(f"*_{run_id}_*_postproc_nilearn"))
+    rg = run_glob(run_id)
+    dirs = sorted(func_dir.glob(f"*_{rg}_*_postproc_nilearn"))
     if dirs:
-        hits = sorted(dirs[0].glob(f"*_{run_id}_*_desc-denoised_bold.nii.gz"))
+        hits = sorted(dirs[0].glob(f"*_{rg}_*_desc-denoised_bold.nii.gz"))
         if hits:
             return hits[0]
-    tag = f"sub-{subject}_task-rest_{run_id}_space-{MNI_SPACE}_res-2"
+    # Fallback names the run we were actually asked for. It used to hardcode
+    # task-rest here, which produced impossible "task-rest_task-TAAL_run-01"
+    # paths in the error message whenever the glob above missed.
+    tag = f"sub-{subject}_{run_id}_space-{MNI_SPACE}_res-2"
     return func_dir / f"{tag}_postproc_nilearn" / f"{tag}_desc-denoised_bold.nii.gz"
 
 
@@ -47,10 +68,11 @@ def mask_path(subject: str, run_id: str) -> Path:
     # back to whatever resolution tag (or none) fmriprep actually produced --
     # not every fmriprep run is invoked with --output-spaces ...:res-2.
     func_dir = FMRIPREP_DIR / f"sub-{subject}" / "func"
-    hits = sorted(func_dir.glob(f"*_{run_id}_*space-{MNI_SPACE}_res-2_desc-brain_mask.nii.gz"))
+    rg = run_glob(run_id)
+    hits = sorted(func_dir.glob(f"*_{rg}_*space-{MNI_SPACE}_res-2_desc-brain_mask.nii.gz"))
     if hits:
         return hits[0]
-    hits = sorted(func_dir.glob(f"*_{run_id}_*space-{MNI_SPACE}*_desc-brain_mask.nii.gz"))
+    hits = sorted(func_dir.glob(f"*_{rg}_*space-{MNI_SPACE}*_desc-brain_mask.nii.gz"))
     if hits:
         return hits[0]
     tag = f"sub-{subject}_{run_id}_space-{MNI_SPACE}_res-2"
@@ -72,9 +94,10 @@ def get_run_tr(subject: str, run_id: str) -> float:
     so this must be looked up per-run rather than assumed constant.
     """
     func_dir = FMRIPREP_DIR / f"sub-{subject}" / "func"
-    hits = sorted(func_dir.glob(f"*_{run_id}_*space-{MNI_SPACE}*_desc-preproc_bold.json"))
+    rg = run_glob(run_id)
+    hits = sorted(func_dir.glob(f"*_{rg}_*space-{MNI_SPACE}*_desc-preproc_bold.json"))
     if not hits:
-        hits = sorted(func_dir.glob(f"*_{run_id}_*_desc-preproc_bold.json"))
+        hits = sorted(func_dir.glob(f"*_{rg}_*_desc-preproc_bold.json"))
     if not hits:
         raise FileNotFoundError(f"No preproc BOLD sidecar found for sub-{subject}/{run_id}")
     with open(hits[0]) as fh:

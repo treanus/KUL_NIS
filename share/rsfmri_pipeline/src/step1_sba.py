@@ -52,7 +52,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent))
 from config import (
     ALL_SUBJECTS, HV_SUBJECTS, SBA_DIR,
-    get_profile, get_seed,
+    get_profile, get_seed, seed_subdir,
 )
 from utils import (
     average_maps, extract_mean_ts, get_runs, get_seed_mask, is_rest_run,
@@ -90,7 +90,7 @@ def sba_map_path(subject: str, seed_name: str, run_id: str | None = None,
     per-run-type pooled maps. thresholded=True returns the cluster-filtered
     variant path.
     """
-    out_dir = SBA_DIR / f"sub-{subject}"
+    out_dir = SBA_DIR / f"sub-{subject}" / seed_subdir(seed_name)
     out_dir.mkdir(parents=True, exist_ok=True)
     tag  = _tag(subject, seed_name, run_type)
     desc = "sbaThresh" if thresholded else "sba"
@@ -100,13 +100,13 @@ def sba_map_path(subject: str, seed_name: str, run_id: str | None = None,
 
 
 def sba_zstat_path(subject: str, seed_name: str, run_type: str | None = None) -> Path:
-    out_dir = SBA_DIR / f"sub-{subject}"
+    out_dir = SBA_DIR / f"sub-{subject}" / seed_subdir(seed_name)
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir / f"{_tag(subject, seed_name, run_type)}_desc-zstat_statmap.nii.gz"
 
 
 def sba_neglog10p_path(subject: str, seed_name: str, run_type: str | None = None) -> Path:
-    out_dir = SBA_DIR / f"sub-{subject}"
+    out_dir = SBA_DIR / f"sub-{subject}" / seed_subdir(seed_name)
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir / f"{_tag(subject, seed_name, run_type)}_desc-neglog10p_statmap.nii.gz"
 

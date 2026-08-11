@@ -446,7 +446,7 @@ function KUL_dsc_strip_anat {
 
 function KUL_dsc_strip_dscvol1 {
 	mrconvert -force -coord 3 0 -axes 0,1,2 "$dsc_mc" "$dsc_vol1" && \
-	KUL_dsc_synthstrip "$dsc_vol1" "$workdir/dsc_vol1_brain.nii.gz" "$dsc_vol1_mask"
+	KUL_dsc_synthstrip "$dsc_vol1" "$dsc_vol1_brain" "$dsc_vol1_mask"
 }
 
 function KUL_dsc_make_brainmask {
@@ -461,36 +461,38 @@ function KUL_dsc_make_brainmask {
 # receives a bare function name. It expands "$task_in" unquoted, which would let
 # the shell treat bracketed ANTs arguments -- MI[...], [out,warped], [0.1,3,0] --
 # as glob character classes.
-# 4D non-local-means denoising, with the time axis mirror-padded first.
+# Marchenko-Pastur PCA denoising (dwidenoise), not ANTs DenoiseImage -d 4.
 #
-# DenoiseImage -d 4 treats time as a fourth spatial axis, so its patch and
-# search neighbourhoods are truncated at the first and last frames and those
-# frames come back systematically darkened -- measured at ~13% on frame 0 of a
-# 50-frame series, which is as deep as the bolus itself and translates to a
-# spurious dR2* of several 1/s in every voxel. Padding by 'pad' mirrored frames
-# on each side gives the filter full neighbourhoods everywhere in the real data;
-# the padding is cropped off again straight afterwards.
+# The command is named for diffusion data but nothing in the algorithm is
+# diffusion-specific: it takes a plain 4D image (it has no -grad/-fslgrad
+# options at all), reshapes each spatial patch into a voxel-by-volume matrix and
+# fits the MP distribution to that matrix's eigenspectrum. An 80-frame DSC
+# series satisfies its assumptions at least as well as a dMRI series does --
+# baseline, bolus passage and recirculation are a handful of temporal
+# components, and every frame shares TE/TR/coil so the noise is i.i.d. across
+# volumes. Its patches are purely SPATIAL, with the volumes as matrix columns,
+# so there is no temporal neighbourhood, no edge effect, and hence none of the
+# mirror-padding the previous implementation needed.
+#
+# Measured on sub-PT032 (80 frames, 144x144x42), against DenoiseImage -d 4:
+#
+#                       ANTs NLM      MP-PCA      raw
+#   runtime             23.1 min      21.5 s      --
+#   proxy rCBV vs raw   -11.28%       -0.88%      --
+#   rCBV corr with raw    0.9685       0.9970     1.0
+#   bolus depth          32.00%       34.48%     34.48%
+#   spatial sharpness     0.15344      0.17826    0.18003
+#
+# The NLM bias is spatial, not temporal: bolus FWHM (7 frames) and per-voxel TTP
+# (median 23, IQR 1) are identical under both, so TTP/MTT were never at risk,
+# but NLM blurs ~15% and that mixes deep-dipping voxels with shallow neighbours,
+# costing ~11% of rCBV. MP-PCA removes less noise (baseline tSNR 42.6 -> 53.9,
+# versus 140.2 for NLM), but most of NLM's advantage there is the blurring
+# itself. If the maps ever need to be smoother, smooth them explicitly after
+# the fit rather than buying it here at the cost of the amplitude.
 function KUL_dsc_run_denoise {
-	local pad=3
-	local n=$(mrinfo -size "$in_dsc" | awk '{print $4}')
-
-	if [ "$n" -le $((2 * pad + 1)) ]; then
-		# too short to mirror; denoise as-is rather than fabricating frames
-		DenoiseImage -d 4 -i "$in_dsc" -o [$dsc_denoised,$workdir/dsc_noise.nii.gz] -v $ants_verbose
-		return $?
-	fi
-
-	local head_frames=$(seq -s, $pad -1 1)                       # e.g. 3,2,1
-	local tail_frames=$(seq -s, $((n - 2)) -1 $((n - 1 - pad)))  # e.g. n-2,n-3,n-4
-
-	mrconvert -force -coord 3 "$head_frames" "$in_dsc" "$workdir/dsc_padhead.mif" && \
-	mrconvert -force -coord 3 "$tail_frames" "$in_dsc" "$workdir/dsc_padtail.mif" && \
-	mrcat -force -axis 3 "$workdir/dsc_padhead.mif" "$in_dsc" "$workdir/dsc_padtail.mif" \
-		"$workdir/dsc_padded.nii.gz" && \
-	DenoiseImage -d 4 -i "$workdir/dsc_padded.nii.gz" \
-		-o [$workdir/dsc_padded_dn.nii.gz,$workdir/dsc_noise.nii.gz] -v $ants_verbose && \
-	mrconvert -force -coord 3 ${pad}:$((pad + n - 1)) \
-		"$workdir/dsc_padded_dn.nii.gz" "$dsc_denoised"
+	dwidenoise -force -nthreads $ncpu -noise "$workdir/dsc_noise.nii.gz" \
+		"$in_dsc" "$dsc_denoised"
 }
 
 # -p BSpline, not the antsMotionCorr default of Linear. This is the first of two
@@ -510,33 +512,93 @@ function KUL_dsc_run_motioncorr {
 		-p BSpline
 }
 
+# The moving image is the SKULL-STRIPPED first frame, not the raw one. The
+# fixed image ($anat_regrid) is brain-only -- it is a regrid of the synthstripped
+# anat -- so feeding the raw whole-head DSC frame as moving made
+# --initial-moving-transform's centre-of-mass estimate compare a brain against a
+# head: the DSC's skull, scalp and whatever neck falls in the slab all pull its
+# COM inferiorly. The -x masks below do NOT rescue this; they restrict metric
+# sampling only, and ANTs computes the COM initialisation from the image
+# intensities themselves, before any mask is applied. On PT032 the two brains
+# started ~23 mm apart in both y and z, the bad initialisation put the affine
+# stage in the wrong basin, and MI at shrink factor 8 never climbed out --
+# final Dice against the anat brain mask was 0.39.
+# NO --initial-moving-transform. The DSC and the anatomy come from the same
+# session and already share a scanner frame of reference, so the identity is the
+# correct starting point -- which is exactly what antsIntermodalityIntrasubject.sh
+# did in tools/KUL_DSC_analysis/DSC_proc_script_WIP3.sh: grep it and you will
+# find no initialisation of any kind.
+#
+# A centre-of-MASS init (the ",1" this used to pass) is actively harmful here.
+# The DSC is a 42 x 3 mm slab and the anat is whole-head, so their brain centres
+# of mass differ by ~23 mm in y and z even when the two are perfectly aligned.
+# Matching those centres manufactures that offset as a displacement: the affine
+# came out translating [-0.8, 46.5, 31.7] mm instead of [1.4, -5.8, 0.7].
+#
+# Measured on sub-PT032, Dice of the DSC brain warped into anat space:
+#
+#   COM init + stripped moving                    0.2889   (69.6% outside)
+#   COM init + raw moving (the original failure)  0.3865   (58.3% outside)
+#   no init + stripped moving, params as before   0.8074   (17.5% outside)
+#   no init + params below, raw moving            0.9673   ( 4.7% outside)
+#   no init + params below, stripped moving       0.9668   ( 4.8% outside)  <- this
+#
+# The remaining 0.81 -> 0.97 comes from the parameters below, taken from the
+# wrapper: histogram matching on, no metric masks, and smoothing sigmas in mm.
+# That last one is worth keeping in mind before "tidying" them back to vox --
+# on this 1.5x1.5x3 mm grid, 3vox is 4.5 mm in-plane but 9 mm through-plane.
+#
+# --restrict-deformation is retained: it costs nothing measurable (0.9673 with,
+# 0.9676 without) and without it the SyN stage is an unconstrained warp rather
+# than a susceptibility correction.
 function KUL_dsc_run_epicorrect {
 	antsRegistration --verbose $ants_verbose --dimensionality 3 --float 1 \
 		--output [${epic_prefix},${epic_prefix}Warped.nii.gz] \
 		--interpolation LanczosWindowedSinc \
-		--use-histogram-matching 0 --winsorize-image-intensities [0.005,0.995] \
-		--initial-moving-transform [$anat_regrid,$dsc_vol1,1] \
-		--transform Rigid[0.1] \
-		--metric MI[$anat_regrid,$dsc_vol1,1,32,Regular,0.25] \
-		--convergence [1000x500x250x100,1e-6,10] \
-		--shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox \
+		--winsorize-image-intensities [0.005,0.995] \
+		--collapse-output-transforms 1 \
 		--transform Affine[0.1] \
-		--metric MI[$anat_regrid,$dsc_vol1,1,32,Regular,0.25] \
+		--metric MI[$anat_regrid,$dsc_vol1_brain,1,32,Regular,0.25] \
 		--convergence [1000x500x250x100,1e-6,10] \
-		--shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox \
+		--shrink-factors 8x4x2x1 --smoothing-sigmas 4x2x1x0 \
+		--use-histogram-matching 1 \
 		--transform SyN[0.1,3,0] \
-		--metric CC[$anat_regrid,$dsc_vol1,1,4] \
-		--convergence [100x70x50x20,1e-6,10] \
-		--shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox \
-		--restrict-deformation $restrict_deformation \
-		-x [$anat_regrid_mask,$dsc_vol1_mask]
+		--metric CC[$anat_regrid,$dsc_vol1_brain,1,4] \
+		--convergence [50x50x20,1e-7,5] \
+		--shrink-factors 4x2x1 --smoothing-sigmas 2x1x0mm \
+		--use-histogram-matching 1 \
+		--restrict-deformation $restrict_deformation
 }
 
+# The bias field is estimated ONCE, in 3D, on the temporal median, and the same
+# field is divided out of every frame. Two reasons it is not done per-frame or
+# with -d 4:
+#
+#   -d 4 does nothing. Asked for the field it estimates, ANTs returns 1.0000 to
+#   1.0001 across the brain -- 0 of 16.4M voxels changed by more than 0.1%, for
+#   ~2-5 minutes of runtime. It is not the missing mask: -d 3 on the same series
+#   with no mask still finds a 0.995-1.822 field. The 4D B-spline is simply flat
+#   over an 80-sample time axis.
+#
+#   Per-frame is worse than either. N4 cannot tell a coil inhomogeneity from a
+#   real, spatially heterogeneous signal drop, so at peak bolus it fits the
+#   bolus as bias: on sub-PT032 the frame-5 field over the frame-23 field has a
+#   median ratio of 1.41 (p1-p99 spread 46%, corr 0.82). Only a STATIC per-voxel
+#   factor cancels in dR2* = -1/TE * ln(S(t)/S0); a time-varying one is injected
+#   straight into rCBV.
+#
+# Note that a static field cancels in that ratio too, so this step does not
+# change the perfusion numbers. It is here for the synthstrip call in
+# KUL_dsc_make_brainmask and for how the maps look, both of which read absolute
+# intensity.
 function KUL_dsc_run_applyepic {
 	antsApplyTransforms -d 3 -e 3 -i "$dsc_mc" -o "$dsc_epic" -r "$anat_regrid" \
 		-t "${epic_prefix}1Warp.nii.gz" -t "${epic_prefix}0GenericAffine.mat" \
 		-n LanczosWindowedSinc && \
-	N4BiasFieldCorrection -d 4 -i "$dsc_epic" -o "$dsc_pp" -r 1
+	mrmath -force -axis 3 "$dsc_epic" median "$workdir/dsc_epic_median.nii.gz" && \
+	N4BiasFieldCorrection -d 3 -i "$workdir/dsc_epic_median.nii.gz" -x "$anat_regrid_mask" \
+		-o [$workdir/dsc_epic_median_n4.nii.gz,$workdir/dsc_bias_field.nii.gz] -r 1 && \
+	mrcalc -force "$dsc_epic" "$workdir/dsc_bias_field.nii.gz" -div "$dsc_pp"
 }
 
 
@@ -882,6 +944,7 @@ anat_regrid_mask="$workdir/anat_brain_regrid_mask.nii.gz"
 dsc_denoised="$workdir/dsc_denoised.nii.gz"
 dsc_mc="$workdir/dsc_denoised_mc.nii.gz"
 dsc_vol1="$workdir/dsc_mc_vol1.nii.gz"
+dsc_vol1_brain="$workdir/dsc_vol1_brain.nii.gz"
 dsc_vol1_mask="$workdir/dsc_mc_vol1_brain_mask.nii.gz"
 epic_prefix="$workdir/dsc_2_anat_"
 dsc_epic="$workdir/dsc_epi_corrected.nii.gz"

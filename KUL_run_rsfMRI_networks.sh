@@ -182,8 +182,23 @@ fi
 #    same connectivity estimate. get_runs()/bold_path() in utils.py are
 #    already task-label-agnostic, so no pipeline code changes are needed for
 #    this beyond omitting --task here.
-task_in="$kul_main_dir/KUL_fmri_denoise.sh --fmriprep $RSFMRI_FMRIPREP_DIR --out $RSFMRI_DENOISED_DIR --method nilearn --space MNI152NLin2009cAsym --sub sub-${participant}"
-KUL_task_exec $verbose_level "rsfMRI networks: denoise all BOLD runs" "rsfmri_1_denoise" || { echo "ERROR: rsfMRI denoising failed for sub-${participant} — aborting (rsfMRI_networks.done will not be created)" >&2; exit 1; }
+#    Task runs are additionally stripped of their evoked response
+#    (--task-signal remove) so that pooling them with genuine rest is
+#    defensible: what is wanted here is the ongoing/background coupling, and
+#    leaving a block paradigm in would drive spurious co-activation between
+#    every region the task engages. Relying on the nuisance regressors to
+#    remove it incidentally is not enough -- they only took ~58% of it on this
+#    study's language run, leaving a substantial task-locked residual.
+#    Rest runs have no design, so this is a no-op for them.
+#    Set KUL_RSFMRI_TASK_SIGNAL=ignore to pool the task runs as-is instead.
+_rsfmri_task_signal="${KUL_RSFMRI_TASK_SIGNAL:-remove}"
+# Variant-keyed output: this product genuinely differs from the one the task
+# melodic path needs, so they must not share a directory. Where a recipe does
+# coincide the denoise script's own skip-if-exists check reuses it.
+_rsfmri_denoised_variant="$RSFMRI_DENOISED_DIR/task-${_rsfmri_task_signal}"
+export RSFMRI_DENOISED_DIR="$_rsfmri_denoised_variant"
+task_in="$kul_main_dir/KUL_fmri_denoise.sh --fmriprep $RSFMRI_FMRIPREP_DIR --out $_rsfmri_denoised_variant --method nilearn --space MNI152NLin2009cAsym --sub sub-${participant} --task-signal $_rsfmri_task_signal"
+KUL_task_exec $verbose_level "rsfMRI networks: denoise all BOLD runs (task-signal=$_rsfmri_task_signal)" "rsfmri_1_denoise" || { echo "ERROR: rsfMRI denoising failed for sub-${participant} — aborting (rsfMRI_networks.done will not be created)" >&2; exit 1; }
 
 # 2) Subject-specific SynthSeg segmentation + subject-specific atlases
 task_in="bash $pipeline_dir/src/step0_synthseg.sh --subjects $participant"
@@ -220,22 +235,49 @@ cp -f "$RSFMRI_ANALYSIS_DIR/reports/sub-${participant}_rsfmri_networks_report.pd
 mkdir -p "$globalresultsdir/sba" "$globalresultsdir/rsn_fc"
 _rsfmri_mni2t1w=$(compgen -G "${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_*from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5" | head -1)
 _rsfmri_t1w_ref=$(find "${cwd}/BIDS/sub-${participant}/anat/" -name "*_T1w.nii.gz" ! -name "*gadolinium*" 2>/dev/null | head -1)
+# Recursive, not a flat glob: step1_sba.py writes Lausanne-based seeds (the
+# Lip/Hand/Foot somatotopic set) into an sba/sub-<ID>/lausanne_scale3_sba/
+# subdirectory -- see seed_subdir() in share/rsfmri_pipeline/src/config.py. A
+# flat '*.nii.gz' would silently skip exactly those maps. The subdirectory is
+# mirrored under RESULTS/ so the split survives into the deliverable, and the
+# path is derived per-file rather than assumed.
+_sba_root="$RSFMRI_ANALYSIS_DIR/sba/sub-${participant}"
+_rsn_root="$RSFMRI_ANALYSIS_DIR/rsn_fc/sub-${participant}"
 if [ -n "$_rsfmri_mni2t1w" ] && [ -n "$_rsfmri_t1w_ref" ]; then
-    for _statmap in "$RSFMRI_ANALYSIS_DIR/sba/sub-${participant}/"*.nii.gz "$RSFMRI_ANALYSIS_DIR/rsn_fc/sub-${participant}/"*.nii.gz; do
+    while IFS= read -r _statmap; do
         [ -f "$_statmap" ] || continue
         case "$_statmap" in
-            */sba/*) _outdir="$globalresultsdir/sba" ;;
-            *)       _outdir="$globalresultsdir/rsn_fc" ;;
+            */sba/*) _outdir="$globalresultsdir/sba/$(dirname "${_statmap#$_sba_root/}")" ;;
+            *)       _outdir="$globalresultsdir/rsn_fc/$(dirname "${_statmap#$_rsn_root/}")" ;;
         esac
+        _outdir="${_outdir%/.}"     # dirname gives '.' for files at the root
+        mkdir -p "$_outdir"
         antsApplyTransforms -d 3 --float 1 \
             -i "$_statmap" -o "$_outdir/$(basename "$_statmap")" \
             -r "$_rsfmri_t1w_ref" -t "$_rsfmri_mni2t1w" -n Linear
-    done
+    done < <(find "$_sba_root" "$_rsn_root" -name '*.nii.gz' 2>/dev/null)
 else
     echo "WARNING: MNI-to-T1w transform or native T1w not found for sub-${participant} — copying rsfMRI statmaps as-is (still in MNI space, not warped)"
-    cp -f "$RSFMRI_ANALYSIS_DIR/sba/sub-${participant}/"*.nii.gz "$globalresultsdir/sba/" 2>/dev/null
-    cp -f "$RSFMRI_ANALYSIS_DIR/rsn_fc/sub-${participant}/"*.nii.gz "$globalresultsdir/rsn_fc/" 2>/dev/null
+    # -a preserves the subdirectory split; '/.' copies contents, not the dir itself
+    cp -a "$_sba_root/." "$globalresultsdir/sba/" 2>/dev/null
+    cp -a "$_rsn_root/." "$globalresultsdir/rsn_fc/" 2>/dev/null
+fi
+
+# Only claim success if the run actually produced statmaps. Every step above
+# can "succeed" while writing nothing: run_pipeline.py logs per-seed ERRORs and
+# still exits 0, and step5_lite_report.py happily renders a report whose pages
+# were all skipped for want of maps. That combination once wrote a .done on a
+# run with 0 seeds and 0 RSNs, so the next invocation skipped straight past it
+# ("rsfMRI networks already done") and the empty result looked deliberate.
+# find is already recursive, so this counts the lausanne_scale3_sba/ subdirectory
+# too -- important, since a profile whose seeds are ALL Lausanne-based would
+# otherwise look like a zero-statmap failure and abort a successful run.
+_n_statmaps=$(find "$_sba_root" "$_rsn_root" -name '*.nii.gz' 2>/dev/null | wc -l)
+if [ "$_n_statmaps" -eq 0 ]; then
+    echo "ERROR: rsfMRI networks produced no statmaps for sub-${participant} — rsfMRI_networks.done will NOT be created." >&2
+    echo "       Check rsfmri_3_pipeline.log for per-seed errors (a missing denoised BOLD is the usual cause)." >&2
+    exit 1
 fi
 
 touch "$done_flag"
-echo "Done: rsfMRI networks for sub-${participant}"
+echo "Done: rsfMRI networks for sub-${participant} ($_n_statmaps statmaps)"

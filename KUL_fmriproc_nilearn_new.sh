@@ -222,7 +222,52 @@ function KUL_throttle {
     done
 }
 
+function KUL_populate_SPM_results {
+    # RESULTS/.../SPM is what gets reviewed and turned into figures/DICOMs;
+    # SPM_all is the complete record of every GLM variant. Copy the preferred
+    # variant's maps across once all GLMs have finished, so the choice can be
+    # made on what actually succeeded rather than guessed at write time.
+    #
+    # Preference is the with-confounds GLM, falling back to the plain one. The
+    # fallback matters: with only the old hardwired wc rule, a failed _wc GLM
+    # left SPM empty and downstream figure/DICOM generation silently had nothing
+    # to work with.
+    local task variant found_wc n_copied=0
+    # Clear previously copied maps first. Without this, a run whose preferred
+    # variant changed (e.g. _wc newly succeeding where it used to fail) leaves the
+    # old variant's maps behind, and downstream figure/DICOM generation iterates
+    # over RESULTS/SPM/*.nii and would export both. Only afMRI_* is removed --
+    # anything else a user parked here is left alone.
+    rm -f "$globalresultsdir"/afMRI_*.nii "$globalresultsdir"/afMRI_*.nii.gz 2>/dev/null
+    # engine marker moved to derivatives; drop a stale copy from older runs
+    rm -f "$globalresultsdir/engine_nilearn.txt" 2>/dev/null
+    for task in $(ls "$globalresultsdir_all"/afMRI_*.nii 2>/dev/null \
+                  | xargs -n1 basename 2>/dev/null \
+                  | sed -E 's/^afMRI_//; s/\.nii$//; s/_(p001unc_k50|FWE[0-9]+_k50)$//; s/_wc$//' \
+                  | sort -u); do
+        found_wc=$(ls "$globalresultsdir_all"/afMRI_${task}_wc*.nii 2>/dev/null | head -1)
+        if [ -n "$found_wc" ]; then variant="_wc"; else variant=""; fi
+        for f in "$globalresultsdir_all"/afMRI_${task}${variant}*.nii; do
+            [ -f "$f" ] || continue
+            # skip the other variant's files that the glob can pick up when
+            # variant is empty (afMRI_TAAL*.nii also matches afMRI_TAAL_wc*.nii)
+            if [ -z "$variant" ] && [[ "$(basename "$f")" == afMRI_${task}_wc* ]]; then continue; fi
+            cp -f "$f" "$globalresultsdir/$(basename "$f")" && n_copied=$((n_copied+1))
+        done
+        echo "  SPM results for ${task}: copied ${variant:-plain} variant"
+    done
+    echo "  populated $globalresultsdir with $n_copied map(s)"
+}
+
 function KUL_tsv_filter {
+    # Guard the empty-input case explicitly: with $filter_input unset or missing,
+    # awk falls back to reading stdin and cheerfully writes a zero-byte file, so
+    # the failure only surfaced much later as pandas' "No columns to parse from
+    # file" inside the GLM.
+    if [ ! -s "$filter_input" ]; then
+        echo "  ERROR: KUL_tsv_filter has no readable input ('$filter_input') — not writing $filter_output" >&2
+        return 1
+    fi
     awk -F'\t' -v cols="trans_x,trans_y,trans_z,rot_x,rot_y,rot_z,a_comp_cor_00,a_comp_cor_01,a_comp_cor_02,a_comp_cor_03,a_comp_cor_04" '
     BEGIN {
         split(cols, col_arr, ",")
@@ -377,14 +422,14 @@ function KUL_compute_nilearn {
         thresh_nii="$fmriresults/spmT_0001_${thresh_tag}.nii"
         if [ -f "$thresh_nii" ]; then
             input="$thresh_nii"
-            # Hardwired downstream selection: only wc + p001unc_k50 lands in
-            # globalresultsdir (RESULTS/.../SPM); everything else goes to
-            # globalresultsdir_all (RESULTS/.../SPM_all).
-            if [ "$wc_suffix" == "_wc" ] && [ "$thresh_tag" == "p001unc_k50" ]; then
-                output="${globalresultsdir}/afMRI_${fmrifile}${wc_suffix}_${thresh_tag}.nii"
-            else
-                output="${globalresultsdir_all}/afMRI_${fmrifile}${wc_suffix}_${thresh_tag}.nii"
-            fi
+            # Every variant is warped once into SPM_all, the complete record.
+            # RESULTS/.../SPM is then populated at the end of the run by copying
+            # the preferred variant across (see KUL_populate_SPM_results) rather
+            # than being written here: the old rule sent only wc+p001unc_k50
+            # straight to SPM, so whenever the with-confounds GLM produced nothing
+            # SPM was left holding just the engine marker while every real map sat
+            # in SPM_all.
+            output="${globalresultsdir_all}/afMRI_${fmrifile}${wc_suffix}_${thresh_tag}.nii"
             transform="$mni_to_t1w"
             KUL_antsApply_Transform
         fi
@@ -453,10 +498,11 @@ mkdir -p $globalresultsdir
 mkdir -p $globalresultsdir_all
 
 # Output lands in RESULTS/.../SPM (same folder the SPM engine writes to, for
-# downstream consistency), so drop a marker noting nilearn was actually the
-# engine used -- otherwise nothing in that folder distinguishes it from an
-# SPM run.
-echo "engine: nilearn (KUL_fmriproc_nilearn_new.sh), generated $(date -Iseconds)" > "$globalresultsdir/engine_nilearn.txt"
+# downstream consistency), so record which engine actually produced it. The
+# marker lives under derivatives rather than in RESULTS/SPM: that folder is
+# reviewed and iterated over to build figures and DICOMs, and a stray .txt in it
+# is noise for the reader without telling the pipeline anything it uses.
+echo "engine: nilearn (KUL_fmriproc_nilearn_new.sh), generated $(date -Iseconds)" > "$computedir/engine_nilearn.txt"
 
 # Use MNI-space fmriprep output so SPM stats are in MNI and the MNI→T1w
 # warp-back at the end produces correctly aligned native-space results.
@@ -500,7 +546,22 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
         [[ "$_coarse_task" == *"rest"* ]] && continue
         task_file="$match"
 
-        taskname=$(basename "$task_file" | sed -E 's/.*_task-([A-Za-z0-9]+(_run-[0-9]+)?).*_desc-preproc_bold\.nii\.gz/\1/')
+        # Match task- and run- as SEPARATE entities. fMRIPrep writes _acq-/_dir-/
+        # _echo- between them, so the old single regex
+        #   's/.*_task-([A-Za-z0-9]+(_run-[0-9]+)?).*/\1/'
+        # never saw the run index on a file like
+        #   sub-X_task-TAAL_acq-singleTE_run-01_..._desc-preproc_bold.nii.gz
+        # and returned a bare 'TAAL' for EVERY run of the task. taskname is what
+        # becomes $fmrifile, hence stats_<name>/ and afMRI_<name>.nii -- so every
+        # per-run GLM and the multi-run aggregate all resolved to the same two
+        # output dirs and raced each other to write them (they are dispatched in
+        # parallel under one wait barrier). That is why only afMRI_TAAL* and
+        # afMRI_TAAL_wc* ever appeared, with no per-run maps, and why the
+        # surviving pair could not be trusted to be the aggregate result.
+        _task_lbl=$(basename "$task_file" | grep -oE 'task-[A-Za-z0-9]+' | head -1)
+        _run_lbl=$(basename "$task_file" | grep -oE '_run-[0-9]+' | head -1)
+        _task_run_key="${_task_lbl}${_run_lbl}"
+        taskname="${_task_lbl#task-}${_run_lbl}"
         TR=($(mrinfo $task_file -spacing | awk '{print $(NF)}'))
         spacing=($(mrinfo $task_file -spacing))
         mean=$(echo "(${spacing[0]} + ${spacing[1]} + ${spacing[2]}) / 3" | bc -l)
@@ -512,8 +573,18 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
         mask=$(dirname ${task_file})/$(basename ${task_file} "-preproc_bold.nii.gz")-brain_mask.nii.gz
         smooth_file="$fmridatadir/$(basename ${task_file} "-preproc_bold.nii.gz")_smooth.nii"
         boldref=$(dirname ${task_file})/$(basename ${task_file} "_desc-preproc_bold.nii.gz")_boldref.nii.gz
-        _task_run_key=$(basename "$task_file" | grep -oE 'task-[A-Za-z0-9]+(_run-[0-9]+)?')
-        filter_input=$(find $(dirname ${task_file}) -name "*${_task_run_key}_desc-confounds_timeseries.tsv" | head -1)
+        # (_task_lbl/_run_lbl/_task_run_key are derived above, where taskname is
+        # built from the same two entities -- the confounds key and the output
+        # name have to agree, and both were previously wrong in the same way.)
+        # Derive the confounds sidecar from the BOLD name instead of globbing:
+        # everything from _space- onward is fMRIPrep's output-space decoration,
+        # and what remains is exactly the confounds file's stem.
+        _bold_stem=$(basename "$task_file"); _bold_stem="${_bold_stem%%_space-*}"
+        filter_input="$(dirname ${task_file})/${_bold_stem}_desc-confounds_timeseries.tsv"
+        if [ ! -s "$filter_input" ]; then
+            echo "  ERROR: confounds TSV missing or empty for ${_task_run_key}: $filter_input" >&2
+            echo "         the with-confounds GLM cannot run for this run" >&2
+        fi
         confounds_file="$confoundsdir/${_task_run_key}_confounds.txt"
 
         g_bold+=("$task_file");    g_task+=("$_coarse_task"); g_taskname+=("$taskname"); g_TR+=("$TR")
@@ -608,6 +679,8 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
     done
 
     wait   # barrier: all GLM analyses done
+
+    KUL_populate_SPM_results
 
     fi   # n_runs_total > 0
 

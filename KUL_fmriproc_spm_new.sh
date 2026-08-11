@@ -370,13 +370,14 @@ function KUL_compute_SPM_matlab {
     if [ $spm_nruns -eq 1 ]; then
         # Here $i is the index of the current seperate run analyis
         spm_taskname=${tf_taskname[$i]}
+        spm_filter=${tf_filter[$i]}
         spm_TR=${tf_TR[$i]}
         if [ $spm_type -eq 1 ]; then
             spm_confounds_file=""
         else
             spm_confounds_file="${tf_confounds[$i]}"
         fi
-        sed -i.bck "s|###FMRIFILE###|$spm_taskname|" $spm_participant_job_file
+        sed -i.bck "s|###FMRIFILE###|$spm_filter|" $spm_participant_job_file
         sed -i.bck "s|###CONFOUNDSFILE###|$spm_confounds_file|" $spm_participant_job_file
         sed -i.bck "s|###TR###|$spm_TR|" $spm_participant_job_file
     
@@ -387,12 +388,13 @@ function KUL_compute_SPM_matlab {
 
         for ((j=0; j<spm_nruns; j++)); do
             spm_taskname="${tf_taskname[$j]}"
+            spm_filter="${tf_filter[$j]}"
             if [ $spm_type -eq 1 ]; then
                 spm_confounds_file=""
             else
                 spm_confounds_file="${tf_confounds[$j]}"
             fi
-            sed -i.bck "s|###FMRIFILE$j###|$spm_taskname|" $spm_participant_job_file
+            sed -i.bck "s|###FMRIFILE$j###|$spm_filter|" $spm_participant_job_file
             cmd="sed -i.bck \"s|###CONFOUNDSFILE$j###|$spm_confounds_file|\" $spm_participant_job_file"
             eval $cmd
             
@@ -509,7 +511,7 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
     # EVERY non-rest run of EVERY task, filling the global g_* arrays. g_task
     # records each run's (coarse) task so the GLM phase can regroup them.
     # =====================================================================
-    g_bold=(); g_task=(); g_taskname=(); g_TR=()
+    g_bold=(); g_task=(); g_taskname=(); g_TR=(); g_filter=()
     g_sigma=(); g_smooth=(); g_confounds=(); g_mask=(); g_boldref=(); g_filterinput=()
     for match in "${fmriprep_match[@]}"; do
         _coarse_task=$(basename "$match" | sed -E 's/.*_task-([A-Za-z0-9]+).*_desc-preproc_bold\.nii\.gz/\1/')
@@ -523,7 +525,23 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
         [[ "$_coarse_task_lc" == *"rest"* || "$_coarse_task_lc" == *"rsfmri"* ]] && continue
         task_file="$match"
 
-        taskname=$(basename "$task_file" | sed -E 's/.*_task-([A-Za-z0-9]+(_run-[0-9]+)?).*_desc-preproc_bold\.nii\.gz/\1/')
+        # Match task- and run- as SEPARATE entities -- see the identical fix and
+        # rationale in KUL_fmriproc_nilearn_new.sh. taskname becomes $fmrifile,
+        # i.e. stats_<name>/ and afMRI_<name>.nii, so a bare 'TAAL' for every run
+        # made all per-run GLMs and the aggregate write the same two output dirs
+        # concurrently.
+        #
+        # In THIS engine it also corrupted the input selection, not just the
+        # names: taskname is substituted into the SPM job as ###FMRIFILE###,
+        # which is cfg_basicio's file_fplist.filter -- a REGEXP matched against
+        # everything in $fmridatadir. A filter of 'TAAL' matches the smoothed
+        # files of run-01 AND run-02, so each supposedly single-run GLM was fed
+        # both runs, and each session of the multi-run job got the same doubled
+        # set. g_filter below is therefore built to match exactly one run.
+        _task_lbl=$(basename "$task_file" | grep -oE 'task-[A-Za-z0-9]+' | head -1)
+        _run_lbl=$(basename "$task_file" | grep -oE '_run-[0-9]+' | head -1)
+        _task_run_key="${_task_lbl}${_run_lbl}"
+        taskname="${_task_lbl#task-}${_run_lbl}"
         TR=($(mrinfo $task_file -spacing | awk '{print $(NF)}'))
         spacing=($(mrinfo $task_file -spacing))
         mean=$(echo "(${spacing[0]} + ${spacing[1]} + ${spacing[2]}) / 3" | bc -l)
@@ -535,11 +553,28 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
         mask=$(dirname ${task_file})/$(basename ${task_file} "-preproc_bold.nii.gz")-brain_mask.nii.gz
         smooth_file="$fmridatadir/$(basename ${task_file} "-preproc_bold.nii.gz")_smooth.nii"
         boldref=$(dirname ${task_file})/$(basename ${task_file} "_desc-preproc_bold.nii.gz")_boldref.nii.gz
-        _task_run_key=$(basename "$task_file" | grep -oE 'task-[A-Za-z0-9]+(_run-[0-9]+)?')
-        filter_input=$(find $(dirname ${task_file}) -name "*${_task_run_key}_desc-confounds_timeseries.tsv" | head -1)
+        # (_task_lbl/_run_lbl/_task_run_key are derived above, alongside taskname,
+        # so the confounds key and the output name are built from the same two
+        # entities -- both were previously wrong in the same way.)
+        #
+        # SPM file-selector filter for exactly this run. Anchored on the smoothed
+        # file's own basename, so it cannot match a sibling run no matter which
+        # entities sit between task- and run-. '.' is left unescaped: as a regexp
+        # it matches the literal dot too, and escaping it here would have to
+        # survive the sed substitution below.
+        spm_filter="^$(basename "$smooth_file")$"
+        # Derive the confounds sidecar from the BOLD name rather than globbing:
+        # everything from _space- onward is fMRIPrep's output-space decoration
+        # (including any _res-<N> token), and what remains is the confounds stem.
+        _bold_stem=$(basename "$task_file"); _bold_stem="${_bold_stem%%_space-*}"
+        filter_input="$(dirname ${task_file})/${_bold_stem}_desc-confounds_timeseries.tsv"
+        if [ ! -s "$filter_input" ]; then
+            echo "  ERROR: confounds TSV missing or empty for ${_task_run_key}: $filter_input" >&2
+        fi
         confounds_file="$confoundsdir/${_task_run_key}_confounds.txt"
 
         g_bold+=("$task_file");    g_task+=("$_coarse_task"); g_taskname+=("$taskname"); g_TR+=("$TR")
+        g_filter+=("$spm_filter")
         g_sigma+=("$sigma");       g_smooth+=("$smooth_file"); g_confounds+=("$confounds_file")
         g_mask+=("$mask");         g_boldref+=("$boldref");    g_filterinput+=("$filter_input")
         echo "  [fill] $taskname  TR=$TR  sigma=$sigma"
@@ -602,6 +637,7 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
         spm_template_job_file="$kul_main_dir/share/spm12/spm12_new_fmri_stats_1run_job.m"
         # single-element session arrays consumed by KUL_compute_SPM_matlab ($i=0)
         tf_taskname=("${g_taskname[$k]}"); tf_confounds=("${g_confounds[$k]}"); tf_TR=("${g_TR[$k]}")
+        tf_filter=("${g_filter[$k]}")
         i=0
         fmrifile="${g_taskname[$k]}"
         for spm_type in 1 2; do
@@ -629,9 +665,10 @@ if [ ! -f KUL_LOG/sub-${participant}_SPM.done ]; then
         fi
 
         # session arrays in run order for this task (consumed via j-loop + tf_TR[0])
-        tf_taskname=(); tf_confounds=(); tf_TR=()
+        tf_taskname=(); tf_confounds=(); tf_TR=(); tf_filter=()
         for k in "${idxs[@]}"; do
             tf_taskname+=("${g_taskname[$k]}"); tf_confounds+=("${g_confounds[$k]}"); tf_TR+=("${g_TR[$k]}")
+            tf_filter+=("${g_filter[$k]}")
         done
         fmrifile="$task"
         for spm_type in 1 2; do

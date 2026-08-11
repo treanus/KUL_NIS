@@ -39,7 +39,7 @@ import pandas as pd
 from nilearn.image import resample_to_img
 
 sys.path.insert(0, str(Path(__file__).parent))
-from config import ANALYSIS_DIR, FSLDIR, SBA_DIR, RSN_FC_DIR, PT_SUBJECTS, get_profile
+from config import ANALYSIS_DIR, FSLDIR, SBA_DIR, RSN_FC_DIR, PT_SUBJECTS, get_profile, seed_subdir
 from utils import t1w_path, YEO17_NETWORK_NAMES
 
 logging.basicConfig(
@@ -103,7 +103,7 @@ def _patient_bg(subject: str) -> nib.Nifti1Image:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _seed_paths(patient: str, seed: str, thresholded: bool = False) -> dict[str, Path]:
-    d    = SBA_DIR / f"sub-{patient}"
+    d    = SBA_DIR / f"sub-{patient}" / seed_subdir(seed)   # "" for non-Lausanne seeds
     t    = "Thresh" if thresholded else ""
     mean_tag = "_thresh" if thresholded else ""
     return {

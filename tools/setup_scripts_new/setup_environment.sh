@@ -30,10 +30,36 @@
 #   ./setup_environment.sh --list          # show section names and exit
 #   ./setup_environment.sh --only mrtrix3,ants   # run just these sections
 #   ./setup_environment.sh --skip docker,fsl     # run everything except these
+#   ./setup_environment.sh --karawun-stock # conda-forge karawun instead of the KUL fork (see below)
 #   ./setup_environment.sh --dry-run       # print what would run, do nothing
 #
 # Re-run safely after fixing a failure partway through — completed sections
 # are cheap to skip (they check for existing output first).
+#
+# Notable, non-obvious choices this script makes:
+#
+#   * mrtrix3 and karawun are built from KUL FORKS, not upstream, and both are
+#     required rather than preferential:
+#       - Rad-dude/mrtrix3 @ fix/mrconvert-direct-io-arg-binding carries a
+#         one-line fix for a missing f-string prefix in dwifslpreproc, without
+#         which every run that crops the eddy field map fails immediately.
+#       - Rad-dude/karawun @ kul-extended-palette widens the colour palette from
+#         31 to 64 entries (append-only; 0-30 unchanged). Stock karawun clamps
+#         every label index above 30, so all fMRI activations would render in
+#         one colour and collide with the tracts.
+#     Both are pinned to explicit commits; see MRTRIX3_* / KARAWUN_* below.
+#
+#   * mrview is built against Qt6 when the system provides it and Qt5 otherwise
+#     (mrtrix3's own -DMRTRIX_USE_QT5=ON), detected by probing for the CMake
+#     config rather than by distro version -- this is what makes older bases
+#     such as Linux Mint 20/21 work. Headless screenshots via xvfb-run behave
+#     identically either way; what matters is the Qt xcb platform plugin, which
+#     the mrtrix3 section checks for explicitly.
+#
+#   * SPM12 is installed to $SOFTWARE_ROOT/src/matlab_apps/spm12 and pointed at
+#     by $KUL_MATLAB_APPS. MATLAB itself is NOT installed (commercial, licensed
+#     separately); without it the SPM GLM engine is unavailable, and
+#     KUL_clinical_fmridti.sh -E nilearn is the MATLAB-free alternative.
 
 set -euo pipefail
 
@@ -54,7 +80,20 @@ NCPU="${NCPU:-$(nproc)}"
 # Pinned versions/commits — see SOFTWARE_ROOT_SETUP.md for how these were
 # determined. These are the versions this pipeline is actually validated
 # against, not necessarily the latest upstream.
-MRTRIX3_COMMIT="99963980d"                # 3.0.8-2097-g99963980 on the dev branch (Aug 2026).
+MRTRIX3_REPO="https://github.com/Rad-dude/mrtrix3.git"
+MRTRIX3_BRANCH="fix/mrconvert-direct-io-arg-binding"
+MRTRIX3_COMMIT="5a643594b0c0dae60f09e62cd6b1c56314a19354"
+                                           # KUL fork of the dev branch. The branch carries one fix on
+                                           # top of upstream dev: dwifslpreproc built the mrconvert call
+                                           # that crops the eddy-derived field map as a plain string
+                                           # instead of an f-string, so the {} placeholders were never
+                                           # interpolated and mrconvert received three positional
+                                           # arguments instead of two -- an immediate hard failure on
+                                           # every run that reaches that path.
+                                           # Set MRTRIX3_REPO/MRTRIX3_BRANCH back to
+                                           # https://github.com/MRtrix3/mrtrix3.git / dev to build
+                                           # stock upstream once the fix is merged.
+                                           # Previous pin: 99963980d (3.0.8-2097, upstream dev, Aug 2026).
                                            # Bumped from the old 86eb1ea8 (3.0.4, July 2023) pin
                                            # deliberately: as of MRtrix3's Oct 2023 CMake migration
                                            # (commit 06e8e4cde removed the classic ./configure &&
@@ -82,12 +121,25 @@ FSL_VERSION="6.0.7.23"                    # Latest as of July 2026 (was 6.0.6.5)
                                            # this version pin.
 SCILPY_COMMIT="b2bf4ac95ab3dfbb622dfdb586988123ef88475e"   # 176 commits past tag 2.2.2
 HDBET_COMMIT="678e44d546a84de0f2a7fc245f176b82b7d912fd"    # 4 commits past tag v2.0.1
-KARAWUN_COMMIT="9ecbf8e6d6ff3f2edb15b200341ba7b0f0be7412"   # tag v0.2.6.0 on the real upstream
-                                                             # (DevelopmentalImagingMCRI/karawun, not
-                                                             # treanus/karawun -- that was a stale personal
-                                                             # fork frozen since 2021, since diverged from
-                                                             # and superseded by the real upstream, which
-                                                             # already folded in its fixes and much more).
+KARAWUN_REPO="https://github.com/Rad-dude/karawun.git"
+KARAWUN_BRANCH="kul-extended-palette"
+KARAWUN_COMMIT="72bbc9558c139678a423b2ee43fbb134d656328c"
+                                                             # KUL fork of DevelopmentalImagingMCRI/karawun
+                                                             # (the real upstream -- NOT treanus/karawun,
+                                                             # a stale personal fork frozen since 2021 that
+                                                             # upstream has long since superseded).
+                                                             # The branch extends the colour palette from 31
+                                                             # to 64 entries, append-only: indices 0-30 stay
+                                                             # byte-identical, so previously exported scenes
+                                                             # are unaffected. This is REQUIRED, not optional
+                                                             # -- stock karawun's lookup_cie() clamps every
+                                                             # label above index 30 to the last palette entry,
+                                                             # so with the ~43 tracts and 50/51-63 lesion and
+                                                             # fMRI slots KUL_karawun_prepare.sh assigns, all
+                                                             # activations render in one colour and collide
+                                                             # with the tracts (see the palette comment in
+                                                             # KUL_clinical_fmridti.sh).
+                                                             # Previous pin: 9ecbf8e6d6ff (upstream v0.2.6.0).
                                                              # Needs Python >=3.14 + pydicom==3.0.2 (see
                                                              # section_env_karawun below).
 HDGLIOAUTO_COMMIT="6acaad8"      # NeuroAI-HD/HD-GLIO-AUTO, May 2022. Newer than the code baked into
@@ -124,14 +176,14 @@ DO_ENV_SCILPY=1          # required — KUL_FWT's own filtering/RecoBundles step
 DO_ENV_HDBET=1           # brain extraction, used by KUL_dwiprep/KUL_anat_register
 DO_ENV_RESSEG=1          # resection-cavity segmentation
 DO_ENV_HDGLIO=1          # HD-GLIO-AUTO tumour segmentation, native (no docker)
-DO_ENV_KARAWUN=1         # Brainlab export (uses the simpler conda-forge KarawunEnv by
-                         # default -- but that package is frozen at v0.2.5.4 (2021) and
+DO_ENV_KARAWUN=1         # Brainlab export. Builds KarawunDev from the KUL fork by default
+                         # (see USE_KARAWUN_DEV below). The conda-forge alternative,
+                         # KarawunEnv (--karawun-stock), is frozen at v0.2.5.4 (2021) and
                          # will silently corrupt output DICOMs when the donor is a Philips
                          # (or any) Enhanced/multi-frame DICOM: leftover NumberOfFrames /
                          # PerFrameFunctionalGroupsSequence tags survive into what should be
-                         # single-frame slices. Confirmed on real patient data. Strongly
-                         # prefer --karawun-dev below, which builds against the real,
-                         # actively maintained upstream and has this fixed.)
+                         # single-frame slices. Confirmed on real patient data. It also
+                         # lacks the extended colour palette the fMRI labels need.
 DO_ENV_FASTSURFER=1      # needs a GPU to be useful; safe to leave on, just slow/CPU-only without one
 DO_ENV_PYFMRI=1          # KUL_NIS/share/rsfmri_pipeline + KUL_fmriproc_nilearn_new.sh (both hardcode the 'pyfMRI' env)
 DO_REPOS=1               # clone KUL_NIS/KUL_VBG/KUL_FWT at pinned branches
@@ -148,6 +200,9 @@ DO_ANTS=1
 DO_FSL=1
 DO_FREESURFER=1          # auto-downloads FreeSurfer 8.2.0 itself; only license.txt stays manual
 DO_LEADDBS_ATLASES=1     # KUL_tracts_ocd.sh's CIT168/ABGT atlas data (not the full MATLAB toolbox)
+DO_SPM12=1               # SPM12 into src/matlab_apps/ for KUL_fmriproc_spm_new.sh's task-fMRI GLM.
+                         # Downloads freely; MATLAB itself is the commercial part and is NOT
+                         # installed here. Harmless to leave on without MATLAB -- see section_spm12.
 DO_ITKSNAP=1             # segmentation/viewer, not a KUL_NIS dependency -- requested directly
 DO_PSYCHOPY=1            # experiment builder, not a KUL_NIS dependency -- requested directly
 DO_DATALAD=1             # dataset version control, not a KUL_NIS dependency -- requested directly
@@ -160,13 +215,18 @@ DO_BASHRC=1
 DO_VERIFY=1              # final read-only health check + summary table; safe to
                          # run on its own any time, doesn't modify anything
 
-USE_KARAWUN_DEV=0        # 1 = editable git install (KarawunDev) instead of the plain
-                         # conda-forge package (KarawunEnv). Despite the name this isn't
-                         # just for developing karawun itself -- KarawunEnv is missing the
-                         # multi-frame DICOM fix (see DO_ENV_KARAWUN above) and there is no
-                         # newer conda-forge release to switch to, so this is currently the
-                         # only way to get a non-corrupting karawun. Recommended default 1
-                         # for any site that may see Philips (or other) Enhanced DICOM.
+USE_KARAWUN_DEV=1        # 1 = editable git install (KarawunDev) from $KARAWUN_REPO, instead
+                         # of the plain conda-forge package (KarawunEnv, --karawun-stock).
+                         # Now the DEFAULT, for two independent reasons:
+                         #   * KarawunEnv (v0.2.5.4) silently corrupts output DICOMs given an
+                         #     Enhanced/multi-frame donor (e.g. Philips), and there is no newer
+                         #     conda-forge release to switch to.
+                         #   * the conda-forge package is stock karawun, whose 31-entry palette
+                         #     clamps every label index above 30 -- so all fMRI activation
+                         #     labels render in one colour and collide with the tracts. The
+                         #     extended palette only exists on $KARAWUN_BRANCH.
+                         # Despite the name this was never just for developing karawun itself.
+                         # Set to 0 (or pass --karawun-stock) for the old conda-forge behaviour.
 INCLUDE_HDGLIOAUTO=1     # pulls jenspetersen/hd-glio-auto (verified live on Docker Hub, confirmed
                          # against HD-GLIO-AUTO's own README) alongside the other docker-images.
                          # Narrower use (tumor auto-seg) and GPU-heavy at run time, but the pull
@@ -177,7 +237,7 @@ NVIDIA_DRIVER_JUST_CHANGED=0
 
 # ── End configuration ─────────────────────────────────────────────────────────
 
-SCRIPT_SECTIONS="apt docker nvidia apptainer vscode miniforge env-dcm2bids clinical-pydeps env-scilpy env-hdbet env-resseg env-hdglio env-karawun env-fastsurfer env-pyfmri env-lore-sd repos mrtrix3 shard-recon ants fsl freesurfer leaddbs-atlases itksnap psychopy datalad awscli r rstudio afni docker-images bashrc verify"
+SCRIPT_SECTIONS="apt docker nvidia apptainer vscode miniforge env-dcm2bids clinical-pydeps env-scilpy env-hdbet env-resseg env-hdglio env-karawun env-fastsurfer env-pyfmri env-lore-sd repos mrtrix3 shard-recon ants fsl freesurfer leaddbs-atlases spm12 itksnap psychopy datalad awscli r rstudio afni docker-images bashrc verify"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -313,7 +373,8 @@ while [ $# -gt 0 ]; do
         --group)     GROUP_NAME="$2"; shift 2 ;;
         -y|--yes)    ASSUME_YES=1; shift ;;
         --dry-run)   DRY_RUN=1; shift ;;
-        --karawun-dev) USE_KARAWUN_DEV=1; shift ;;
+        --karawun-dev) USE_KARAWUN_DEV=1; shift ;;   # now the default; kept so existing invocations still work
+        --karawun-stock) USE_KARAWUN_DEV=0; shift ;; # opt back out to the conda-forge package
         --with-hdglioauto) INCLUDE_HDGLIOAUTO=1; shift ;;
         -h|--help)
             grep '^#' "$0" | sed 's/^# \{0,1\}//'
@@ -1285,7 +1346,7 @@ section_env_karawun() {
         run "$(mamba_bin) create -n KarawunDev python=3.14 -y"
         run "'$(env_bin KarawunDev pip)' install dcm2bids>=3.1"
         local dest="$SOFTWARE_ROOT/src/karawun"
-        [ -d "$dest" ] || run "git clone https://github.com/DevelopmentalImagingMCRI/karawun.git '$dest'"
+        [ -d "$dest" ] || run "git clone -b '$KARAWUN_BRANCH' '$KARAWUN_REPO' '$dest'"
         run "cd '$dest' && git checkout $KARAWUN_COMMIT"
         run "cd '$dest' && '$(env_bin KarawunDev pip)' install -e ."
         ok "KarawunDev ready"
@@ -1475,27 +1536,66 @@ section_mrtrix3() {
     # layout compatible with the rest of this script (PATH/PYTHONPATH below
     # are unchanged from the old classic-build layout: cmake --install
     # still populates $dest/bin and $dest/lib/mrtrix3 the same way).
-    [ -d "$dest" ] || run "git clone -b dev https://github.com/MRtrix3/mrtrix3.git '$dest'"
+    [ -d "$dest" ] || run "git clone -b '$MRTRIX3_BRANCH' '$MRTRIX3_REPO' '$dest'"
     run "cd '$dest' && git checkout '$MRTRIX3_COMMIT'"
 
     # -DCMAKE_IGNORE_PREFIX_PATH excludes miniforge3 from find_package() searches
-    # entirely: without it, cmake can silently pick up a *conda* Qt6 (e.g. from
+    # entirely: without it, cmake can silently pick up a *conda* Qt (e.g. from
     # the pyfMRI env, which pulls one in transitively via matplotlib) instead of
-    # the system one, producing a mrview that's built against one Qt6 but
+    # the system one, producing a mrview that's built against one Qt but
     # resolves a different, incompatible one (undefined symbol version errors)
-    # at runtime. -DQt6_DIR pins the exact system Qt6 CMake config as a second,
+    # at runtime. -DQt<N>_DIR pins the exact system Qt CMake config as a second,
     # more surgical guard against the same class of ambiguity.
+    #
+    # Qt6 is preferred, with a Qt5 fallback for older distributions (Linux Mint
+    # 20/21 and anything else on a base without qt6-base-dev). The switch is
+    # mrtrix3's own supported option -- CMakeLists.txt declares
+    # option(MRTRIX_USE_QT5 "Use Qt 5 to build" OFF) and cpp/gui/CMakeLists.txt
+    # branches on it between find_package(Qt5 ...)/qt5_add_resources and the Qt6
+    # pair -- so this is a supported configuration, not a workaround.
+    #
+    # Detection is by capability (does the Qt6 CMake config exist?) rather than
+    # by distro release, so it degrades correctly on any base without needing a
+    # version whitelist kept up to date.
     local qt6_cmake_dir="/usr/lib/x86_64-linux-gnu/cmake/Qt6"
-    if [ ! -f "$qt6_cmake_dir/Qt6Config.cmake" ]; then
-        warn "Expected system Qt6 CMake config not found at $qt6_cmake_dir \
-(apt Qt6 package layout may differ on this OS/arch) -- mrtrix3's cmake configure \
-step below may pick up an unintended Qt6 (e.g. from a conda env). Check qt6-base-dev \
-is installed and locate its actual Qt6Config.cmake if this section fails."
+    local qt5_cmake_dir="/usr/lib/x86_64-linux-gnu/cmake/Qt5"
+    local qt_cmake_args qt_major
+    if [ -f "$qt6_cmake_dir/Qt6Config.cmake" ]; then
+        qt_major=6
+        qt_cmake_args="-DQt6_DIR='$qt6_cmake_dir'"
+    elif [ -f "$qt5_cmake_dir/Qt5Config.cmake" ]; then
+        qt_major=5
+        qt_cmake_args="-DMRTRIX_USE_QT5=ON -DQt5_DIR='$qt5_cmake_dir'"
+        warn "System Qt6 CMake config not found at $qt6_cmake_dir -- falling back to \
+Qt5 ($qt5_cmake_dir) and building mrview with -DMRTRIX_USE_QT5=ON. This is expected on \
+older bases (e.g. Linux Mint 20/21); mrview and xvfb-run offscreen rendering both work \
+the same way under Qt5."
+    else
+        qt_major=6
+        qt_cmake_args="-DQt6_DIR='$qt6_cmake_dir'"
+        warn "Neither Qt6 nor Qt5 CMake config found ($qt6_cmake_dir, $qt5_cmake_dir) \
+-- apt Qt package layout may differ on this OS/arch. Proceeding with Qt6; cmake may pick \
+up an unintended Qt (e.g. from a conda env) or fail outright. Check that qt6-base-dev (or \
+libqt5opengl5-dev) is installed and locate the actual Qt<N>Config.cmake if this fails."
     fi
+
+    # mrview renders screenshots through xvfb-run (see KUL_clinical_fmridti.sh),
+    # which needs Qt's *xcb* platform plugin at runtime -- a different package
+    # from the CMake config found above. Missing it is a silent failure mode:
+    # the build succeeds and every screenshot dies at run time instead.
+    local qt_xcb_plugin="/usr/lib/x86_64-linux-gnu/qt${qt_major}/plugins/platforms/libqxcb.so"
+    if [ ! -f "$qt_xcb_plugin" ]; then
+        warn "Qt${qt_major} xcb platform plugin not found at $qt_xcb_plugin -- mrview will \
+build but headless screenshots via xvfb-run will fail. Install it with: sudo apt install -y \
+$( [ "$qt_major" = 5 ] && echo 'libqt5gui5' || echo 'qt6-qpa-plugins' )   (on Ubuntu 24.04+ \
+the Qt5 package is named libqt5gui5t64)."
+    fi
+
+    log "Building mrview against Qt${qt_major}"
     run "cd '$dest' && cmake -B build -GNinja \
         -DCMAKE_INSTALL_PREFIX='$dest' \
         -DCMAKE_IGNORE_PREFIX_PATH='$SOFTWARE_ROOT/miniforge3' \
-        -DQt6_DIR='$qt6_cmake_dir'"
+        $qt_cmake_args"
     run "cd '$dest' && cmake --build build -j$NCPU"
     run "cd '$dest' && cmake --install build"
 
@@ -1507,12 +1607,14 @@ is installed and locate its actual Qt6Config.cmake if this section fails."
     # installed, every icon/cursor silently fails to load: mrview still
     # opens, but with blank toolbar buttons and a repeated "QCursor: Cannot
     # create bitmap cursor; invalid bitmap(s)" warning. apt (section_apt)
-    # installs qt6-svg-dev for exactly this reason -- if that's missing here,
-    # something upstream of this section didn't run.
-    if ! dpkg -s qt6-svg-dev >/dev/null 2>&1; then
-        warn "qt6-svg-dev not detected -- mrview will open but with missing \
+    # installs qt6-svg-dev (and libqt5svg5-dev for the Qt5 path) for exactly
+    # this reason -- if that's missing here, something upstream didn't run.
+    local qt_svg_pkg
+    [ "$qt_major" = 5 ] && qt_svg_pkg="libqt5svg5-dev" || qt_svg_pkg="qt6-svg-dev"
+    if ! dpkg -s "$qt_svg_pkg" >/dev/null 2>&1; then
+        warn "$qt_svg_pkg not detected -- mrview will open but with missing \
 toolbar icons and broken tool cursors (QCursor 'invalid bitmap(s)' warnings). \
-Run: sudo apt install -y qt6-svg-dev"
+Run: sudo apt install -y $qt_svg_pkg"
     fi
 
     ok "mrtrix3 built at $dest (add $dest/bin to PATH — done automatically in the bashrc section)"
@@ -1797,6 +1899,48 @@ directory to $SOFTWARE_ROOT/src/leaddbs/templates yourself."
 # no separate system dependencies needed, unlike FreeSurfer's .deb).
 
 ITKSNAP_VERSION="4.2.0-20240422" # check https://sourceforge.net/projects/itk-snap/files/itk-snap/ for newer
+
+section_spm12() {
+    # SPM12 is plain MATLAB source -- no compilation, no license of its own. It is
+    # MATLAB that is commercial, and MATLAB is NOT installed here; this section only
+    # lays SPM down where the pipeline expects it and exports the variable that
+    # points at it. A site without MATLAB gets the files and an explanatory note.
+    #
+    # Layout: $SOFTWARE_ROOT/src/matlab_apps/{spm12,...}. The extra directory level
+    # exists so MATLAB toolboxes (conn next, most likely) share one root that
+    # $KUL_MATLAB_APPS can name, rather than each needing its own variable.
+    local apps="$SOFTWARE_ROOT/src/matlab_apps"
+    local dest="$apps/spm12"
+    if [ -f "$dest/spm.m" ]; then
+        ok "SPM12 already installed at $dest"
+        return
+    fi
+    log "Downloading and extracting SPM12"
+    local url="https://www.fil.ion.ucl.ac.uk/spm/download/restricted/eldorado/spm12.zip"
+    if [ "$DRY_RUN" -eq 1 ]; then
+        echo "    [dry-run] would download $url and extract it to $dest"
+        return
+    fi
+    mkdir -p "$apps"
+    local tmpfile="$SOFTWARE_ROOT/tmp/spm12.zip"
+    curl -fSL --retry 5 --retry-delay 5 --retry-all-errors -C - -o "$tmpfile" "$url"
+    unzip -q -o "$tmpfile" -d "$apps"      # the zip already contains a top-level spm12/
+    rm -f "$tmpfile"
+    if [ ! -f "$dest/spm.m" ]; then
+        warn "SPM12 unpacked but $dest/spm.m is missing -- the archive layout may have \
+changed. KUL_fmriproc_spm_new.sh will fail until this is sorted."
+        return
+    fi
+    record_version spm12 "12 (FIL release, see $dest/Contents.m)"
+    if have matlab; then
+        ok "SPM12 installed to $dest (matlab found at $(command -v matlab))"
+    else
+        ok "SPM12 installed to $dest"
+        warn "matlab not on PATH -- KUL_fmriproc_spm_new.sh needs it (it runs 'matlab \
+-nodisplay -r ...'). SPM itself is in place; install/licence MATLAB separately, or use \
+the nilearn GLM engine instead (KUL_clinical_fmridti.sh -E nilearn)."
+    fi
+}
 
 section_itksnap() {
     local dest="$SOFTWARE_ROOT/src/itksnap"
@@ -2104,6 +2248,18 @@ export FASTSURFER_HOME="\$SOFTWARE_ROOT/src/FastSurfer"
 # --- ANTs ---
 export ANTSPATH="\$SOFTWARE_ROOT/src/ANTs_install/bin"
 export PATH="\$ANTSPATH:\$PATH"
+
+# --- MATLAB toolboxes (SPM12 now, conn etc. later) ---
+# Deliberately NOT on PATH: nothing here is an executable. These are MATLAB
+# sources that the .m templates in KUL_NIS/share/spm12/ addpath() at runtime,
+# after resolving this variable with getenv(). MATLAB itself must be on PATH
+# (KUL_fmriproc_spm_new.sh does 'which matlab'), but that is a separate,
+# site-managed install.
+# KUL_apps_DIR is the legacy name the templates originally used, from the old
+# /usr/local/KUL_apps layout; exported alongside so an older checkout of the
+# templates keeps working against this install.
+export KUL_MATLAB_APPS="\$SOFTWARE_ROOT/src/matlab_apps"
+export KUL_apps_DIR="\$KUL_MATLAB_APPS"
 
 # --- CUDA Toolkit (only if installed -- see the nvidia section) ---
 if [ -d /usr/local/cuda ]; then
@@ -2497,6 +2653,7 @@ maybe_run_section ants             DO_ANTS                section_ants
 maybe_run_section fsl              DO_FSL                 section_fsl
 maybe_run_section freesurfer DO_FREESURFER    section_freesurfer
 maybe_run_section leaddbs-atlases  DO_LEADDBS_ATLASES     section_leaddbs_atlases
+maybe_run_section spm12            DO_SPM12               section_spm12
 maybe_run_section itksnap          DO_ITKSNAP             section_itksnap
 maybe_run_section psychopy         DO_PSYCHOPY            section_psychopy
 maybe_run_section datalad          DO_DATALAD             section_datalad

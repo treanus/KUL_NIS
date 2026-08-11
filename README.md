@@ -94,7 +94,7 @@ KUL_NIS is a set of bash/python wrappers around established neuroimaging softwar
 | [mriqc](https://mriqc.readthedocs.io/) | latest | quality control; run via Docker or Singularity |
 | [FreeSurfer](https://surfer.nmr.mgh.harvard.edu/) | **8.2.0** | recon-all, cortical parcellation (Lausanne2018, Glasser HCP-MMP1), subregion segmentation |
 | [FastSurfer](https://github.com/Deep-MI/FastSurfer) | **v3+** (required for FreeSurfer 8 compatibility) | faster surface reconstruction alternative to recon-all |
-| [SPM12](https://www.fil.ion.ucl.ac.uk/spm/) + MATLAB | SPM12 | task-fMRI GLM statistics (`KUL_fmriproc_spm`) |
+| [SPM12](https://www.fil.ion.ucl.ac.uk/spm/) + MATLAB | SPM12 | task-fMRI GLM statistics (`KUL_fmriproc_spm_new`); optional — `KUL_clinical_fmridti.sh -E nilearn` needs neither |
 | [synb0-disco](https://github.com/MASILab/Synb0-DISCO) | **v3.0** (`leonyichencai/synb0-disco:v3.0`) | susceptibility distortion correction when no reverse-PE acquisition exists |
 | [HD-BET](https://github.com/MIC-DKFZ/HD-BET) | latest | brain extraction (`KUL_dwiprep -m 1`, `KUL_anat_register`) |
 | [hd-glio-auto](https://github.com/NeuroAI-HD/HD-GLIO-AUTO) | latest | AI glioma segmentation (clinical types 1–3) |
@@ -167,9 +167,13 @@ This script segments pre- or post-operative brain tumor lesions and/or resection
 This script allows to start an fmriprep analysis with a config file.
 See 
 
-### KUL_fmriproc_spm
+### KUL_fmriproc_spm_new
 
-This script will run an automated analysis using SPM12 of a standard blocked design active fMRI data with a paradigm using 30 seconds BASELINE followed by 30 seconds TASK epochs, after these have been preprocessed with fmriprep.
+This script will run an automated analysis using SPM12 of a standard blocked design active fMRI data with a paradigm using 30 seconds BASELINE followed by 30 seconds TASK epochs, after these have been preprocessed with fmriprep. Requires MATLAB.
+
+### KUL_fmriproc_nilearn_new
+
+The MATLAB-free alternative: the same task-fMRI GLM implemented with nilearn/nibabel/numpy/pandas, running in the `pyfMRI` conda environment. Select between the two engines with `KUL_clinical_fmridti.sh -E spm|nilearn` (default `spm`); both are auto-scheduled across the available cores via their own `-c` option.
 
 ### KUL_fmriproc_conn
 

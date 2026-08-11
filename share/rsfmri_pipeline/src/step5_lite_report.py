@@ -44,7 +44,7 @@ import pandas as pd
 from nilearn.image import resample_to_img
 
 sys.path.insert(0, str(Path(__file__).parent))
-from config import ANALYSIS_DIR, DENOISED_DIR, SBA_DIR, RSN_FC_DIR, ICA_DIR, WBICA_DIR, get_profile
+from config import ANALYSIS_DIR, DENOISED_DIR, SBA_DIR, RSN_FC_DIR, ICA_DIR, WBICA_DIR, get_profile, seed_subdir
 from utils import YEO17_NETWORK_NAMES
 
 # Reused verbatim from step5_report.py — generic rendering helpers with no
@@ -77,7 +77,10 @@ def _seed_map_path(patient: str, seed: str) -> Path:
     # Thresholded (p<p_thresh & |r|>=min_r & cluster-extent), not the raw
     # signed map -- the report must show what actually survived significance
     # testing, not every voxel including negative FC below any real threshold.
-    return SBA_DIR / f"sub-{patient}" / f"sub-{patient}_seed-{seed}_desc-sbaThresh_statmap.nii.gz"
+    # seed_subdir() keeps this in step with step1_sba.py's writer: Lausanne-based
+    # seeds live one level down. Returns "" for everything else, so the path is
+    # unchanged for ordinary seeds.
+    return SBA_DIR / f"sub-{patient}" / seed_subdir(seed) / f"sub-{patient}_seed-{seed}_desc-sbaThresh_statmap.nii.gz"
 
 
 def _rsn_map_path(patient: str, rsn: str) -> Path:

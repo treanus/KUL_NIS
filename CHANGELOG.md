@@ -1,5 +1,176 @@
 # Changelog
 
+## Unreleased (2026-08-11 — task-fMRI reaches melodic; three silent BIDS-entity misses)
+
+### melodic was being handed data with the task already removed
+
+`KUL_fmriproc_conn.sh` denoised before running melodic, using the resting-state
+confound set and no task term. The nuisance regressors are routinely collinear
+with a block paradigm, so this did not merely fail to help — it removed the
+signal melodic exists to find. Measured on a 30 s on/off language run:
+
+| confound block | share of the task design's variance |
+|---|---|
+| 6 motion parameters | 27.4 % |
+| 10 aCompCor (WM+CSF) | 23.2 % |
+| full 22-regressor set | **52.7 %** |
+
+Task correlation in the top-500 task voxels fell 0.522 → 0.224, and melodic's
+best component correlated 0.27 with the paradigm — i.e. nothing task-like
+survived. This is not about how much the patient moved: `trans_x` correlated
+0.307 with the design, and *task-locked* movement is maximally damaging however
+small, because it is collinear.
+
+The task GLM was never affected, and that is the clue: nilearn's
+`FirstLevelModel` fits task, drift and confounds in **one** design matrix, so its
+confound betas are estimated controlling for the task.
+
+Task melodic now runs on unregressed data (`--no-confounds --lp 0`: high-pass and
+smoothing only), which is what FSL's own FEAT/MELODIC feeds ICA — separating
+signal from artifact is the job being handed to the ICA. Result: the task
+component appears at |r| 0.63 (run-01) and 0.77 (run-02, **variance rank 2**),
+and its spatial map correlates 0.57 with the subject's own GLM z-map with every
+peak voxel inside the GLM's activation.
+
+`KUL_fmri_denoise.sh` gains:
+
+- `--no-confounds` — skip confound regression entirely (spike regressors
+  included; they cost degrees of freedom too). `--lp 0` disables the low-pass.
+- `--task-signal {ignore|preserve|remove}` — `remove` regresses the design out so
+  a task run becomes genuine pseudo-rest and can be pooled with real rest;
+  `ignore` (default) is the historical behaviour. Needs an events TSV; a task
+  without one falls back to `ignore` with a warning, and rest runs say so quietly.
+- `--events-dir` to point at the events TSVs.
+
+`preserve` is implemented and documented but **deliberately unwired**: protecting
+the design necessarily protects task-correlated motion too, which pushes a
+quarter to a third of the brain above |r| 0.4. Orthogonalising confounds against
+the design beforehand does not work either — nilearn band-passes confounds
+*before* regressing (correctly, per Lindquist et al. 2018), which destroys the
+orthogonality.
+
+`KUL_run_rsfMRI_networks.sh` now denoises task runs with `--task-signal remove`
+(override with `KUL_RSFMRI_TASK_SIGNAL=ignore`), and `KUL_fmriproc_conn.sh` skips
+resting-state entirely — the rsFMRI pipeline's masked ICA already decomposes it,
+so running melodic there as well was the same work twice. Outputs are
+variant-keyed so the two differently denoised products cannot be mistaken for one
+another.
+
+### Three BIDS-entity misses, same root cause
+
+fMRIPrep writes `_acq-`/`_dir-`/`_echo-` *between* `task-` and `run-`, so
+`task-[A-Za-z0-9]+(_run-[0-9]+)?` matches only `task-TAAL` and silently drops the
+run index. In `KUL_fmriproc_nilearn_new.sh` and `KUL_fmriproc_spm_new.sh` that
+produced a confounds glob matching nothing; `awk` then fell back to stdin and
+wrote a zero-byte confounds file, and the failure surfaced much later as pandas'
+`No columns to parse from file` inside the GLM. The with-confounds GLM had
+therefore **never produced output**, and because `RESULTS/SPM` was populated only
+from that variant, it held nothing but the engine marker while every real map sat
+in `SPM_all`. The per-run confounds filename collided between runs for the same
+reason.
+
+Both scripts now match the two entities separately and derive the confounds
+sidecar from the BOLD name (everything from `_space-` on is fMRIPrep's
+output-space decoration, `_res-<N>` included), which is inherently
+resolution-agnostic. `KUL_tsv_filter` refuses to write rather than emitting an
+empty file.
+
+### `res-2` no longer assumed
+
+Audited every `res-2` reference. `utils.py` and `step0_synthseg.sh` already
+preferred `res-2` with a resolution-agnostic fallback; the one hard failure was
+`KUL_fmriproc_conn.sh`'s `fslcc` call, which compares melodic's ICs against a
+network atlas pre-resampled to the `res-2` grid. `fslcc` requires identical
+grids, so a run without `--output-spaces ...:res-2` died with *"Mismatch in image
+dimensions"*. The atlas is now resampled to whatever grid melodic actually
+produced (nearest-neighbour, cached per grid) and only when they differ.
+
+### `RESULTS/SPM` vs `SPM_all`
+
+Every GLM variant is warped once into `SPM_all` (the complete record).
+`RESULTS/SPM` — what is reviewed and exported — is populated after all GLMs
+finish, by copying the preferred variant (`_wc`, falling back to plain). Stale
+maps from a previous run are cleared first, so a run whose preferred variant
+changed cannot leave both behind for the figure/DICOM loop to export. The
+`engine_nilearn.txt` marker moved to `BIDS/derivatives/.../SPM/`, out of a folder
+that is iterated over.
+
+### KUL_FWT outputs
+
+- **`.trk` for freeview**, written next to each `.tck` by `KUL_FWT_make_TCKs.sh`
+  and collected into `RESULTS/.../TRK/`. The conversion reference is `subj_FA`,
+  not the `-F` parcellation: KUL_FWT registers FS to FA itself and tracks in FA
+  space, so an FS-space reference would write a `.trk` that renders offset
+  whenever the dMRI was never aligned to the T1w (a separate session, say).
+- **Endpoint connectivity in the per-bundle report** — a ranked parcel-pair table
+  and a labelled heatmap restricted to the parcels the bundle actually touches,
+  replacing an 89×89 imshow that was ~99.9 % zeros. Validated against known
+  anatomy: CST → precentral↔brainstem 74 %, FAT → parsopercularis↔superiorfrontal
+  97 %, MdLF → superiorparietal↔superiortemporal 68 %.
+- **`KUL_FWT_bundle_report.py`** — one self-contained HTML with every bundle's
+  screenshots, switchable between the four renderings and filterable by bundle,
+  each linking to its detail page. Source PNGs total ~32 MB per subject; they are
+  autocropped, downscaled and JPEG'd to ~14 MB so the page actually opens.
+- The per-bundle HTML and the contact sheet are copied into `REPORT/`, flat, so
+  the report's `metrics →` links resolve.
+
+### Karawun
+
+`sub-{participant}_karawun_prepare.done` was touched unconditionally, so a failed
+prep still gated every later `-R` into printing "already prepared" over an
+incomplete folder. It is now written only on success. Both donor-DICOM
+directories (`Karawun/sub-*/DICOM/` and `RESULTS/sub-*/DICOM/`) are created up
+front — the search already preferred the Karawun one, but the end-of-run text
+named only the fallback and told the user to `mkdir` it. That text now also
+explains what `-R` does *not* do (it never pushes to Brainlab; `importTractography`
+is printed to run manually) and that repeating `-R` with a different underlay
+regenerates the PACS DICOMs but deliberately not Karawun.
+
+### SPM12 / MATLAB
+
+`KUL_fmriproc_spm.sh` removed in favour of `KUL_fmriproc_spm_new.sh`. The
+`share/spm12/*.m` templates resolve SPM via `$KUL_MATLAB_APPS` (falling back to
+the legacy `$KUL_apps_DIR`) and now fail with a clear error when unset or when
+`spm.m` is absent, instead of `addpath('/spm12')`-ing silently and dying later at
+the first `spm()` call. The installer gains a `spm12` section that lays SPM12
+down in `$SOFTWARE_ROOT/src/matlab_apps/spm12` and exports `$KUL_MATLAB_APPS`;
+MATLAB itself is commercial and is not installed, and `-E nilearn` remains the
+MATLAB-free path.
+
+### `-B` now removes what it used to archive
+
+The denoised BOLD copies and the SUSAN-smoothed GLM inputs are whole 4D series
+rebuilt from the fmriprep output plus the confounds TSVs — pure intermediates —
+but they were neither cleaned nor excluded, so `-B` packed them into the `.7z`.
+The variant split above made it worse: the task-melodic, resting-state and
+pseudo-rest paths each keep their own copy (~6 GB on a three-run subject, plus
+~2 GB of smoothed inputs). They are now removed alongside `fmriprep_work` and the
+dwiprep working dirs; on a real subject the cleanup drops ~43 GB of 140 GB.
+
+One carve-out: dwiprep's `dwi/` is emptied *except* for `geomcorr.mif` and its
+`geomcorr_grad_checked.b`. That volume is what `dwifslpreproc` produced — the
+output of topup + eddy, the most expensive step in dwiprep — and its own scratch
+(`*dwifsl*tmp*`, ~19 GB) is deleted, so without it a corrected DWI can only be
+recovered by re-running eddy. `dwi_preproced.mif` one level up is the
+post-bias-correction volume and does not substitute for it.
+
+`-B`'s help text was a single line ("make a backup and cleanup") and now states
+exactly what is removed, what is kept, and that it is destructive and one-way.
+
+### Known gaps
+
+- Rest runs are still denoised twice (`conn`'s `standard` and the rsFMRI
+  pipeline's `task-remove` are identical for them). Real deduplication needs the
+  rsfMRI pipeline's path resolution to become variant-aware.
+- `share/nilearn/KUL_fmriproc_nilearn_new.sh` is a stale, non-executable
+  duplicate of the live root copy (544 lines divergent) and still carries the old
+  entity bug. The root copy is the one on `PATH`.
+- `KUL_FWT_bundle_report.py` needs Pillow, which the `scilpy` env only has
+  transitively (via matplotlib/fury/scikit-image) rather than as an explicit
+  dependency.
+- The Karawun changes are untested — no `-R` run has exercised them, and no
+  `-B` run has exercised the new cleanup list.
+
 ## Unreleased (2026-08-09 — `use_native_dwi` now reaches the data it names)
 
 `KUL_dwiprep.sh -u` / `use_native_dwi: 1` promised native-resolution processing

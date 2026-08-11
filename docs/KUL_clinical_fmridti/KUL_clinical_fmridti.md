@@ -62,6 +62,22 @@ DICOM export to PACS is deliberately **not** automatic. The intended workflow is
 
 This is why `-R` is documented as "run this AFTER reviewing figures."
 
+**Donor DICOM.** `-R` needs one donor DICOM — a single slice from a high-resolution
+anatomical series is enough — to inherit study/series metadata. Two locations are
+searched, `Karawun/sub-{participant}/DICOM/` first and `RESULTS/sub-{participant}/DICOM/`
+second; both are created for you, so drop one file into either. `Karawun/` is the better
+choice because the `importTractography` command printed at the end reads from there.
+
+**Repeating `-R`.** Running `-R` again with a different underlay (e.g. `-R 4` then `-R 2`)
+regenerates the PACS DICOMs for that underlay. Karawun prep is **not** repeated: its output
+(tracts, T1w, labels) does not depend on the underlay, and it is gated by
+`KUL_LOG/sub-{participant}_karawun_prepare.done`. Delete that marker to force a rebuild.
+The marker is only written when Karawun prep actually succeeds.
+
+**`-R` does not push to Brainlab.** When Karawun prep finishes it prints an
+`importTractography` command to run manually (after `conda activate KarawunDev`), which
+writes `Karawun/sub-{participant}/sub-{participant}_for_elements`.
+
 ### DSC perfusion
 
 If a DSC series is present in `BIDS/sub-{participant}/perf/`, `KUL_dsc_perfusion.sh`
@@ -75,6 +91,68 @@ PACS series into `PACS/Clinical_*`. These use **fixed** thresholds rather than t
 carry a fixed clinical meaning: **1.75** on nrCBV (the conventional high-grade glioma
 cutoff) and **1.0** on nrCBF ("above contralesional normal white matter"). `-T` overrides
 both.
+
+### Backup and cleanup (`-B`)
+
+`-B` is a closing-out step, not something to run mid-analysis: it deletes the
+regenerable intermediates, prompts for a password, archives everything left into
+`../Finished_<date>_sub-{participant}_type{type}.7z`, and exits.
+
+| removed | kept |
+|---|---|
+| `fmriprep_work*` | `BIDS/`, `fmriprep/`, `dwiprep/` derivatives |
+| `BIDS/tmp_dcm2bids` | `RESULTS/`, `REPORT/` |
+| dwiprep `raw/`, `dwi_orig*`, `*dwifsl*tmp*` | `Karawun/`, `KUL_LOG/` |
+| the contents of dwiprep `dwi/` … | … **except `geomcorr.mif`** (+ its `.b`) |
+| the denoised BOLD variants and SUSAN-smoothed GLM inputs | |
+
+The denoised variants matter here: the task-melodic, resting-state and
+pseudo-rest paths each keep their own copy of every 4D series (~6 GB on a
+three-run subject), and the smoothed GLM inputs add ~2 GB. All are rebuilt from
+the fmriprep output plus the confounds TSVs, so they are pure intermediates — but
+before they were listed here they were silently archived into the `.7z`. On a
+typical subject the cleanup removes roughly a third of the working directory
+(~43 GB of 140 GB on a three-run clinical subject).
+
+**Why `geomcorr.mif` survives.** `dwi/` is otherwise scratch, but `geomcorr.mif`
+is what `dwifslpreproc` produced — the output of topup + eddy, the most expensive
+step in dwiprep — and its own working directory (`*dwifsl*tmp*`, ~19 GB) is
+deleted. Keeping it (1.3 GB) means bias correction, gradient checks and anything
+downstream can be redone without re-running eddy. Note `dwi_preproced.mif` one
+level up is the *post*-bias-correction volume, so it is not a substitute.
+`geomcorr_grad_checked.b` — the gradient table `dwigradcheck` corrected post-eddy
+— is kept alongside it, since the volume is not usable without it.
+
+It is destructive and one-way: re-running afterwards has to redo the
+denoise/smoothing steps.
+
+### fMRI denoising: task vs resting-state
+
+The three consumers of fMRI data want different things from denoising, and they now say so
+explicitly rather than sharing one recipe (`KUL_fmri_denoise.sh`):
+
+| consumer | recipe | why |
+|---|---|---|
+| task GLM (`-E nilearn` / `spm`) | no separate denoising; task + drift + confounds fit **simultaneously** in the GLM | the confound betas are estimated *controlling for* the task, so nuisance regression cannot eat the task |
+| task melodic (`KUL_fmriproc_conn.sh`) | `--no-confounds --lp 0` — high-pass and smoothing only | separating task from artifact is what the ICA is *for* |
+| rsfMRI networks (`-N`) | `--task-signal remove` on task runs | strips the evoked response so task runs can be pooled with genuine rest |
+
+**Why melodic no longer confound-regresses.** The nuisance regressors are routinely
+collinear with a block paradigm. On a 30 s on/off language run the 6 motion parameters alone
+carried 27.4 % of the design's variance and aCompCor another 23.2 % — together 52.7 %. So
+regressing them out before ICA removed most of the task with them, and melodic's best
+component correlated only 0.27 with the paradigm. With regression skipped it finds the task
+at 0.63–0.77, and that component's spatial map correlates 0.57 with the subject's own GLM
+z-map. This is not about *how much* the patient moved — it is about *when*: small task-locked
+movement is maximally damaging precisely because it is collinear.
+
+`--task-signal preserve` also exists (joint model, confound betas estimated alongside the
+design) but **nothing calls it**: it necessarily preserves task-correlated motion too, which
+lights up a quarter to a third of the brain.
+
+Resting-state runs are handled only by `KUL_run_rsfMRI_networks.sh`; `KUL_fmriproc_conn.sh`
+skips them, since running melodic on the same data in both places was the same decomposition
+computed twice.
 
 ### Lesion mask
 
@@ -110,7 +188,9 @@ Optional:
   -t   processing type (1-7, see table above; default 1)
   -d   dicom zip file (or directory)
   -s   scaffold a default DICOM and study_config
-  -B   make a backup and cleanup
+  -B   delete regenerable intermediates, then archive what remains into a
+         password-protected ../Finished_<date>_sub-<p>_type<t>.7z and exit
+         (see "Backup and cleanup" below). Destructive and one-way.
   -r   redo certain steps (the program will ask)
   -R   generate DICOMs for PACS and Karawun (run AFTER reviewing figures)
          underlay choice: 1=cT1w  2=FLAIR  3=SWI  4=T1w  5=FGATIR  6=DIR  7=MP2RAGE(INV2)
@@ -238,7 +318,12 @@ These three flags control how the fMRI activation overlays look. Because each sc
 
 - `RESULTS/sub-{participant}/` — anat, figures and intermediate results
 - `RESULTS/.../Anat/sub-{participant}_lesion.nii.gz` — the lesion mask (binarised) alongside the other T1w-space volumes, whichever processing type produced it
+- `RESULTS/.../SPM/` — the task-fMRI GLM maps that are actually reviewed and exported. When both GLM variants run, the with-confounds (`_wc`) one is preferred; the plain one is used when `_wc` produced nothing
+- `RESULTS/.../SPM_all/` — the complete record: every GLM variant × threshold combination
+- `RESULTS/.../Tracto/` — final bundles as MRtrix `.tck`, plus tract density maps regridded to T1w
+- `RESULTS/.../TRK/` — the same bundles as TrackVis `.trk`, for **freeview** (which does not read `.tck`). Written by `KUL_FWT_make_TCKs.sh` next to each `.tck` and copied here; the conversion reference is the FA/tracking space, not the FreeSurfer parcellation — see the `.trk` comment in that script for why that distinction matters when the dMRI and T1w come from different sessions
 - `RESULTS/.../Perfusion/` — DSC perfusion maps and lesion/NAWM ratios, when DSC data is present (see [KUL_dsc_perfusion](/docs/KUL_dsc_perfusion/KUL_dsc_perfusion.md))
+- `REPORT/sub-{participant}_06_Tract_QQ/` — with `-Q`, one self-contained interactive HTML per bundle (drag-to-rotate metric tower, bundle geometry, along-tract profiles for every metric, and an endpoint-connectivity table + heatmap naming the parcels the bundle joins), plus `sub-{participant}_FWT_report.html`: a single page with every bundle's screenshots, switchable between the four renderings, filterable by bundle name, each linking to its own detail page
 - `*_figures_*/` — PNG screenshots for review (Tracto, SPM/fMRI and Clinical), per underlay and orientation
 - `RESULTS/.../PACS/` — DICOM series for PACS, created only with `-R` (via `KUL_nii2dcm.py`, using a donor DICOM for correct study/series linkage). `PACS/Clinical_*` holds the lesion and DSC perfusion series; `PACS/fMRI_*` and `PACS/Tracto_*` hold the activation and tract series.
 - `Karawun/sub-{participant}/` — Brainlab-compatible export, including a `FAT1w.nii.gz` QA volume, a `labels/Lesion.nii.gz` label when a lesion mask exists, and the fMRI activation labels (colours 51-63). See [KUL_karawun_prepare](/docs/KUL_karawun_prepare/KUL_karawun_prepare.md) for the label-colour convention — a label's voxel value *is* its Brainlab colour, and the ranges are non-overlapping by design

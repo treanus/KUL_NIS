@@ -74,7 +74,7 @@ from scipy import stats
 sys.path.insert(0, str(Path(__file__).parent))
 from config import (
     ANALYSIS_DIR, BASE_DIR, HV_SUBJECTS, PIPELINE_DIR, PT_SUBJECTS,
-    RSN_FC_DIR, SBA_DIR, get_profile, get_seed,
+    RSN_FC_DIR, SBA_DIR, get_profile, get_seed, seed_subdir,
 )
 from utils import (
     get_auditory_group_mask, get_language_group_mask,
@@ -358,30 +358,33 @@ def _bh_fdr(p_vals: np.ndarray, alpha: float = 0.05) -> np.ndarray:
 # Paths — seed mode
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _seed_dir(sub: str) -> Path:
-    d = SBA_DIR / f"sub-{sub}"
+def _seed_dir(sub: str, seed: str = "") -> Path:
+    # seed_subdir() routes Lausanne-based seeds one level down, matching
+    # step1_sba.py's writer. seed="" keeps the flat subject root for callers
+    # that want the directory itself rather than a particular seed's file.
+    d = SBA_DIR / f"sub-{sub}" / (seed_subdir(seed) if seed else "")
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 def sba_path(sub: str, seed: str, thresholded: bool = False) -> Path:
     desc = "sbaThresh" if thresholded else "sba"
-    return _seed_dir(sub) / f"sub-{sub}_seed-{seed}_desc-{desc}_statmap.nii.gz"
+    return _seed_dir(sub, seed) / f"sub-{sub}_seed-{seed}_desc-{desc}_statmap.nii.gz"
 
 def zscore_path(sub: str, seed: str, thresholded: bool = False) -> Path:
     desc = "zscoreThresh" if thresholded else "zscore"
-    return _seed_dir(sub) / f"sub-{sub}_seed-{seed}_desc-{desc}_statmap.nii.gz"
+    return _seed_dir(sub, seed) / f"sub-{sub}_seed-{seed}_desc-{desc}_statmap.nii.gz"
 
 def pval_path(sub: str, seed: str, thresholded: bool = False) -> Path:
     desc = "pvalThresh" if thresholded else "pval"
-    return _seed_dir(sub) / f"sub-{sub}_seed-{seed}_desc-{desc}_statmap.nii.gz"
+    return _seed_dir(sub, seed) / f"sub-{sub}_seed-{seed}_desc-{desc}_statmap.nii.gz"
 
 def fdrsig_path(sub: str, seed: str, thresholded: bool = False) -> Path:
     desc = "fdrsigThresh" if thresholded else "fdrsig"
-    return _seed_dir(sub) / f"sub-{sub}_seed-{seed}_desc-{desc}_statmap.nii.gz"
+    return _seed_dir(sub, seed) / f"sub-{sub}_seed-{seed}_desc-{desc}_statmap.nii.gz"
 
 def loosig_path(sub: str, seed: str, thresholded: bool = False) -> Path:
     desc = "loosigThresh" if thresholded else "loosig"
-    return _seed_dir(sub) / f"sub-{sub}_seed-{seed}_desc-{desc}_statmap.nii.gz"
+    return _seed_dir(sub, seed) / f"sub-{sub}_seed-{seed}_desc-{desc}_statmap.nii.gz"
 
 def glm_mean_path(seed: str, thresholded: bool = False) -> Path:
     tag = "_thresh" if thresholded else ""

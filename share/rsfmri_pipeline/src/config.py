@@ -116,3 +116,34 @@ def get_seed(name: str) -> dict:
     if name not in SEED_CATALOG:
         raise ValueError(f"Unknown seed '{name}'. Available: {sorted(SEED_CATALOG)}")
     return SEED_CATALOG[name]
+
+
+# Seeds defined on the subject's own Lausanne2018 scale-3 parcellation (the
+# Lip/Hand/Foot somatotopic set) are written to their own subdirectory rather
+# than mixed in with the atlas-defined seeds: they only exist when
+# KUL_FS_multiparc.sh / KUL_VBG.sh -M have produced lausanne2018.scale3+aseg,
+# they come as six near-identically named files, and they were proving hard to
+# pick out of a flat directory.
+#
+# Keyed on the ATLAS's `source`, not the seed's atlas name, so any future
+# Lausanne-derived atlas (a different scale, say) lands here automatically.
+#
+# Every reader must route through this: step1_sba.py (writer),
+# step5_lite_report.py and step5_report.py (readers), and the RESULTS/ copy in
+# KUL_run_rsfMRI_networks.sh, which recurses instead of using a flat glob.
+LAUSANNE_SBA_SUBDIR = "lausanne_scale3_sba"
+
+
+def seed_subdir(name: str) -> str:
+    """
+    Subdirectory (relative to sba/sub-<ID>/) holding this seed's maps.
+
+    Returns "" for ordinary seeds, which leaves paths unchanged: Path / "" is
+    the same directory, so callers need no conditional.
+    """
+    try:
+        atlas_name = get_seed(name).get("atlas", "")
+        source = ATLASES.get(atlas_name, {}).get("source", "")
+    except ValueError:
+        return ""
+    return LAUSANNE_SBA_SUBDIR if source == "subject_lausanne" else ""

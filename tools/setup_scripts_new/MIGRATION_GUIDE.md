@@ -68,29 +68,52 @@ pip install -e . --no-deps
 
 ---
 
-## KarawunDev
-- Python 3.7.12 (EOL — consider bumping to 3.10+)
-- `karawun` 0.2.5.4+4.g80ea5cf — editable install, commit `80ea5cf` (4 commits past tag `v0.2.5.4`, unreleased bugfix), from `github.com/treanus/karawun.git`
-- `dcm2bids` 3.1.1 (regular pip)
+## KarawunDev — **the default since Aug 2026**
+- Python 3.14
+- `karawun` — editable install of the KUL fork, `github.com/Rad-dude/karawun.git`,
+  branch `kul-extended-palette`, commit `72bbc955`
+- `dcm2bids` >= 3.1
 
 ```bash
-mamba env create -n KarawunDev -f /home/aradwa0/conda_migration_exports/KarawunDev_full.yml
+mamba create -n KarawunDev python=3.14 -y
 mamba activate KarawunDev
-pip uninstall karawun -y
-git clone https://github.com/treanus/karawun.git
-cd karawun && git checkout 80ea5cf06910c5c58732542e80822f0e47f49dc0
-pip install -e . --no-deps
+pip install 'dcm2bids>=3.1'
+git clone -b kul-extended-palette https://github.com/Rad-dude/karawun.git
+cd karawun && git checkout 72bbc9558c139678a423b2ee43fbb134d656328c
+pip install -e .
 ```
+
+Despite the name this was never only for developing karawun. It is the default
+because the conda-forge alternative is wrong in two independent ways — see
+KarawunEnv below. The fork keeps upstream's packaging unchanged (`setup.py`,
+`pyproject.toml`, `setup.cfg`, `versioneer.py`), so the editable install is the
+same as it always was; only the remote and branch differ.
+
+Previously: `treanus/karawun.git` @ `80ea5cf`, then upstream
+`DevelopmentalImagingMCRI/karawun` @ `9ecbf8e6` (tag `v0.2.6.0`).
 
 ---
 
-## KarawunEnv
+## KarawunEnv — legacy, `--karawun-stock` only
 - Python 3.8.17
 - `karawun` 0.2.5.4 — regular conda-forge package, **no git clone needed**
 
 ```bash
 mamba create -n KarawunEnv python=3.8 karawun=0.2.5.4 -c conda-forge -y
 ```
+
+No longer the default. Two independent problems, neither fixable from
+conda-forge (there is no newer release there):
+
+1. **Corrupts Enhanced/multi-frame DICOM output.** Given a Philips (or any)
+   Enhanced donor, leftover `NumberOfFrames` /
+   `PerFrameFunctionalGroupsSequence` tags survive into what should be
+   single-frame slices. Confirmed on real patient data.
+2. **31-entry colour palette.** `lookup_cie()` clamps every label index above
+   30 to the last entry. `KUL_karawun_prepare.sh` assigns 1-41 to known tracts,
+   42-49 to auto tracts, 50 to the lesion and 51-63 to fMRI activations — so
+   with stock karawun every activation renders in one colour, indistinguishable
+   from each other and colliding with the tracts.
 
 ---
 
