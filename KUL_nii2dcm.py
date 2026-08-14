@@ -113,6 +113,22 @@ parser.add_argument("-o", "--plane", choices=["TRA", "SAG", "COR"], default=None
 parser.add_argument("-M", "--match-donor", action="store_true",
                     help="SAG mode: match each PNG to the spatially closest donor frame and copy its exact "
                          "IPP/IOP/PixelSpacing — guarantees PACS alignment without any geometry computation")
+parser.add_argument("-q", "--quantitative", action="store_true",
+                    help="NIfTI input: write a measurable MR Image Storage series. Voxel values are mapped "
+                         "to int16 and the mapping is recorded in RescaleSlope/RescaleIntercept, so an ROI "
+                         "drawn on PACS reads the original units (rCBV, ALFF, ReHo, FA, ...). Without this "
+                         "the values are rescaled to fill int16 and the scale factor is lost.")
+parser.add_argument("--label", action="store_true",
+                    help="NIfTI input: integer label/segmentation map. Values are written through unchanged "
+                         "(slope 1, intercept 0) so each label keeps its identity. Implies -q.")
+parser.add_argument("--units", default=None,
+                    help="value units for -q, written to RescaleType (0028,1054), e.g. 'ml/100g' or 'ratio'. "
+                         "Default 'US' (unspecified).")
+parser.add_argument("--window-headroom", type=float, default=1.0,
+                    help="multiply the top of the default display window by this factor (-q only). "
+                         "1.0 = the plain p99.5 of foreground. Raise it (e.g. 1.3) for maps whose "
+                         "bright tail is anatomy you want to keep out of saturation, such as the "
+                         "choroid plexus on a CBV map.")
 parser.add_argument("nifti", help="nifti, 3d-tiff, or directory of PNG slices")
 parser.add_argument("donor", help="dicom donor image")
 parser.add_argument("dicomdir", help="dicom output directory")
@@ -182,7 +198,72 @@ def compute_slice_geometry(underlay_geom, plane, slice_idx):
     return position, row_dir, col_dir, normal, thick
 
 
-def writeSlices(series_tag_values, new_img, out_dir, i, underlay_geom=None, plane=None):
+def _attach_modality_lut(out_dir, slope, intercept, units, window_center, window_width):
+    """Add RescaleSlope/Intercept/Type (+ default window) to an written series.
+
+    These cannot go through SimpleITK: GDCM interprets them as a request to
+    inverse-rescale the pixel data while writing, and rejects non-integer slope
+    or intercept. So the series is written first with the stored values it
+    already has, and the Modality LUT is attached here as a pure metadata edit.
+
+    Without these tags a PACS ROI reports raw stored integers instead of rCBV /
+    ALFF / FA, which is the whole reason -q exists -- so a missing pydicom is a
+    hard error rather than a silent downgrade.
+    """
+    try:
+        import pydicom
+    except ImportError:
+        print('Error: -q/--label needs pydicom to attach RescaleSlope/RescaleIntercept.')
+        print('       Without them PACS would report raw stored values, not real units.')
+        print('       Install it into the DICOM env:')
+        print('         mamba env create -f <KUL_NIS>/share/envs/KUL_dicom.yml')
+        print('       (or: pip install pydicom), then re-run.')
+        return False
+
+    # Assigned as pre-formatted strings: left to itself pydicom writes the full
+    # float repr, which overflows DS's 16-byte limit for a small slope.
+    slope_s, intercept_s = _ds16(slope), _ds16(intercept)
+    for f in sorted(glob.glob(os.path.join(out_dir, '*.dcm'))):
+        ds = pydicom.dcmread(f)
+        ds.RescaleSlope = slope_s
+        ds.RescaleIntercept = intercept_s
+        ds.RescaleType = units
+        if window_center is not None:
+            ds.WindowCenter = _ds16(window_center)
+            ds.WindowWidth = _ds16(window_width)
+        ds.save_as(f)
+    return True
+
+
+def _ds16(v):
+    """Format a float as DS keeping as many significant digits as fit in 16 bytes.
+
+    Used for RescaleSlope, where _ds()'s fixed 6 decimals would be ruinous: a
+    slope of 0.00011174462045 would round to 0.000112, a 0.2% error on every
+    voxel. Left to itself Python emits 0.00011174462045097997 (22 chars), which
+    overflows DS.
+    """
+    v = float(v)
+    for prec in range(15, 0, -1):
+        s = f"{v:.{prec}g}"
+        if len(s) <= 16:
+            return s
+    return f"{v:.6g}"[:16]
+
+
+def _ds(v):
+    """Format a float for a DICOM DS element.
+
+    DS is limited to 16 bytes. Python's repr (what `str()` gives) can emit 18+
+    characters for an ordinary oblique direction cosine -- '0.9999999999999998'
+    -- which strict PACS and validators reject. Six decimals is well inside the
+    limit and far finer than any geometry we have.
+    """
+    return f"{v:.6f}"
+
+
+def writeSlices(series_tag_values, new_img, out_dir, i, underlay_geom=None, plane=None,
+                series_uid=None):
     image_slice = new_img[:, :, i]
 
     # Tags shared by the series
@@ -192,20 +273,47 @@ def writeSlices(series_tag_values, new_img, out_dir, i, underlay_geom=None, plan
     # Slice-specific date/time
     image_slice.SetMetaData("0008|0012", time.strftime("%Y%m%d"))
     image_slice.SetMetaData("0008|0013", time.strftime("%H%M%S"))
-    image_slice.SetMetaData("0020|0013", str(i))  # Instance Number
+    # Instance Number is 1-based by convention; 0 makes some viewers mislabel or
+    # mis-sort the first slice.
+    image_slice.SetMetaData("0020|0013", str(i + 1))
+
+    # SOP Instance UID, derived from the series UID so it is unique and stable.
+    # writer.KeepOriginalImageUIDOn() has nothing to keep on a freshly created
+    # image, and the writer's own generation is not guaranteed unique across a
+    # tight loop of many slices -- duplicates make PACS silently drop slices.
+    # (The two PNG paths already do this; the standard path never did.)
+    if series_uid is not None:
+        image_slice.SetMetaData("0008|0018", f"{series_uid}.{i + 1}")
 
     if underlay_geom is not None and plane is not None:
         pos, row_dir, col_dir, normal, thick = compute_slice_geometry(underlay_geom, plane, i)
-        image_slice.SetMetaData("0020|0032", "\\".join(f"{v:.6f}" for v in pos))
+        image_slice.SetMetaData("0020|0032", "\\".join(_ds(v) for v in pos))
         image_slice.SetMetaData("0020|0037",
-            "\\".join(f"{v:.6f}" for v in row_dir + col_dir))
+            "\\".join(_ds(v) for v in row_dir + col_dir))
         # Slice Location: signed distance along slice normal from origin
         slice_loc = sum(pos[x] * normal[x] for x in range(3))
-        image_slice.SetMetaData("0020|1041", f"{slice_loc:.4f}")
-        image_slice.SetMetaData("0018|0050", f"{thick:.4f}")  # Slice Thickness
+        image_slice.SetMetaData("0020|1041", _ds(slice_loc))
+        image_slice.SetMetaData("0018|0050", _ds(thick))  # Slice Thickness
     else:
-        image_slice.SetMetaData("0020|0032",
-            "\\".join(map(str, new_img.TransformIndexToPhysicalPoint((0, 0, i)))))
+        # Geometry straight from the volume's own direction matrix. This is the
+        # correct path for actual voxel data: compute_slice_geometry above
+        # reproduces mrview's *display* flip convention, which is right for
+        # screenshots and wrong for a scalar map.
+        sp = new_img.GetSpacing()
+        d = new_img.GetDirection()
+        row_dir = (d[0], d[3], d[6])   # direction of increasing column index
+        col_dir = (d[1], d[4], d[7])   # direction of increasing row index
+        normal = (d[2], d[5], d[8])
+        pos = new_img.TransformIndexToPhysicalPoint((0, 0, i))
+        image_slice.SetMetaData("0020|0032", "\\".join(_ds(v) for v in pos))
+        image_slice.SetMetaData("0020|0037",
+            "\\".join(_ds(v) for v in list(row_dir) + list(col_dir)))
+        image_slice.SetMetaData("0020|1041", _ds(sum(pos[x] * normal[x] for x in range(3))))
+        # PixelSpacing is [between rows, between columns] = [dy, dx], the
+        # opposite order to SimpleITK's (x, y, z) spacing.
+        image_slice.SetMetaData("0028|0030", f"{_ds(sp[1])}\\{_ds(sp[0])}")
+        image_slice.SetMetaData("0018|0050", _ds(sp[2]))   # Slice Thickness
+        image_slice.SetMetaData("0018|0088", _ds(sp[2]))   # Spacing Between Slices
 
     writer.SetFileName(os.path.join(out_dir, str(i).rjust(6, '0') + ".dcm"))
     writer.Execute(image_slice)
@@ -281,6 +389,18 @@ tags_to_copy = [
 # regardless of the donor's own (real acquisition) SOP Class.
 _SC_SOP_CLASS = "1.2.840.10008.5.1.4.1.1.7"
 
+# MR Image Storage, used only by -q/--label. Secondary Capture has no Modality
+# LUT module, so RescaleSlope/RescaleIntercept are not part of its IOD and PACS
+# ROI tools will not apply them — which is exactly what a measurable series
+# needs. The concern documented above (donor SOP Class making GDCM re-derive
+# geometry) does not apply here: this path writes single-channel int16 with
+# geometry taken from the image's own direction matrix, not RGB captures.
+_MR_SOP_CLASS = "1.2.840.10008.5.1.4.1.1.4"
+
+# --label is a special case of -q (no rescaling rather than a computed slope).
+if args.label:
+    args.quantitative = True
+
 # Load underlay geometry for correct spatial metadata (enables PACS linking and MPR)
 underlay_geom = None
 if args.underlay is not None and args.plane is not None:
@@ -309,8 +429,20 @@ if args.match_donor and input_type == 'png_dir':
         donor_3d = sitk.ReadImage(series_files)
     else:
         donor_3d = sitk.ReadImage(donor_dcm)
-        if donor_3d.GetDimension() == 2:
-            donor_3d = sitk.JoinSeries(donor_3d)
+
+    # Force the donor to exactly 3 dimensions before any geometry is read.
+    #
+    # A single *multi-frame* (enhanced) DICOM -- what Philips exports, e.g. a
+    # 100-frame SmartBrain localiser in one file -- reads back as 4-D
+    # (cols, rows, frames, 1), so GetDirection() returns a 4x4 matrix. The
+    # column extraction below indexes it as 3x3 (d3[0], d3[3], d3[6]), which on
+    # a 4x4 picks up (0,0,0); normalising that divided by zero and killed the
+    # conversion. SAG is the only orientation routed through donor-match mode,
+    # so this presented as "sagittal DICOMs fail, the others are fine".
+    while donor_3d.GetDimension() > 3:
+        donor_3d = donor_3d[..., 0]
+    if donor_3d.GetDimension() == 2:
+        donor_3d = sitk.JoinSeries(donor_3d)
     d3 = donor_3d.GetDirection()
     sp3 = donor_3d.GetSpacing()
     or3 = donor_3d.GetOrigin()
@@ -318,6 +450,13 @@ if args.match_donor and input_type == 'png_dir':
 
     def _norm(v):
         n = (v[0]**2 + v[1]**2 + v[2]**2) ** 0.5
+        if n == 0:
+            # Should be unreachable now the donor is forced to 3-D above, but a
+            # degenerate direction must not surface as a bare ZeroDivisionError.
+            print('ERROR: donor has a degenerate direction matrix '
+                  f'({donor_3d.GetDimension()}-D, direction {d3}).')
+            print('       Cannot derive geometry from this donor; use a different one.')
+            sys.exit(1)
         return [x / n for x in v]
 
     def _dot(a, b):
@@ -396,8 +535,24 @@ if args.match_donor and input_type == 'png_dir':
     # dimensions. Verified empirically against mrview with synthetic phantoms.
     sample_img  = Image.open(pngs[len(pngs) // 2])
     PNG_W, PNG_H = sample_img.size   # width × height in pixels
-    j_fov = donor_cols * donor_ps    # horizontal in-plane FOV (mm) for SAG = n_j * sp
-    k_fov = donor_rows * donor_ps    # vertical   in-plane FOV (mm) for SAG = n_k * sp
+
+    # In-plane geometry comes from the UNDERLAY, not the donor.
+    #
+    # The PNGs are renders of the underlay, so their in-plane extent is the
+    # underlay's: for SAG, j (A-P) horizontally and k (S-I) vertically. These
+    # used to be taken from the donor (donor_cols * donor_ps), which is only
+    # correct when the donor happens to share the underlay's field of view.
+    # With, say, a 320x320 @ 1.09mm SmartBrain localiser (350mm FOV) donating
+    # for a 64x64x64 @ 2mm underlay (128mm FOV), every SAG series was written
+    # claiming a 350mm in-plane extent for 128mm of anatomy -- a 2.7x stretch,
+    # clipped at the edge of the frame. TRA/COR never had this because they
+    # derive all of it from the underlay; SAG now does the same.
+    # The donor still supplies identity, Frame of Reference and frame matching.
+    j_fov = nifti_sz_tmp[1] * nifti_sp_tmp[1]   # horizontal in-plane FOV (mm), A-P
+    k_fov = nifti_sz_tmp[2] * nifti_sp_tmp[2]   # vertical   in-plane FOV (mm), S-I
+    out_w, out_h = nifti_sz_tmp[1], nifti_sz_tmp[2]
+    out_sp_x, out_sp_y = nifti_sp_tmp[1], nifti_sp_tmp[2]
+    out_slice_sp = nifti_sp_tmp[0]              # sagittal step = underlay i spacing
     _global_max_fov = max(nifti_sz_tmp[0] * nifti_sp_tmp[0],
                           nifti_sz_tmp[1] * nifti_sp_tmp[1],
                           nifti_sz_tmp[2] * nifti_sp_tmp[2])
@@ -411,7 +566,7 @@ if args.match_donor and input_type == 'png_dir':
     print(f'Geometric crop: PNG={PNG_W}×{PNG_H}  FOV={j_fov:.1f}×{k_fov:.1f}mm  '
           f'scale={scale:.3f}px/mm  content={content_W}×{content_H}px  '
           f'crop cols {crop_left}:{crop_right} rows {crop_top}:{crop_bot}  '
-          f'→ resizing to {donor_cols}×{donor_rows}')
+          f'→ resizing to {out_w}×{out_h} @ {out_sp_x:.4f}×{out_sp_y:.4f}mm')
 
     # Common series tags (patient/study from donor reader)
     modification_time = time.strftime("%H%M%S")
@@ -451,14 +606,14 @@ if args.match_donor and input_type == 'png_dir':
         img_arr = np.array(Image.open(png_path).convert('RGB'))
         img_arr = img_arr[crop_top:crop_bot, crop_left:crop_right, :]
         img_resized = np.array(
-            Image.fromarray(img_arr).resize((donor_cols, donor_rows), LANCZOS))
+            Image.fromarray(img_arr).resize((out_w, out_h), LANCZOS))
         # IPP = physical position of top-left pixel for this SAG slice, using
         # the same per-axis flip convention as out_row_dir/out_col_dir above
         # (verified against mrview's actual rendering, not assumed).
         position, _, _, normal, _ = compute_slice_geometry(underlay_geom, 'SAG', png_idx)
 
         slice_2d = sitk.GetImageFromArray(img_resized, isVector=True)
-        slice_2d.SetSpacing([donor_ps, donor_ps])
+        slice_2d.SetSpacing([out_sp_x, out_sp_y])
 
         ipp_str = "\\".join(f"{v:.6f}" for v in position)
         slice_loc = sum(position[x] * normal[x] for x in range(3))
@@ -468,9 +623,12 @@ if args.match_donor and input_type == 'png_dir':
         slice_2d.SetMetaData("0020|0037", out_iop_str)
         slice_2d.SetMetaData("0020|0032", ipp_str)
         slice_2d.SetMetaData("0020|1041", f"{slice_loc:.4f}")
-        slice_2d.SetMetaData("0018|0050", f"{sp3[2]:.4f}")
-        slice_2d.SetMetaData("0018|0088", f"{sp3[2]:.4f}")
-        slice_2d.SetMetaData("0028|0030", f"{donor_ps:.6f}\\{donor_ps:.6f}")
+        # Slice thickness/spacing are the underlay's sagittal step, not the
+        # donor's (sp3[2]) -- same reason as the in-plane geometry above.
+        slice_2d.SetMetaData("0018|0050", f"{out_slice_sp:.4f}")
+        slice_2d.SetMetaData("0018|0088", f"{out_slice_sp:.4f}")
+        # PixelSpacing is [between rows, between columns] = [dy, dx].
+        slice_2d.SetMetaData("0028|0030", f"{out_sp_y:.6f}\\{out_sp_x:.6f}")
         slice_2d.SetMetaData("0020|0013", str(out_idx))
         slice_2d.SetMetaData("0008|0012", modification_date)
         slice_2d.SetMetaData("0008|0013", modification_time)
@@ -616,23 +774,102 @@ elif input_type == 'tiff':
     nii_img = sitk.ReadImage(nifti_input)
     new_img = nii_img
 else:
-    print('Converting the nifti to 16bit')
     nii_img = sitk.ReadImage(nifti_input)
-    img_data = sitk.GetArrayFromImage(nii_img)
-    max_val = np.amax(img_data)
-    if max_val == 0:
-        print('Error: input image is all zeros; cannot rescale to int16')
+
+    # 4-D input is not supported. It used to die several lines later inside
+    # CopyInformation with a SimpleITK dimension error; say so plainly instead.
+    # Writing a timeseries properly means one series carrying every timepoint
+    # with TemporalPositionIdentifier and per-timepoint acquisition times, which
+    # this converter does not do -- see the hand-off notes.
+    if nii_img.GetDimension() > 3:
+        _sz = nii_img.GetSize()
+        print(f'Error: {nifti_input} is {nii_img.GetDimension()}-D {_sz}; only 3-D volumes are supported.')
+        print('       For a timeseries (e.g. a 4-D PWI), split it first:')
+        print(f'         mrconvert "{nifti_input}" -coord 3 <index> vol.nii.gz')
+        print('       and convert each volume as its own series.')
         sys.exit(1)
-    img_int16 = (img_data * (np.iinfo(np.int16).max / max_val)).astype(np.int16)
+
+    img_data = sitk.GetArrayFromImage(nii_img).astype(np.float64)
+
+    # Non-finite voxels would propagate through the arithmetic and cast to
+    # arbitrary integers. Map them to 0 when 0 is inside the value range
+    # (normal for a masked brain map), otherwise to the minimum.
+    _nonfinite = ~np.isfinite(img_data)
+    _n_nonfinite = int(_nonfinite.sum())
+    _finite = img_data[~_nonfinite]
+    if _finite.size == 0:
+        print('Error: input image has no finite voxels')
+        sys.exit(1)
+    vmin, vmax = float(_finite.min()), float(_finite.max())
+    if _n_nonfinite:
+        _fill = 0.0 if vmin <= 0.0 <= vmax else vmin
+        img_data[_nonfinite] = _fill
+        print(f'Note: {_n_nonfinite} non-finite voxel(s) set to {_fill}')
+
+    _i16 = np.iinfo(np.int16)
+    if args.label:
+        # Label maps must keep their exact values; any scaling destroys the
+        # identity of each label.
+        if vmin < _i16.min or vmax > _i16.max:
+            print(f'Error: label values [{vmin}, {vmax}] do not fit in int16')
+            sys.exit(1)
+        if not np.allclose(img_data, np.round(img_data)):
+            print('Warning: --label given but values are not integers; rounding')
+        img_int16 = np.round(img_data).astype(np.int16)
+        rescale_slope, rescale_intercept = 1.0, 0.0
+        print(f'Label mode: {len(np.unique(img_int16))} distinct value(s), written unscaled')
+    elif args.quantitative:
+        # Scale about zero: stored = value / slope, intercept 0.
+        #
+        # The intercept is deliberately kept at exactly 0 rather than shifted to
+        # pack the values into the full int16 range. GDCM's Rescaler asserts
+        # `intercept == (int)intercept` when writing integer pixel data, so a
+        # fractional intercept aborts the write outright:
+        #   gdcmRescaler.cxx:66 An invalid logic behavior occurred
+        # Anchoring at zero also keeps zero meaning zero, which matters for the
+        # masked background of a brain map. The cost is at most one bit of
+        # precision (1 part in 32767 of the largest magnitude), far below the
+        # noise of any map this handles.
+        _peak = max(abs(vmin), abs(vmax))
+        if _peak > 0:
+            rescale_slope = _peak / 32767.0
+            rescale_intercept = 0.0
+            img_int16 = np.clip(np.round(img_data / rescale_slope),
+                                _i16.min, _i16.max).astype(np.int16)
+        else:
+            # All zeros: nothing to scale, and slope must stay non-zero.
+            rescale_slope, rescale_intercept = 1.0, 0.0
+            img_int16 = np.zeros(img_data.shape, dtype=np.int16)
+        print(f'Quantitative mode: [{vmin:.6g}, {vmax:.6g}] -> int16, '
+              f'slope={rescale_slope:.6g} intercept={rescale_intercept:.6g}')
+    else:
+        # Historical behaviour: fill the int16 range from 0..max. Kept for
+        # backward compatibility, but now rounded and clipped rather than
+        # truncated and wrapped (numpy wraps modulo 2**16 on overflow, so
+        # strongly negative voxels used to come back as large positives), and
+        # the scale factor is recorded instead of discarded.
+        print('Converting the nifti to 16bit')
+        if vmax == 0:
+            print('Error: input image is all zeros; cannot rescale to int16')
+            sys.exit(1)
+        _scale = _i16.max / vmax
+        img_int16 = np.clip(np.round(img_data * _scale),
+                            _i16.min, _i16.max).astype(np.int16)
+        rescale_slope, rescale_intercept = 1.0 / _scale, 0.0
+
     new_img = sitk.GetImageFromArray(img_int16)
     new_img.CopyInformation(nii_img)
     new_img = sitk.DICOMOrient(new_img, "LPS")
 
-# Apply correct pixel spacing
+# Apply correct pixel spacing.
+# Only the in-plane spacing is overridden: -p describes a rendered screenshot's
+# pixel size and says nothing about slice separation, so overwriting the third
+# component (as this used to) corrupted every slice position downstream.
 if args.pixelspacing is not None:
     ps = args.pixelspacing
-    new_img.SetSpacing([ps, ps, 1.0])
-    print(f'Pixel spacing set to {ps:.4f} mm')
+    _sp = new_img.GetSpacing()
+    new_img.SetSpacing([ps, ps, _sp[2] if len(_sp) > 2 else 1.0])
+    print(f'Pixel spacing set to {ps:.4f} mm (slice spacing kept at {_sp[2] if len(_sp) > 2 else 1.0})')
 
 writer = sitk.ImageFileWriter()
 writer.KeepOriginalImageUIDOn()
@@ -643,10 +880,33 @@ modification_date = time.strftime("%Y%m%d")
 # Image Orientation: use underlay geometry if available, else fall back to new_img direction
 if underlay_geom is not None:
     _, row_dir, col_dir, _, _ = compute_slice_geometry(underlay_geom, args.plane, 0)
-    orientation_str = "\\".join(f"{v:.6f}" for v in row_dir + col_dir)
+    orientation_str = "\\".join(_ds(v) for v in row_dir + col_dir)
 else:
     d = new_img.GetDirection()
-    orientation_str = "\\".join(map(str, (d[0], d[3], d[6], d[1], d[4], d[7])))
+    orientation_str = "\\".join(_ds(v) for v in (d[0], d[3], d[6], d[1], d[4], d[7]))
+
+series_uid = ("1.2.826.0.1.3680043.2.1125." + modification_date + ".1" + modification_time
+              + "." + str(int(hashlib.md5(seriesdesc.encode()).hexdigest()[:8], 16)))
+
+# Study Instance UID: keep the output inside the donor's study. This was never
+# set on this path -- neither copied nor generated -- so GDCM invented a fresh
+# one and every series landed as an orphan study for the same patient, with
+# cross-series cursor sync (which needs a shared frame of reference within a
+# study) unable to engage. Both key spellings are probed, as elsewhere.
+study_uid = None
+for _k in ("0020|000d", "0020|000D"):
+    if reader.HasMetaDataKey(_k):
+        study_uid = _dcm_str(reader.GetMetaData(_k), _charset).strip()
+        break
+if not study_uid:
+    study_uid = ("1.2.826.0.1.3680043.2.1125." + modification_date + ".2" + modification_time)
+    print('Warning: donor has no StudyInstanceUID; generating one')
+
+# A measurable series is an MR image, not a screenshot: Secondary Capture has no
+# Modality LUT module, so PACS would ignore RescaleSlope/Intercept and report
+# raw stored values in an ROI.
+_is_quant = args.quantitative and input_type == 'nifti'
+_sop_class = _MR_SOP_CLASS if _is_quant else _SC_SOP_CLASS
 
 series_tag_values_a = [
     (k, _dcm_str(reader.GetMetaData(k), _charset))
@@ -654,17 +914,37 @@ series_tag_values_a = [
     if reader.HasMetaDataKey(k)
 ]
 series_tag_values_b = [
-    ("0002|0002", _SC_SOP_CLASS),
-    ("0008|0016", _SC_SOP_CLASS),
+    ("0002|0002", _sop_class),
+    ("0008|0016", _sop_class),
     ("0008|0031", modification_time),
     ("0008|0021", modification_date),
     ("0008|0008", "DERIVED\\SECONDARY"),
-    ("0020|000e",
-     "1.2.826.0.1.3680043.2.1125." + modification_date + ".1" + modification_time + "." + str(int(hashlib.md5(seriesdesc.encode()).hexdigest()[:8], 16))),
+    ("0020|000d", study_uid),
+    ("0020|000e", series_uid),
     ("0020|0037", orientation_str),
     ("0008|103e", seriesdesc),
     ("0020|0011", seriesnumber),
 ]
+if _is_quant:
+    # NOTE: the Modality LUT tags are deliberately NOT added here.
+    #
+    # SimpleITK writes through GDCM, and GDCM reads RescaleSlope/RescaleIntercept
+    # from the dictionary as an instruction to *inverse-rescale* the pixel data
+    # on the way out -- it assumes the array it was handed holds real-world
+    # values and divides them down to stored values. Our array already holds
+    # stored values, so that would scale them a second time. It also refuses any
+    # non-integer slope or intercept outright:
+    #   gdcmRescaler.cxx: An invalid logic behavior occurred slope == (int)slope
+    # and an integer-only slope would quantise every fractional map to whole
+    # numbers, defeating the entire point of a quantitative series.
+    #
+    # So the pixel data is written first, without these tags, and they are
+    # attached afterwards by _attach_modality_lut(). See that function.
+    pass
+else:
+    # Conversion Type is Type 1 (required) for Secondary Capture; it was missing.
+    series_tag_values_b += [("0008|0064", "WSD")]       # Workstation
+
 series_tag_values = series_tag_values_a + series_tag_values_b
 
 print('Incorporating the following dicom tags:')
@@ -675,11 +955,73 @@ if os.path.exists(dcm_output):
     shutil.rmtree(dcm_output)
 os.makedirs(dcm_output, exist_ok=True)
 
-# Write slices
+# Write slices.
+# For a quantitative series the geometry must come from the volume itself, never
+# from compute_slice_geometry() -- that reproduces mrview's screenshot display
+# convention, which is correct for rendered PNGs and wrong for voxel data.
+_geom = None if _is_quant else underlay_geom
+_plane = None if _is_quant else args.plane
+if _is_quant and underlay_geom is not None:
+    print('Note: -u/-o ignored in quantitative mode; geometry comes from the input volume')
+
 list(map(
     lambda i: writeSlices(series_tag_values, new_img, dcm_output, i,
-                          underlay_geom=underlay_geom, plane=args.plane),
+                          underlay_geom=_geom, plane=_plane,
+                          series_uid=series_uid),
     range(new_img.GetDepth())
 ))
 
+if _is_quant:
+    # Default window from robust percentiles of the FOREGROUND stored values.
+    #
+    # Background is excluded on purpose. These maps are brain-masked, so ~87% of
+    # every volume is exactly zero; taking percentiles over the whole array puts
+    # p2 deep inside that zero mass and drags p98 down to just above it. On real
+    # DSC data that produced a window of [0, 533] for rCBV whose tissue actually
+    # runs to 1272, so a large part of the brain saturated white -- the series
+    # opened far too dark with too much of it blown out.
+    # In REAL units, not stored ones. Window Center/Width are applied after the
+    # Modality LUT (DICOM PS3.3 C.11.2), so they live in the rescaled value
+    # space. Computing them from the int16 pixel values made the error scale
+    # with the slope: K2 (slope 2e-05) got a window 1128x its own data range and
+    # rendered as a flat grey plane with the negative lobe invisible, while MTT
+    # got one far too narrow and blew out. Only maps whose slope happens to be
+    # near 1 looked approximately right.
+    _real = img_int16.astype(np.float64) * rescale_slope + rescale_intercept
+    _fg = _real[img_int16 != 0]
+    if _fg.size < 100:          # not a masked map (or nearly empty): use everything
+        _fg = _real
+    if args.label:
+        # Labels are categorical: span them all rather than clipping the tails.
+        _lo, _hi = float(_fg.min()), float(_fg.max())
+    else:
+        # Asymmetric on purpose. The top is p99.5, not p98: on a DSC map the
+        # choroid plexus (genuinely very vascular) and CSF (deconvolution
+        # garbage) reach ~46x the cortical median, and a p98 top left the
+        # ventricles as blown-out white blobs. p99.5 cuts the saturated voxels
+        # from 2.0% to 0.5% of tissue. It costs some brightness -- cortex sits
+        # at ~14% of the scale rather than ~21% -- which is the right trade for
+        # a series meant to be re-windowed on PACS: brightening is easy,
+        # recovering detail that was clipped away is not.
+        _lo, _hi = np.percentile(_fg, 2), np.percentile(_fg, 99.5)
+        # Optional extra headroom above p99.5. There is no statistic that
+        # separates the maps that want it from the ones that don't -- on real
+        # DSC data K2 and MTT have far heavier tails than rCBV, so a tail-based
+        # rule would give exactly the wrong maps more room. It is a per-map
+        # display preference, so it is passed in rather than inferred.
+        if args.window_headroom and args.window_headroom != 1.0 and _hi > 0:
+            _hi *= args.window_headroom
+    if _hi <= _lo:
+        _lo, _hi = float(_real.min()), float(_real.max())
+    if _hi > _lo:
+        _wc, _ww = (_lo + _hi) / 2.0, _hi - _lo
+    else:
+        _wc = _ww = None
+    if not _attach_modality_lut(dcm_output, rescale_slope, rescale_intercept,
+                                args.units if args.units else 'US', _wc, _ww):
+        sys.exit(1)
+    print(f'Modality LUT attached: slope={rescale_slope:.6g} '
+          f'intercept={rescale_intercept:.6g} type={args.units if args.units else "US"}')
+
+print(f'Wrote {new_img.GetDepth()} DICOMs to {dcm_output}')
 sys.exit(0)

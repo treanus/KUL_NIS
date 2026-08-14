@@ -474,7 +474,7 @@ function KUL_dsc_make_brainmask {
 # so there is no temporal neighbourhood, no edge effect, and hence none of the
 # mirror-padding the previous implementation needed.
 #
-# Measured on sub-PT032 (80 frames, 144x144x42), against DenoiseImage -d 4:
+# Measured on a validation subject (80 frames, 144x144x42), against DenoiseImage -d 4:
 #
 #                       ANTs NLM      MP-PCA      raw
 #   runtime             23.1 min      21.5 s      --
@@ -519,7 +519,7 @@ function KUL_dsc_run_motioncorr {
 # head: the DSC's skull, scalp and whatever neck falls in the slab all pull its
 # COM inferiorly. The -x masks below do NOT rescue this; they restrict metric
 # sampling only, and ANTs computes the COM initialisation from the image
-# intensities themselves, before any mask is applied. On PT032 the two brains
+# intensities themselves, before any mask is applied. On the validation subject the two brains
 # started ~23 mm apart in both y and z, the bad initialisation put the affine
 # stage in the wrong basin, and MI at shrink factor 8 never climbed out --
 # final Dice against the anat brain mask was 0.39.
@@ -535,7 +535,7 @@ function KUL_dsc_run_motioncorr {
 # Matching those centres manufactures that offset as a displacement: the affine
 # came out translating [-0.8, 46.5, 31.7] mm instead of [1.4, -5.8, 0.7].
 #
-# Measured on sub-PT032, Dice of the DSC brain warped into anat space:
+# Measured on a validation subject, Dice of the DSC brain warped into anat space:
 #
 #   COM init + stripped moving                    0.2889   (69.6% outside)
 #   COM init + raw moving (the original failure)  0.3865   (58.3% outside)
@@ -582,7 +582,7 @@ function KUL_dsc_run_epicorrect {
 #
 #   Per-frame is worse than either. N4 cannot tell a coil inhomogeneity from a
 #   real, spatially heterogeneous signal drop, so at peak bolus it fits the
-#   bolus as bias: on sub-PT032 the frame-5 field over the frame-23 field has a
+#   bolus as bias: on a validation subject the frame-5 field over the frame-23 field has a
 #   median ratio of 1.41 (p1-p99 spread 46%, corr 0.82). Only a STATIC per-voxel
 #   factor cancels in dR2* = -1/TE * ln(S(t)/S0); a time-varying one is injected
 #   straight into rCBV.

@@ -365,6 +365,23 @@ function KUL_compute_nilearn {
         wc_suffix="_wc"
     fi
 
+    # Re-use an existing GLM instead of recomputing it.
+    #
+    # The stats in $fmriresults are the expensive part and they live in
+    # BIDS/derivatives, which survives anything done to RESULTS/. Everything
+    # below this point only warps them into RESULTS/.../SPM_all. Without this
+    # guard the `rm -rf` below deleted the existing stats first, so the only way
+    # to repopulate RESULTS/SPM after it had been cleared was to recompute every
+    # GLM -- even though the results were sitting untouched in the derivative.
+    #
+    # spmT_0001.nii is the gate because it is what the export below reads, and
+    # KUL_dsc_fit already resumes on exactly this principle (its own
+    # fit/rCBV_corrected.nii.gz). Set KUL_NILEARN_FORCE=1 to recompute anyway.
+    if [ "${KUL_NILEARN_FORCE:-0}" != "1" ] && [ -f "$fmriresults/spmT_0001.nii" ]; then
+        echo "  [glm] re-using the existing GLM in ${fmriresults#$cwd/}"
+        echo "        (set KUL_NILEARN_FORCE=1 to recompute it from the BOLD data)"
+    else
+
     # clean a possible old result
     rm -rf "$fmriresults"
     mkdir -p "$fmriresults"
@@ -401,6 +418,8 @@ function KUL_compute_nilearn {
     else
         eval "$env_pfx $cmd"
     fi
+
+    fi   # re-use existing GLM
 
     # Nilearn output is in MNI space; warp back to T1w space for display.
     local mni_to_t1w=$(find_first_match "${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_*from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5" "MNI-to-T1w transform")

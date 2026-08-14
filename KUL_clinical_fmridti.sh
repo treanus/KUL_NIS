@@ -117,6 +117,12 @@ Optional arguments:
           -N (rsfMRI network mapping) and -E nilearn (nilearn task-fMRI GLM).
           You shouldn't normally need this — the KUL_NIS installer creates
           'pyfMRI' with everything both steps need.
+     -m:  conda env to use instead of \$KUL_DICOM_ENV (default 'KUL_dicom') for
+          the DICOM generation in -R/-F (KUL_nii2dcm.py; needs SimpleITK,
+          Pillow, numpy). If the env doesn't exist the step falls back to
+          plain 'python3' with a warning, so this is only needed if you
+          named the env differently. Create it with:
+            mamba env create -f \$kul_main_dir/share/envs/KUL_dicom.yml
 
 USAGE
 
@@ -158,6 +164,7 @@ rsfmri_networks=0
 skip_dsc=0
 rsfmri_profile="Presurgical"
 pyfmri_env_override=""
+dicom_env_override=""
 declare -A spm_thresh_map=()
 
 # Set required options
@@ -171,7 +178,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:NC:y:XBrseUQW" OPT; do
+	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:NC:y:m:XBrseUQW" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -258,6 +265,9 @@ else
         y) # conda env override for -N and -E nilearn (default: $KUL_PYFMRI_ENV)
             pyfmri_env_override=$OPTARG
         ;;
+        m) # conda env override for the -R/-F DICOM step (default: $KUL_DICOM_ENV)
+            dicom_env_override=$OPTARG
+        ;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
 			echo
@@ -317,6 +327,22 @@ function KUL_scaffold {
 
 }
 
+# -R and -F render and export what is already in RESULTS/; they run no
+# preprocessing at all. Every pre-flight check below guards a preprocessing step
+# those runs never reach, and each one either scaffolds a study directory that
+# was not asked for or exits 2 outright -- so a tree holding nothing but
+# RESULTS/sub-<p>/ could not be exported to PACS without first being dressed up
+# as a full study. Skip them for export-only runs, so the PACS workflow can be
+# driven on its own the way KUL_karawun_prepare.sh can.
+#
+# Deliberately narrow: this only skips checks, never any processing decision,
+# and a normal run (results=0) still fails fast on all of them exactly as before.
+if [ $results -gt 0 ]; then
+    export_only=1
+else
+    export_only=0
+fi
+
 # Scaffold: explicit (-s) or automatic (first run for this patient, no study_config/ yet).
 # Must run before the pre-flight -D check below -- that check unconditionally looks for
 # study_config/${dwiprep_config_file} (default "run_dwiprep.txt") and exits with an error
@@ -325,7 +351,7 @@ function KUL_scaffold {
 if [ $scaffold -eq 1 ]; then
     KUL_scaffold
 fi
-if [ ! -d $cwd/study_config ]; then
+if [ $export_only -eq 0 ] && [ ! -d $cwd/study_config ]; then
     KUL_scaffold
 fi
 
@@ -334,25 +360,27 @@ fi
 # misconfiguration here, before fmriprep/dwiprep are launched, instead of
 # failing deep inside KUL_preproc_all.sh after other pipeline steps (and
 # their downstream dependents: VBG, dwiprep_MNI, FWT) have already run.
-if [ ! -f study_config/${dwiprep_config_file} ]; then
-    echo
-    echo "ERROR: dwiprep config file study_config/${dwiprep_config_file} (given with -D) does not exist." >&2
-    echo
-    exit 2
-fi
-dwiprep_do_check=$(grep -E "^do_dwiprep:" study_config/${dwiprep_config_file} | grep -v \# | cut -d':' -f2- | tr -d '\r' | sed 's/^ *//;s/ *$//')
-dwiprep_options_check=$(grep -E "^dwiprep_options:" study_config/${dwiprep_config_file} | grep -v \# | cut -d':' -f2-)
-loresd_env_check=$(grep -E "^loresd_env:" study_config/${dwiprep_config_file} | grep -v \# | cut -d':' -f2- | tr -d '\r' | sed 's/^ *//;s/ *$//')
-# blank in the config -> defaults to $KUL_LORESD_ENV (mirrors KUL_preproc_all.sh)
-[ -z "$loresd_env_check" ] && loresd_env_check="$KUL_LORESD_ENV"
-if [ "$dwiprep_do_check" = "1" ] && [[ "$dwiprep_options_check" == *"lore_sd"* ]] && ! conda env list | awk '{print $1}' | grep -qx "$loresd_env_check"; then
-    echo
-    echo "ERROR: study_config/${dwiprep_config_file} requests 'lore_sd', but conda env '$loresd_env_check' was not found (checked 'conda env list')." >&2
-    echo "  Run the KUL_NIS installer's env-lore-sd section, or set loresd_env: <env> in the config to use a different one." >&2
-    echo "  Available conda envs:" >&2
-    conda env list 2>/dev/null | tail -n +3 | awk '{print "    "$1}' >&2
-    echo
-    exit 2
+if [ $export_only -eq 0 ]; then
+    if [ ! -f study_config/${dwiprep_config_file} ]; then
+        echo
+        echo "ERROR: dwiprep config file study_config/${dwiprep_config_file} (given with -D) does not exist." >&2
+        echo
+        exit 2
+    fi
+    dwiprep_do_check=$(grep -E "^do_dwiprep:" study_config/${dwiprep_config_file} | grep -v \# | cut -d':' -f2- | tr -d '\r' | sed 's/^ *//;s/ *$//')
+    dwiprep_options_check=$(grep -E "^dwiprep_options:" study_config/${dwiprep_config_file} | grep -v \# | cut -d':' -f2-)
+    loresd_env_check=$(grep -E "^loresd_env:" study_config/${dwiprep_config_file} | grep -v \# | cut -d':' -f2- | tr -d '\r' | sed 's/^ *//;s/ *$//')
+    # blank in the config -> defaults to $KUL_LORESD_ENV (mirrors KUL_preproc_all.sh)
+    [ -z "$loresd_env_check" ] && loresd_env_check="$KUL_LORESD_ENV"
+    if [ "$dwiprep_do_check" = "1" ] && [[ "$dwiprep_options_check" == *"lore_sd"* ]] && ! conda env list | awk '{print $1}' | grep -qx "$loresd_env_check"; then
+        echo
+        echo "ERROR: study_config/${dwiprep_config_file} requests 'lore_sd', but conda env '$loresd_env_check' was not found (checked 'conda env list')." >&2
+        echo "  Run the KUL_NIS installer's env-lore-sd section, or set loresd_env: <env> in the config to use a different one." >&2
+        echo "  Available conda envs:" >&2
+        conda env list 2>/dev/null | tail -n +3 | awk '{print "    "$1}' >&2
+        echo
+        exit 2
+    fi
 fi
 
 KUL_LOG_DIR="KUL_LOG/${script}/sub-${participant}"
@@ -392,7 +420,7 @@ figs=0
 # fwt (automated tractography) needs the scilpy conda env; defaults to
 # $KUL_SCILPY_ENV (the fixed name the installer creates it under), override
 # with -f if you need a differently-named env
-if [ $fwt -eq 1 ] && ! conda env list | awk '{print $1}' | grep -qx "$scilpy" ; then
+if [ $export_only -eq 0 ] && [ $fwt -eq 1 ] && ! conda env list | awk '{print $1}' | grep -qx "$scilpy" ; then
 	echo
 	echo "ERROR: conda env '$scilpy' (for FWT) was not found (checked 'conda env list')." >&2
 	echo "  Run the KUL_NIS installer's env-scilpy section, or pass -f <env> to use a different one." >&2
@@ -417,7 +445,7 @@ derivativesdir=${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}
 # workaround in KUL_VBG.sh itself; this is extra margin, not the fix).
 vbg_dir=${cwd}/KUL_VBG
 
-# NOTE: these two live here, above the `if [ $results -gt 0 ]` block below,
+# NOTE: these three live here, above the `if [ $results -gt 0 ]` block below,
 # rather than with the other functions further down. That block runs at top
 # level and ends in `exit`, so any function defined after it has simply not been
 # executed yet when it runs -- bash registers a function when its definition
@@ -454,6 +482,65 @@ function KUL_copy_lesion_to_anat {
         # and anything overlaying this wants a clean 0/1 mask
         mrcalc "$_lesion" 0 -gt "$_dst" -force -quiet && \
             echo "Copied $(basename "$_lesion") to Anat/ as $(basename "$_dst")"
+    fi
+}
+
+# Create RESULTS/sub-*/PACS_input/{overlays,series_quantitative} and the README
+# that explains them, and set _dropdir/_drop_thr/_drop_quant for the caller.
+#
+# Called from two places, which is why it is a function rather than inline:
+#   - the end of a normal pipeline run, so the folders exist for the operator to
+#     review and copy into BEFORE the first -R. They used to be created only
+#     inside the -R block, i.e. only once it was already too late to put
+#     anything in them;
+#   - the -R/-F block itself, so a standalone export still works against a tree
+#     that never saw a full pipeline run.
+function KUL_make_pacs_dropdirs {
+    _dropdir="$globalresultsdir/PACS_input"
+    _drop_thr="$_dropdir/overlays"
+    _drop_quant="$_dropdir/series_quantitative"
+    mkdir -p "$_drop_thr" "$_drop_quant"
+
+    # Echo a README once so the folders explain themselves on the filesystem.
+    if [ ! -f "$_dropdir/README.txt" ]; then
+        cat > "$_dropdir/README.txt" <<'DROPREADME'
+Drop NIfTI files here to export them to PACS with KUL_clinical_fmridti.sh -R.
+
+  overlays/              colour overlay fused on the anatomical, for review.
+
+                         Colour windowing is always computed from the map's
+                         own robust (2-98%) range, so a perfusion map with
+                         values in the thousands and an fMRI t-map with a
+                         narrow range both render legibly. Nothing to set.
+
+                         Thresholding, i.e. which voxels are drawn at all:
+                           default          automatic, max/3 (suits stat maps)
+                           <name>.thresh    a file holding one number, to pin
+                                            a threshold (e.g. 1.75 for nrCBV)
+                           <name>.thresh    holding the word "none" to draw
+                                            the whole map with a colourbar --
+                                            use this for rCBV, ALFF, ReHo
+                           -T <value>       overrides everything, all maps
+
+  series_quantitative/   a standalone measurable DICOM series (no overlay, no
+                         rendering, no threshold). Values carry
+                         RescaleSlope/Intercept so an ROI on PACS reads true
+                         units. Name a file <name>.label.nii.gz for an integer
+                         label map, which is written with no rescaling so each
+                         label keeps its value.
+
+While either folder holds a file, the automatic discovery of
+RESULTS/sub-*/{SPM,Melodic,Perfusion,Lesion} is skipped. Empty them to get
+the automatic behaviour back.
+
+Note that automatic overlay discovery only looks at SPM/, Melodic/, the lesion,
+and *only* nrCBV_corrected/nrCBF from Perfusion/. Anything else -- a raw
+rCBV_corrected, an ADC map, a map from outside this pipeline -- has to be
+dropped in here to reach PACS.
+
+Files must already be registered to the anatomical (same scanner coordinate
+frame as the underlay) — they inherit the donor's Frame of Reference.
+DROPREADME
     fi
 }
 
@@ -608,6 +695,14 @@ if [ $results -gt 0 ];then
     ntracts_paired=34   # indices 0-33: lateralized LT/RT pairs, step 2
     ntracts_total=42    # index of last commissural tract (indices 34-42), step 1
 
+    # Drop folders first, before anything that can bail out. A normal pipeline
+    # run creates these at its end, but an export-only run (a tree holding just
+    # RESULTS/) has never had that step, and the operator needs somewhere to copy
+    # maps into. Creating them here means even a run that dies at the mrview
+    # pre-flight below leaves a usable, self-describing tree behind, rather than
+    # forcing a throwaway -R just to make the folders appear.
+    KUL_make_pacs_dropdirs
+
     # Sync FWT output to RESULTS/Tracto before generating screenshots
     # Tract maps are resampled to T1w resolution so they can be compared
     # directly with anatomical images and lesion masks.
@@ -684,6 +779,52 @@ if [ $results -gt 0 ];then
 
     mrview_resolution=512
 
+    # --- Python interpreter for KUL_nii2dcm.py ------------------------------
+    # Resolved once here and reused by every conversion below. We call the env's
+    # python by ABSOLUTE PATH rather than 'conda activate' on purpose: this block
+    # also runs mrview/mrinfo/mrstats/mrcalc from PATH, and activating an env
+    # mid-script reorders PATH for all of them. Absolute-path invocation is just
+    # as automatic for the user and touches nothing else.
+    # Falls back to plain python3 (the historical behaviour) if the env is
+    # missing, so hosts that never created it keep working.
+    _dicom_env="${dicom_env_override:-$KUL_DICOM_ENV}"
+    _nii2dcm_py=""
+    if command -v conda >/dev/null 2>&1; then
+        _conda_base=$(conda info --base 2>/dev/null)
+        if [ -n "$_conda_base" ] && [ -x "$_conda_base/envs/$_dicom_env/bin/python" ]; then
+            _nii2dcm_py="$_conda_base/envs/$_dicom_env/bin/python"
+        fi
+    fi
+    # SOFTWARE_ROOT may not be exported; probe the usual roots too (same idea as
+    # the HD-GLIO lookup in KUL_anat_segment_tumor.sh).
+    if [ -z "$_nii2dcm_py" ]; then
+        for _sw in "${SOFTWARE_ROOT:-}" /opt/kul_software /usr/local/KUL_apps; do
+            [ -z "$_sw" ] && continue
+            if [ -x "$_sw/miniforge3/envs/$_dicom_env/bin/python" ]; then
+                _nii2dcm_py="$_sw/miniforge3/envs/$_dicom_env/bin/python"
+                break
+            fi
+        done
+    fi
+    if [ -n "$_nii2dcm_py" ]; then
+        echo "Using conda env '$_dicom_env' for DICOM generation: $_nii2dcm_py"
+    else
+        _nii2dcm_py="python3"
+        echo "WARNING: conda env '$_dicom_env' not found — falling back to plain 'python3'."
+        echo "         Create it with: mamba env create -f $kul_main_dir/share/envs/KUL_dicom.yml"
+        echo "         or point at an existing env with -m <envname>."
+    fi
+    # Verify the interpreter can actually import what KUL_nii2dcm.py needs, so a
+    # broken env is reported here rather than as N identical failures later.
+    if ! "$_nii2dcm_py" -c "import SimpleITK, PIL, numpy" >/dev/null 2>&1; then
+        echo "ERROR: '$_nii2dcm_py' cannot import SimpleITK/Pillow/numpy."
+        echo "       DICOM generation will fail. Fix the env (see -m in the usage) and re-run."
+    fi
+    _nii2dcm_script="$kul_main_dir/KUL_nii2dcm.py"
+    if [ ! -f "$_nii2dcm_script" ]; then
+        echo "ERROR: $_nii2dcm_script not found — DICOM generation will fail."
+    fi
+
     # Donor DICOM: used to copy patient/study metadata into PACS DICOMs.
     # Search Karawun first, then RESULTS/sub-*/DICOM (case-insensitive, .dcm and .ima).
     donor_dcm=$(find "Karawun/sub-${participant}/DICOM" \( -iname "*.dcm" -o -iname "*.ima" \) -type f 2>/dev/null | sort | head -1)
@@ -712,6 +853,70 @@ if [ $results -gt 0 ];then
         echo "Using donor DICOM: $donor_dcm"
     fi
 
+    # --- SeriesNumber base, anchored to the donor ---------------------------
+    # Exported series get  D*100 + map_index*10 + orientation_index , where D is
+    # the donor's own SeriesNumber. That keeps our series adjacent to the study
+    # they belong to and ordered, while landing well above the range scanners
+    # actually use (Philips 101/201/.../1501, Siemens 1-30), so we never
+    # renumber over a real acquisition. Previously SeriesNumber was left empty
+    # on every series, which most PACS sort last or arbitrarily.
+    _donor_series_base=90
+    if [ -n "$donor_dcm" ]; then
+        _dsn=$("$_nii2dcm_py" -c "
+import sys, SimpleITK as sitk
+try:
+    r = sitk.ImageFileReader(); r.SetFileName(sys.argv[1]); r.ReadImageInformation()
+    for k in ('0020|0011', '0020|0011 '):
+        if r.HasMetaDataKey(k.strip()):
+            print(int(str(r.GetMetaData(k.strip())).strip())); break
+except Exception:
+    pass
+" "$donor_dcm" 2>/dev/null)
+        if [[ "$_dsn" =~ ^[0-9]+$ ]] && [ "$_dsn" -gt 0 ]; then
+            _donor_series_base=$_dsn
+        else
+            echo "Note: donor DICOM has no usable SeriesNumber (0020,0011); using base ${_donor_series_base} for exported series."
+        fi
+    fi
+    echo "SeriesNumber base (from donor): ${_donor_series_base} -> series numbered from $(( _donor_series_base * 100 + 10 ))"
+
+    # Fixed orientation->digit table. Deliberately NOT the position in $orientations:
+    # -O SAG,TRA would otherwise silently renumber everything between runs.
+    declare -A _ori_index=( [TRA]=0 [COR]=1 [SAG]=2 )
+
+    # map_index comes from a registry file written ONLY by the parent shell.
+    # The render functions get backgrounded, so if a child could append here two
+    # concurrent renders would race and could claim the same index. Registration
+    # therefore happens in the parent right before a name is dispatched, and the
+    # children only ever look up.
+    #
+    # The registry PERSISTS per subject, and is never rewritten -- only appended.
+    # A per-run temp file would restart map_index at 1 every time, so exporting
+    # fMRI today and perfusion tomorrow, or re-running against a second underlay
+    # (-R 4 then -R 2), would issue SeriesNumbers already used by series sitting
+    # in the same PACS study. Delete this file only if you want the whole
+    # subject renumbered from scratch.
+    mkdir -p "$globalresultsdir/PACS"
+    _pacs_index_file="$globalresultsdir/PACS/.series_index"
+    [ -f "$_pacs_index_file" ] || : > "$_pacs_index_file"
+    # Parent-only: give $1 a stable 1-based index for the rest of the run.
+    _pacs_register() {
+        grep -q -x -F "$1" "$_pacs_index_file" 2>/dev/null || printf '%s\n' "$1" >> "$_pacs_index_file"
+    }
+    # Read-only: SeriesNumber for a registered name + orientation. Returns empty
+    # for an unregistered name, in which case the caller simply omits -n and gets
+    # the historical (empty SeriesNumber) behaviour rather than a colliding one.
+    _pacs_series_number() {
+        local _idx _oi
+        _idx=$(grep -n -x -F "$1" "$_pacs_index_file" 2>/dev/null | head -1 | cut -d: -f1)
+        if [ -z "$_idx" ]; then
+            echo "WARNING: '$1' was not registered for SeriesNumber allocation" >&2
+            return 0
+        fi
+        _oi=${_ori_index[$2]:-0}
+        printf '%s' "$(( _donor_series_base * 100 + _idx * 10 + _oi ))"
+    }
+
     # Compute correct PixelSpacing for each orientation from the underlay geometry.
     # mrview -size N,N renders the full image FOV into exactly N pixels per side;
     # the larger in-plane physical dimension spans mrview_resolution pixels.
@@ -721,27 +926,57 @@ if [ $results -gt 0 ];then
     px_sag=$(python3 -c "print(max(${_dims[1]}*${_vox[1]},${_dims[2]}*${_vox[2]})/$mrview_resolution)")
     px_cor=$(python3 -c "print(max(${_dims[0]}*${_vox[0]},${_dims[2]}*${_vox[2]})/$mrview_resolution)")
 
-    # Mesa software renderer threads per mrview instance.
-    # 3 bundles run in parallel, so total cores = mrview_threads * 3.
-    mrview_threads=$(( ncpu / 3 ))
+    # How many mrview instances run at once, and Mesa llvmpipe threads for each.
+    # Total cores used = mrview_threads * _render_par. This now governs the
+    # fMRI/Melodic/Clinical renders as well as the tract renders; those used to
+    # run strictly serially while still being sized as if 3 were in flight, so
+    # they used a third of the box.
+    # Override with KUL_RENDER_PAR=1 to render serially. Worth doing on hosts
+    # where concurrent mrview instances contend on a global SysV semaphore:
+    # one instance runs and the others block on it with zero CPU until the
+    # timeout kills them, so 3-way parallelism ends up slower than serial and
+    # can look like a hang. Symptom: `cat /proc/<pid>/wchan` on the stalled
+    # mrview reads do_semtimedop, and `ipcs -s` shows waiters (ncount > 0).
+    _render_par=${KUL_RENDER_PAR:-3}
+    [ "$_render_par" -lt 1 ] 2>/dev/null && _render_par=1
+    mrview_threads=$(( ncpu / _render_par ))
     [ $mrview_threads -lt 1 ] && mrview_threads=1
+    echo "Render parallelism: $_render_par concurrent mrview, $mrview_threads Mesa thread(s) each"
 
     # --- Portable headless-mrview environment (Linux Mint / Ubuntu, GPU or not) ---
     # Every mrview capture below is prefixed with $_mrview_env. This:
-    #   * strips the MATLAB MCR's Qt5 from LD_LIBRARY_PATH. That Qt5 ships no platform
+    #   * strips the MATLAB MCR's Qt from LD_LIBRARY_PATH. That Qt ships no platform
     #     plugins, so if it shadows the system Qt you get the classic abort:
     #       "Could not find the Qt platform plugin xcb/offscreen in ''".
     #     All MCR lib dirs live under .../glnxa64, so removing that single token is a
     #     precise filter that leaves CUDA (and everything else) intact. It is applied
     #     ONLY to the mrview call, so any MCR-based step elsewhere keeps its runtime.
+    #     /snap/ is filtered for the same reason -- a snap's bundled libs are built
+    #     against a different glibc than the host's.
     #   * forces Mesa llvmpipe (LIBGL_ALWAYS_SOFTWARE=1) so software GL is used
     #     deterministically even on machines that DO have a GPU but no display.
     #   * drops any leaked QT_QPA_PLATFORM=offscreen / QT_PLUGIN_PATH from the shell,
     #     which would otherwise override the xcb plugin xvfb-run provides.
+    #   * drops the GTK/GLib module search vars. This one is not theoretical: when
+    #     the pipeline is launched from a terminal inside snap-packaged VS Code,
+    #     GTK_PATH points at /snap/code/<rev>/usr/lib/x86_64-linux-gnu/gtk-3.0.
+    #     Qt loads libcanberra-gtk-module.so from there, and that module's RPATH
+    #     drags /snap/core20/current/lib/x86_64-linux-gnu/libpthread.so.0 in
+    #     against the host glibc, so mrview dies before it renders anything:
+    #       symbol lookup error: .../libpthread.so.0: undefined symbol:
+    #       __libc_pthread_init, version GLIBC_PRIVATE
+    #     GTK_PATH alone is enough to trigger it and enough to fix it; the rest
+    #     are unset alongside because they leak from the same snap wrapper.
+    #     This is why the step could work on one machine and fail on another --
+    #     it depends on how the terminal was launched, not on the host.
     # Override the binary with MRVIEW_BIN=/path/to/mrview if PATH is ambiguous.
-    _mrview_ld=$(printf '%s' "${LD_LIBRARY_PATH:-}" | tr ':' '\n' | grep -v 'glnxa64' | paste -sd:)
+    _mrview_ld=$(printf '%s' "${LD_LIBRARY_PATH:-}" | tr ':' '\n' | grep -v 'glnxa64' | grep -v '^/snap/' | paste -sd:)
     _mrview_bin="${MRVIEW_BIN:-$(command -v mrview)}"
-    _mrview_env="env -u QT_QPA_PLATFORM -u QT_PLUGIN_PATH LD_LIBRARY_PATH=$_mrview_ld LIBGL_ALWAYS_SOFTWARE=1"
+    _mrview_env="env -u QT_QPA_PLATFORM -u QT_PLUGIN_PATH \
+        -u GTK_PATH -u GTK_MODULES -u GTK_EXE_PREFIX -u GTK_IM_MODULE_FILE \
+        -u GIO_MODULE_DIR -u GSETTINGS_SCHEMA_DIR -u LOCPATH \
+        -u GDK_PIXBUF_MODULE_FILE -u GDK_PIXBUF_MODULEDIR \
+        LD_LIBRARY_PATH=$_mrview_ld LIBGL_ALWAYS_SOFTWARE=1"
     if [ -z "$_mrview_bin" ]; then
         echo "ERROR: mrview not found on PATH. Set MRVIEW_BIN=/path/to/mrview or fix PATH."
         _mrview_bin="mrview"   # fall through; the failure will be explicit
@@ -750,6 +985,80 @@ if [ $results -gt 0 ];then
         echo "WARNING: xvfb-run not found — mrview screenshots will fail on this host."
         echo "         Install with: sudo apt install -y xvfb libgl1-mesa-dri"
     fi
+
+    # Base X display number for this run. xvfb-run -a searches upward from here
+    # for a free server, so a stale /tmp/.X<n>-lock left by a killed run (or an
+    # ssh -X session, which allocates from :10) no longer wedges the render --
+    # that used to fail with zero PNGs and no error. The base is randomised so
+    # two concurrent pipeline runs don't both start probing the same number.
+    # Defined here because the preflight render below already needs it.
+    _xvfb_base=$(( 50 + RANDOM % 40 ))
+
+    # Preflight A: warn about mrview processes wedged from an earlier run.
+    #
+    # A hung mrview holds a SysV semaphore (seen with `ipcs -s`, wchan
+    # do_semtimedop) that it never releases, and EVERY later mrview on the host
+    # then blocks on it forever. One wedged run therefore poisons every
+    # subsequent one — renders that produce no PNGs, no error, and eventually
+    # just hit the timeout. Detected and reported rather than killed
+    # automatically: on a shared machine those processes may belong to someone
+    # else's live run, and that call is not this script's to make.
+    _stale_mrview=$(pgrep -x mrview 2>/dev/null | wc -l)
+    if [ "$_stale_mrview" -gt 0 ]; then
+        echo ""
+        echo "WARNING: ${_stale_mrview} mrview process(es) are already running on this host."
+        echo "         If they are wedged from an earlier run they hold a semaphore that will"
+        echo "         block every render below indefinitely. Check their age with:"
+        echo "           ps -o pid,etime,cmd -p \$(pgrep -dx, mrview) | cut -c1-100"
+        echo "         If they are stale, clear them (and any orphaned Xvfb) with:"
+        echo "           pkill -x mrview; pkill -f 'Xvfb :'"
+        echo "           ipcs -s | awk '/^0x/ {print \$2}' | xargs -r -n1 ipcrm -s"
+        echo ""
+    fi
+
+    # Preflight B: render one real slice before committing to hundreds.
+    #
+    # Deliberately a capture and not `mrview --version`: --version never opens a
+    # window or touches OpenGL, so it succeeds on a host where every actual
+    # render hangs. This catches both failure modes we have actually seen — the
+    # snap/GTK library clash (mrview dies immediately) and the wedged-semaphore
+    # cascade (mrview starts and blocks forever) — in a few seconds, instead of
+    # after a 10-minute timeout on each of ~130 series.
+    _pf_dir=$(mktemp -d "${TMPDIR:-/tmp}/kul_mrview_preflight_XXXXXX")
+    _pf_tmp=$(mktemp -d "${TMPDIR:-/tmp}/kul_mrview_pftmp_XXXXXX")
+    _mrview_check=$(eval "$_mrview_env TMPDIR=$_pf_tmp timeout -k 10 120 \
+        xvfb-run -a -n $_xvfb_base -e /dev/stderr \
+        --server-args=\"-screen 0 ${mrview_resolution}x${mrview_resolution}x24\" \
+        $_mrview_bin -size $mrview_resolution,$mrview_resolution \
+        -load $underlay -mode 1 -plane 2 -noannotations \
+        -capture.folder $_pf_dir -capture.prefix pf -voxel 0,0,0 -capture.grab \
+        -force -exit" 2>&1)
+    _pf_rc=$?
+    _pf_n=$(ls "$_pf_dir"/*.png 2>/dev/null | wc -l)
+    rm -rf "$_pf_dir" "$_pf_tmp"
+    if [ $_pf_rc -ne 0 ] || [ "$_pf_n" -eq 0 ]; then
+        echo ""
+        echo "ERROR: mrview cannot render. Screenshots (and therefore all PACS/Karawun"
+        echo "       DICOM output) would fail. Test render exit=${_pf_rc}, PNGs=${_pf_n}."
+        printf '         %s\n' "$(printf '%s' "$_mrview_check" | grep -viE 'keysym|xkbcomp|^>|Errors from' | head -5)"
+        echo ""
+        if [ $_pf_rc -eq 124 ] || [ $_pf_rc -eq 137 ]; then
+            echo "       It HUNG rather than failed. That is almost always a wedged mrview"
+            echo "       from an earlier run holding a semaphore every later one waits on:"
+            echo "         ps -o pid,etime,cmd -p \$(pgrep -dx, mrview) | cut -c1-100"
+            echo "         pkill -x mrview; pkill -f 'Xvfb :'"
+            echo "         ipcs -s | awk '/^0x/ {print \$2}' | xargs -r -n1 ipcrm -s"
+        else
+            echo "       If the output mentions /snap/, the environment is leaking a snap's"
+            echo "       libraries into mrview. This block already unsets the usual culprits"
+            echo "       (GTK_PATH etc.); check for others with:  env | grep -i snap"
+            echo "       Running from a plain terminal rather than a snap-packaged editor's"
+            echo "       integrated terminal is the quickest workaround."
+        fi
+        echo ""
+        exit 1
+    fi
+    echo "mrview preflight OK (rendered a test slice)"
 
     mkdir -p $resultsdir_png
     mkdir -p $resultsdir_dcm
@@ -761,29 +1070,275 @@ if [ $results -gt 0 ];then
     mkdir -p "$spm_resultsdir_png"
     mkdir -p "$spm_resultsdir_dcm"
 
-    # Render one SPM/Melodic map (all orientations) on display :20.
+    # --- Failure collection + per-series logs -------------------------------
+    # Render/convert failures used to be swallowed ("|| echo WARNING") and the
+    # run always exited 0. Children are backgrounded, so failures are collected
+    # in a file rather than a bash array (a child's array write never reaches
+    # the parent). Single short appends to the same file are atomic enough.
+    _pacs_logdir="$cwd/KUL_LOG/sub-${participant}_PACS"
+    mkdir -p "$_pacs_logdir"
+    _pacs_fail_file=$(mktemp "${TMPDIR:-/tmp}/kul_pacs_fail_XXXXXX")
+    : > "$_pacs_fail_file"
+    _pacs_note_fail() {
+        # kind, label, detail
+        printf '%-8s %-48s %s\n' "$1" "$2" "$3" >> "$_pacs_fail_file"
+    }
+
+    # Run one mrview capture and verify it produced what it should.
+    #   $1 slot   $2 png_dir   $3 expected PNG count   $4 label   $5 mrview args
+    # Returns 0 only if mrview exited cleanly AND the full slice count landed.
+    # A short render is retried once from scratch; previously any single PNG
+    # counted as "done", so a run killed by the timeout left a truncated series
+    # that every later run skipped.
+    _mrview_capture() {
+        local slot="$1" png_dir="$2" expected="$3" label="$4" args="$5"
+        local attempt rc got logf mtmp
+        logf="$_pacs_logdir/${label}.log"
+        for attempt in 1 2; do
+            mkdir -p "$png_dir"
+            # Private TMPDIR per invocation. Qt builds a QSystemSemaphore whose
+            # SysV key is ftok()'d from a backing file it creates in $TMPDIR
+            # (.../qipc_systemsem_<hash>). Every mrview on the host hashes to
+            # the same name, so they all share ONE semaphore and serialise on
+            # it -- and if one is SIGKILLed while holding it (which the timeout
+            # below does), every later mrview blocks in semtimedop forever, with
+            # zero CPU, including ones started by hand from another terminal.
+            # That is the hang that wedged this host for 8.5 h. A per-process
+            # TMPDIR gives each render its own key, so they cannot collide and
+            # nothing is left behind for the next run to trip over.
+            mtmp=$(mktemp -d "${TMPDIR:-/tmp}/kul_mrview_XXXXXX")
+            eval "$_mrview_env TMPDIR=$mtmp LP_NUM_THREADS=$mrview_threads timeout -k 30 600 \
+                xvfb-run -a -n $(( _xvfb_base + slot )) -e /dev/stderr \
+                --server-args=\"-screen 0 ${mrview_resolution}x${mrview_resolution}x24\" \
+                $_mrview_bin $args" >>"$logf" 2>&1
+            rc=$?
+            rm -rf "$mtmp"
+            got=$(ls "$png_dir"/*.png 2>/dev/null | wc -l)
+            if [ $rc -eq 0 ] && [ "$got" -eq "$expected" ]; then
+                return 0
+            fi
+            echo "WARNING: ${label} rendered ${got}/${expected} PNGs (mrview exit ${rc}), attempt ${attempt}/2"
+            if [ $attempt -lt 2 ]; then
+                rm -rf "$png_dir"
+            fi
+        done
+        _pacs_note_fail "render" "$label" "${got}/${expected} PNGs, mrview exit ${rc} — see ${logf}"
+        return 1
+    }
+
+    # True when a screenshot folder already holds a COMPLETE set of slices.
+    _png_dir_complete() {
+        local d="$1" expected="$2" got
+        got=$(ls "$d"/*.png 2>/dev/null | wc -l)
+        [ "$got" -eq "$expected" ] && [ "$expected" -gt 0 ]
+    }
+
+    # Number of slices mrview will capture for an orientation, from the underlay.
+    # Computed once here (it is the same for every map/bundle) rather than
+    # re-running mrinfo per orientation per render as before.
+    _ul_slices_SAG=${_dims[0]}
+    _ul_slices_COR=${_dims[1]}
+    _ul_slices_TRA=${_dims[2]}
+    _expected_slices() {
+        case "$1" in
+            TRA) printf '%s' "$_ul_slices_TRA" ;;
+            SAG) printf '%s' "$_ul_slices_SAG" ;;
+            COR) printf '%s' "$_ul_slices_COR" ;;
+            *)   printf '0' ;;
+        esac
+    }
+    # mrview -plane index for an orientation (0=sagittal, 1=coronal, 2=axial).
+    _plane_of() {
+        case "$1" in TRA) printf '2' ;; SAG) printf '0' ;; COR) printf '1' ;; *) printf '2' ;; esac
+    }
+
+    # Robust display range for an overlay: 2nd-98th percentile over the
+    # non-zero, finite voxels (optionally restricted to voxels at or above a
+    # threshold, so a thresholded map's colours span what is actually shown).
+    #
+    # Every overlay gets one. mrview's -overlay.threshold_min only decides which
+    # voxels are drawn, not how values map to colours: without an explicit
+    # -overlay.intensity, mrview windows the colourmap over the volume's full
+    # range, so a map whose values run into the thousands (rCBV, ALFF) renders
+    # as a saturated all-white blob, while a narrow-range fMRI t-map happens to
+    # look fine. That is why fusing perfusion maps on an anatomical never
+    # worked. A single hot vessel voxel would also compress the whole brain
+    # into the bottom of the colourmap, hence percentiles rather than min/max.
+    # max / p99 over non-zero finite voxels: how outlier-driven the maximum is.
+    # A statistical map sits near 1-3; a physiological map with vessel voxels
+    # (rCBV, ALFF) runs far higher. Used to spot maps for which the max/3 auto
+    # threshold is meaningless -- see _render_one_spm.
+    _map_tail_ratio() {
+        "$_nii2dcm_py" -c "
+import sys, numpy as np, SimpleITK as sitk
+a = sitk.GetArrayFromImage(sitk.ReadImage(sys.argv[1])).astype('float64')
+a = a[np.isfinite(a)]; a = a[a != 0]
+if a.size == 0: sys.exit(1)
+mx = float(a.max()); p99 = float(np.percentile(a, 99))
+print(f'{(mx/p99) if p99 > 0 else 0:.3f}')
+" "$1" 2>/dev/null
+    }
+
+    # Reference tissue for anchoring the display window of a continuous overlay.
+    # Grey matter, i.e. the cortex, from the anatomical segmentation.
+    _gm_ref="$globalresultsdir/Anat/T1w_GM.nii.gz"
+    # Upper end of the window, as a multiple of the map's median in that tissue.
+    # 4x puts normal cortex at a quarter scale and saturates only the hottest
+    # ~3-4% of the brain, which for rCBV is tumour and vessel.
+    _win_ref_mult=4
+
+    _map_intensity_range() {
+        "$_nii2dcm_py" -c "
+import sys, numpy as np, SimpleITK as sitk
+a = sitk.GetArrayFromImage(sitk.ReadImage(sys.argv[1])).astype('float64')
+thr = float(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else None
+ref = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
+mult = float(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else 4.0
+
+# Upper bound, preferred: a multiple of the map's median inside a reference
+# tissue. A percentile of the map itself drifts with how much tumour and vessel
+# happen to sit in the field of view, so the same physiology gets a different
+# colour in different patients. Anchoring to cortex makes the scale mean
+# 'x cortical value' and stay comparable between studies and scanners.
+hi_ref = None
+if ref:
+    try:
+        m = sitk.GetArrayFromImage(sitk.ReadImage(ref)).astype('float64')
+        if m.shape == a.shape:
+            sel = (m > 0.5) & np.isfinite(a) & (a != 0)
+            if sel.sum() > 1000:
+                med = float(np.median(a[sel]))
+                if np.isfinite(med) and med > 0:
+                    hi_ref = mult * med
+    except Exception:
+        pass
+
+a = a[np.isfinite(a)]
+a = a[a >= thr] if thr is not None else a[a != 0]
+if a.size == 0:
+    sys.exit(1)
+lo = float(np.percentile(a, 2))
+hi = hi_ref if hi_ref is not None else float(np.percentile(a, 98))
+if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
+    lo, hi = float(a.min()), float(a.max())
+if hi <= lo:
+    hi = lo + 1e-6
+
+# Round the ends so the colourbar reads cleanly: whole numbers once the values
+# are >= 1, otherwise at most 3 decimals (0.01, 0.005). Reverted if rounding
+# would collapse or invert the range, which it can for very small-valued maps.
+def nice(v):
+    return float(round(v)) if abs(v) >= 1 else round(v, 3)
+r_lo, r_hi = nice(lo), nice(hi)
+if r_hi > r_lo:
+    lo, hi = r_lo, r_hi
+
+print(f'{lo:g},{hi:g}')
+" "$1" "${2:-}" "${3:-}" "$_win_ref_mult" 2>/dev/null
+    }
+
+    # Wrapper around KUL_nii2dcm.py: uses the resolved interpreter, logs, and
+    # records failures instead of discarding the exit status.
+    #   $1 label (also the log name), rest = arguments to KUL_nii2dcm.py
+    _run_nii2dcm() {
+        local label="$1"; shift
+        local logf="$_pacs_logdir/${label}.dcm.log"
+        local rc
+        # Status captured directly, not after an `if`: a false `if` with no
+        # `else` yields 0, so reading $? there reported every failure as "exit 0".
+        "$_nii2dcm_py" "$_nii2dcm_script" "$@" >>"$logf" 2>&1
+        rc=$?
+        [ $rc -eq 0 ] && return 0
+        echo "WARNING: KUL_nii2dcm.py failed for ${label} (exit ${rc}) — see ${logf}"
+        _pacs_note_fail "convert" "$label" "KUL_nii2dcm.py exit ${rc} — see ${logf}"
+        return $rc
+    }
+
+    # Render one SPM/Melodic map (all orientations).
     # Threshold is computed per-map as max/3 (same as the report logic).
     _render_one_spm() {
-        local spmfile="$1" spmname="$2"
+        local spmfile="$1" spmname="$2" slot="${3:-0}" render_mode="${4:-thresholded}"
         local ori
         IFS=',' read -ra ori <<< "$orientations"
 
-        local _max_T _thresh
-        if [ -n "${spm_thresh_map[$spmname]+x}" ]; then
+        # Resolve the threshold. "none" (from a <name>.thresh sidecar) means show
+        # the whole range -- right for physiological maps like rCBV/ALFF/ReHo,
+        # where thresholding would hide most of what the reader wants to see.
+        local _thresh="" _max_T
+        if [ "$render_mode" = "continuous" ]; then
+            _thresh=""
+        elif [ -n "${spm_thresh_map[$spmname]+x}" ]; then
             _thresh=${spm_thresh_map[$spmname]}
-            echo "SPM ${spmname}: using per-map threshold=${_thresh}"
+            if [ "$_thresh" = "none" ]; then
+                _thresh=""
+                echo "Map ${spmname}: no threshold (full range)"
+            else
+                echo "Map ${spmname}: using per-map threshold=${_thresh}"
+            fi
         elif [ -n "$spm_thresh_override" ]; then
             _thresh=$spm_thresh_override
-            echo "SPM ${spmname}: using fixed threshold=${_thresh}"
+            echo "Map ${spmname}: using fixed threshold=${_thresh}"
         else
-            _max_T=$(mrstats -output max "$spmfile")
-            _thresh=$(awk "BEGIN {print $_max_T/3}")
-            echo "SPM ${spmname}: max=${_max_T}, auto threshold=${_thresh}"
+            # Automatic threshold is max/3, which assumes the maximum is a
+            # meaningful peak -- true for a statistical map, false for a
+            # physiological one whose maximum is a vessel voxel. On real data
+            # rCBV had max=12111 against a p99 of 1543, so max/3 kept 704 of
+            # 2,083,162 voxels (0.03%) and the overlay was effectively blank.
+            # When the maximum is that far out in the tail, threshold the map at
+            # all is the wrong question: these are brain-masked physiological
+            # maps meant to be read brain-wide, so render them continuous
+            # (full range, robust window, colourbar) instead.
+            # An explicit threshold (-T, sidecar, or the fixed clinical cutoffs
+            # for nrCBV/nrCBF) always wins -- this only affects the auto case.
+            local _ratio
+            _ratio=$(_map_tail_ratio "$spmfile")
+            if [ -n "$_ratio" ] && awk "BEGIN {exit !($_ratio > 3)}"; then
+                echo "Map ${spmname}: max/p99 = ${_ratio} (outlier-driven maximum)"
+                echo "  -> rendering brain-wide with a colourbar instead of an auto threshold"
+                _thresh=""
+            else
+                _max_T=$(mrstats -output max "$spmfile")
+                _thresh=$(awk "BEGIN {print $_max_T/3}")
+                echo "Map ${spmname}: max=${_max_T}, auto threshold=${_thresh}"
+            fi
+        fi
+
+        # Colour windowing, ALWAYS. mrview's threshold decides which voxels are
+        # drawn; the intensity range decides how their values map to colours.
+        # Without this a map whose values run into the thousands (rCBV, ALFF)
+        # renders as a saturated all-white blob, while a narrow-range fMRI t-map
+        # happens to look right -- the reason perfusion overlays never worked.
+        # For a thresholded map the range is taken over the suprathreshold
+        # voxels, so the colourmap spans exactly what is on screen.
+        local _overlay_opts _colourbar=0 _range
+        if [ -z "$_thresh" ]; then
+            # Continuous (physiological) map: anchor the top of the window to
+            # cortical values so the colours mean the same thing across studies.
+            _range=$(_map_intensity_range "$spmfile" "" "$_gm_ref")
+        else
+            # Thresholded (statistical) map: the cortex median of a t-map is not
+            # a meaningful anchor, so window over the suprathreshold voxels.
+            _range=$(_map_intensity_range "$spmfile" "$_thresh")
+        fi
+        if [ -z "$_range" ]; then
+            echo "WARNING: no usable intensity range for ${spmname} (empty, all-NaN, or nothing above threshold)"
+            _pacs_note_fail "render" "$spmname" "no usable intensity range"
+            return 1
+        fi
+        echo "Map ${spmname}: overlay intensity range ${_range}"
+        _overlay_opts="-overlay.intensity $_range"
+        if [ -n "$_thresh" ]; then
+            _overlay_opts="$_overlay_opts -overlay.threshold_min $_thresh"
+        else
+            # No threshold: show the full map and give the reader a scale.
+            _overlay_opts="$_overlay_opts -overlay.no_threshold_min -overlay.no_threshold_max"
+            _colourbar=1
         fi
 
         # Optionally compute a 1-voxel edge mask for the dark-blue outline
+        # (only meaningful for a thresholded map -- there is no edge without one)
         local _edge_overlay="" _tmp_mask="" _tmp_eroded="" _tmp_edge=""
-        if [ $spm_edge -eq 1 ]; then
+        if [ $spm_edge -eq 1 ] && [ -n "$_thresh" ]; then
             _tmp_mask=$(mktemp /tmp/spm_mask_XXXXXX.nii.gz)
             _tmp_eroded=$(mktemp /tmp/spm_eroded_XXXXXX.nii.gz)
             _tmp_edge=$(mktemp /tmp/spm_edge_XXXXXX.nii.gz)
@@ -796,17 +1351,12 @@ if [ $results -gt 0 ];then
         local _px_tra=$px_tra _px_sag=$px_sag _px_cor=$px_cor _sample_png=""
         for orient in "${ori[@]}"; do
             local plane underlay_slices
-            if [[ "$orient" == "TRA" ]]; then
-                underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF)}'); plane=2
-            elif [[ "$orient" == "SAG" ]]; then
-                underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-2)}'); plane=0
-            else
-                underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-1)}'); plane=1
-            fi
+            underlay_slices=$(_expected_slices "$orient")
+            plane=$(_plane_of "$orient")
 
             local png_dir="$spm_resultsdir_png/${spmname}_${orient}"
-            if [ -n "$(ls "$png_dir"/*.png 2>/dev/null | head -1)" ]; then
-                echo "Skipping screenshots for ${spmname}_${orient} (already exist)"
+            if _png_dir_complete "$png_dir" "$underlay_slices"; then
+                echo "Skipping screenshots for ${spmname}_${orient} (complete: ${underlay_slices} slices)"
             else
                 mkdir -p "$png_dir"
                 local voxel_index="" i=0
@@ -821,16 +1371,17 @@ if [ $results -gt 0 ];then
                     let "i+=1"
                 done
                 echo "Making ${spmname}_${orient} SPM on $(basename $underlay)"
-                eval "$_mrview_env LP_NUM_THREADS=$mrview_threads timeout 600 xvfb-run -n 20 --server-args=\"-screen 0 ${mrview_resolution}x${mrview_resolution}x24\" $_mrview_bin -size $mrview_resolution,$mrview_resolution \
+                _mrview_capture "$slot" "$png_dir" "$underlay_slices" "${spmname}_${orient}" \
+                    "-size $mrview_resolution,$mrview_resolution \
                     -load $underlay -mode 1 -plane $plane \
                     -overlay.load $spmfile -overlay.opacity $spm_opacity -overlay.colourmap 1 \
-                        -overlay.threshold_min $_thresh \
+                        $_overlay_opts \
                     $_edge_overlay \
-                    -noannotations -orientlabel 0 -voxelinfo 0 -colourbar 0 \
+                    -noannotations -orientlabel 0 -voxelinfo 0 -colourbar $_colourbar \
                     -capture.folder $png_dir -capture.prefix ${spmname}_${orient} \
                     $voxel_index -force -exit"
-                [ -z "$_sample_png" ] && _sample_png=$(ls "$png_dir"/*.png 2>/dev/null | head -1)
             fi
+            [ -z "$_sample_png" ] && _sample_png=$(ls "$png_dir"/*.png 2>/dev/null | head -1)
         done
 
         [ -n "$_tmp_mask" ] && rm -f "$_tmp_mask" "$_tmp_eroded" "$_tmp_edge"
@@ -838,10 +1389,10 @@ if [ $results -gt 0 ];then
         # Recompute PixelSpacing from first screenshot (same as tract logic)
         if [ -n "$_sample_png" ]; then
             local _png_max
-            _png_max=$(python3 -c "from PIL import Image; w,h=Image.open('$_sample_png').size; print(max(w,h))")
-            _px_tra=$(python3 -c "print(max(${_dims[0]}*${_vox[0]},${_dims[1]}*${_vox[1]})/$_png_max)")
-            _px_sag=$(python3 -c "print(max(${_dims[1]}*${_vox[1]},${_dims[2]}*${_vox[2]})/$_png_max)")
-            _px_cor=$(python3 -c "print(max(${_dims[0]}*${_vox[0]},${_dims[2]}*${_vox[2]})/$_png_max)")
+            _png_max=$("$_nii2dcm_py" -c "from PIL import Image; w,h=Image.open('$_sample_png').size; print(max(w,h))")
+            _px_tra=$("$_nii2dcm_py" -c "print(max(${_dims[0]}*${_vox[0]},${_dims[1]}*${_vox[1]})/$_png_max)")
+            _px_sag=$("$_nii2dcm_py" -c "print(max(${_dims[1]}*${_vox[1]},${_dims[2]}*${_vox[2]})/$_png_max)")
+            _px_cor=$("$_nii2dcm_py" -c "print(max(${_dims[0]}*${_vox[0]},${_dims[2]}*${_vox[2]})/$_png_max)")
         fi
 
         # DICOM conversion (only when explicitly requested via -R)
@@ -850,53 +1401,55 @@ if [ $results -gt 0 ];then
            { [ ${#_dcm_spm_set[@]} -eq 0 ] || [ -n "${_dcm_spm_set[$spmname]+x}" ]; }; then
             local dcm_label="${spmname}_on_${_ulsuffix}"
             for orient in "${ori[@]}"; do
-                local ps
+                local ps snum _nopt
                 case $orient in TRA) ps=$_px_tra ;; SAG) ps=$_px_sag ;; COR) ps=$_px_cor ;; esac
                 local png_dir="$spm_resultsdir_png/${spmname}_${orient}"
                 local dcmdir="$spm_resultsdir_dcm/${dcm_label}_${orient}"
+                # Only convert a complete screenshot set — a short render would
+                # otherwise be silently wrapped into a truncated series.
+                if ! _png_dir_complete "$png_dir" "$(_expected_slices "$orient")"; then
+                    echo "Skipping DICOMs for ${dcm_label}_${orient} (screenshots incomplete)"
+                    continue
+                fi
+                snum=$(_pacs_series_number "map:${_ulsuffix}:$spmname" "$orient")
+                _nopt=""; [ -n "$snum" ] && _nopt="-n $snum"
                 if [ -n "$(ls "$dcmdir"/*.dcm 2>/dev/null | head -1)" ]; then
                     echo "Skipping DICOMs for ${dcm_label}_${orient} (already exist)"
                 else
                     mkdir -p "$dcmdir"
                     if [[ "$orient" == "SAG" ]]; then
-                        echo "Making dicoms in $dcmdir (donor-match mode)"
-                        KUL_nii2dcm.py -s "${dcm_label}_${orient}" \
+                        echo "Making dicoms in $dcmdir (donor-match mode, SeriesNumber=${snum:-<none>})"
+                        _run_nii2dcm "${dcm_label}_${orient}" -s "${dcm_label}_${orient}" $_nopt \
                             -u "$underlay" -o "$orient" -M \
-                            "$png_dir" "$donor_dcm" "$dcmdir" \
-                            || echo "WARNING: KUL_nii2dcm.py failed for ${dcm_label}_${orient}"
+                            "$png_dir" "$donor_dcm" "$dcmdir"
                     else
-                        echo "Making dicoms in $dcmdir (PixelSpacing=${ps}mm)"
-                        KUL_nii2dcm.py -s "${dcm_label}_${orient}" -p $ps \
+                        echo "Making dicoms in $dcmdir (PixelSpacing=${ps}mm, SeriesNumber=${snum:-<none>})"
+                        _run_nii2dcm "${dcm_label}_${orient}" -s "${dcm_label}_${orient}" -p $ps $_nopt \
                             -u "$underlay" -o "$orient" \
-                            "$png_dir" "$donor_dcm" "$dcmdir" \
-                            || echo "WARNING: KUL_nii2dcm.py failed for ${dcm_label}_${orient}"
+                            "$png_dir" "$donor_dcm" "$dcmdir"
                     fi
                 fi
             done
         fi
     }
 
-    # Render one bundle (all orientations sequentially) on display :$((10+slot))
+    # Render one bundle (all orientations sequentially) on its own X display
     _render_one_bundle() {
         local slot="$1" tractname="$2" mrview_tck="$3"
         local ori
         IFS=',' read -ra ori <<< "$orientations"
 
         for orient in "${ori[@]}"; do
-            if [ -n "$(ls "$resultsdir_png/${tractname}_${orient}"/*.png 2>/dev/null | head -1)" ]; then
-                echo "Skipping screenshots for ${tractname}_${orient} (already exist)"
+            local underlay_slices plane png_dir
+            underlay_slices=$(_expected_slices "$orient")
+            plane=$(_plane_of "$orient")
+            png_dir="$resultsdir_png/${tractname}_${orient}"
+            if _png_dir_complete "$png_dir" "$underlay_slices"; then
+                echo "Skipping screenshots for ${tractname}_${orient} (complete: ${underlay_slices} slices)"
             else
-                local underlay_slices plane
-                if [[ "$orient" == "TRA" ]]; then
-                    underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF)}'); plane=2
-                elif [[ "$orient" == "SAG" ]]; then
-                    underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-2)}'); plane=0
-                else
-                    underlay_slices=$(mrinfo $underlay -size | awk '{print $(NF-1)}'); plane=1
-                fi
                 echo "Making ${tractname}_${orient} on $(basename $underlay)"
-                mkdir -p "$resultsdir_png/${tractname}_${orient}"
-                local voxel_index="-capture.folder $resultsdir_png/${tractname}_${orient} -capture.prefix ${tractname}_${orient}"
+                mkdir -p "$png_dir"
+                local voxel_index="-capture.folder $png_dir -capture.prefix ${tractname}_${orient}"
                 local i=0
                 while [ $i -lt $underlay_slices ]; do
                     if [[ "$orient" == "TRA" ]]; then
@@ -908,7 +1461,8 @@ if [ $results -gt 0 ];then
                     fi
                     let "i+=1"
                 done
-                eval "$_mrview_env LP_NUM_THREADS=$mrview_threads timeout 600 xvfb-run -n $((10 + slot)) --server-args=\"-screen 0 ${mrview_resolution}x${mrview_resolution}x24\" $_mrview_bin -size $mrview_resolution,$mrview_resolution \
+                _mrview_capture "$slot" "$png_dir" "$underlay_slices" "${tractname}_${orient}" \
+                    "-size $mrview_resolution,$mrview_resolution \
                     -load $underlay -mode 1 -plane $plane \
                     -tractography.lighting 1 -tractography.slab 1.5 -tractography.thickness 0.3 \
                     -noannotations -orientlabel 0 -voxelinfo 0 -colourbar 0 \
@@ -924,43 +1478,58 @@ if [ $results -gt 0 ];then
         done
         if [ -n "$_sample_png" ]; then
             local _png_max
-            _png_max=$(python3 -c "from PIL import Image; w,h=Image.open('$_sample_png').size; print(max(w,h))")
-            _px_tra=$(python3 -c "print(max(${_dims[0]}*${_vox[0]},${_dims[1]}*${_vox[1]})/$_png_max)")
-            _px_sag=$(python3 -c "print(max(${_dims[1]}*${_vox[1]},${_dims[2]}*${_vox[2]})/$_png_max)")
-            _px_cor=$(python3 -c "print(max(${_dims[0]}*${_vox[0]},${_dims[2]}*${_vox[2]})/$_png_max)")
+            _png_max=$("$_nii2dcm_py" -c "from PIL import Image; w,h=Image.open('$_sample_png').size; print(max(w,h))")
+            _px_tra=$("$_nii2dcm_py" -c "print(max(${_dims[0]}*${_vox[0]},${_dims[1]}*${_vox[1]})/$_png_max)")
+            _px_sag=$("$_nii2dcm_py" -c "print(max(${_dims[1]}*${_vox[1]},${_dims[2]}*${_vox[2]})/$_png_max)")
+            _px_cor=$("$_nii2dcm_py" -c "print(max(${_dims[0]}*${_vox[0]},${_dims[2]}*${_vox[2]})/$_png_max)")
             echo "Actual PNG max dim: ${_png_max}px → PixelSpacing TRA=${_px_tra}mm SAG=${_px_sag}mm COR=${_px_cor}mm"
         fi
 
         # DICOM conversion (only when explicitly requested via -R)
         if [ $make_dcm -eq 1 ] && [ -n "$donor_dcm" ]; then
             for orient in "${ori[@]}"; do
-                local ps
+                local ps snum _nopt
                 case $orient in TRA) ps=$_px_tra ;; SAG) ps=$_px_sag ;; COR) ps=$_px_cor ;; esac
+                local png_dir="$resultsdir_png/${tractname}_${orient}"
                 local dcmdir="$resultsdir_dcm/${tractname}_${orient}"
+                # Only convert a complete screenshot set — a short render would
+                # otherwise be silently wrapped into a truncated series.
+                if ! _png_dir_complete "$png_dir" "$(_expected_slices "$orient")"; then
+                    echo "Skipping DICOMs for ${tractname}_${orient} (screenshots incomplete)"
+                    continue
+                fi
+                snum=$(_pacs_series_number "tract:${_ulsuffix}:$tractname" "$orient")
+                _nopt=""; [ -n "$snum" ] && _nopt="-n $snum"
                 if [ -n "$(ls "$dcmdir"/*.dcm 2>/dev/null | head -1)" ]; then
                     echo "Skipping DICOMs for ${tractname}_${orient} (already exist)"
                 else
                     mkdir -p "$dcmdir"
                     if [[ "$orient" == "SAG" ]]; then
-                        echo "Making dicoms in $dcmdir (donor-match mode)"
-                        KUL_nii2dcm.py -s "FT_${tractname}_${orient}_${_ulsuffix}" \
+                        echo "Making dicoms in $dcmdir (donor-match mode, SeriesNumber=${snum:-<none>})"
+                        _run_nii2dcm "FT_${tractname}_${orient}" \
+                            -s "FT_${tractname}_${orient}_${_ulsuffix}" $_nopt \
                             -u "$underlay" -o "$orient" -M \
-                            "$resultsdir_png/${tractname}_${orient}" "$donor_dcm" "$dcmdir" \
-                            || echo "WARNING: KUL_nii2dcm.py failed for ${tractname}_${orient}"
+                            "$png_dir" "$donor_dcm" "$dcmdir"
                     else
-                        echo "Making dicoms in $dcmdir (PixelSpacing=${ps}mm)"
-                        KUL_nii2dcm.py -s "FT_${tractname}_${orient}_${_ulsuffix}" -p $ps \
+                        echo "Making dicoms in $dcmdir (PixelSpacing=${ps}mm, SeriesNumber=${snum:-<none>})"
+                        _run_nii2dcm "FT_${tractname}_${orient}" \
+                            -s "FT_${tractname}_${orient}_${_ulsuffix}" -p $ps $_nopt \
                             -u "$underlay" -o "$orient" \
-                            "$resultsdir_png/${tractname}_${orient}" "$donor_dcm" "$dcmdir" \
-                            || echo "WARNING: KUL_nii2dcm.py failed for ${tractname}_${orient}"
+                            "$png_dir" "$donor_dcm" "$dcmdir"
                     fi
                 fi
             done
         fi
     }
 
-    # Launch current batch of bundles in parallel (max 3), then wait
+    # Launch current batch of bundles in parallel, then wait.
+    # SeriesNumbers are claimed HERE, in the parent, before anything is
+    # backgrounded — two children racing to claim an index would otherwise be
+    # able to land on the same number.
     _flush_bundle_batch() {
+        for slot in "${!_btractnames[@]}"; do
+            _pacs_register "tract:${_ulsuffix}:${_btractnames[$slot]}"
+        done
         for slot in "${!_btractnames[@]}"; do
             _render_one_bundle "$slot" "${_btractnames[$slot]}" "${_btcks[$slot]}" &
         done
@@ -968,6 +1537,74 @@ if [ $results -gt 0 ];then
         _btractnames=()
         _btcks=()
     }
+
+    # Same batching for the map renders (fMRI/Melodic/Clinical/drop-folder).
+    # These were serial, and could not simply be backgrounded before, because
+    # every instance rendered on the same hardcoded display :20; each now gets
+    # its own slot off $_xvfb_base.
+    _bspmfiles=(); _bspmnames=(); _bspmmodes=()
+    _flush_spm_batch() {
+        [ ${#_bspmnames[@]} -eq 0 ] && return 0
+        local slot
+        for slot in "${!_bspmnames[@]}"; do
+            _pacs_register "map:${_ulsuffix}:${_bspmnames[$slot]}"
+        done
+        for slot in "${!_bspmnames[@]}"; do
+            _render_one_spm "${_bspmfiles[$slot]}" "${_bspmnames[$slot]}" "$slot" "${_bspmmodes[$slot]}" &
+        done
+        wait
+        _bspmfiles=(); _bspmnames=(); _bspmmodes=()
+    }
+    # Queue one map; flushes automatically once a full batch has accumulated.
+    _queue_spm() {
+        _bspmfiles+=("$1"); _bspmnames+=("$2"); _bspmmodes+=("${3:-thresholded}")
+        [ ${#_bspmnames[@]} -ge $_render_par ] && _flush_spm_batch
+        return 0
+    }
+
+    # ── Manual drop folders ─────────────────────────────────────────────────
+    # Auto-discovery below globs SPM/, Melodic/, Perfusion/ and Lesion/, which
+    # only works for maps this pipeline produced under the names it expects.
+    # These folders let you export anything by copying the file in — no
+    # renaming, no processing. Two categories, by what you want out:
+    #
+    #   overlays/             colour overlay fused on the anatomical, for
+    #                         review. Colour windowing always adapts to the
+    #                         map's own range, so a wide-range map (rCBV) and a
+    #                         narrow-range one (fMRI t-map) both render legibly.
+    #   series_quantitative/  a real measurable DICOM series, no rendering.
+    #                         Pixel values carry RescaleSlope/Intercept so an
+    #                         ROI drawn on PACS reads true units — the same
+    #                         thing the scanner's own ADC maps give you.
+    #
+    # The same file may be copied (or symlinked) into both to get a fusion
+    # overlay and a measurable series from one map.
+    #
+    # Discovery is CONDITIONAL: if both are empty or absent, the automatic
+    # SPM/Melodic/Perfusion/Lesion discovery runs exactly as it always has. As
+    # soon as either holds a file, only the drop folders are used.
+    # _dropdir/_drop_thr/_drop_quant were set by KUL_make_pacs_dropdirs, called
+    # near the top of this block (and at the end of a normal pipeline run).
+
+    # The two folders gate INDEPENDENTLY. Counting them together meant a single
+    # file dropped in series_quantitative/ switched the overlay side to "manual"
+    # as well, and since overlays/ was empty that silently produced no overlays
+    # at all -- the automatic SPM/Melodic/Perfusion/Lesion discovery having been
+    # turned off by a file that had nothing to do with it.
+    _drop_count=$(find "$_drop_thr" \( -name '*.nii' -o -name '*.nii.gz' \) -type f 2>/dev/null | wc -l)
+    _drop_quant_count=$(find "$_drop_quant" \( -name '*.nii' -o -name '*.nii.gz' \) -type f 2>/dev/null | wc -l)
+    if [ "$_drop_count" -gt 0 ]; then
+        _use_dropdir=1
+        echo ""
+        echo "Overlays: using $_drop_count file(s) from $_drop_thr"
+        echo "          automatic SPM/Melodic/Perfusion/Lesion discovery skipped for this run."
+        echo ""
+    else
+        _use_dropdir=0
+    fi
+    if [ "$_drop_quant_count" -gt 0 ]; then
+        echo "Quantitative: using $_drop_quant_count file(s) from $_drop_quant"
+    fi
 
     # ── fMRI (SPM & Melodic) → PACS ─────────────────────────────────────────
     # Deliberately BEFORE the tract renders below. This section opens with two
@@ -980,11 +1617,32 @@ if [ $results -gt 0 ];then
     # spm_resultsdir_{png,dcm} are all defined further up.
     # If interactive and no global -T override, ask for a per-map threshold list.
     _all_spm_names=()
-    for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii \
-                "$globalresultsdir/Melodic/"*.nii.gz "$globalresultsdir/Melodic/"*.nii; do
-        [ -f "$_spm" ] || continue
-        _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
-        _all_spm_names+=("$_spmname")
+    if [ $_use_dropdir -eq 1 ]; then
+        for _spm in "$_drop_thr"/*.nii.gz "$_drop_thr"/*.nii; do
+            [ -f "$_spm" ] || continue
+            _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
+            _all_spm_names+=("$_spmname")
+        done
+    else
+        for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii \
+                    "$globalresultsdir/Melodic/"*.nii.gz "$globalresultsdir/Melodic/"*.nii; do
+            [ -f "$_spm" ] || continue
+            _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
+            _all_spm_names+=("$_spmname")
+        done
+    fi
+
+    # A <name>.thresh sidecar pins a threshold without the interactive prompt,
+    # so drop-folder runs can be fully unattended.
+    for _idx in "${!_all_spm_names[@]}"; do
+        _thrfile="$_drop_thr/${_all_spm_names[$_idx]}.thresh"
+        if [ $_use_dropdir -eq 1 ] && [ -f "$_thrfile" ]; then
+            _thrval=$(head -1 "$_thrfile" | tr -d '[:space:]')
+            if [ -n "$_thrval" ]; then
+                spm_thresh_map["${_all_spm_names[$_idx]}"]="$_thrval"
+                echo "Threshold for ${_all_spm_names[$_idx]} pinned to $_thrval by $(basename "$_thrfile")"
+            fi
+        fi
     done
 
     if [ ${#_all_spm_names[@]} -gt 0 ] && [ -z "$spm_thresh_override" ] && [ -t 0 ]; then
@@ -1029,11 +1687,21 @@ if [ $results -gt 0 ];then
         fi
     fi
 
-    for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii; do
-        [ -f "$_spm" ] || continue
-        _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
-        _render_one_spm "$_spm" "$_spmname"
-    done
+    if [ $_use_dropdir -eq 1 ]; then
+        for _spm in "$_drop_thr"/*.nii.gz "$_drop_thr"/*.nii; do
+            [ -f "$_spm" ] || continue
+            _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
+            _queue_spm "$_spm" "$_spmname" thresholded
+        done
+        _flush_spm_batch
+    else
+        for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii; do
+            [ -f "$_spm" ] || continue
+            _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
+            _queue_spm "$_spm" "$_spmname" thresholded
+        done
+        _flush_spm_batch
+    fi
 
 
     _btractnames=()
@@ -1208,21 +1876,32 @@ if [ $results -gt 0 ];then
             done
         fi
     else
-        echo "Karawun/sub-${participant}/T1w.nii.gz not found — skipping Karawun fMRI labels (run Karawun prep first)"
+        # Karawun prep runs at the end of every pipeline run now, so this should
+        # not normally fire. It still can on an export-only tree (no FWT output
+        # to prepare from), or if prep failed and left no marker.
+        echo "Karawun/sub-${participant}/T1w.nii.gz not found — skipping Karawun fMRI labels."
+        echo "  Karawun prep normally runs at the end of a full pipeline run. To do it now:"
+        echo "    KUL_karawun_prepare.sh -p ${participant} -t <1=tumor|2=DBS ET|3=DBS Parkinson>"
+        echo "  then re-run this -R to add the fMRI activation labels."
     fi
 
-    for _spm in "$globalresultsdir/Melodic/"*.nii.gz "$globalresultsdir/Melodic/"*.nii; do
-        [ -f "$_spm" ] || continue
-        _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
-        _render_one_spm "$_spm" "$_spmname"
-    done
+    if [ $_use_dropdir -eq 0 ]; then
+        for _spm in "$globalresultsdir/Melodic/"*.nii.gz "$globalresultsdir/Melodic/"*.nii; do
+            [ -f "$_spm" ] || continue
+            _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
+            _queue_spm "$_spm" "$_spmname" thresholded
+        done
+        _flush_spm_batch
+    fi
 
     # ── Lesion & DSC perfusion → PACS ───────────────────────────────────────
     # Same renderer as the fMRI maps, pointed at a separate output folder so
     # these don't get mixed in with the SPM/Melodic series on PACS.
+    # Skipped entirely when drop folders are in use — the operator has said
+    # explicitly what to export.
     _extra_names=(); _extra_files=(); _extra_thresh=()
 
-    if _lesion_pacs=$(KUL_resolve_lesion); then
+    if [ $_use_dropdir -eq 0 ] && _lesion_pacs=$(KUL_resolve_lesion); then
         # a mask, so any threshold in (0,1) selects it; 0.5 is the obvious one
         _extra_names+=("Lesion"); _extra_files+=("$_lesion_pacs"); _extra_thresh+=("0.5")
     fi
@@ -1233,11 +1912,13 @@ if [ $results -gt 0 ];then
     # cutoff, and 1.0 on nrCBF is simply "above contralesional normal WM".
     # -T still overrides both.
     _perf_dir="$globalresultsdir/Perfusion"
-    for _pm in nrCBV_corrected:1.75 nrCBF:1.0; do
-        _pf="$_perf_dir/sub-${participant}_${_pm%%:*}.nii.gz"
-        [ -f "$_pf" ] || continue
-        _extra_names+=("${_pm%%:*}"); _extra_files+=("$_pf"); _extra_thresh+=("${_pm##*:}")
-    done
+    if [ $_use_dropdir -eq 0 ]; then
+        for _pm in nrCBV_corrected:1.75 nrCBF:1.0; do
+            _pf="$_perf_dir/sub-${participant}_${_pm%%:*}.nii.gz"
+            [ -f "$_pf" ] || continue
+            _extra_names+=("${_pm%%:*}"); _extra_files+=("$_pf"); _extra_thresh+=("${_pm##*:}")
+        done
+    fi
 
     if [ ${#_extra_names[@]} -gt 0 ]; then
         _saved_png="$spm_resultsdir_png"; _saved_dcm="$spm_resultsdir_dcm"
@@ -1251,19 +1932,123 @@ if [ $results -gt 0 ];then
         spm_resultsdir_dcm="$globalresultsdir/PACS/Clinical_${_ulsuffix}"
         mkdir -p "$spm_resultsdir_png" "$spm_resultsdir_dcm"
 
+        # Thresholds are set in the PARENT here, before anything is queued:
+        # _render_one_spm only reads spm_thresh_map, and a backgrounded child's
+        # write would never reach the parent anyway.
         for _i in "${!_extra_names[@]}"; do
             if [ -n "${_extra_thresh[$_i]}" ] && [ -z "$spm_thresh_override" ] && \
                [ -z "${spm_thresh_map[${_extra_names[$_i]}]+x}" ]; then
                 spm_thresh_map["${_extra_names[$_i]}"]="${_extra_thresh[$_i]}"
             fi
             echo "PACS extra: ${_extra_names[$_i]} <- $(basename "${_extra_files[$_i]}")"
-            _render_one_spm "${_extra_files[$_i]}" "${_extra_names[$_i]}"
+            _queue_spm "${_extra_files[$_i]}" "${_extra_names[$_i]}" thresholded
         done
+        _flush_spm_batch
 
         spm_resultsdir_png="$_saved_png"; spm_resultsdir_dcm="$_saved_dcm"
         unset _dcm_spm_set; declare -A _dcm_spm_set=()
         for _k in "${_saved_sel[@]}"; do _dcm_spm_set["$_k"]=1; done
     fi
+
+    # ── Quantitative series → PACS ──────────────────────────────────────────
+    # Unlike everything above, these are not screenshots. The NIfTI's own voxels
+    # are written as a 16-bit DICOM series carrying RescaleSlope/Intercept, so
+    # an ROI drawn on PACS reads real units (rCBV, ALFF, ReHo, FA, ...) rather
+    # than display colours. No mrview, no xvfb, no threshold, no underlay.
+    if [ $make_dcm -eq 1 ] && [ -n "$donor_dcm" ]; then
+        _quant_dcm_root="$globalresultsdir/PACS/Quant"
+
+        # Explicit wins: whatever is in series_quantitative/ is what gets
+        # exported. With nothing dropped there, fall back to every DSC map in
+        # Perfusion/ -- those are the ones anyone actually measures, and the
+        # scanner gives you ADC the same way. (PCASL deliberately excluded:
+        # not processed yet.)
+        _quant_files=()
+        for _qf in "$_drop_quant"/*.nii.gz "$_drop_quant"/*.nii; do
+            [ -f "$_qf" ] && _quant_files+=("$_qf")
+        done
+        if [ ${#_quant_files[@]} -eq 0 ]; then
+            for _qf in "$globalresultsdir/Perfusion"/*.nii.gz "$globalresultsdir/Perfusion"/*.nii; do
+                [ -f "$_qf" ] || continue
+                case "$(basename "$_qf")" in
+                    *_mask.nii*|*NAWM*) continue ;;   # masks, not measurements
+                esac
+                _quant_files+=("$_qf")
+            done
+            [ ${#_quant_files[@]} -gt 0 ] && \
+                echo "No files in series_quantitative/ — exporting ${#_quant_files[@]} DSC map(s) from Perfusion/"
+        fi
+
+        for _qf in "${_quant_files[@]}"; do
+            [ -f "$_qf" ] || continue
+            mkdir -p "$_quant_dcm_root"
+            _qname=$(basename "$_qf"); _qname=${_qname%.nii.gz}; _qname=${_qname%.nii}
+            # "<name>.label.nii.gz" marks an integer label/segmentation map,
+            # which must be written without any rescaling.
+            _qmode="-q"
+            case "$_qname" in
+                *.label) _qmode="--label"; _qname="${_qname%.label}" ;;
+            esac
+            # These inherit the donor's Frame of Reference, so a map in a
+            # different space would land misaligned on PACS with nothing to
+            # indicate it. Warn rather than silently export.
+            if ! mrinfo "$_qf" -quiet >/dev/null 2>&1; then
+                echo "WARNING: $_qf is not readable as an image — skipping"
+                _pacs_note_fail "convert" "$_qname" "unreadable input"
+                continue
+            fi
+            if [ "$(mrinfo "$_qf" -size)" != "$(mrinfo "$underlay" -size)" ] || \
+               [ "$(mrinfo "$_qf" -spacing)" != "$(mrinfo "$underlay" -spacing)" ]; then
+                echo "NOTE: $(basename "$_qf") is not on the underlay grid"
+                echo "      ($(mrinfo "$_qf" -size) @ $(mrinfo "$_qf" -spacing) vs $(mrinfo "$underlay" -size) @ $(mrinfo "$underlay" -spacing))."
+                echo "      That is fine if it shares the scanner coordinate frame — geometry is taken"
+                echo "      from the file itself — but it will be misaligned on PACS if it is not registered."
+            fi
+            _pacs_register "quant:$_qname"
+            _qsnum=$(_pacs_series_number "quant:$_qname" "NONE")
+            _qnopt=""; [ -n "$_qsnum" ] && _qnopt="-n $_qsnum"
+            _qdir="$_quant_dcm_root/$_qname"
+            if [ -n "$(ls "$_qdir"/*.dcm 2>/dev/null | head -1)" ]; then
+                echo "Skipping quantitative DICOMs for ${_qname} (already exist)"
+                continue
+            fi
+            mkdir -p "$_qdir"
+            # Extra display headroom for CBV maps only. Their bright tail is
+            # choroid plexus -- real, very vascular anatomy that saturated as
+            # white blobs at a plain p99.5. Deliberately not applied to the
+            # other DSC maps: K2 and MTT have heavier tails still, but widening
+            # their window only flattens them, so this cannot be inferred from
+            # the data and is keyed on the map instead.
+            _qhead=""
+            case "$_qname" in
+                *CBV*|*cbv*) _qhead="--window-headroom 1.3" ;;
+            esac
+            echo "Making quantitative dicoms in $_qdir (${_qmode}${_qhead:+, +30% window headroom}, SeriesNumber=${_qsnum:-<none>})"
+            _run_nii2dcm "quant_${_qname}" -s "$_qname" $_qnopt $_qmode $_qhead \
+                "$_qf" "$donor_dcm" "$_qdir"
+        done
+    fi
+
+    # ── Run summary ─────────────────────────────────────────────────────────
+    # Failures used to be printed as passing WARNING lines and the run always
+    # exited 0, so a half-finished PACS export looked identical to a good one.
+    if [ -s "$_pacs_fail_file" ]; then
+        echo ""
+        echo "=============================================================="
+        echo " PACS/figure generation finished WITH FAILURES"
+        echo "=============================================================="
+        printf '%-8s %-48s %s\n' "STAGE" "SERIES" "DETAIL"
+        cat "$_pacs_fail_file"
+        echo "--------------------------------------------------------------"
+        echo " $(grep -c '' "$_pacs_fail_file") failure(s). Logs: $_pacs_logdir"
+        echo " Re-running with -R retries only what is missing or incomplete."
+        echo "=============================================================="
+        rm -f "$_pacs_fail_file"
+        exit 1
+    fi
+    echo ""
+    echo "PACS/figure generation completed with no failures. Logs: $_pacs_logdir"
+    rm -f "$_pacs_fail_file"
 
     exit
 
@@ -1287,6 +2072,16 @@ function KUL_check_redo {
             fi
         fi
 
+        # Step 2 — anatomical registration (all types)
+        # Clears the derivative as well, so this is a genuine re-registration.
+        # To only refresh the copies in RESULTS/Anat without paying for ANTs
+        # again, use the "refresh RESULTS" question at the end instead.
+        read -p "Redo: anatomical registration? (y/n) " answ
+        if [[ "$answ" == "y" ]]; then
+            rm -f ${cwd}/KUL_LOG/sub-${participant}_anat_reg.done >/dev/null 2>&1
+            rm -rf $derivativesdir/KUL_anat_register_rigid >/dev/null 2>&1
+        fi
+
         # Step 4 — fmriprep (all types)
         read -p "Redo: fmriprep? (y/n) " answ
         if [[ "$answ" == "y" ]]; then
@@ -1301,6 +2096,16 @@ function KUL_check_redo {
             rm -f ${cwd}/KUL_LOG/sub-${participant}_run_dwiprep.txt >/dev/null 2>&1
             rm -rf ${cwd}/dwiprep/sub-${participant} >/dev/null 2>&1
             rm -rf $derivativesdir/synb0 >/dev/null 2>&1
+        fi
+
+        # Step 6 — Gd contrast T1w subtraction (only when a contrast T1w exists)
+        # Pure mrcalc on two files already in RESULTS/Anat, so the marker is all
+        # there is to clear.
+        if [ ${ncT1w:-0} -gt 0 ] || [ ${ncT1w:-0} -eq -1 ]; then
+            read -p "Redo: Gd contrast subtraction? (y/n) " answ
+            if [[ "$answ" == "y" ]]; then
+                rm -f ${cwd}/KUL_LOG/sub-${participant}_cT1w_subtraction.done >/dev/null 2>&1
+            fi
         fi
 
         # Step 8 — SPM and Melodic (only if fMRI data present)
@@ -1326,6 +2131,26 @@ function KUL_check_redo {
             if [[ "$answ" == "y" ]]; then
                 rm -f ${cwd}/KUL_LOG/sub-${participant}_VBG.log >/dev/null 2>&1
                 rm -fr $vbg_dir/* >/dev/null 2>&1
+            fi
+        fi
+
+        # Step 9c — DSC perfusion (only if perfusion data present)
+        #
+        # Two levels, because they cost very different things. KUL_dsc_fit
+        # returns early when fit/rCBV_corrected.nii.gz exists, so clearing only
+        # the marker re-exports the existing maps into RESULTS/Perfusion in
+        # seconds. Deleting the derivative throws that away and refits from the
+        # raw DSC series, which is the expensive part -- worth doing when the fit
+        # itself is what you are unhappy with, and a waste otherwise.
+        if [ ${n_dsc:-0} -gt 0 ]; then
+            read -p "Redo: DSC perfusion? (y/n) " answ
+            if [[ "$answ" == "y" ]]; then
+                rm -f ${cwd}/KUL_LOG/sub-${participant}_DSC.done >/dev/null 2>&1
+                rm -fr ${cwd}/RESULTS/sub-${participant}/Perfusion/* >/dev/null 2>&1
+                read -p "  Also refit from the raw DSC series? Slow; say n to just re-export the existing fit. (y/n) " answ
+                if [[ "$answ" == "y" ]]; then
+                    rm -fr $derivativesdir/KUL_dsc_perfusion >/dev/null 2>&1
+                fi
             fi
         fi
 
@@ -1364,13 +2189,235 @@ function KUL_check_redo {
             fi
         fi
 
-        # Step 15 — figures
+        # Step 15 — Karawun/Brainlab folder
+        # Marker only. Deleting Karawun/sub-*/ itself would take the donor DICOM
+        # in Karawun/sub-*/DICOM/ with it, which nothing regenerates -- and prep
+        # overwrites its own outputs with -force anyway.
+        read -p "Redo: Karawun/Brainlab folder? (y/n) " answ
+        if [[ "$answ" == "y" ]]; then
+            rm -f ${cwd}/KUL_LOG/sub-${participant}_karawun_prepare.done >/dev/null 2>&1
+        fi
+
+        # Step 17 — figures
         read -p "Redo: figures? (y/n) " answ
         if [[ "$answ" == "y" ]]; then
             rm -f ${cwd}/KUL_LOG/sub-${participant}_figures.done >/dev/null 2>&1
         fi
 
+        # Redo the results-production block: repopulate RESULTS/ and Karawun/
+        # from analyses that have already run.
+        #
+        # Asked last, and separately, because it answers a different question.
+        # The steps above are "I was unhappy with this analysis, run it again".
+        # This one is "the analyses are fine, but RESULTS/ and Karawun/ do not
+        # reflect them" -- cleaned out by hand, or simply never being sure when
+        # they get repopulated.
+        #
+        # It only ever clears a marker when that step's *input* still exists in
+        # BIDS/derivatives, which is what makes it cheap: every one of these
+        # steps re-uses an existing result rather than recomputing it (the GLM
+        # re-uses its spmT maps, melodic its decomposition, DSC its fit), so
+        # clearing the marker re-exports into RESULTS instead of re-analysing.
+        # Where the input is gone, the marker is left alone and said so: that is
+        # a genuine re-analysis and belongs to its own question above.
+        #
+        #   marker | dependency that makes re-export cheap | what it repopulates
+        local _refresh=(
+            "anat_reg|$derivativesdir/KUL_anat_register_rigid/T1w.nii.gz|Anat/ (T1w, *reg2_T1w)"
+            "cT1w_subtraction|$globalresultsdir/Anat/cT1w_reg2_T1w.nii.gz|Anat/cT1w_T1w_subtracted"
+            "SPM|$(ls -d $derivativesdir/SPM/RESULTS/stats_* 2>/dev/null | head -1)|SPM/ and SPM_all/"
+            "melodic|$(ls $derivativesdir/FSL_melodic/stats_*/stats/thresh_zstat1.nii.gz 2>/dev/null | head -1)|Melodic/"
+            "DSC|$derivativesdir/KUL_dsc_perfusion/fit/rCBV_corrected.nii.gz|Perfusion/"
+            "rsfMRI_networks|$kulderivativesdir/rsfMRI_networks/analysis|rsfMRI_Networks/"
+            "karawun_prepare|$derivativesdir/FWT/sub-${participant}_TCKs_output|Karawun/ (T1w, tck, labels)"
+        )
+        local _rspec _rm _rdep _rwhat _ready=() _notready=()
+        for _rspec in "${_refresh[@]}"; do
+            IFS='|' read -r _rm _rdep _rwhat <<< "$_rspec"
+            if [ -n "$_rdep" ] && [ -e "$_rdep" ]; then
+                _ready+=("$_rm|$_rwhat")
+            else
+                _notready+=("$_rm|$_rwhat")
+            fi
+        done
+
+        echo ""
+        echo "  Repopulate RESULTS/ and Karawun/ from analyses that already ran?"
+        echo "  This re-exports; it re-analyses nothing."
+        if [ ${#_ready[@]} -gt 0 ]; then
+            echo "    will rebuild:"
+            for _rspec in "${_ready[@]}"; do
+                IFS='|' read -r _rm _rwhat <<< "$_rspec"
+                printf '      %-28s (from %s)\n' "$_rwhat" "$_rm"
+            done
+        fi
+        if [ ${#_notready[@]} -gt 0 ]; then
+            echo "    cannot rebuild - the analysis output is gone, so these would be"
+            echo "    real re-runs; use their own questions above:"
+            for _rspec in "${_notready[@]}"; do
+                IFS='|' read -r _rm _rwhat <<< "$_rspec"
+                printf '      %-28s (%s)\n' "$_rwhat" "$_rm"
+            done
+        fi
+        echo "    never touched: Lesion/, PACS_input/, DICOM/ - your own files"
+        echo "                   Tracto/ and TRK/ re-sync from FWT every run anyway"
+        echo "    REPORT/        rebuilt every run from whatever sources exist"
+        echo "                   (fmriprep html, eddy QC, FA overlays, tract summary);"
+        echo "                   the -F/-R figures come back with -F/-R"
+        if [ ${#_ready[@]} -gt 0 ]; then
+            read -p "  Repopulate RESULTS and Karawun? (y/n) " answ
+            if [[ "$answ" == "y" ]]; then
+                for _rspec in "${_ready[@]}"; do
+                    IFS='|' read -r _rm _rwhat <<< "$_rspec"
+                    # Marker only, never the derivative: that is what keeps this a
+                    # re-export. "Redo: <step>?" above is the one that pays again.
+                    rm -f ${cwd}/KUL_LOG/sub-${participant}_${_rm}.done >/dev/null 2>&1
+                done
+                echo "    ${#_ready[@]} step(s) will re-export during this run"
+            fi
+        fi
+
     fi
+}
+
+# Report RESULTS/Karawun output that a completed step should have produced but
+# which is no longer on disk -- the state you get by deleting a results folder to
+# "start fresh" while KUL_LOG still holds the .done markers. Every step gates on
+# its marker alone and never checks its own output, so that combination otherwise
+# produces a run that skips everything, reports success, and leaves RESULTS empty.
+#
+# The marker is the discriminator between "deleted" and "never generated", and it
+# is a reliable one: each step puts its applicability test OUTSIDE the marker
+# check (KUL_fmriproc only reaches SPM.done when n_fMRI>0, the DSC block only when
+# n_dsc>0) and only touches the marker on success. So a marker existing means
+# applicable AND ran AND succeeded:
+#
+#   marker absent                -> never generated. Normal; nothing is said.
+#   marker present, output there -> fine.
+#   marker present, output gone  -> it existed once and does not now.  <- reported
+#
+# Repair is deliberately nothing more than removing the marker. This runs before
+# every processing step, so the pipeline's own code regenerates the output moments
+# later in the same invocation, applying the same transforms in the same order
+# (Tracto maps regrid onto Anat/T1w.nii.gz, the GM mask is recomputed from
+# fmriprep's dseg, ...). Nothing here re-implements a processing step, so nothing
+# here can drift away from one.
+function KUL_verify_results {
+
+    local _spec _m _p _kind _label _marker _missing _repairable=() _n=0 answ
+
+    # Type 3's lesion mask is not a pipeline product: it is hand-drawn and copied
+    # in by the user ("put lesion.nii.gz in RESULTS/sub-{participant}/Lesion").
+    # No marker, no derivative copy, nothing that can regenerate it -- so this is
+    # a stop, not a repair offer. Continuing gives a silently lesion-free run: no
+    # VBG lesion, no Karawun lesion label, no PACS lesion overlay, no error.
+    if [ $type -eq 3 ] && [ ! -f "$globalresultsdir/Lesion/lesion.nii.gz" ]; then
+        echo "" >&2
+        echo "ERROR: -t 3 requires a manual lesion mask and it is not present:" >&2
+        echo "         ${globalresultsdir#$cwd/}/Lesion/lesion.nii.gz" >&2
+        echo "       Nothing in this pipeline can regenerate it - it is the mask you" >&2
+        echo "       drew and copied in. Restore it from wherever it came from." >&2
+        echo "       Continuing would silently produce a lesion-free run." >&2
+        echo "" >&2
+        exit 2
+    fi
+
+    # marker | sentinel path | file|dir | description
+    #
+    # A directory sentinel is "exists and is non-empty": these steps name their
+    # outputs after tasks/networks/bundles, so there is no fixed filename to test.
+    local _checks=(
+        "anat_reg|$globalresultsdir/Anat/T1w.nii.gz|file|anatomical registration (Anat/)"
+        "cT1w_subtraction|$globalresultsdir/Anat/cT1w_T1w_subtracted.nii.gz|file|Gd contrast subtraction"
+        "SPM|$globalresultsdir/SPM|dir|fMRI GLM (SPM/)"
+        "melodic|$globalresultsdir/Melodic|dir|melodic (Melodic/)"
+        "DSC|$globalresultsdir/Perfusion|dir|DSC perfusion (Perfusion/)"
+        "karawun_prepare|$cwd/Karawun/sub-${participant}/T1w.nii.gz|file|Karawun/Brainlab folder"
+    )
+
+    for _spec in "${_checks[@]}"; do
+        IFS='|' read -r _m _p _kind _label <<< "$_spec"
+        _marker="${cwd}/KUL_LOG/sub-${participant}_${_m}.done"
+        [ -f "$_marker" ] || continue          # never generated -- nothing to report
+        _missing=0
+        if [ "$_kind" = "dir" ]; then
+            { [ -d "$_p" ] && [ -n "$(ls -A "$_p" 2>/dev/null)" ]; } || _missing=1
+        else
+            [ -f "$_p" ] || _missing=1
+        fi
+        [ $_missing -eq 0 ] && continue
+
+        if [ $_n -eq 0 ]; then
+            echo ""
+            echo "=============================================================="
+            echo " RESULTS/Karawun integrity check"
+            echo "=============================================================="
+        fi
+        _n=$((_n + 1))
+        echo "  ${_label}"
+        echo "    KUL_LOG/sub-${participant}_${_m}.done records this step as done,"
+        echo "    but ${_p#$cwd/} is missing or empty."
+        _repairable+=("${_m}|${_label}")
+    done
+
+    # T1w_GM has no marker of its own -- it belongs to the fmriprep step, which
+    # gates on fmriprep/sub-*.html. That step now rebuilds it (and the fmriprep
+    # report symlink, and Anat/T1w_fmriprep.nii.gz) whenever the source exists
+    # rather than only when fmriprep itself runs, so this is a note, not a repair.
+    if [ -f "$cwd/fmriprep/sub-${participant}.html" ] && \
+       [ ! -f "$globalresultsdir/Anat/T1w_GM.nii.gz" ]; then
+        if [ $_n -eq 0 ]; then
+            echo ""
+            echo "=============================================================="
+            echo " RESULTS/Karawun integrity check"
+            echo "=============================================================="
+        fi
+        _n=$((_n + 1))
+        echo "  cortical GM mask (Anat/T1w_GM.nii.gz)"
+        echo "    Missing - it will be rebuilt from fmriprep's dseg later in this run."
+        echo "    It is what continuous PACS overlays window against; without it they"
+        echo "    fall back to a p98 top."
+    fi
+
+    [ $_n -eq 0 ] && return 0
+
+    if [ ${#_repairable[@]} -gt 0 ]; then
+        echo ""
+        echo " Clearing a marker makes this run regenerate that output using the"
+        echo " pipeline's own code. Anatomical and Karawun steps are quick; the GLM,"
+        echo " melodic and DSC are full re-runs."
+        echo ""
+        if [ ${redo:-0} -eq 1 ]; then
+            # -r is the explicit "ask me about redoing things" mode and now has a
+            # question for every check above, including a "Refresh RESULTS?" one
+            # that covers the cheap copy/derive steps in a single answer. Prompting
+            # here too would just ask everything twice.
+            echo " You passed -r, so the questions that follow will cover these."
+        elif [ -t 0 ]; then
+            for _spec in "${_repairable[@]}"; do
+                IFS='|' read -r _m _label <<< "$_spec"
+                read -p "  Regenerate ${_label}? (y/n) " answ
+                if [[ "$answ" == "y" ]]; then
+                    rm -f "${cwd}/KUL_LOG/sub-${participant}_${_m}.done" >/dev/null 2>&1
+                    echo "    marker cleared - will be regenerated during this run"
+                else
+                    echo "    left as is"
+                fi
+            done
+        else
+            # Batch/nohup runs have no tty: `read` would take the next line of the
+            # script's stdin or block. Report and change nothing.
+            echo " Not an interactive terminal, so nothing was changed. Re-run from a"
+            echo " terminal to be asked, or clear the markers yourself:"
+            for _spec in "${_repairable[@]}"; do
+                IFS='|' read -r _m _label <<< "$_spec"
+                echo "   rm -f KUL_LOG/sub-${participant}_${_m}.done   # ${_label}"
+            done
+        fi
+    fi
+    echo "=============================================================="
+    echo ""
+    return 0
 }
 
 function KUL_antsApply_Transform {
@@ -1618,23 +2665,36 @@ function KUL_run_fmriprep {
         # cleaning the working directory
         rm -fr fmriprep_work_${participant}
         
-        # copying the result to the global results dir
-        cp -f fmriprep/sub-$participant/anat/sub-${participant}_desc-preproc_T1w.nii.gz $globalresultsdir/Anat/T1w_fmriprep.nii.gz
-        #gunzip -f $globalresultsdir/Anat/T1w.nii.gz
-        
-        # create a GM mask in the global results dir
-        mrcalc fmriprep/sub-$participant/anat/sub-${participant}_dseg.nii.gz 1 -eq \
-            fmriprep/sub-$participant/anat/sub-${participant}_dseg.nii.gz -mul - | \
-            maskfilter - median - | \
-            maskfilter - dilate $globalresultsdir/Anat/T1w_GM.nii.gz
-
-        # add to the report
-        if [ -f fmriprep/sub-${participant}.html ]; then
-            ln -s ${cwd}/fmriprep/sub-${participant}.html ${cwd}/REPORT/sub-${participant}_03_fmriprep.html
-        fi
-
     else
         echo "Fmriprep already done"
+    fi
+
+    # Export whenever fmriprep's output exists, not only when it just ran.
+    #
+    # These three used to live inside the branch above, so once
+    # fmriprep/sub-*.html existed they were unreachable: deleting T1w_GM.nii.gz or
+    # the report symlink meant a full fmriprep re-run to get a file that takes a
+    # second to make. Everything here reads from fmriprep/ and writes into
+    # RESULTS/ or REPORT/, so it is safe and cheap to redo on every run.
+    local _fp_anat="fmriprep/sub-$participant/anat"
+    if [ -f "$_fp_anat/sub-${participant}_desc-preproc_T1w.nii.gz" ]; then
+        cp -f "$_fp_anat/sub-${participant}_desc-preproc_T1w.nii.gz" \
+            $globalresultsdir/Anat/T1w_fmriprep.nii.gz
+    fi
+    # GM mask: only rebuilt when absent, since it is the one that costs anything
+    # (two maskfilter passes) and nothing upstream of it changes between runs.
+    if [ -f "$_fp_anat/sub-${participant}_dseg.nii.gz" ] && \
+       [ ! -f "$globalresultsdir/Anat/T1w_GM.nii.gz" ]; then
+        echo "Rebuilding Anat/T1w_GM.nii.gz from fmriprep's dseg"
+        mrcalc "$_fp_anat/sub-${participant}_dseg.nii.gz" 1 -eq \
+            "$_fp_anat/sub-${participant}_dseg.nii.gz" -mul - | \
+            maskfilter - median - | \
+            maskfilter - dilate $globalresultsdir/Anat/T1w_GM.nii.gz
+    fi
+    # A symlink, so re-point it rather than leaving a stale or missing one.
+    if [ -f fmriprep/sub-${participant}.html ]; then
+        ln -sfn ${cwd}/fmriprep/sub-${participant}.html \
+            ${cwd}/REPORT/sub-${participant}_03_fmriprep.html
     fi
 }
 
@@ -2122,35 +3182,67 @@ function KUL_fmriproc {
                 KUL_task_exec $verbose_level "KUL_fmriproc_spm_new" "7_fmriproc_spm" || kul_echo "KUL_fmriproc_spm_new failed for sub-${participant} — SPM.done will not be created (check 7_fmriproc_spm.error.log)"
             fi
 
-            # add to report using the hardwired wc (with-confounds) Bizzi-thresholded
-            # maps only (p<0.001 unc, k>=50) — matches the RESULTS/.../SPM selection
-            for bizzi_map in $derivativesdir/SPM/*_wc/spmT_0001_p001unc_k50.nii; do
-                [ -f "$bizzi_map" ] || continue
-                task=$(basename $(dirname $bizzi_map))
-                task=${task%_wc}
-                KUL_mrview_figure.sh -p ${participant} -u RESULTS/sub-${participant}/Anat/T1w.nii.gz \
-                    -o "$bizzi_map" -t 2 -d REPORT -f 05_afMRI_${task}_p001unc_k50
-            done
         fi
 
         if [ ! -f ${cwd}/KUL_LOG/sub-${participant}_melodic.done ]; then
             task_in="KUL_fmriproc_conn.sh -p $participant"
             KUL_task_exec $verbose_level "KUL_fmriproc_conn" "8_fmriproc_conn" || kul_echo "KUL_fmriproc_conn failed for sub-${participant} — melodic.done will not be created (check 8_fmriproc_conn.error.log)"
-
-            # add to report
-            for spm in RESULTS/sub-${participant}/Melodic/*.nii; do
-                [ -f "$spm" ] || continue
-                #echo $spm
-                max_T=$(mrstats -output max $spm)
-                #echo $max_T
-                thresh=$(awk "BEGIN {print $max_T/3}")
-                task=$(basename $spm)
-                mrcalc $spm $thresh -gt REPORT/spm_tmp_$task
-                KUL_mrview_figure.sh -p ${participant} -u RESULTS/sub-${participant}/Anat/T1w.nii.gz -o REPORT/spm_tmp_$task \
-                    -t 2 -d REPORT -f 05_rsfMRI_${task}_Thr_${thresh}
-                rm -f REPORT/spm_tmp_$task
-            done
         fi
+
+        # ── fMRI figures and reports for REPORT/ ────────────────────────────
+        #
+        # Deliberately outside the two branches above. These used to be produced
+        # only in the run that computed the maps, so once the .done marker
+        # existed they could never come back: the maps were still there, the
+        # markers said "done", and nothing redrew the pictures. Deleting REPORT/
+        # lost every fMRI visual permanently.
+        #
+        # Each item is produced only when it is missing, so a healthy tree
+        # renders nothing and this costs nothing per run.
+
+        # GLM activations: the hardwired wc (with-confounds) Bizzi-thresholded
+        # maps only (p<0.001 unc, k>=50) — matches the RESULTS/.../SPM selection.
+        for bizzi_map in $derivativesdir/SPM/*_wc/spmT_0001_p001unc_k50.nii; do
+            [ -f "$bizzi_map" ] || continue
+            task=$(basename $(dirname $bizzi_map))
+            task=${task%_wc}
+            [ -f "REPORT/sub-${participant}_05_afMRI_${task}_p001unc_k50.png" ] && continue
+            KUL_mrview_figure.sh -p ${participant} -u RESULTS/sub-${participant}/Anat/T1w.nii.gz \
+                -o "$bizzi_map" -t 2 -d REPORT -f 05_afMRI_${task}_p001unc_k50
+        done
+
+        # Melodic networks. The threshold is baked into the filename, so match on
+        # the stem rather than trying to predict it.
+        for spm in RESULTS/sub-${participant}/Melodic/*.nii; do
+            [ -f "$spm" ] || continue
+            task=$(basename $spm)
+            [ -n "$(ls REPORT/sub-${participant}_05_rsfMRI_${task}_Thr_*.png 2>/dev/null)" ] && continue
+            max_T=$(mrstats -output max $spm)
+            thresh=$(awk "BEGIN {print $max_T/3}")
+            mrcalc $spm $thresh -gt REPORT/spm_tmp_$task -force -quiet
+            KUL_mrview_figure.sh -p ${participant} -u RESULTS/sub-${participant}/Anat/T1w.nii.gz -o REPORT/spm_tmp_$task \
+                -t 2 -d REPORT -f 05_rsfMRI_${task}_Thr_${thresh}
+            rm -f REPORT/spm_tmp_$task
+        done
+
+        # melodic's own per-run HTML report, which otherwise never leaves the
+        # derivative. Symlinked, so it stays in step with the decomposition and
+        # costs nothing.
+        for _mrep in $derivativesdir/FSL_melodic/stats_*/report/00index.html; do
+            [ -f "$_mrep" ] || continue
+            _mtask=$(basename $(dirname $(dirname "$_mrep")))
+            ln -sfn "$_mrep" "REPORT/sub-${participant}_05_melodic_${_mtask#stats_}.html"
+        done
+
+        # The rsfMRI-networks step (-N) writes its report into its own derivative
+        # and into RESULTS/rsfMRI_Networks, but never into REPORT -- so the one
+        # place a clinician looks did not have it.
+        _rsn_rep="$kulderivativesdir/rsfMRI_networks/analysis/reports/sub-${participant}_rsfmri_networks_report"
+        for _ext in pdf html; do
+            [ -f "${_rsn_rep}.${_ext}" ] || continue
+            cp -f "${_rsn_rep}.${_ext}" \
+                "REPORT/sub-${participant}_05_rsfMRI_networks_report.${_ext}" 2>/dev/null
+        done
     fi
 
 }
@@ -2217,15 +3309,22 @@ function KUL_run_dwiprep_anat {
         task_in="KUL_dwiprep_anat.sh -p $participant -n $ncpu"
         KUL_task_exec $verbose_level "KUL_dwiprep_anat" "11_dwiprep_anat" || { kul_echo "KUL_dwiprep_anat failed — NOT writing dwiprep_anat.done"; return 1; }
 
-        if [ -f dwiprep/sub-${participant}/sub-${participant}/qa/sub-${participant}_T1w_with_fa.png ]; then
-            cp -f dwiprep/sub-${participant}/sub-${participant}/qa/sub-${participant}_T1w_with_fa.png \
-                REPORT/sub-${participant}_02_T1w_with_fa.png
-            cp -f dwiprep/sub-${participant}/sub-${participant}/qa/sub-${participant}_T1w_brain_with_fa.png \
-                REPORT/sub-${participant}_02_T1w_brain_with_fa.png
-            cp -f dwiprep/sub-${participant}/sub-${participant}/eddy_qc/quad/qc.pdf REPORT/sub-${participant}_02_eddy_qc.pdf
-        fi
-
         touch $dwi_anat_check
+    fi
+
+    # Report copies live outside the branch above, so deleting REPORT/ does not
+    # require re-running dwiprep_anat to get three files back that are pure
+    # copies of QA output sitting in dwiprep/.
+    local _qa="dwiprep/sub-${participant}/sub-${participant}/qa"
+    if [ -f "$_qa/sub-${participant}_T1w_with_fa.png" ]; then
+        cp -f "$_qa/sub-${participant}_T1w_with_fa.png" \
+            REPORT/sub-${participant}_02_T1w_with_fa.png
+        cp -f "$_qa/sub-${participant}_T1w_brain_with_fa.png" \
+            REPORT/sub-${participant}_02_T1w_brain_with_fa.png 2>/dev/null
+    fi
+    if [ -f "dwiprep/sub-${participant}/sub-${participant}/eddy_qc/quad/qc.pdf" ]; then
+        cp -f dwiprep/sub-${participant}/sub-${participant}/eddy_qc/quad/qc.pdf \
+            REPORT/sub-${participant}_02_eddy_qc.pdf
     fi
 
 }
@@ -2343,6 +3442,7 @@ fi
 # Check if fMRI and/or dwi data are present and/or to redo some processing
 echo "Starting KUL_clinical_fmridti"
 KUL_check_data
+KUL_verify_results
 KUL_check_redo
 
 # STEP 1 - run bias correction
@@ -2414,45 +3514,99 @@ wait
 # STEP 12b - run Fun With Tracts
 KUL_run_FWT
 
-# STEP 15 - Prepare Karawun folder. No longer automatic: like the PACS
-# DICOM export, this only runs when explicitly requested via -R (review
-# the FWT tract/VOI output first). The importTractography command is
-# printed at the end — run it manually after copying a donor DICOM into
-# Karawun/sub-${participant}/DICOM/ (or RESULTS/sub-${participant}/DICOM/)
-# and curating the fMRI label maps.
-if [ $make_dcm -eq 1 ]; then
-    karawun_prepare_check=${cwd}/KUL_LOG/sub-${participant}_karawun_prepare.done
-    if [ ! -f $karawun_prepare_check ]; then
-        _karawun_rc=0
-        if [ $type -lt 5 ]; then
-            kul_echo "Preparing Karawun folder"
-            KUL_karawun_prepare.sh -p ${participant} -t 1 -r 3 || _karawun_rc=$?
-        elif [ $type -eq 5 ]; then
-            kul_echo "Preparing Karawun folder (DBS ET)"
-            KUL_karawun_prepare.sh -p ${participant} -t 2 -r 10 || _karawun_rc=$?
-        elif [ $type -eq 6 ]; then
-            kul_echo "Preparing Karawun folder (DBS Parkinson)"
-            KUL_karawun_prepare.sh -p ${participant} -t 3 -r 10 || _karawun_rc=$?
+# STEP 15 - Prepare the Karawun folder, and the PACS drop folders beside it.
+#
+# Runs at the end of every pipeline run, NOT behind -R. It used to be gated on
+# `make_dcm -eq 1`, and -R is the only flag that sets make_dcm -- but -R also
+# sets results>0, which enters the export block near the top of this file and
+# exits there, ~1200 lines before this point. So this step was unreachable on
+# every realistic invocation, and the per-task fMRI activation labels that the
+# -R block writes (only if Karawun/sub-*/T1w.nii.gz already exists) were
+# therefore never produced: the Brainlab export shipped tracts and no fMRI.
+#
+# Ordering is the reason it lives exactly here: it needs the FWT output from
+# STEP 12b above, and the -R block needs the T1w.nii.gz it writes. It depends on
+# nothing that -R produces, so it belongs in the main flow.
+#
+# The importTractography command is printed at the end — run it manually, after
+# copying a donor DICOM into Karawun/sub-${participant}/DICOM/ (or
+# RESULTS/sub-${participant}/DICOM/) and reviewing the labels.
+_fwt_tck_root="${derivativesdir}/FWT/sub-${participant}_TCKs_output"
+karawun_prepare_check=${cwd}/KUL_LOG/sub-${participant}_karawun_prepare.done
+if [ ! -d "$_fwt_tck_root" ]; then
+    # Now that this is unconditional, a subject whose FWT produced nothing would
+    # otherwise fail prep at the end of every single run. Skip cleanly and leave
+    # no marker, so it retries once FWT has actually run.
+    echo "No FWT tract output at $_fwt_tck_root"
+    echo "  Skipping Karawun prep - it will retry on the next run."
+elif [ ! -f $karawun_prepare_check ]; then
+    _karawun_rc=0
+    _karawun_type=""
+    if [ $type -lt 5 ]; then
+        _karawun_type=1; _karawun_thr=3;  _karawun_what="Preparing Karawun folder"
+    elif [ $type -eq 5 ]; then
+        _karawun_type=2; _karawun_thr=10; _karawun_what="Preparing Karawun folder (DBS ET)"
+    elif [ $type -eq 6 ]; then
+        _karawun_type=3; _karawun_thr=10; _karawun_what="Preparing Karawun folder (DBS Parkinson)"
+    fi
+    if [ -z "$_karawun_type" ]; then
+        # type 7 (DTI-ALPS), and anything added later. This used to fall through
+        # every branch in silence: _karawun_rc stayed 0, the marker was touched,
+        # and the run reported a successful prep having done nothing at all.
+        echo "No Karawun mapping for type ${type} - skipping Karawun prep."
+        echo "  Mapped: types 1-4 (tumor), 5 (DBS ET), 6 (DBS Parkinson)."
+        echo "  Run 'KUL_karawun_prepare.sh -p ${participant} -t <1|2|3>' by hand if you want it."
+    else
+        # RESULTS/Anat/T1w.nii.gz is the volume prep rescales into
+        # Karawun/sub-*/T1w.nii.gz, and every label is then regridded onto that.
+        # Without it prep still exits 0: it prints "T1w voxel sizes  -" from empty
+        # mrinfo output, copies the .tck files, and produces no T1w and no labels
+        # at all. Check the input up front rather than discovering it afterwards.
+        if [ ! -f "$globalresultsdir/Anat/T1w.nii.gz" ]; then
+            echo "ERROR: cannot prepare Karawun - ${globalresultsdir#$cwd/}/Anat/T1w.nii.gz is missing." >&2
+            echo "       Every Karawun label is regridded onto it, so prep would produce" >&2
+            echo "       a folder with tracts but no T1w and no labels." >&2
+            echo "       Restore it (it is a copy of" >&2
+            echo "       BIDS/derivatives/KUL_compute/sub-${participant}/KUL_anat_register_rigid/T1w.nii.gz)" >&2
+            echo "       and re-run; no marker is written, so this will retry." >&2
+            _karawun_rc=1
+        else
+            kul_echo "$_karawun_what"
+            KUL_karawun_prepare.sh -p ${participant} -t $_karawun_type -r $_karawun_thr || _karawun_rc=$?
         fi
-        # Only claim success if it succeeded: the marker was previously touched
-        # unconditionally, so a failed prep still gated every later -R run into
-        # printing "already prepared" over an incomplete Karawun folder.
-        if [ $_karawun_rc -eq 0 ]; then
+
+        # Only claim success if it actually produced something. The exit code
+        # alone is not enough: KUL_karawun_prepare.sh returns 0 even when its
+        # inputs were missing and it wrote no T1w and no labels, so trusting it
+        # wrote the .done marker over a broken folder -- which then made every
+        # later run print "already prepared" and skip it. Verify the two outputs
+        # everything downstream depends on instead.
+        if [ $_karawun_rc -eq 0 ] && \
+           [ -f "$cwd/Karawun/sub-${participant}/T1w.nii.gz" ] && \
+           [ -n "$(ls -A "$cwd/Karawun/sub-${participant}/labels" 2>/dev/null)" ]; then
             touch $karawun_prepare_check
+        elif [ $_karawun_rc -eq 0 ]; then
+            echo "ERROR: Karawun prep reported success but produced no T1w.nii.gz and/or no" >&2
+            echo "       labels in Karawun/sub-${participant}/. NOT writing the .done marker," >&2
+            echo "       so this retries rather than silently skipping from now on." >&2
         else
             echo "ERROR: Karawun prep failed (exit $_karawun_rc) — NOT writing $karawun_prepare_check" >&2
-            echo "       fix the cause and re-run with -R; it will retry rather than skip." >&2
+            echo "       fix the cause and re-run; it will retry rather than skip." >&2
         fi
-    else
-        # Deliberate: the Karawun folder (tracts, T1w, labels) does not depend on
-        # the -R underlay, so repeating -R with a different underlay regenerates
-        # the PACS DICOMs but correctly leaves Karawun alone. Delete the marker to
-        # force a rebuild.
-        echo "Karawun folder already prepared (delete KUL_LOG/sub-${participant}_karawun_prepare.done to rebuild)"
     fi
 else
-    echo "Karawun folder prep skipped (run with -R to prepare it)"
+    # Deliberate: the Karawun folder (tracts, T1w, labels) does not depend on the
+    # -R underlay, so repeating -R with a different underlay regenerates the PACS
+    # DICOMs but correctly leaves Karawun alone. Delete the marker to force a
+    # rebuild.
+    echo "Karawun folder already prepared (delete KUL_LOG/sub-${participant}_karawun_prepare.done to rebuild)"
 fi
+
+# The PACS drop folders, so the operator has somewhere to copy the maps they
+# want exported BEFORE the first -R run. Same function the -R block calls; these
+# used to be created only inside that block, i.e. only once it was already too
+# late to put anything in them.
+KUL_make_pacs_dropdirs
 
 
 # STEP 17 - figure generation is no longer automatic.
@@ -2516,31 +3670,52 @@ if [ $results -eq 0 ]; then
     echo "      is your chance to catch a threshold that looks wrong"
     echo "      before it is baked into the exported DICOMs."
     echo ""
+    if [ -f "Karawun/sub-${participant}/T1w.nii.gz" ]; then
+        echo "      The Karawun folder for Brainlab has already been prepared:"
+        echo "        Karawun/sub-${participant}/   T1w, FAT1w, tck/, labels/"
+        echo "      Review it too. It is gated by"
+        echo "      KUL_LOG/sub-${participant}_karawun_prepare.done - delete that"
+        echo "      marker to have the next run rebuild it."
+    else
+        echo "      NOTE: the Karawun/Brainlab folder was NOT prepared (see the"
+        echo "      Karawun message earlier in this run). Without it, -R cannot"
+        echo "      write the fMRI activation labels for Brainlab."
+    fi
+    echo ""
     echo "   2. Generate screenshots only, no PACS/Karawun push yet:"
     echo "        KUL_clinical_fmridti.sh -p ${participant} -t ${type} -F <1-7> [-O orientations]"
     echo ""
-    echo "   3. Drop ONE donor DICOM into either of these (both already exist):"
+    echo "   3. Choose what goes to PACS by copying maps into:"
+    echo "        $globalresultsdir/PACS_input/"
+    echo "          overlays/              colour overlay fused on the anatomical"
+    echo "          series_quantitative/   measurable series, ROI reads true units"
+    echo "      Both folders already exist and carry a README.txt. Leave them"
+    echo "      empty to get the automatic discovery instead - but note that"
+    echo "      auto-discovery only picks up SPM/, Melodic/, the lesion, and"
+    echo "      *only* nrCBV_corrected/nrCBF from Perfusion/. Anything else"
+    echo "      (a raw rCBV_corrected, an ADC map, anything from outside this"
+    echo "      pipeline) has to be copied in here to reach PACS."
+    echo ""
+    echo "   4. Drop ONE donor DICOM into either of these:"
     echo "        Karawun/sub-${participant}/DICOM/     <- searched first"
     echo "        $globalresultsdir/DICOM/"
     echo "      One file is enough - a single slice from a high-resolution"
     echo "      anatomical series (T1w, FLAIR, T2, ...). The same donor is"
     echo "      used for both PACS and Karawun/Brainlab, so one is all you"
     echo "      need; Karawun/ is the better place since the import command"
-    echo "      in step 5 reads from there."
+    echo "      in step 6 reads from there."
     echo ""
-    echo "   4. -R also triggers Karawun prep (it no longer runs on its"
-    echo "      own either). Once happy with the review and the donor"
-    echo "      DICOM is in place, run:"
+    echo "   5. Once happy with the review and the donor DICOM is in place:"
     echo "        KUL_clinical_fmridti.sh -p ${participant} -t ${type} -R <1-7> [-O orientations]"
+    echo "      This writes the PACS DICOMs, and also adds the fMRI activation"
+    echo "      labels to Karawun/sub-${participant}/labels/ for Brainlab."
     echo "      Re-running -R with a different underlay (e.g. -R 4 then -R 2)"
-    echo "      regenerates the PACS DICOMs for that underlay. Karawun prep is"
-    echo "      NOT repeated - its output does not depend on the underlay and is"
-    echo "      gated by KUL_LOG/sub-${participant}_karawun_prepare.done; delete"
-    echo "      that marker if you do want it rebuilt."
+    echo "      regenerates the PACS DICOMs for that underlay; the Karawun"
+    echo "      folder does not depend on the underlay and is left alone."
     echo ""
-    echo "   5. -R does not push to Brainlab by itself. When Karawun prep"
-    echo "      finishes it prints the importTractography command to run"
-    echo "      manually (conda activate KarawunDev first); it writes"
+    echo "   6. -R does not push to Brainlab by itself. Karawun prep printed"
+    echo "      the importTractography command to run manually (conda"
+    echo "      activate KarawunDev first); it writes"
     echo "      Karawun/sub-${participant}/sub-${participant}_for_elements."
     echo "================================================================"
     echo ""

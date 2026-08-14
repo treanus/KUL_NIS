@@ -444,6 +444,19 @@ if [[ -z "$KUL_LORESD_ENV" ]]; then
     KUL_LORESD_ENV="lore_sd"
 fi
 
+# Python env for the DICOM-generation step (KUL_nii2dcm.py, driven by
+# KUL_clinical_fmridti.sh -R). Its deps (SimpleITK/Pillow/numpy) used to be
+# taken from whatever python3 happened to be on PATH -- normally miniforge
+# base, where the installer pip-installs them unpinned -- which is why the
+# PACS step could work on one machine and fail on another. Pinning it to a
+# named env makes that reproducible; see share/envs/KUL_dicom.yml.
+# Overridable by exporting KUL_DICOM_ENV, or via -m. Unlike the envs above
+# this one falls back to plain python3 with a warning rather than failing
+# hard, so hosts that never created it keep working as before.
+if [[ -z "$KUL_DICOM_ENV" ]]; then
+    KUL_DICOM_ENV="KUL_dicom"
+fi
+
 
 
 machine_type=$(uname)

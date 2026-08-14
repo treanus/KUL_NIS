@@ -56,11 +56,27 @@ KUL_clinical_fmridti.sh -p JohnDoe -d DICOM/JohnDoe.zip
 
 DICOM export to PACS is deliberately **not** automatic. The intended workflow is:
 
-1. **Run the pipeline** (no `-R`) to generate the review figures (PNG screenshots of tracts and activation overlays).
-2. **Review the figures** — check thresholds, orientations, that the right tracts/activations are shown.
-3. **Re-run with `-R <underlay>`** to convert the reviewed figures into DICOMs for PACS and Karawun/Brainlab.
+1. **Run the pipeline** (no `-R`). It processes everything, then as its last step prepares
+   the Karawun/Brainlab folder (`Karawun/sub-{participant}/`: T1w, FAT1w, `tck/`, `labels/`)
+   and creates the PACS drop folders under `RESULTS/sub-{participant}/PACS_input/`.
+2. **Review the results** — the maps and tractograms in `RESULTS/`, the reports in `REPORT/`,
+   and the prepared Karawun folder.
+3. **Copy the maps you want exported** into `PACS_input/overlays/` and/or
+   `PACS_input/series_quantitative/` (see
+   [Exporting your own maps](#exporting-your-own-maps)). Leave both empty to get automatic
+   discovery instead.
+4. **Re-run with `-R <underlay>`** to write the PACS DICOMs, which also adds the fMRI
+   activation labels to `Karawun/sub-{participant}/labels/`.
+5. **`conda activate KarawunDev`** and run the `importTractography` command that Karawun
+   prep printed.
 
 This is why `-R` is documented as "run this AFTER reviewing figures."
+
+> Karawun prep used to be gated behind `-R`, but that gate was unreachable — `-R` exits
+> inside the export block, ~1200 lines before the Karawun step — so it never ran at all, and
+> the fMRI activation labels it feeds were silently never produced. It now runs at the end of
+> every pipeline run, which is also what puts the drop folders in place early enough to be
+> useful.
 
 **Donor DICOM.** `-R` needs one donor DICOM — a single slice from a high-resolution
 anatomical series is enough — to inherit study/series metadata. Two locations are
@@ -72,7 +88,22 @@ choice because the `importTractography` command printed at the end reads from th
 regenerates the PACS DICOMs for that underlay. Karawun prep is **not** repeated: its output
 (tracts, T1w, labels) does not depend on the underlay, and it is gated by
 `KUL_LOG/sub-{participant}_karawun_prepare.done`. Delete that marker to force a rebuild.
-The marker is only written when Karawun prep actually succeeds.
+The marker is only written when Karawun prep actually succeeds; if FWT produced no tract
+output, or the processing type has no Karawun mapping (currently type 7), the step says so
+and leaves no marker, so it retries on the next run.
+
+**Running the export on its own.** `-R`/`-F` render and export what is already in
+`RESULTS/`; they run no preprocessing. The preprocessing pre-flight checks (study scaffold,
+dwiprep config, `lore_sd` and `scilpy` conda envs) are therefore skipped for those runs, so
+a directory holding nothing but `RESULTS/sub-{participant}/` can be exported to PACS
+without being dressed up as a full study:
+
+```bash
+cd /path/to/anything/with/RESULTS
+KUL_clinical_fmridti.sh -p {participant} -t 1 -R 4 -O SAG
+```
+
+A normal run (no `-R`/`-F`) still fails fast on all of those checks exactly as before.
 
 **`-R` does not push to Brainlab.** When Karawun prep finishes it prints an
 `importTractography` command to run manually (after `conda activate KarawunDev`), which
@@ -164,6 +195,103 @@ When a lesion mask exists — `sub-{participant}_lesion_and_cavity.nii.gz` from
 - exported as a Brainlab label (`Karawun/sub-{participant}/labels/Lesion.nii.gz`,
   palette colour 50), so the tumour appears in the same scene as the tracts;
 - rendered as a PACS series in `PACS/Clinical_*` under `-R`.
+
+> **`-t 3`: your lesion mask is the one thing in `RESULTS/` that cannot be regenerated.**
+> It is hand-drawn and copied in, with no marker, no derivative copy and no step that
+> produces it — so `RESULTS/` is not purely an output directory. Deleting it destroys the
+> mask. The integrity check below hard-stops on this rather than continuing into a silently
+> lesion-free run.
+
+### RESULTS/Karawun integrity check
+
+Every processing step gates on its `.done` marker in `KUL_LOG/` and never checks whether its
+own output is still there. Because the markers and the outputs live in different
+directories, deleting a results folder to start fresh used to give you the worst case: every
+step skipped, the run reporting success, and `RESULTS/` still empty.
+
+`KUL_verify_results` runs before any processing and compares each marker against a
+representative output. The marker is what separates *deleted* from *never generated* — it is
+only created when a step was applicable, ran, and succeeded:
+
+| marker | output | meaning |
+|---|---|---|
+| absent | absent | never generated (no fMRI, different `-t`, not yet run) — silent |
+| present | present | fine |
+| present | **absent** | it existed once and does not now — reported |
+
+On a healthy tree it prints nothing and asks nothing.
+
+**Repair is only ever "remove the marker"**, after which the pipeline's own code regenerates
+the output later in the same run, applying the same transforms in the same order. That
+matters: `Tracto/*.nii.gz` is regridded onto `Anat/T1w.nii.gz`, so restoring files by hand in
+the wrong order silently produces tract maps on the fmriprep grid instead.
+
+In an interactive terminal you are asked per item, so you decide what is worth recomputing —
+anatomical and Karawun steps take seconds, the GLM, melodic and DSC are full re-runs. Under
+`nohup` or any non-tty run it reports and changes nothing, printing the `rm -f` commands
+instead.
+
+Two things it reports but will not repair: the type-3 lesion mask above (`exit 2`), and
+`Anat/T1w_GM.nii.gz`, which comes from the fmriprep step and would otherwise cost a full
+fmriprep re-run — the three-line `mrcalc`/`maskfilter` recipe is printed instead.
+
+**Relationship to `-r`.** The check itself always runs, because the failure mode is not
+knowing anything is wrong — a check you have to opt into would never fire when you need it.
+The prompting gives way to `-r` entirely: that mode is the explicit "ask me about redoing
+things" conversation and now has a question for every check, so under `-r` the findings are
+reported here and answered there.
+
+### Redoing steps (`-r`)
+
+`-r` walks the processing steps in order and asks which to redo, clearing the relevant
+`.done` marker (and the derivative, where redoing means genuinely recomputing). It covers
+tumor segmentation, anatomical registration, fmriprep, dwiprep, Gd subtraction, SPM,
+Melodic, VBG, DSC perfusion, dwiprep_anat, dwiprep_MNI, DTI-ALPS, FWT, the Karawun folder
+and figures — each asked only when it applies to this `-t` and this data.
+
+The last question is a different kind:
+
+**`Repopulate RESULTS and Karawun?`** — for when the analyses are fine but the product
+layer does not reflect them (removed by hand, cleaned out, or simply not being sure when it
+gets repopulated).
+
+The pipeline is three layers: fmriprep/dwiprep/VBG/FreeSurfer are foundational; the GLM,
+melodic, DSC, rsfMRI and FWT sit on those; `RESULTS/` and `Karawun/` are exported from
+*them*. This question rebuilds the third layer from the second, and works out what it can
+rebuild by checking whether each step's input still exists in `BIDS/derivatives/`:
+
+- **dependency present** → clear the marker; the step re-exports (the GLM re-uses its
+  `spmT` maps, melodic its decomposition, DSC its fit), which is seconds to a minute;
+- **dependency gone** → leave the marker and say so, because that would be a genuine
+  re-analysis and belongs to its own `Redo: …` question above.
+
+It never deletes a derivative — that is what keeps it an export. Note the resulting split
+on anatomical registration: this clears the marker but keeps `KUL_anat_register_rigid/`, so
+the step re-copies into `Anat/`; `Redo: anatomical registration?` also deletes the
+derivative and pays for ANTs again. Same marker, two intents.
+
+**`REPORT/` needs no question.** Its contents are copies of, or figures drawn from, sources
+that survive, and they are now produced whenever the source exists and the item is missing —
+rather than only in the run that first computed them. So deleting `REPORT/` is repaired by
+any normal run:
+
+| item | source |
+|---|---|
+| `02_eddy_qc.pdf`, `02_*_with_fa.png` | `dwiprep/.../qa`, `eddy_qc/quad` |
+| `03_fmriprep.html` | symlink to `fmriprep/sub-*.html` |
+| `05_afMRI_*.png` | GLM `spmT_0001_p001unc_k50.nii` in the SPM derivative |
+| `05_rsfMRI_*.png` | `RESULTS/.../Melodic/*.nii` |
+| `05_melodic_*.html` | melodic's own `stats_*/report/00index.html` |
+| `05_rsfMRI_networks_report.{pdf,html}` | the `-N` step's report |
+| `06_Tract_Summary.pdf` | FWT, re-synced every run |
+
+Figures are only drawn when absent, so a healthy tree renders nothing. The exceptions are
+the VBG montage and the tumour-segmentation PNG, which are genuinely derived and come back
+only when those steps re-run, and `06_Tract_QQ`, which comes with `-F`/`-R`.
+
+The same change frees `Anat/T1w_fmriprep.nii.gz` and `Anat/T1w_GM.nii.gz`, which used to be
+recoverable only by re-running fmriprep. The GM mask is rebuilt only when missing, since it
+is the only one of these that costs anything.
 
 ### FAT1w QA volume for Brainlab
 
@@ -325,15 +453,105 @@ These three flags control how the fMRI activation overlays look. Because each sc
 - `RESULTS/.../Perfusion/` — DSC perfusion maps and lesion/NAWM ratios, when DSC data is present (see [KUL_dsc_perfusion](/docs/KUL_dsc_perfusion/KUL_dsc_perfusion.md))
 - `REPORT/sub-{participant}_06_Tract_QQ/` — with `-Q`, one self-contained interactive HTML per bundle (drag-to-rotate metric tower, bundle geometry, along-tract profiles for every metric, and an endpoint-connectivity table + heatmap naming the parcels the bundle joins), plus `sub-{participant}_FWT_report.html`: a single page with every bundle's screenshots, switchable between the four renderings, filterable by bundle name, each linking to its own detail page
 - `*_figures_*/` — PNG screenshots for review (Tracto, SPM/fMRI and Clinical), per underlay and orientation
-- `RESULTS/.../PACS/` — DICOM series for PACS, created only with `-R` (via `KUL_nii2dcm.py`, using a donor DICOM for correct study/series linkage). `PACS/Clinical_*` holds the lesion and DSC perfusion series; `PACS/fMRI_*` and `PACS/Tracto_*` hold the activation and tract series.
+- `RESULTS/.../PACS/` — DICOM series for PACS, created only with `-R` (via `KUL_nii2dcm.py`, using a donor DICOM for correct study/series linkage). `PACS/Clinical_*` holds the lesion and DSC perfusion series; `PACS/fMRI_*` and `PACS/Tracto_*` hold the activation and tract series; `PACS/Quant/` holds measurable series (see below).
+- `RESULTS/.../PACS_input/` — manual drop folders, see [Exporting your own maps](#exporting-your-own-maps) below
 - `Karawun/sub-{participant}/` — Brainlab-compatible export, including a `FAT1w.nii.gz` QA volume, a `labels/Lesion.nii.gz` label when a lesion mask exists, and the fMRI activation labels (colours 51-63). See [KUL_karawun_prepare](/docs/KUL_karawun_prepare/KUL_karawun_prepare.md) for the label-colour convention — a label's voxel value *is* its Brainlab colour, and the ranges are non-overlapping by design
 
 To push the PACS DICOMs to an Orthanc/PACS node, see `tools/send_2_orthanc.sh`.
 
+### Exporting your own maps
+
+The automatic discovery above only finds maps this pipeline produced, under the
+names it expects. To export anything else, copy it into
+`RESULTS/sub-*/PACS_input/` — no renaming, no processing. Two folders, by what
+you want out:
+
+| folder | output |
+|---|---|
+| `overlays/` | colour overlay fused on the anatomical, for review |
+| `series_quantitative/` | a standalone **measurable** DICOM series — values carry RescaleSlope/Intercept, so an ROI drawn on PACS reads true units, the same as the scanner's own ADC maps |
+
+Copy (or symlink) a file into both to get a fusion overlay *and* a measurable
+series from one map.
+
+Colour windowing in `overlays/` always adapts to the map, so a perfusion map with
+values in the thousands and an fMRI t-map with a narrow range both render
+legibly — nothing to configure. For a continuous (unthresholded) map the top of
+the window is the map's **median inside grey matter × 4**
+(`Anat/T1w_GM.nii.gz`), so the colour scale reads as "× cortical value" and means
+the same thing across patients and scanners; it falls back to the 98th percentile
+if no GM segmentation is available. Thresholded maps window over their
+suprathreshold voxels instead. Tunable via `_win_ref_mult` / `_gm_ref`.
+
+What you may want to set is the **threshold**, i.e. which voxels are drawn at all:
+
+| | |
+|---|---|
+| default | automatic: `max/3` for statistical maps; brain-wide with a colourbar for physiological ones (see below) |
+| `<name>.thresh` holding a number | pins that threshold, e.g. `1.75` for nrCBV |
+| `<name>.thresh` holding `none` | draws the whole map with a colourbar — use for rCBV, ALFF, ReHo |
+| `-T <value>` | overrides everything, for all maps |
+
+In `series_quantitative/`, name a file `<name>.label.nii.gz` for an integer
+label/segmentation map; it is written with no rescaling so each label keeps its
+value. **If that folder is empty, every DSC map in `Perfusion/` is exported
+automatically** (masks excluded) — rCBV corrected/uncorrected, rCBF, MTT, TTP,
+TT0, K1, K2. PCASL is not included; it is not processed yet.
+
+#### Why some maps are not thresholded at all
+
+`max/3` only makes sense when the maximum is a meaningful peak. On a
+physiological map the maximum is a vessel voxel: the validation subject's rCBV had max 12111
+against a p99 of 1543, so `max/3` = 4037 kept 0.03% of the brain and the overlay
+was effectively blank. Maps whose `max/p99` exceeds 3 are therefore rendered
+brain-wide — full range, robust 2–98% window, colourbar — rather than
+auto-thresholded. Statistical maps sit well under that ratio and are unaffected,
+and any explicit threshold (`-T`, a sidecar, or the nrCBV/nrCBF clinical cutoffs)
+overrides the automatic choice entirely.
+
+**Discovery is conditional**: while either folder holds a file, the automatic
+`SPM/`, `Melodic/`, `Perfusion/` and `Lesion/` discovery is skipped entirely.
+Empty them to get the automatic behaviour back.
+
+Dropped files must already be registered to the anatomical — they inherit the
+donor's Frame of Reference. A file that is not on the underlay grid is exported
+with a note rather than silently.
+
+### Series numbering
+
+Exported series are numbered `donor_SeriesNumber × 100 + map_index × 10 +
+orientation` (TRA 0, COR 1, SAG 2). With a Philips donor numbered 101, the first
+map's TRA/COR/SAG land on 10110/10111/10112, the second on 10120/10121/10122, and
+so on. This keeps the exported series adjacent to the study they belong to and in
+a stable order, while staying clear of the range scanners themselves use
+(Philips 101/201/…, Siemens 1–30). Indices are assigned before rendering starts,
+so numbering is reproducible across re-runs and unaffected by parallelism.
+
 ## Dependencies
 
-This pipeline ties together most of KUL_NIS, so it needs the full software stack — see the **Requirements** section of the main [README](/README.md). The key external tools it invokes are: dcm2bids/dcm2niix, ANTs, FSL, FreeSurfer (8.2.0, or FastSurfer with `-X`), fmriprep, MRtrix3 (**3.0.8-2097-g99963980**, `dev` branch, built with CMake+Ninja), SPM12 (MATLAB), synb0-disco, hd-glio-auto, resseg, MSBP, **KUL_VBG**, **KUL_FWT** (via the `scilpy` conda env, see "Conda environments" above), Karawun, and `xvfb-run` (**required** for headless `mrview` screenshots — see below). `KUL_nii2dcm.py` additionally needs python3 with SimpleITK, Pillow and numpy.
+This pipeline ties together most of KUL_NIS, so it needs the full software stack — see the **Requirements** section of the main [README](/README.md). The key external tools it invokes are: dcm2bids/dcm2niix, ANTs, FSL, FreeSurfer (8.2.0, or FastSurfer with `-X`), fmriprep, MRtrix3 (**3.0.8-2097-g99963980**, `dev` branch, built with CMake+Ninja), SPM12 (MATLAB), synb0-disco, hd-glio-auto, resseg, MSBP, **KUL_VBG**, **KUL_FWT** (via the `scilpy` conda env, see "Conda environments" above), Karawun, and `xvfb-run` (**required** for headless `mrview` screenshots — see below). `KUL_nii2dcm.py` runs from its own conda env (KUL_Linux_setup's `env-dicom` section, or `mamba env create -f share/envs/KUL_dicom.yml` by hand; default name `KUL_dicom`, override with `-m`), which pins SimpleITK, Pillow, numpy and pydicom. If that env is absent the step falls back to plain `python3` with a warning, so existing hosts keep working.
 
 ### Headless `mrview` screenshots (`xvfb-run`)
 
-Every figure/PACS screenshot in this pipeline is captured by running `mrview` off-screen via `xvfb-run`. `xvfb-run` must be installed and on the `PATH` (`sudo apt install -y xvfb libgl1-mesa-dri`); the script checks for it at the point screenshots are generated and prints a warning if it is missing, but will otherwise fail when it tries to render figures. On systems where MATLAB/MCR (used by SPM12) is also installed, the `mrview` calls are additionally run through a filtered environment that strips the MCR's bundled Qt5 from `LD_LIBRARY_PATH` and forces software rendering (`LIBGL_ALWAYS_SOFTWARE=1`), otherwise `mrview` can abort with `Could not find the Qt platform plugin xcb/offscreen`. Override the `mrview` binary with `MRVIEW_BIN=/path/to/mrview` if `PATH` resolution is ambiguous.
+Every figure/PACS screenshot in this pipeline is captured by running `mrview` off-screen via `xvfb-run`. `xvfb-run` must be installed and on the `PATH` (`sudo apt install -y xvfb libgl1-mesa-dri`). Before rendering anything, `-R`/`-F` performs a **preflight**: it captures one real test slice and aborts with a diagnosis if that fails. (Deliberately a capture and not `mrview --version` — `--version` never opens a window or touches OpenGL, so it succeeds on a host where every actual render hangs.)
+
+The `mrview` calls run through a filtered environment that:
+
+- strips the MATLAB/MCR Qt and any `/snap/` paths from `LD_LIBRARY_PATH`, and forces software rendering (`LIBGL_ALWAYS_SOFTWARE=1`), otherwise `mrview` can abort with `Could not find the Qt platform plugin xcb/offscreen`;
+- unsets `GTK_PATH`, `GTK_MODULES`, `GIO_MODULE_DIR` and friends. Launched from a terminal inside snap-packaged VS Code, `GTK_PATH` points into the snap; Qt loads `libcanberra-gtk-module.so` from there and its RPATH drags in a conflicting glibc, killing `mrview` with `undefined symbol: __libc_pthread_init`. This depends on how the terminal was launched, not on the machine — the classic "works on my box" case.
+
+Override the `mrview` binary with `MRVIEW_BIN=/path/to/mrview` if `PATH` resolution is ambiguous.
+
+Displays are allocated with `xvfb-run -a` from a randomised base, so a stale `/tmp/.X*-lock`, a concurrent pipeline run, or an `ssh -X` session (which allocates from `:10`) cannot wedge a render.
+
+#### If renders hang
+
+A hung `mrview` holds a SysV semaphore it never releases, and **every subsequent `mrview` on that host blocks on it indefinitely** — producing no screenshots, no error, just a timeout. One wedged run therefore poisons every later one until it is cleared. `-R` warns when other `mrview` processes are already running; check their age and clear them if they are stale:
+
+```
+ps -o pid,etime,cmd -p $(pgrep -dx, mrview) | cut -c1-100
+pkill -x mrview; pkill -f 'Xvfb :'
+ipcs -s | awk '/^0x/ {print $2}' | xargs -r -n1 ipcrm -s
+```
+
+The pipeline does not do this automatically: on a shared machine those processes may belong to someone else's live run.

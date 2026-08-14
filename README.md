@@ -102,6 +102,7 @@ KUL_NIS is a set of bash/python wrappers around established neuroimaging softwar
 | [LoRE](https://github.com/TissueVisionMics/lore) (`lore_dwi2decomposition`, `lore_decomposition2contrast`) | latest | low-rank DWI decomposition / microstructure contrasts (`-D run_dwiprep_lore_sd.txt`) |
 | [scilpy](https://github.com/scilus/scilpy) | **2.3.0** | tractography post-processing (`KUL_tracts_ocd`, `KUL_FWT`); installed by [KUL_Linux_setup](https://github.com/Rad-dude/KUL_Linux_setup) as a conda env named `scilpy` — `KUL_clinical_fmridti.sh` finds it automatically; override with `-f <env_name>` only if you used a different name |
 | pyfMRI (nilearn/nibabel/numpy/scipy/pandas/matplotlib/pyyaml) | — | rsfMRI network mapping (`-N`) and the nilearn task-fMRI GLM engine (`-E nilearn`); installed by [KUL_Linux_setup](https://github.com/Rad-dude/KUL_Linux_setup)'s `env-pyfmri` section as a conda env named `pyfMRI` — found automatically; override with `-y <env_name>` only if you used a different name |
+| KUL_dicom (SimpleITK/Pillow/numpy/pydicom) | — | NIfTI/PNG → DICOM for PACS and Karawun/Brainlab (`KUL_nii2dcm.py`, behind `KUL_clinical_fmridti.sh -R`); installed by [KUL_Linux_setup](https://github.com/Rad-dude/KUL_Linux_setup)'s `env-dicom` section as a conda env named `KUL_dicom` — found automatically; override with `-m <env_name>` only if you used a different name. `share/envs/KUL_dicom.yml` is the equivalent for creating it by hand. **pydicom is required**, not optional: without it the measurable (`-q`) series fail, because GDCM refuses non-integer RescaleSlope/Intercept |
 | [qsiprep](https://qsiprep.readthedocs.io/) | latest | alternative dMRI preprocessing (`KUL_qsiprep`) |
 
 ### Sibling KUL repositories
@@ -130,6 +131,8 @@ and troubleshooting.
 
 ### [KUL_clinical_fmridti](/docs/KUL_clinical_fmridti/KUL_clinical_fmridti.md)
 The clinical batch pipeline. From a single DICOM input it runs the full presurgical / DBS fMRI–dMRI work-up — dcm2bids, tumor segmentation, KUL_VBG, fmriprep, SPM/melodic activation maps, KUL_dwiprep and KUL_FWT tractography — and produces review figures and (optionally, via `-R`) DICOMs for PACS and Brainlab. Seven processing types cover intra-/extra-axial glioma, manual-mask lesions, non-glioma cases, DBS (DRT / CSHD) and DTI-ALPS. Click the link in the header for the full guide.
+
+The run is layered: fmriprep/dwiprep/VBG/FreeSurfer are foundational, the GLM, melodic, DSC, rsfMRI and FWT sit on those, and `RESULTS/` + `Karawun/` are the clinical products exported from *them*. Because the analyses keep their output in `BIDS/derivatives/`, the product layer can be rebuilt without re-analysing anything — **clearing a step's `.done` marker re-exports, deleting its derivative re-analyses**. `-r` asks per step which to redo and ends with a `Repopulate RESULTS and Karawun?` question that rebuilds the product layer from whatever analyses are already present. A start-of-run integrity check reports any step whose marker says "done" but whose output is gone, and `REPORT/` refills itself from surviving sources. The Karawun/Brainlab folder is prepared automatically at the end of every run; `-R` then adds the PACS DICOMs and the fMRI activation labels. `-R`/`-F` run no preprocessing, so they also work on a directory holding nothing but `RESULTS/sub-{participant}/`.
 
 
 ## Tools for BIDS data conversion

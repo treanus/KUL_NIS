@@ -228,8 +228,21 @@ function KUL_compute_melodic {
             model=""
         fi
 
-        task_in="melodic -i $melodic_in_1 -o $fmriresults --report --tr=$tr --Oall $model $dim"
-        KUL_task_exec $verbose_level "Running melodic on $melodic_in_1" "1_melodic"
+        # Re-use an existing decomposition rather than recomputing it. The ICA is
+        # the expensive part and it lives in BIDS/derivatives, which survives
+        # anything done to RESULTS/; the network matching and the warp into
+        # RESULTS/.../Melodic below are cheap. Without this, repopulating
+        # RESULTS/Melodic meant re-running melodic from the denoised BOLD even
+        # though its output was sitting untouched in the derivative.
+        # KUL_MELODIC_FORCE=1 recomputes anyway.
+        if [ "${KUL_MELODIC_FORCE:-0}" != "1" ] && \
+           [ -n "$(ls -A "$fmriresults/stats/"thresh_zstat*.nii.gz 2>/dev/null)" ]; then
+            echo "  re-using the existing melodic decomposition in $fmriresults"
+            echo "  (set KUL_MELODIC_FORCE=1 to recompute it from the denoised BOLD)"
+        else
+            task_in="melodic -i $melodic_in_1 -o $fmriresults --report --tr=$tr --Oall $model $dim"
+            KUL_task_exec $verbose_level "Running melodic on $melodic_in_1" "1_melodic"
+        fi
 
         # edited by AR 04/11/2022
         # now we compare to known networks

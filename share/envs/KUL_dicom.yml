@@ -1,0 +1,29 @@
+# Conda/mamba environment for the DICOM-generation step of KUL_clinical_fmridti.sh -R
+# (KUL_nii2dcm.py: NIfTI/PNG -> DICOM series for PACS and Karawun/Brainlab).
+#
+# Create with:
+#   mamba env create -f share/envs/KUL_dicom.yml
+# Update an existing one with:
+#   mamba env update -f share/envs/KUL_dicom.yml --prune
+#
+# The env name must match $KUL_DICOM_ENV (KUL_main_functions.sh, default
+# 'KUL_dicom'); pass KUL_clinical_fmridti.sh -m <name> if you use another.
+#
+# Deliberately NOT in here: mrview/MRtrix3. mrview is a system Qt6 GUI binary
+# and the render step already sanitises its environment carefully; a second Qt
+# from conda is exactly the toolkit conflict that hardening exists to prevent.
+name: KUL_dicom
+channels:
+  - conda-forge
+dependencies:
+  - python >=3.10
+  - simpleitk >=2.2      # donor DICOM metadata/geometry, NIfTI/TIFF read, GDCM DICOM write
+  - pillow >=9.1         # PNG load/crop/resize (>=9.1 for Image.Resampling.LANCZOS)
+  - numpy >=1.24         # array/volume manipulation
+  - pydicom >=2.3        # -q/--label only: attaches RescaleSlope/Intercept after writing.
+                         # SimpleITK cannot do this itself -- GDCM treats those tags as an
+                         # instruction to inverse-rescale the pixel data on write, and
+                         # rejects any non-integer slope or intercept
+                         # ("gdcmRescaler.cxx: An invalid logic behavior occurred"),
+                         # which would quantise every fractional map to whole numbers.
+                         # Every other mode works without it.
