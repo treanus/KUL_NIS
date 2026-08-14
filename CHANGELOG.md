@@ -12,6 +12,42 @@ everything, reported success, and left the folder empty.
 The rule now holds everywhere: **clearing a step's marker re-exports; deleting its
 derivative re-analyses.**
 
+### `conda activate` worked only in shells that happened to have conda on PATH
+
+`KUL_activate_conda_env` used `source activate <env>` — the pre-4.4 form, which
+is a *script* that exists only once conda's `bin/` is on `PATH`. An interactive
+login shell carrying the KUL_Linux_setup bashrc block has that; `cron`, `nohup`,
+`bash -c` and any non-login shell do not. There it failed with
+
+```
+KUL_main_functions.sh: line 330: activate: No such file or directory
+```
+
+and the caller's own package check then reported it as **"conda env 'pyfMRI' is
+missing required packages"** — pointing at the env, which was present and
+complete, instead of at `PATH`. That misdiagnosis cost real debugging time.
+
+`conda activate` needs conda's shell *function*, not its binary, so a new
+`KUL_conda_bootstrap` sources `etc/profile.d/conda.sh` whenever that function is
+absent, trying `$KUL_CONDA_BASE`, the base reported by any `conda` already on
+`PATH`, then the usual install locations. Verified working in a shell started
+with `env -i PATH=/usr/bin:/bin` — no conda anywhere. Activation failures are now
+reported as activation failures. Shared by all eight scripts that call it.
+
+### The fMRI python env had no pre-flight check
+
+`lore_sd` and `scilpy` are checked before anything expensive runs; `pyfMRI` —
+which the GLM, melodic and the `-N` networks all need — was not, so a broken env
+surfaced only after fmriprep, dwiprep, VBG and FWT had already been walked.
+
+Both existing checks test `conda env list | grep -qx <name>`, and that test would
+have *passed* the failure above: the env existed. So `KUL_check_pyfmri_env` does
+what the step does — activate, then `import nilearn, nibabel, numpy, pandas` — in
+a subshell so a successful activation does not leak. It runs after
+`KUL_check_data` (where `n_fMRI` is known), is skipped for `-R`/`-F`, and
+distinguishes the three cases: env missing, env present but unusable, and conda
+not initialised at all — each with the command that fixes it.
+
 ### A deleted RESULTS folder used to be undetectable
 
 Every processing step gates on its `.done` marker in `KUL_LOG/` and never checks

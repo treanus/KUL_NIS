@@ -202,6 +202,25 @@ When a lesion mask exists — `sub-{participant}_lesion_and_cavity.nii.gz` from
 > mask. The integrity check below hard-stops on this rather than continuing into a silently
 > lesion-free run.
 
+### Conda environment pre-flight
+
+Before any processing step runs, the pipeline checks the environments the run will
+actually need. `lore_sd` and `scilpy` are checked for existence; **`pyfMRI`** — needed by the
+task-fMRI GLM (`-E nilearn`), melodic and the `-N` rsfMRI networks — is checked by
+*using* it: activate, then import `nilearn`, `nibabel`, `numpy`, `pandas`. Existence alone is
+not enough, because the common failure is an activation problem with a perfectly good env,
+which the fMRI steps used to report as "missing required packages".
+
+The check runs only when the subject has fMRI data, and is skipped for `-R`/`-F` (which run
+no python). It names the fix for each case: create the env
+(`./setup_environment.sh --only env-pyfmri`), initialise conda in the shell
+(`./setup_environment.sh --only bashrc`, or export `KUL_CONDA_BASE=<conda root>`), or point
+at a differently-named env with `-y`.
+
+Activation itself no longer depends on conda being on `PATH`: `KUL_activate_conda_env`
+bootstraps conda's shell function from `etc/profile.d/conda.sh` when needed, so the pipeline
+behaves the same under `cron`, `nohup` and non-login shells as it does in a terminal.
+
 ### RESULTS/Karawun integrity check
 
 Every processing step gates on its `.done` marker in `KUL_LOG/` and never checks whether its

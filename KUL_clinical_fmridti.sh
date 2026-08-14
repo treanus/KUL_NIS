@@ -2420,6 +2420,53 @@ function KUL_verify_results {
     return 0
 }
 
+# Verify the fMRI python env is actually usable, before anything expensive runs.
+#
+# Deliberately not modelled on the lore_sd/scilpy checks above, which test
+# `conda env list | grep -qx <name>`. That test would have PASSED the failure
+# this exists for: the env was present and had every package. What broke was
+# activation -- conda's bin/ was not on PATH in that shell -- and the fMRI step
+# reported it as "missing required packages", which sends you to inspect the env
+# instead of the shell. So this does what the step does: activate, then import.
+#
+# Runs in a subshell so a successful activation does not leak into the pipeline's
+# own environment.
+function KUL_check_pyfmri_env {
+    local _env="${pyfmri_env_override:-$KUL_PYFMRI_ENV}"
+    local _err _rc
+
+    # Bootstrap in this shell as well, not only inside the subshell below, or the
+    # "does the env exist" branch cannot run `conda env list` and misreports a
+    # broken env as a missing one. Sourcing conda.sh only defines the function --
+    # unlike `conda shell.bash hook` it activates nothing, so nothing leaks.
+    KUL_conda_bootstrap || true
+
+    _err=$( ( KUL_conda_bootstrap && conda activate "$_env" && \
+              python -c "import nilearn, nibabel, numpy, pandas" ) 2>&1 )
+    _rc=$?
+    if [ $_rc -eq 0 ]; then
+        echo " fMRI python env '$_env': usable"
+        return 0
+    fi
+
+    echo "" >&2
+    echo "ERROR: the fMRI python env '$_env' is not usable, and this run needs it:" >&2
+    echo "       the task-fMRI GLM (-E nilearn), melodic, and the rsfMRI networks (-N)." >&2
+    if conda env list 2>/dev/null | awk '{print $1}' | grep -qx "$_env"; then
+        echo "  The env EXISTS, so this is an activation or package problem rather than a" >&2
+        echo "  missing env. If conda is not initialised in this shell, run KUL_Linux_setup's" >&2
+        echo "  bashrc section (./setup_environment.sh --only bashrc), or export" >&2
+        echo "  KUL_CONDA_BASE=<conda root>." >&2
+    else
+        echo "  The env does NOT exist. Create it with:" >&2
+        echo "    ./setup_environment.sh --only env-pyfmri     (in KUL_Linux_setup)" >&2
+    fi
+    [ -n "$_err" ] && echo "  Detail: $(echo "$_err" | grep -v '^$' | tail -2 | tr '\n' ' ')" >&2
+    echo "  Use -y <env> if you keep it under a different name." >&2
+    echo "" >&2
+    return 1
+}
+
 function KUL_antsApply_Transform {
     antsApplyTransforms -d 3 --float 1 \
         --verbose 1 \
@@ -3442,6 +3489,15 @@ fi
 # Check if fMRI and/or dwi data are present and/or to redo some processing
 echo "Starting KUL_clinical_fmridti"
 KUL_check_data
+
+# Only meaningful once KUL_check_data has counted the fMRI runs, and pointless
+# for an export-only run, which touches no python. Fails the run rather than
+# warning: with fMRI data present, every fMRI step would otherwise get most of
+# the way through the pipeline and then die one at a time.
+if [ $export_only -eq 0 ] && [ ${n_fMRI:-0} -gt 0 ]; then
+    KUL_check_pyfmri_env || exit 2
+fi
+
 KUL_verify_results
 KUL_check_redo
 

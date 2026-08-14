@@ -309,6 +309,43 @@ function is_conda_env_activated() {
     [[ "$CONDA_DEFAULT_ENV" == "$ENV_TO_ACTIVATE" ]]
 }
 
+# Make `conda activate` usable in this shell even when it was never initialised.
+#
+# This used to be `source activate <env>` -- the pre-4.4 form, which is a script
+# that only exists once conda's bin/ is on PATH. An interactive login shell with
+# the KUL_Linux_setup bashrc block has that; cron, nohup, `bash -c` and any
+# non-login shell do not, and there it failed with
+#     KUL_main_functions.sh: line NNN: activate: No such file or directory
+# after which the caller's own package check reported it as "missing required
+# packages" -- pointing at the env, which was complete and fine, instead of at
+# PATH. That misdiagnosis cost real debugging time.
+#
+# `conda activate` needs conda's shell *function*, not the binary, so bootstrap
+# it from conda.sh whenever that function is absent. Returns 1 if no conda can
+# be found at all.
+function KUL_conda_bootstrap {
+    # already usable: conda is a shell function, not merely a binary on PATH
+    [ "$(type -t conda)" = "function" ] && return 0
+
+    local _cand _bin _bases=()
+    # a conda/mamba already on PATH knows its own base; otherwise try the usual
+    # locations, $KUL_CONDA_BASE first so a non-standard install can be named.
+    _bin=$(command -v conda 2>/dev/null)
+    [ -n "$_bin" ] && _bases+=("$("$_bin" info --base 2>/dev/null)")
+    _bases+=("${KUL_CONDA_BASE:-}" "$HOME/miniforge3" "$HOME/miniconda3" \
+             "$HOME/anaconda3" "/opt/kul_software/miniforge3" "/opt/conda")
+
+    for _cand in "${_bases[@]}"; do
+        [ -n "$_cand" ] || continue
+        if [ -f "$_cand/etc/profile.d/conda.sh" ]; then
+            # shellcheck disable=SC1090,SC1091
+            source "$_cand/etc/profile.d/conda.sh"
+            [ "$(type -t conda)" = "function" ] && return 0
+        fi
+    done
+    return 1
+}
+
 function KUL_activate_conda_env {
     ENV_TO_ACTIVATE=$1
     # function to activate a certain conda env
@@ -319,22 +356,36 @@ function KUL_activate_conda_env {
     #conda info --envs
     echo "Conda asked to activate: $ENV_TO_ACTIVATE"
 
+    if ! KUL_conda_bootstrap; then
+        echo "ERROR: conda is not initialised in this shell and no installation was found." >&2
+        echo "       Looked for etc/profile.d/conda.sh under \$KUL_CONDA_BASE, \$HOME/miniforge3," >&2
+        echo "       \$HOME/miniconda3, \$HOME/anaconda3, /opt/kul_software/miniforge3, /opt/conda." >&2
+        echo "       Export KUL_CONDA_BASE=<conda root>, or run KUL_Linux_setup's bashrc section" >&2
+        echo "       (./setup_environment.sh --only bashrc) so every shell has it." >&2
+        return 1
+    fi
+
     # Check if the desired Conda environment is activated
     if ! is_conda_env_activated; then
         echo "Activating the Conda environment: $ENV_TO_ACTIVATE"
-        if [[ $ENV_TO_ACTIVATE == 'base' ]]; then 
+        if [[ $ENV_TO_ACTIVATE == 'base' ]]; then
             echo "Switching back to the base Conda environment: $ENV_TO_ACTIVATE"
             conda deactivate
         else
         # Activate the environment
-            source activate "$ENV_TO_ACTIVATE"
+            if ! conda activate "$ENV_TO_ACTIVATE"; then
+                echo "ERROR: conda env '$ENV_TO_ACTIVATE' could not be activated." >&2
+                echo "       This is an activation failure, not a missing package -- check the env" >&2
+                echo "       exists with 'conda env list'." >&2
+                return 1
+            fi
             ACTIVATED=true
         fi
     else
         echo "Conda environment $ENV_TO_ACTIVATE is already activated."
         ACTIVATED=false
     fi
-    
+
 }
 
 # MAIN FUNCTION - kul_echo ######################################################################################
