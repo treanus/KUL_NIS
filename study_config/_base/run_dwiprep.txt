@@ -27,11 +27,14 @@ use_native_dwi: 1
 #  a standalone KUL_preproc_all.sh run needs explicit numbers, not "auto".
 synbzero_disco_instead_of_topup: auto
 rev_phase_for_topup_only: auto
-dwi2mask_method: 3
+dwi2mask_method: 4
 #  shard_recon: 1 to use shard-recon (SHARD reconstruction) instead of eddy for motion/distortion correction (see KUL_dwiprep.sh -c); default 0 (use eddy)
 shard_recon: 0
 eddy_options: --slm=linear --repol --niter=8
-dwiprep_ncpu: 20
+#  NOTE: KUL_clinical_fmridti.sh overwrites this with its own -n when it copies
+#  this config to KUL_LOG/, so the value here only applies to standalone
+#  KUL_preproc_all.sh runs. Do not tune it per processing type.
+dwiprep_ncpu: 16
 dwiprep_simultaneous: 1
 
 

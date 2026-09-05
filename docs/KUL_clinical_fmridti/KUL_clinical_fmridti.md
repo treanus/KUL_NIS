@@ -8,6 +8,8 @@ It orchestrates the other KUL_NIS tools and the sibling repositories (KUL_VBG, K
 
 > **Clinical disclaimer:** any use in a clinical environment is off-label, not FDA-approved, not CE-labeled. See the License file.
 
+---
+
 ## What it does (per processing type)
 
 The `-t` option selects the processing stream:
@@ -28,9 +30,11 @@ This stream computes the **DTI-ALPS index** (analysis along the perivascular spa
 
 1. copies the dedicated config from `study_config/DTI_ALPS_proc/` (sequences, dwiprep, fmriprep, freesurfer, gadolinium BIDS filter),
 2. runs dMRI preprocessing and `KUL_dwiprep_MNI` (the ALPS index needs the data in a common space),
-3. runs the ALPS computation via the external **`KUL_calc_DTIALPS.sh`**.
+3. runs the ALPS computation via **`KUL_DTI_ALPS/KUL_calc_DTIALPS.sh`**.
 
-> **Requirement:** `KUL_calc_DTIALPS.sh` must be installed and on the `PATH`. It is **not** part of KUL_NIS_unified — provide it separately, otherwise `-t 7` will stop at the ALPS computation step.
+> `KUL_calc_DTIALPS.sh` ships with this repo, in `KUL_DTI_ALPS/` alongside the four `MNI_ROI_*.nii.gz` projection/association ROIs it samples. It is invoked by explicit path (`${kul_main_dir}/KUL_DTI_ALPS/KUL_calc_DTIALPS.sh`), so it does **not** need to be on the `PATH`.
+>
+> It takes its MNI→T1w transform from fmriprep and its dMRI→T1w transform from dwiprep's `dwi_reg/`, so it does **not** depend on `KUL_dwiprep_MNI.sh` having run, despite what the step ordering suggests.
 
 Internally the chain (type-dependent) is roughly:
 
@@ -41,6 +45,8 @@ dcm2bids  →  anat registration  →  tumor segmentation (hd-glio-auto / resseg
           →  KUL_dwiprep (+ synb0, MRtrix3)  →  KUL_FWT tractography
           →  mrview rendering of overlays/tracts  →  figures (and PACS/Karawun DICOMs)
 ```
+
+---
 
 ## Usage
 
@@ -112,7 +118,7 @@ writes `Karawun/sub-{participant}/sub-{participant}_for_elements`.
 ### DSC perfusion
 
 If a DSC series is present in `BIDS/sub-{participant}/perf/`, `KUL_dsc_perfusion.sh`
-runs automatically — the same way fMRI and dMRI data are picked up — and `-W` skips it.
+runs automatically — the same way fMRI and dMRI data are picked up — and `do_dsc: 0` in `study_config/run_dsc.txt` skips it.
 It is scheduled after VBG/multiparc, because the contralesional NAWM reference needs a
 FreeSurfer `aseg`. See [KUL_dsc_perfusion](/docs/KUL_dsc_perfusion/KUL_dsc_perfusion.md).
 
@@ -164,9 +170,9 @@ explicitly rather than sharing one recipe (`KUL_fmri_denoise.sh`):
 
 | consumer | recipe | why |
 |---|---|---|
-| task GLM (`-E nilearn` / `spm`) | no separate denoising; task + drift + confounds fit **simultaneously** in the GLM | the confound betas are estimated *controlling for* the task, so nuisance regression cannot eat the task |
+| task GLM (`glm_engine: nilearn` / `spm`) | no separate denoising; task + drift + confounds fit **simultaneously** in the GLM | the confound betas are estimated *controlling for* the task, so nuisance regression cannot eat the task |
 | task melodic (`KUL_fmriproc_conn.sh`) | `--no-confounds --lp 0` — high-pass and smoothing only | separating task from artifact is what the ICA is *for* |
-| rsfMRI networks (`-N`) | `--task-signal remove` on task runs | strips the evoked response so task runs can be pooled with genuine rest |
+| rsfMRI networks (`do_rsfmri_networks: 1`) | `--task-signal remove` on task runs | strips the evoked response so task runs can be pooled with genuine rest |
 
 **Why melodic no longer confound-regresses.** The nuisance regressors are routinely
 collinear with a block paradigm. On a 30 s on/off language run the 6 motion parameters alone
@@ -206,7 +212,7 @@ When a lesion mask exists — `sub-{participant}_lesion_and_cavity.nii.gz` from
 
 Before any processing step runs, the pipeline checks the environments the run will
 actually need. `lore_sd` and `scilpy` are checked for existence; **`pyfMRI`** — needed by the
-task-fMRI GLM (`-E nilearn`), melodic and the `-N` rsfMRI networks — is checked by
+task-fMRI GLM (`glm_engine: nilearn`), melodic and the rsfMRI networks step — is checked by
 *using* it: activate, then import `nilearn`, `nibabel`, `numpy`, `pandas`. Existence alone is
 not enough, because the common failure is an activation problem with a perfectly good env,
 which the fMRI steps used to report as "missing required packages".
@@ -215,7 +221,7 @@ The check runs only when the subject has fMRI data, and is skipped for `-R`/`-F`
 no python). It names the fix for each case: create the env
 (`./setup_environment.sh --only env-pyfmri`), initialise conda in the shell
 (`./setup_environment.sh --only bashrc`, or export `KUL_CONDA_BASE=<conda root>`), or point
-at a differently-named env with `-y`.
+at a differently-named env by setting `$KUL_PYFMRI_ENV`.
 
 Activation itself no longer depends on conda being on `PATH`: `KUL_activate_conda_env`
 bootstraps conda's shell function from `etc/profile.d/conda.sh` when needed, so the pipeline
@@ -301,7 +307,7 @@ any normal run:
 | `05_afMRI_*.png` | GLM `spmT_0001_p001unc_k50.nii` in the SPM derivative |
 | `05_rsfMRI_*.png` | `RESULTS/.../Melodic/*.nii` |
 | `05_melodic_*.html` | melodic's own `stats_*/report/00index.html` |
-| `05_rsfMRI_networks_report.{pdf,html}` | the `-N` step's report |
+| `05_rsfMRI_networks_report.{pdf,html}` | the rsfMRI networks step's report |
 | `06_Tract_Summary.pdf` | FWT, re-synced every run |
 
 Figures are only drawn when absent, so a healthy tree renders nothing. The exceptions are
@@ -327,55 +333,79 @@ from every export. It needs `dwiprep/sub-X/sub-X/qa/fa_reg2T1w.nii.gz`, i.e.
 
 ## Options
 
-```
-Required:
-  -p   participant name (BIDS name, no underscores)
+### Required
 
-Optional:
-  -t   processing type (1-7, see table above; default 1)
-  -d   dicom zip file (or directory)
-  -s   scaffold a default DICOM and study_config
-  -B   delete regenerable intermediates, then archive what remains into a
-         password-protected ../Finished_<date>_sub-<p>_type<t>.7z and exit
-         (see "Backup and cleanup" below). Destructive and one-way.
-  -r   redo certain steps (the program will ask)
-  -R   generate DICOMs for PACS and Karawun (run AFTER reviewing figures)
-         underlay choice: 1=cT1w  2=FLAIR  3=SWI  4=T1w  5=FGATIR  6=DIR  7=MP2RAGE(INV2)
-  -O   orientations to render, comma-separated (default: TRA,SAG,COR)
-  -e   add an edge outline to SPM/Melodic overlays (dark blue contour at the threshold boundary)
-  -T   fixed threshold for ALL SPM/Melodic overlays (default: auto = max/3 per map;
-         if omitted and interactive, you are prompted for one threshold per map)
-  -a   opacity of SPM/Melodic (fMRI) activation overlays (0=transparent, 1=opaque; default 0.7)
-         lower values let underlying anatomy show through on figures AND PACS DICOMs
-  -D   dwiprep config file to use from study_config/ (default: run_dwiprep.txt)
-         use e.g. -D run_dwiprep_lore_sd.txt to run lore-sd based FOD estimation
-  -S   fMRI SUSAN smoothing FWHM in mm (default: adaptive = mean voxel size)
-  -P   FWE-corrected p-value for Bizzi fMRI thresholding (default: 0.01)
-  -n   number of threads (default 48)
-  -v   verbosity (0=silent, 1=normal, 2=verbose; default 1)
-  -X   use FastSurfer instead of plain recon-all for the reconstruction step
-         in types 4, 5, 6 (faster, requires GPU; default is FreeSurfer 8.2.0 recon-all)
-  -E   fMRI GLM engine: spm or nilearn (default: spm). nilearn needs no
-         MATLAB/SPM12 license; it runs in the conda env $KUL_PYFMRI_ENV
-         (default 'pyfMRI') — see "Conda environments" below.
-  -W   skip DSC perfusion processing (KUL_dsc_perfusion.sh). It otherwise runs
-       automatically whenever a DSC series is present in BIDS/*/perf/
-  -N   opt-in: also run presurgical/eloquent-cortex rsfMRI network mapping
-         (KUL_run_rsfMRI_networks.sh). Off by default. Boolean — takes no
-         argument. Also runs in $KUL_PYFMRI_ENV.
-  -C   condition profile for -N, from share/rsfmri_pipeline/config/profiles.yaml
-         (default: Presurgical)
-  -U   EXPERIMENTAL opt-in: prefer the rfa-modulated lore_sd FOD in KUL_FWT,
-         if found, over the plain lore_sd ODF (only relevant with -D
-         run_dwiprep_lore_sd.txt). Off by default.
-  -Q   opt-in: run KUL_FWT's per-bundle tractometry (along-tract scalar
-         profiles). Off by default — adds real per-bundle runtime. Tracts
-         themselves are generated either way.
-  -f   conda env to use instead of $KUL_SCILPY_ENV (default 'scilpy') for FWT
-         (automated tractography). You shouldn't normally need this.
-  -y   conda env to use instead of $KUL_PYFMRI_ENV (default 'pyfMRI') for -N
-         and -E nilearn. You shouldn't normally need this either.
-```
+| Flag | Meaning |
+|---|---|
+| `-p` | Participant name (BIDS name, no underscores) |
+
+### Optional
+
+| Flag | Meaning |
+|---|---|
+| `-t` | Processing type (1-7, see table above; default `1`) |
+| `-d` | DICOM zip file (or directory) |
+| `-s` | Scaffold a default `DICOM/` and `study_config/` |
+| `-B` | Delete regenerable intermediates, then archive what remains into a password-protected `../Finished_<date>_sub-<p>_type<t>.7z` and exit (see [Backup and cleanup](#backup-and-cleanup--b-) above). **Destructive and one-way.** |
+| `-r` | Redo certain steps (the program will ask) |
+| `-R` | Generate DICOMs for PACS and Karawun (run **after** reviewing figures). Underlay choice: `1`=cT1w, `2`=FLAIR, `3`=SWI, `4`=T1w, `5`=FGATIR, `6`=DIR, `7`=MP2RAGE(INV2) |
+| `-O` | Orientations to render, comma-separated (default: `TRA,SAG,COR`) |
+| `-e` | Add an edge outline to SPM/Melodic overlays (dark-blue contour at the threshold boundary) |
+| `-T` | Fixed threshold for **all** SPM/Melodic overlays (default: auto = `max/3` per map; if omitted and interactive, you are prompted for one threshold per map) |
+| `-a` | Opacity of SPM/Melodic (fMRI) activation overlays (`0`=transparent, `1`=opaque; default `0.7`). Lower values let underlying anatomy show through on figures **and** PACS DICOMs |
+| `-D` | dwiprep config file to use from `study_config/` (default: `run_dwiprep.txt`). Use e.g. `-D run_dwiprep_lore_sd.txt` to run lore-sd based FOD estimation |
+| `-n` | Number of threads (default `48`). Also written into the `*_ncpu` key of the fmriprep/freesurfer/dwiprep configs copied to `KUL_LOG/`, so it reaches every step |
+| `-v` | Verbosity (`0`=silent, `1`=normal, `2`=verbose; default `1`) |
+| `-x` | One-off `study_config` override, `key=value`, repeatable (e.g. `-x fwt_tractometry=1 -x fmri_smooth_fwhm=8`). Wins over the config files, for this run only, without editing them |
+
+---
+
+## Processing options live in `study_config/`
+
+Every knob that shapes *how* a step runs is a key in a config file, not a flag.
+One file per sub-command, scaffolded into the patient folder by `-s`:
+
+| file | drives | keys |
+|---|---|---|
+| `run_vbg.txt` | `KUL_VBG.sh` | `vbg_brain_extraction`, `vbg_parcellation`, `vbg_use_template_patch`, `vbg_multiscale_parc`, `vbg_overlap_report`, `vbg_hybrid_donor_blend`, `vbg_lesion_space` |
+| `run_fwt.txt` | `KUL_FWT_make_VOIs.sh`, `KUL_FWT_make_TCKs.sh` | `fwt_tracks_list`, `fwt_tracking_approach`, `fwt_algorithm`, `fwt_filtering`, `fwt_screenshots`, `fwt_tractometry`, `fwt_reordered_filtering`, `fwt_rfa_modulated_fod`, `fwt_cutoff` |
+| `run_fmri_glm.txt` | `KUL_fmriproc_spm_new.sh` / `KUL_fmriproc_nilearn_new.sh` | `do_fmri_glm`, `glm_engine`, `fmri_smooth_fwhm`, `fmri_pfwe` |
+| `run_rsfmri_networks.txt` | `KUL_run_rsfMRI_networks.sh` | `do_rsfmri_networks`, `rsfmri_profile` |
+| `run_dsc.txt` | `KUL_dsc_perfusion.sh` | `do_dsc` |
+| `run_multiparc.txt` | `KUL_FS_multiparc.sh` | `use_fastsurfer` |
+| `run_karawun.txt` | `KUL_karawun_prepare.sh` | `do_karawun`, `karawun_threshold_tumor`, `karawun_threshold_dbs` |
+| `sequences.txt` | `KUL_dcm2bids.sh` | series search-strings |
+| `tracks_list.txt` | FWT bundle list | `<bundle>,<streamlines>` per line |
+| `run_fmriprep.txt`, `run_freesurfer.txt`, `run_dwiprep.txt` | `KUL_preproc_all.sh` | as before |
+
+Decisions that follow from `-t` are **not** config keys, because `-t` would
+silently override them: whether VBG runs and whether it runs extra-axial,
+whether FWT runs, whether multiparc runs, and which of the three Karawun cases
+applies. The files say so where it matters.
+
+### These flags were replaced by config keys
+
+| was | now | in |
+|---|---|---|
+| `-S` | `fmri_smooth_fwhm` | `run_fmri_glm.txt` |
+| `-P` | `fmri_pfwe` | `run_fmri_glm.txt` |
+| `-E` | `glm_engine` | `run_fmri_glm.txt` |
+| `-N` | `do_rsfmri_networks` | `run_rsfmri_networks.txt` |
+| `-C` | `rsfmri_profile` | `run_rsfmri_networks.txt` |
+| `-W` | `do_dsc` (inverted sense) | `run_dsc.txt` |
+| `-X` | `use_fastsurfer` | `run_multiparc.txt` |
+| `-U` | `fwt_rfa_modulated_fod` | `run_fwt.txt` |
+| `-Q` | `fwt_tractometry` | `run_fwt.txt` |
+| `-A` | `fwt_reordered_filtering` | `run_fwt.txt` |
+| `-f` | `$KUL_SCILPY_ENV` | environment |
+| `-y` | `$KUL_PYFMRI_ENV` | environment |
+| `-m` | `$KUL_DICOM_ENV` | environment |
+
+Passing a retired flag is an error that names its replacement, rather than a
+silent no-op — a run that quietly ignored `-S 6` would produce wrongly smoothed
+results with no sign anything was wrong.
+
+---
 
 ## Conda environments
 
@@ -384,14 +414,16 @@ of the installer's `env-pyfmri`/`env-scilpy`/`env-lore-sd` sections, these are
 created under **fixed, predictable names** — `pyfMRI`, `scilpy`, `lore_sd` —
 so you do **not** need to tell the pipeline which env to use for normal runs.
 
-> **The pipeline will quit if the expected env is missing.** If FWT (`-f`),
-> `-N`, `-E nilearn`, or a `-D` config requesting `lore_sd` can't find their
-> conda env (`scilpy`, `pyfMRI`, `pyfMRI`, `lore_sd` respectively) via `conda
-> env list`, the script exits immediately with an error naming the missing
-> env — it does **not** silently fall back to a bare `python3` or hang. Run
-> the corresponding KUL_Linux_setup section (e.g. `--only env-pyfmri`)
-> to create it, or override with `-f`/`-y`/`loresd_env:` in the `-D` config
-> if you're intentionally using a differently-named env.
+> **The pipeline will quit if the expected env is missing.** If FWT, the
+> rsfMRI networks step, `glm_engine: nilearn`, or a `-D` config requesting
+> `lore_sd` can't find their conda env (`scilpy`, `pyfMRI`, `pyfMRI`,
+> `lore_sd` respectively) via `conda env list`, the script exits immediately
+> with an error naming the missing env — it does **not** silently fall back to
+> a bare `python3` or hang. Run the corresponding KUL_Linux_setup section
+> (e.g. `--only env-pyfmri`) to create it, or point at a differently-named env
+> with `$KUL_SCILPY_ENV` / `$KUL_PYFMRI_ENV` / `loresd_env:` in the `-D` config.
+
+---
 
 ## Examples
 
@@ -433,23 +465,37 @@ cd /data/studies/dbs_cohort/clinical_sub-M0012_type3
 mkdir -p RESULTS/sub-M0012/Lesion
 cp /data/segmentations/M0012_lesion.nii.gz RESULTS/sub-M0012/Lesion/lesion.nii.gz
 KUL_clinical_fmridti.sh -p M0012 -d ./DICOM/M0012 -t 3 \
-    -E nilearn -D run_dwiprep_lore_sd.txt -U -N -Q -n 32 -v 2
+    -D run_dwiprep_lore_sd.txt -n 32 -v 2
 ```
 - `-t 3`: tumor with manual mask (the `lesion.nii.gz` you copied in above)
-- `-E nilearn`: task-fMRI GLM via nilearn instead of SPM12/MATLAB — runs in
-  the `pyfMRI` conda env automatically, no `-y` needed
 - `-D run_dwiprep_lore_sd.txt`: use the lore_sd dwiprep config (runs in the
   `lore_sd` conda env automatically — the config's `loresd_env:` field can
   stay blank)
-- `-U`: prefer the rfa-modulated lore_sd FOD in tractography, if present
-- `-N`: also run rsfMRI network mapping (also uses `pyfMRI` automatically)
-- `-Q`: run KUL_FWT's per-bundle tractometry (adds runtime)
 - `-v 2`: verbose logging
 
-Neither example passes `-f`, `-y`, or a `loresd_env:` override — the
-`scilpy`/`pyfMRI`/`lore_sd` envs are found automatically by their fixed
-names. You'd only add those if you deliberately installed one under a
-different name.
+with these edited once in the patient's `study_config/`, where they are
+recorded with the study:
+
+```
+run_fmri_glm.txt        glm_engine: nilearn         # nilearn GLM, no MATLAB
+run_fwt.txt             fwt_rfa_modulated_fod: 1    # prefer the rfa-modulated lore_sd FOD
+                        fwt_tractometry: 1          # per-bundle tractometry (adds runtime)
+run_rsfmri_networks.txt do_rsfmri_networks: 1       # rsfMRI network mapping
+```
+
+To try those without editing the study's config, pass them for one run only:
+
+```
+KUL_clinical_fmridti.sh -p M0012 -d ./DICOM/M0012 -t 3 \
+    -D run_dwiprep_lore_sd.txt -n 32 -v 2 \
+    -x glm_engine=nilearn -x fwt_rfa_modulated_fod=1 \
+    -x fwt_tractometry=1 -x do_rsfmri_networks=1
+```
+
+Neither example names a conda env — the `scilpy`/`pyfMRI`/`lore_sd` envs are
+found automatically by their fixed names. Set `$KUL_SCILPY_ENV` /
+`$KUL_PYFMRI_ENV` only if you deliberately installed one under a different
+name.
 
 ### Figure / overlay appearance (`-a`, `-e`, `-T`)
 
@@ -461,6 +507,8 @@ These three flags control how the fMRI activation overlays look. Because each sc
 
 > Tracts are rendered as 3D tractography lines (not an image overlay), so anatomy always shows through them regardless of `-a`.
 
+---
+
 ## Outputs
 
 - `RESULTS/sub-{participant}/` — anat, figures and intermediate results
@@ -470,7 +518,7 @@ These three flags control how the fMRI activation overlays look. Because each sc
 - `RESULTS/.../Tracto/` — final bundles as MRtrix `.tck`, plus tract density maps regridded to T1w
 - `RESULTS/.../TRK/` — the same bundles as TrackVis `.trk`, for **freeview** (which does not read `.tck`). Written by `KUL_FWT_make_TCKs.sh` next to each `.tck` and copied here; the conversion reference is the FA/tracking space, not the FreeSurfer parcellation — see the `.trk` comment in that script for why that distinction matters when the dMRI and T1w come from different sessions
 - `RESULTS/.../Perfusion/` — DSC perfusion maps and lesion/NAWM ratios, when DSC data is present (see [KUL_dsc_perfusion](/docs/KUL_dsc_perfusion/KUL_dsc_perfusion.md))
-- `REPORT/sub-{participant}_06_Tract_QQ/` — with `-Q`, one self-contained interactive HTML per bundle (drag-to-rotate metric tower, bundle geometry, along-tract profiles for every metric, and an endpoint-connectivity table + heatmap naming the parcels the bundle joins), plus `sub-{participant}_FWT_report.html`: a single page with every bundle's screenshots, switchable between the four renderings, filterable by bundle name, each linking to its own detail page
+- `REPORT/sub-{participant}_06_Tract_QQ/` — with `fwt_tractometry: 1`, one self-contained interactive HTML per bundle (drag-to-rotate metric tower, bundle geometry, along-tract profiles for every metric, and an endpoint-connectivity table + heatmap naming the parcels the bundle joins), plus `sub-{participant}_FWT_report.html`: a single page with every bundle's screenshots, switchable between the four renderings, filterable by bundle name, each linking to its own detail page
 - `*_figures_*/` — PNG screenshots for review (Tracto, SPM/fMRI and Clinical), per underlay and orientation
 - `RESULTS/.../PACS/` — DICOM series for PACS, created only with `-R` (via `KUL_nii2dcm.py`, using a donor DICOM for correct study/series linkage). `PACS/Clinical_*` holds the lesion and DSC perfusion series; `PACS/fMRI_*` and `PACS/Tracto_*` hold the activation and tract series; `PACS/Quant/` holds measurable series (see below).
 - `RESULTS/.../PACS_input/` — manual drop folders, see [Exporting your own maps](#exporting-your-own-maps) below
@@ -546,9 +594,25 @@ a stable order, while staying clear of the range scanners themselves use
 (Philips 101/201/…, Siemens 1–30). Indices are assigned before rendering starts,
 so numbering is reproducible across re-runs and unaffected by parallelism.
 
+---
+
 ## Dependencies
 
-This pipeline ties together most of KUL_NIS, so it needs the full software stack — see the **Requirements** section of the main [README](/README.md). The key external tools it invokes are: dcm2bids/dcm2niix, ANTs, FSL, FreeSurfer (8.2.0, or FastSurfer with `-X`), fmriprep, MRtrix3 (**3.0.8-2097-g99963980**, `dev` branch, built with CMake+Ninja), SPM12 (MATLAB), synb0-disco, hd-glio-auto, resseg, MSBP, **KUL_VBG**, **KUL_FWT** (via the `scilpy` conda env, see "Conda environments" above), Karawun, and `xvfb-run` (**required** for headless `mrview` screenshots — see below). `KUL_nii2dcm.py` runs from its own conda env (KUL_Linux_setup's `env-dicom` section, or `mamba env create -f share/envs/KUL_dicom.yml` by hand; default name `KUL_dicom`, override with `-m`), which pins SimpleITK, Pillow, numpy and pydicom. If that env is absent the step falls back to plain `python3` with a warning, so existing hosts keep working.
+This pipeline ties together most of KUL_NIS, so it needs the full software stack — see the **Requirements** section of the main [README](/README.md). The key external tools it invokes:
+
+- dcm2bids / dcm2niix
+- ANTs, FSL
+- FreeSurfer (8.2.0, or FastSurfer with `use_fastsurfer: 1` in `study_config/run_multiparc.txt`)
+- fmriprep
+- MRtrix3 (**3.0.8-2097-g99963980**, `dev` branch, built with CMake+Ninja)
+- SPM12 (MATLAB)
+- synb0-disco, hd-glio-auto, resseg, MSBP
+- **KUL_VBG**
+- **KUL_FWT** (via the `scilpy` conda env, see [Conda environments](#conda-environments) above)
+- Karawun
+- `xvfb-run` (**required** for headless `mrview` screenshots — see below)
+
+`KUL_nii2dcm.py` runs from its own conda env (KUL_Linux_setup's `env-dicom` section, or `mamba env create -f share/envs/KUL_dicom.yml` by hand; default name `KUL_dicom`, override with `$KUL_DICOM_ENV`), which pins SimpleITK, Pillow, numpy and pydicom. If that env is absent, the step falls back to plain `python3` with a warning, so existing hosts keep working.
 
 ### Headless `mrview` screenshots (`xvfb-run`)
 

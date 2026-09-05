@@ -1,5 +1,367 @@
 # Changelog
 
+## Unreleased (2026-09-05 — resseg cavity segmentation rebuilt; Karawun T1w rescale was silently broken)
+
+### resseg was finding cavities outside the brain, and its arbitration was a coin toss
+
+`KUL_anat_segment_tumor.sh`'s two resseg runs both operated on inputs that let
+the tool go wrong in different ways, and the step that reconciled them discarded
+one result outright when they disagreed.
+
+- **Run 1 now uses a Colin27 normal-brain mask warped to native space**
+  (`antsRegistrationSyN.sh -t a` onto `colin27_t1_tal_lin`, inverse-applied)
+  rather than the raw full head. An unmasked head lets resseg "find" a cavity on
+  extracranial structures — the maxillary sinus is a dark fluid-filled shape of
+  about the right size. A *template* mask is the right tool here precisely
+  because, unlike the patient's own BET used by run 2, it cannot exclude a real
+  post-surgical cavity.
+- **Hallucination detection with one retry** (new `KUL_resseg_masked_run`).
+  resseg was never trained on hard-zero-masked images and can place a cavity
+  entirely inside the zeroed background. The fraction of predicted voxels landing
+  outside the mask that built the input is measured; above 0.5 the run is retried
+  once at a larger dilation (`npass` 5 → 15) and the sane result kept. Both runs
+  now share the tighter margin, so mask *source* is the only difference between
+  them.
+- **Fixed seed 42.** resseg's test-time augmentation (`-a 3`) is stochastic, so
+  results — and therefore the arbitration below — were not reproducible
+  run-to-run.
+- **STEP 5C arbitrates instead of discarding.** Previously, no overlap between
+  the two runs meant resseg's result was silently dropped. Now: overlap keeps run
+  1 as before; otherwise, when HD-GLIO found a lesion, the candidates are scored
+  by `ImageMath MaurerDistance` to that lesion and the nearer one kept
+  (single-nonempty cases handled explicitly); if still unresolved it prints a
+  loud WARNING naming the decision path and recommending manual review. This mask
+  feeds VBG for the remainder of the pipeline, so a silent wrong answer here
+  propagates everywhere.
+
+### Karawun's T1w rescale factor was computed as zero
+
+`KUL_karawun_prepare.sh` had:
+
+```bash
+T1w_factor=$(scale=10; echo "($T1w_max-($T1w_min))/32767" | bc)
+```
+
+`scale=10;` runs as a *shell* assignment, not as bc input — so bc used its
+default `scale=0` and did integer division. Whenever `max - min < 32767` the
+16-bit scale factor truncated to **0**, and the subsequent `mrcalc ... -div`
+produced a garbage T1w for Brainlab.
+
+- `scale=10` moved inside the bc expression, plus a guard that copies the T1w
+  unscaled with a warning if the factor comes back empty or zero, and logs the
+  factor when it doesn't.
+
+### `KUL_nii2dcm.py`
+
+- **`InstanceNumber` (0020,0013) was 0-based** in both PNG-overlay writers, which
+  mis-sorts in some viewers. Now `+1`, matching the fix `writeSlices()` already
+  carried and which was never propagated to the other two.
+- Removed the dead `donor_frames` IPP/SliceLocation table (built and sorted,
+  never read).
+- The PNG-vs-donor-frame-count mismatch message claimed "using nearest-neighbour
+  matching", which never happens — geometry comes wholly from the underlay.
+  Downgraded to an informational note.
+
+### Config surface
+
+- **`do_dwiprep_MNI`** added to all three dwiprep configs and gated in
+  `KUL_run_dwiprep_MNI`. It previously ran for every type unconditionally, and
+  nothing in KUL_NIS — DTI-ALPS included — reads its `MNI/` output.
+- **`fwt_cutoff`** is passed to `KUL_FWT_make_TCKs.sh` as `-X` only when
+  non-empty; empty means "let FWT decide" (MRtrix default for CSD, 0.05 for
+  lore_sd). It was not reachable from this level before.
+- **`do_fmri_glm`**, **`do_karawun`**, **`karawun_threshold_tumor`/`_dbs`** added
+  as switches. Karawun now reports "switched off" distinctly from "this `-t` has
+  no Karawun case".
+- CST streamline targets raised to **8000** across all three types
+  (`_base/tracks_list.txt` 5000 → 8000; DBS DRT/HDP 3000 → 8000), so every type
+  now uses the same target.
+- `_base/` `*_ncpu` placeholders lowered 64/32 → **16**, noting that
+  `KUL_clinical_fmridti.sh` overwrites them from `-n` — the value only matters to
+  a standalone `KUL_preproc_all.sh` run.
+
+## Unreleased (2026-09-05 — nilearn engine over-populated SPM/, Karawun QQ copy broke its own links)
+
+### The nilearn GLM engine put 3 files per task into `RESULTS/.../SPM/`
+
+`SPM/` is contractually the single downstream-selected map per task (with
+confounds, `p001unc_k50` thresholded); every other combination belongs in
+`SPM_all/`. The SPM12 engine enforces that with an explicit per-file
+conditional. `KUL_fmriproc_nilearn_new.sh`'s `KUL_populate_SPM_results` instead
+globbed `afMRI_${task}${variant}*.nii`, which also matches `_wc.nii`,
+`_wc_p001unc_k50.nii` **and** `_wc_FWE01_k50.nii` — so five real tasks put
+fifteen files in `SPM/`.
+
+That is not cosmetic downstream: `KUL_clinical_fmridti.sh` assigns one Karawun
+palette slot per file found in `SPM/`, so five tasks consumed slots 51-65
+instead of 51-55. Values above 63 exceed even the extended-palette fork, and
+`importTractography` aborted with `Error - too many labels`.
+
+- The glob is replaced by an explicit pick of the `_p001unc_k50` file for the
+  chosen wc/plain variant, matching the SPM12 engine.
+
+### `REPORT/sub-*_06_Tract_QQ/` copy broke the report's own iframe links
+
+`KUL_FWT_bundle_report.py` embeds each bundle's spider page as
+`<iframe src="<bundle>_output/QQ/<file>.html">` — a real relative path, since the
+report and the per-bundle pages are not siblings at the original location. The
+copy into `REPORT/` flattened every spider page into one directory (a comment
+there still described the older bare-filename linking), so the copied report's
+iframes pointed at subdirectories that did not exist in the copy. It worked in
+`TCKs_output/` and broke once copied.
+
+- The copy now mirrors the same `<bundle>_output/QQ/` nesting under the
+  destination.
+
+### Karawun instructions were printed exactly once, ever
+
+`KUL_karawun_prepare.sh` prints the `importTractography` command, but prep only
+runs on the first run that creates the folder; every later run took the "already
+prepared" branch and said nothing further. So the command was visible only in
+whichever run first built the folder — and a later `-F`/`-R` run can still have
+added fMRI labels the folder did not have then.
+
+- That branch now reprints the full command (including `FAT1w` when present).
+- The end-of-run summary now distinguishes Karawun **prep** (automatic, every
+  run) from the **fMRI activation labels** (added only by a subsequent `-F`/`-R`),
+  which was the actual source of "when does Karawun run?" confusion.
+
+### DSC perfusion sequence entries
+
+- `study_config/_base/sequences.txt` carries both vendor spellings of the DSC
+  series: Philips `T2_DSC_Perfusion` and Siemens `_perf_` (the latter taken from
+  a production config; `mb`/`pe_dir` are protocol-specific and should be checked
+  against the actual series).
+
+## Unreleased (2026-09-03 — dead study_config files removed, KUL_DRT.sh sed fixed)
+
+- **`KUL_DRT.sh`** had the same append-instead-of-replace bug in both of its
+  config stamps (lines 128, 260): `s/BIDS_participants: /...${participant}/`
+  appends to whatever the template already holds, so a template shipping
+  `BIDS_participants: 001` produced `BIDS_participants: JaneDoe001`. Anchored to
+  `^BIDS_participants:.*` so it replaces the value.
+- **Nine dead files removed from the top of `study_config/`**: `sequences.txt`,
+  `tracks_list.txt`, `run_{dwiprep,fmriprep,freesurfer}.txt`,
+  `bids_filter_no_gadolinium.json` and three `task-*_events.tsv`. Only
+  `KUL_scaffold` reads the repo-root `study_config/`, and only from `_base/` and
+  the type directories, so nothing copied or read these. Every other reference
+  in the tree is either usage text describing a path inside the *user's* study
+  folder or a script reading the patient's own copy at runtime.
+
+  `sequences.txt` carried uncommitted local edits (the DSC vendor comment and
+  the `DSC,_perf_` row); both had already been merged into `_base/`, verified
+  row by row before deleting. The only rows not carried over are
+  `FLAIR,3D_FLAIR`, deliberately dropped because it collides with `FLAIR,FLAIR`,
+  and `cT1w,T1_POST`, covered by the broader `cT1w,POST`.
+
+  **Kept**, each with a live consumer: `sequences_expert.txt`
+  (`KUL_dcm2bids_new.sh:901` reads the 7-column expert format),
+  `subjects_and_options{,_expert_mode}.csv` (`KUL_preproc_all.sh`, batch and
+  `-e` modes), `tracto_{rois,tracts}.csv` (`KUL_dwiprep_fibertract.sh`).
+- **Two more per-type duplicates gone**: `clinical_dmri_dbs_{drt,hdp}/run_dwiprep.txt`
+  differed from `_base/` in nothing but the hardcoded `dwiprep_ncpu`, which `-n`
+  now supplies. `run_dwiprep_lore_sd.txt` went the same way once `--niter=8`
+  was added to it, leaving the DBS type directories holding only
+  `tracks_list.txt` and `run_fmriprep.txt`.
+
+## Unreleased (2026-09-03 — config reads in KUL_preproc_all.sh are anchored)
+
+Every config read was an unanchored `grep key $conf | grep -v \#`, which matches
+any line *containing* the key. Nothing in the shipped configs collided, but only
+by luck: adding `do_dwiprep_MNI` next to `do_dwiprep` this session was a near
+miss, saved solely because that one grep happened to include a colon. 50 of the
+53 distinct patterns had no colon at all.
+
+All 66 reads are now `grep -E "^[[:space:]]*key:" $conf | head -n 1` with an
+inline `#` comment stripped. Two silent failure modes go away with it:
+
+| config | key | old | new |
+|---|---|---|---|
+| `do_dwiprep: 1` + `do_dwiprep_MNI: 0` | `do_dwiprep` | `1\n0` | `1` |
+| `fmriprep_options: --skip-bids-validation   # note` | `fmriprep_options` | *empty* | `--skip-bids-validation` |
+
+The second is the nastier one: annotating a setting made `grep -v \#` drop the
+whole line, so the value silently reverted to its built-in default.
+
+Verified by evaluating the old and the new expression for all 58 parsed
+variables against every shipped config: identical values throughout, so nothing
+that works today changes.
+
+### Smaller fixes
+
+- **`VOFc` was unreachable.** `KUL_FWT_tracks_list.txt` listed `VOF_LT`/`VOF_RT`,
+  but the recipes are `track_recipes_v2/VOFc_LT.txt`/`VOFc_RT.txt`. A name
+  mismatch, not missing anatomy: `KUL_FWT_make_VOIs.sh` logged "no recipe file
+  found ... skipping" and the bundle was never built. Renamed; every entry in
+  that list now resolves to a recipe.
+- **`do_dwiprep_mni` renamed to `do_dwiprep_MNI`**, matching the key
+  `KUL_preproc_all.sh` already uses for the same operation. Two keys differing
+  only in case, controlling the same script from two orchestrators, was a trap.
+- **DTI-ALPS docs corrected.** They claimed `KUL_calc_DTIALPS.sh` is "not part
+  of KUL_NIS_unified" and "must be on the PATH". It ships in `KUL_DTI_ALPS/`
+  and is invoked by explicit path. Also recorded that it does not depend on
+  `KUL_dwiprep_MNI.sh`, which the step ordering wrongly implies.
+
+## Unreleased (2026-09-03 — the dwi distortion-correction scheme is detected, not assumed)
+
+`synbzero_disco_instead_of_topup` and `rev_phase_for_topup_only` describe the
+*acquisition*, but the templates pinned them per processing type: types 1-4
+shipped `1`/`1`. On a full AP/PA pair — what the current Siemens dMRI protocol
+acquires — both are wrong. `-b` means "use Synb0-DISCO **instead of** topup", so
+it replaces a real fieldmap with a synthetic one when a real one was acquired,
+and `-r` then discards the reverse-phase volumes as data. Half the diffusion
+data thrown away, silently, on every type-1-4 Siemens case.
+
+Both keys now default to `auto`, resolved by `KUL_detect_dwi_acq` from the BIDS
+dwi series after dcm2bids has run:
+
+| BIDS holds | synb0 | revonly |
+|---|---|---|
+| one phase-encoding direction | 1 | 0 |
+| both, reverse phase b0-only | 0 | 1 |
+| both, reverse phase diffusion-weighted | 0 | 0 |
+
+The resolved numbers are written into the `KUL_LOG/` copy, so `KUL_preproc_all.sh`
+never sees the word `auto`. An explicit `0`/`1` in the config still wins.
+
+If the scheme cannot be determined — no `PhaseEncodingDirection` in the sidecars,
+or no dwi at all — the run **stops** with an error naming the two keys, rather
+than guessing. Either guess corrupts the diffusion preprocessing of a clinical
+case in a way nothing downstream would flag.
+
+Verified against a real Siemens study (`ep2d_diff_b2500_1.5i_p2_s3_AP` / `_PA`):
+detected `REV_FULL` -> `0`/`0`, independently reproducing the setting that study
+had been hand-edited to use. Synthetic trees cover the single-direction,
+b0-only-reverse, no-dwi and missing-`PhaseEncodingDirection` cases.
+
+### `sequences.txt` covers Siemens as well as Philips
+
+The template only ever matched Philips series names. Merged in the strings from
+a working Siemens study, grouped by scanner: `n_t1`, `c_t1`, `flair`, `3D_t2`,
+the `fMRI_HAND`/`fMRI_FOOT`/`TAAL_EN`/`TAAL_DE` task runs, and `s3_AP`/`s3_PA`
+for the reverse-phase dMRI pair. Later generalized again to cover the DBS and
+DTI-ALPS protocols, retiring their per-type copies: 46 rows to 60, nothing
+dropped except `FLAIR,3D_FLAIR`, which collides with the broader `FLAIR,FLAIR`.
+
+Siemens rows carry `-` for mb and pe_dir, which is what those columns are worth
+there: `KUL_dcm2bids.sh` reads DICOM `(0008,0070)` and, on Siemens, takes both
+from the dcm2niix sidecar and never reads the config values.
+
+The dMRI rows match `s3_AP`/`s3_PA` rather than bare `AP`/`PA`. Unanchored, `AP`
+also matches the Philips `dMRI_Linear_AP` row, and a series matching two entries
+is dropped by dcm2bids ("Several Pairing") rather than placed — the scan would
+be lost with only a warning. Simulated the fnmatch of every dwi row against both
+scanners' descriptions: each series resolves to exactly one row.
+
+The header comment also documented the wrong script — it described
+`KUL_dcm2bids.py`'s `grep`, not `KUL_dcm2bids.sh`'s dcm2bids/fnmatch matching,
+and omitted the `^`/`$` anchors that are supported.
+
+## Unreleased (2026-09-03 — every sub-command gets a config file)
+
+`KUL_clinical_fmridti.sh` had grown to ~30 flags, of which 13 existed only to
+forward one value to one sub-script — `-A` is named that way because FWT's `-R`
+collided with "generate DICOMs" at this level, which is the point where flag
+space had clearly run out. Meanwhile `KUL_VBG.sh` and KUL_FWT, the two steps
+whose settings matter most, had **no** config surface at all: `-z T1 -b -B 1 -t
+-P 1 -M -O -H` and `-T 1 -a iFOD2 -f 1 -S` were literals in the middle of the
+script.
+
+The existing `run_dwiprep.txt` / `run_fmriprep.txt` / `run_freesurfer.txt` were
+already per-sub-command configs, complete with their own `do_<step>:` toggles.
+This extends that pattern to the rest of the pipeline instead of inventing a
+new one.
+
+### `study_config/_base/` + per-type overrides
+
+`KUL_scaffold` now copies `_base/` first and the `-t` directory over it, so a
+type directory holds only the files it genuinely changes. All four type
+directories previously carried a full copy of every config, and they had
+drifted: `run_freesurfer.txt` existed in three versions whose only real
+difference was a hardcoded `freesurfer_ncpu` (32 vs 24). 40 duplicated files
+became 21 in `_base/` plus 7 real overrides, once the later passes in this
+same batch removed the copies that differed only in a hardcoded core count.
+
+Overriding is per **file**, not per line — a type directory shipping
+`run_fmriprep.txt` replaces the base one wholesale.
+
+### `-n` now reaches every step
+
+`fmriprep_ncpu: 64` / `freesurfer_ncpu: 32` / `dwiprep_ncpu: 64` were baked into
+the templates, so `-n 32` on a 32-core box still asked fmriprep for 64. A new
+`KUL_prepare_step_config` writes both the participant and `$ncpu` into the copy
+placed in `KUL_LOG/`. It also anchors the participant substitution: the old
+`s/BIDS_participants: /...` appended to whatever the template already held, so a
+template shipping `BIDS_participants: 001` produced `BIDS_participants: P001`.
+
+### Seven new config files
+
+`run_vbg.txt`, `run_fwt.txt`, `run_fmri_glm.txt`, `run_rsfmri_networks.txt`,
+`run_dsc.txt`, `run_multiparc.txt`, `run_karawun.txt` — each owning one
+sub-command, each key mapping to one flag of the script it drives.
+
+Decisions that follow from `-t` are deliberately **not** keys, since `-t` would
+silently win: whether VBG runs and whether it is extra-axial, whether FWT runs,
+whether multiparc runs, and which Karawun case applies. The files say so.
+
+Read by `KUL_read_config`, anchored on `^key:` — `KUL_preproc_all.sh` uses an
+unanchored `grep key $conf`, which also matches a comment mentioning the key.
+A missing file or missing key falls back to the built-in default, so patient
+folders scaffolded before this change keep working.
+
+### 13 flags retired, `-x` added
+
+`-S -P -E -N -C -W -X -U -Q -A` became config keys; `-f -y -m` became the
+`$KUL_SCILPY_ENV` / `$KUL_PYFMRI_ENV` / `$KUL_DICOM_ENV` variables they already
+defaulted to. Passing one now **errors** naming its replacement rather than
+being silently ignored — a run that quietly dropped `-S 6` would produce wrongly
+smoothed results with nothing to show for it.
+
+`-x key=value` (repeatable) overrides any key for one run without editing the
+study's config, and the overrides are echoed at startup.
+
+Surviving flags: `-p -t -d -n -v -s -r -R -F -B -D -O -e -T -a -x`. The 11
+self-invocations pass only `-p -t -F -O`, all of which survive, so they were
+untouched.
+
+### Verified
+
+- Generated option strings compared against the old hardcoded ones with the
+  shipped defaults: `KUL_VBG.sh` and `KUL_FWT_make_TCKs.sh` both come out
+  flag-for-flag identical.
+- Scaffolding `-t 1`, `-t 5`, `-t 7`: 21 files each, type 5 gets the DBS
+  `sequences.txt` and DRT `tracks_list.txt`, type 7 gets `do_freesurfer: 0`.
+- Config reads: a value edited in the patient's file is honoured; `-x` beats the
+  file; a deleted key falls back to its default without error.
+- Retired flags error with their replacement; `-x` without `=` is rejected.
+- Not run against real patient data — the next real run is what confirms no
+  regression in the steps themselves.
+
+## Unreleased (2026-09-02 — `-t` is validated up front)
+
+`KUL_clinical_fmridti.sh` never checked the value of `-t`, and every consumer of
+it is an `if`/`elif` chain with no `else`: the scaffold template dispatch in
+`KUL_scaffold`, the lesion-type dispatch that sets `hdglio`/`vbg`/`multiparc`/
+`fwt`/`alps`, and the Karawun mapping. An out-of-range type therefore failed
+silently and late instead of loudly and early.
+
+- `-t 8` matched no scaffold branch, so `KUL_scaffold` created an **empty**
+  `study_config/` and `exit 0`'d as though it had worked. The next run then died
+  on the unrelated `-D` pre-flight (`run_dwiprep.txt does not exist`), which
+  points at the wrong thing entirely.
+- The same out-of-range value left `hdglio`/`vbg`/`alps` unset in the lesion-type
+  dispatch, surfacing much later as bash integer errors.
+- A non-numeric value (a typo'd flag swallowing the next word) hit
+  `[: too many arguments` at the first arithmetic test.
+
+Now validated once, immediately after the `-E` engine check and before
+`KUL_scaffold` can run: `-t` must be an integer in 1–7, otherwise the script
+prints the value it got plus the list of the seven types and exits 2. Every
+downstream chain can keep assuming 1–7, so none of them needed an `else`.
+
+Verified by running the script with `-t 8`, `-t 0`, `-t abc` and `-t ''` (all
+exit 2, nothing created) and `-t 3` (scaffolds `clinical_fmri_dmri` as before).
+
 ## Unreleased (2026-08-14 — the results layer rebuilds itself, and Karawun prep actually runs)
 
 The theme running through this batch: `RESULTS/`, `Karawun/` and `REPORT/` are

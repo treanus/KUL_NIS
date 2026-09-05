@@ -394,8 +394,14 @@ mkdir -p Karawun/sub-${participant}/DICOM
 T1w_in="RESULTS/sub-${participant}/Anat/T1w.nii.gz"
 T1w_min=$(mrstats -output min $T1w_in)
 T1w_max=$(mrstats -output max $T1w_in)
-T1w_factor=$(scale=10; echo "($T1w_max-($T1w_min))/32767" | bc)
-mrcalc $T1w_in $T1w_min -sub $T1w_factor -div Karawun/sub-${participant}/T1w.nii.gz -force
+T1w_factor=$(echo "scale=10; ($T1w_max - ($T1w_min)) / 32767" | bc)
+if [ -z "$T1w_factor" ] || [ "$T1w_factor" = "0" ]; then
+    echo "WARNING: T1w factor is zero or empty, skipping rescale"
+    cp $T1w_in Karawun/sub-${participant}/T1w.nii.gz
+else
+    echo "Rescaling T1w to 16-bit range for Brainlab (factor $T1w_factor)"
+    mrcalc $T1w_in $T1w_min -sub $T1w_factor -div Karawun/sub-${participant}/T1w.nii.gz -force
+fi
 
 # Pre-flight: karawun refuses any volume whose three voxel dimensions all differ.
 #

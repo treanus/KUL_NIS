@@ -1,0 +1,124 @@
+#Identifier,search-string,task,mb,pe_dir,acq_label
+#
+# search-string becomes the pattern dcm2bids matches SeriesDescription against
+# (KUL_dcm2bids.sh). Unanchored by default, and anchors are supported:
+#
+#   str      ->  *str*     matches anywhere (the default)
+#   ^str     ->  str*      description must START with str
+#   str$     ->  *str      ... must END with str
+#   ^str$    ->  str       ... must be exactly str
+#
+# Anchor whenever one description is a prefix or superstring of another: a
+# series matching two entries is placed by NEITHER ("Several Pairing" in the
+# dcm2bids log) and is lost with only a warning.
+#
+# mb and pe_dir are needed for PHILIPS only. KUL_dcm2bids.sh reads DICOM
+# (0008,0070) and, for Siemens, takes them from the dcm2niix sidecar instead --
+# the values in this file are then never read. Write "-" in both columns for
+# Siemens rows so it is obvious they are not doing anything.
+#
+# Rows are grouped by scanner because the two sites name series differently.
+# Both groups are always active: a row that matches nothing costs nothing, so
+# one template covers both scanners.
+
+# --- anatomical: Philips ---------------------------------------------------
+T1w,T1_PRE
+T1w,T1W_PRE
+cT1w,T1_Post
+cT1w,POST
+cT1w,T1W_Gd
+cT1w,BrainVIEW_BB
+cT1w,T1W_Post
+FLAIR,FLAIR
+T2w,3D_T2
+# "FLAIR,3D_FLAIR" is deliberately NOT here: FLAIR already matches *FLAIR*, so a
+# series named 3D_FLAIR would match both rows and dcm2bids drops a series that
+# matches two entries rather than placing it.
+# From the DTI-ALPS protocol (was its own sequences.txt):
+T1w,T1W_SE
+T2w,eT2W_TSE
+SWI,SWI
+FGATIR,FGATIR
+DIR,DIR
+MP2RAGE,MP2RAGE
+
+# --- anatomical: Siemens ---------------------------------------------------
+# Lowercase, so they are genuinely distinct greps from the Philips rows above.
+T1w,n_t1
+cT1w,c_t1
+FLAIR,flair
+T2w,3D_t2
+
+# --- resting-state fMRI (same names on both scanners) ----------------------
+func,rsfMRI_MB5_REST,rest,5,j,singleTE
+sbref,rsfMRI_MB5_sbref,rest,1,j,singleTE
+func,rsfMRI_noMB,rest,1,j,singleTE
+func,rsfMRI_MB6,rest,6,j,singleTE
+sbref,rsfMRI_SBREF,rest,1,j,singleTE
+func,MB_mTE,rest,4,j,multiTE
+sbref,mTE_SBREF,rest,4,j,multiTE
+func,rsfMRI_MB3,rest,3,j
+
+# --- task fMRI: Philips ----------------------------------------------------
+func,MB2_H,HAND,2,j
+func,MB3_H,HAND,3,j
+func,MB2_F,FOOT,2,j
+func,MB3_F,FOOT,3,j
+func,MB2_L,LIP,2,j
+func,MB3_L,LIP,3,j
+func,MB2_T,TAAL,2,j
+func,MB3_T,TAAL,3,j
+sbref,SB_Ref,HAND LIP FOOT TAAL,1,j
+
+# --- task fMRI: Siemens ----------------------------------------------------
+# TAAL_EN / TAAL_DE are the English and Dutch language paradigms; both map to
+# the TAAL task, so whichever was run is picked up.
+func,fMRI_HAND,HAND,-,-
+func,fMRI_FOOT,FOOT,-,-
+func,TAAL_EN,TAAL,-,-
+func,TAAL_DE,TAAL,-,-
+
+# --- dMRI: Philips ---------------------------------------------------------
+dwi,p1_b1200,-,3,j-,b1200
+#dwi,p2_b0,-,3,j-,b0
+dwi,p3_b0,-,3,j,rev
+dwi,p3_b2500,-,3,j-,b2500
+dwi,p4_b2500,-,3,j,rev
+dwi,128d_2500,-,3,j-,b2500
+dwi,128d_1200,-,3,j-,b1200
+dwi,128d_1sh,-,3,j-,epic
+dwi,rev_1200,-,3,j,rev
+dwi,dMRI_Linear_AP,-,2,j-,ap
+dwi,dMRI_Linear_PA,-,2,j,pa
+dwi,rev_2sh,-,3,j,rev
+dwi,rev_1sh,-,3,j,rev
+dwi,128d_2sh,-,3,j-,b2500
+# DBS 2-shell pair (was in clinical_dmri_dbs_drt / _hdp)
+dwi,dMRI_s1.7_2sh_mb3_APA,-,3,j-,2sh
+dwi,dMRI_s1.7_2sh_mb3_APP,-,3,j,rev
+# DTI-ALPS (was in DTI_ALPS_proc)
+dwi,DTI_high_iso,-,2,j-,b1000
+
+# --- dMRI: Siemens ---------------------------------------------------------
+# A full reverse-phase pair, both b2500 -- hence synbzero_disco_instead_of_topup: 0
+# and rev_phase_for_topup_only: 0 in run_dwiprep.txt for this kind of acquisition.
+#
+# Matched on "s3_AP" / "s3_PA" rather than bare "AP" / "PA". Bare, they would
+# also match the Philips dMRI_Linear_AP / _PA rows above, and a series matching
+# two entries is dropped by dcm2bids ("Several Pairing") rather than placed --
+# the scan is lost with only a warning. Observed descriptions:
+#   ep2d_diff_b2500_1.5i_p2_s3_AP
+#   ep2d_diff_b2500_1.5i_p2_s3_PA
+# NOTE: s3 is the slice-acceleration factor of the current protocol. If that
+# changes (s2, s4, ...) these stop matching -- widen them to the protocol family
+# then, e.g. ep2d_diff*_AP.
+dwi,s3_AP,-,-,-,b2500
+dwi,s3_PA,-,-,-,b2500
+
+# --- DSC perfusion (tumour work-up); processed by KUL_dsc_perfusion.sh -----
+# The pe_dir column is what restricts its EPI distortion correction.
+# Two vendor-specific search-strings: Philips names the series
+# "T2_DSC_Perfusion", Siemens uses "_perf_" (seen in production, mb/pe_dir
+# differ by protocol -- check the actual series before trusting these as-is).
+DSC,T2_DSC_Perfusion,-,2,j
+DSC,_perf_,-,1,j-

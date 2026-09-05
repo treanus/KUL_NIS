@@ -32,12 +32,20 @@ Examples (paths/names fictitious — see docs/KUL_clinical_fmridti/KUL_clinical_
   # 0. first time for this patient: scaffold a DICOM/ + study_config/ folder, then exit
   `basename $0` -p JaneDoe -s -t 1
 
-  # 1. basic glioma work-up (type 1, default SPM engine), from a zip archive
+  # 1. basic glioma work-up (type 1), from a zip archive. Every processing
+  #    choice comes from study_config/, scaffolded in step 0.
   `basename $0` -p JaneDoe -d DICOM/JaneDoe.zip -n 32
 
-  # 2. DBS case (type 3, manual mask) + nilearn GLM + lore_sd FOD + rsfMRI networks + tractometry
-  `basename $0` -p M0012 -d ./DICOM/M0012 -t 3 \\
-      -E nilearn -D run_dwiprep_lore_sd.txt -U -N -Q -n 32 -v 2
+  # 2. tumor case with a manual mask (type 3), lore_sd FOD, and a few settings
+  #    changed for this run only rather than in study_config/
+  `basename $0` -p M0012 -d ./DICOM/M0012 -t 3 -D run_dwiprep_lore_sd.txt \\
+      -x glm_engine=nilearn -x fwt_rfa_modulated_fod=1 \\
+      -x do_rsfmri_networks=1 -x fwt_tractometry=1 -n 32 -v 2
+
+  #    ...or, the usual way, edit those keys once in the patient's
+  #    study_config/run_fmri_glm.txt, run_fwt.txt and run_rsfmri_networks.txt
+  #    so the settings are recorded with the study:
+  `basename $0` -p M0012 -d ./DICOM/M0012 -t 3 -D run_dwiprep_lore_sd.txt -n 32
 
 Required arguments:
 
@@ -84,46 +92,14 @@ Optional arguments:
           lower values let underlying anatomy show through on figures and PACS DICOMs
      -D:  dwiprep config file to use from study_config/ (default: run_dwiprep.txt)
           use e.g. -D run_dwiprep_lore_sd.txt to run lore-sd based FOD estimation
-     -S:  fMRI SUSAN smoothing FWHM in mm (default: adaptive = mean voxel size)
-          e.g. -S 6 for 6mm FWHM, -S 8 for 8mm FWHM
-     -P:  FWE-corrected p-value for Bizzi fMRI thresholding (default: 0.01)
-          e.g. -P 0.01, -P 0.005, -P 0.001
      -n:  number of threads to use (default 48)
      -v:  show output from commands (0=silent, 1=normal, 2=verbose; default=1)
-     -X:  use FastSurfer instead of plain recon-all for the reconstruction step
-          in types 4, 5, 6 (faster, requires GPU; default is FreeSurfer 8.2.0 recon-all)
-     -f:  conda env to use instead of \$KUL_SCILPY_ENV (default 'scilpy') for
-          FWT (automated tractography). You shouldn't normally need this —
-          the KUL_NIS installer creates 'scilpy' with what FWT needs.
-     -E:  fMRI GLM engine to use: spm or nilearn (default: spm)
-          spm    : KUL_fmriproc_spm_new.sh    (MATLAB/SPM12, requires a MATLAB license)
-          nilearn: KUL_fmriproc_nilearn_new.sh (python3 nilearn/nibabel/numpy/pandas, no MATLAB)
-          both engines are auto-scheduled across $ncpu cores via their -c option
-     -U:  EXPERIMENTAL opt-in: pass -U through to KUL_FWT_make_TCKs.sh so it prefers the
-          rfa-modulated lore_sd FOD (rfa_modulated_fod_reg2T1w.mif, from KUL_dwiprep.sh),
-          if found, over the plain lore_sd ODF. Without -U, tractography is unchanged.
-     -Q:  opt-in: run KUL_FWT's per-bundle tractometry (-Q, along-tract scalar profiles).
-          Off by default — adds substantial runtime (real per-bundle work across ~50
-          bundle/hemisphere combinations, processed sequentially, no parallelism yet).
-          Tractography/tracts themselves are generated either way.
-     -W:  skip DSC perfusion processing (KUL_dsc_perfusion.sh). By default it
-          runs automatically whenever a DSC series is present in BIDS/*/perf/,
-          the same way fMRI and dMRI data are picked up.
-     -N:  opt-in: run presurgical/eloquent-cortex rsfMRI network mapping
-          (KUL_run_rsfMRI_networks.sh). Off by default.
-     -C:  condition profile for -N, from share/rsfmri_pipeline/config/profiles.yaml
-          (default: Presurgical)
-     -y:  conda env to use instead of \$KUL_PYFMRI_ENV (default 'pyfMRI') for
-          -N (rsfMRI network mapping) and -E nilearn (nilearn task-fMRI GLM).
-          You shouldn't normally need this — the KUL_NIS installer creates
-          'pyfMRI' with everything both steps need.
-     -m:  conda env to use instead of \$KUL_DICOM_ENV (default 'KUL_dicom') for
-          the DICOM generation in -R/-F (KUL_nii2dcm.py; needs SimpleITK,
-          Pillow, numpy). If the env doesn't exist the step falls back to
-          plain 'python3' with a warning, so this is only needed if you
-          named the env differently. Create it with:
-            mamba env create -f \$kul_main_dir/share/envs/KUL_dicom.yml
-
+     -x:  one-off study_config override, key=value, repeatable
+          e.g. -x fwt_tractometry=1 -x fmri_smooth_fwhm=8
+          Takes precedence over the config files for this run only, without
+          editing them. Every step of the pipeline is configured through
+          study_config/ -- see study_config/_base/README.md for which file
+          drives which script.
 USAGE
 
 	exit 1
@@ -158,14 +134,12 @@ smooth_fwhm=5
 pfwe=0.01
 use_fastsurfer=0
 fmri_engine="spm"
-use_rfa_mod_fod=0
-run_fwt_tractometry=0
 rsfmri_networks=0
 skip_dsc=0
 rsfmri_profile="Presurgical"
-pyfmri_env_override=""
-dicom_env_override=""
 declare -A spm_thresh_map=()
+# -x key=value overrides, applied by KUL_read_config ahead of any config file
+declare -A cfg_override=()
 
 # Set required options
 p_flag=0
@@ -178,7 +152,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:t:d:n:v:R:F:O:a:f:T:D:S:P:E:NC:y:m:XBrseUQW" OPT; do
+	while getopts "p:t:d:n:v:R:F:O:a:T:D:x:f:S:P:E:C:y:m:NXBrseUQWA" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -187,9 +161,6 @@ else
 		;;
         t) #type
 			type=$OPTARG
-		;;
-        W) #skip DSC perfusion
-			skip_dsc=1
 		;;
         d) #dicomzip
 			dicomzip=$OPTARG
@@ -229,44 +200,120 @@ else
         D) #dwiprep config file
             dwiprep_config_file=$OPTARG
         ;;
-        S) #fMRI smoothing FWHM
-            smooth_fwhm=$OPTARG
-        ;;
-        P) #FWE p-value for Bizzi thresholding
-            pfwe=$OPTARG
-        ;;
         v) #verbose
             verbose_level=$OPTARG
 		;;
-        X) #use FastSurfer instead of plain recon-all for types 4/5/6
-            use_fastsurfer=1
+        x) # ad-hoc study_config override: -x key=value, repeatable. For a one-off
+           # run that should not edit the study's own config files.
+            if [[ "$OPTARG" != *=* ]]; then
+                echo "Option -x needs key=value (got '$OPTARG')." >&2
+                exit 2
+            fi
+            cfg_override["${OPTARG%%=*}"]="${OPTARG#*=}"
         ;;
-        f) # conda env override for FWT (default: $KUL_SCILPY_ENV)
-            scilpy=$OPTARG
+        f) # retired: now fwt_scilpy_env
+            echo >&2
+            echo "ERROR: -f was replaced by 'fwt_scilpy_env' in the $KUL_SCILPY_ENV environment variable (got '$OPTARG')." >&2
+            echo "       Edit that config, then re-run without -f." >&2
+            echo "       For a one-off run, use: -x fwt_scilpy_env=<value>" >&2
+            echo >&2
+            exit 2
         ;;
-        E) # fMRI GLM engine: spm or nilearn
-            fmri_engine=$OPTARG
+        S) # retired: now fmri_smooth_fwhm
+            echo >&2
+            echo "ERROR: -S was replaced by 'fmri_smooth_fwhm' in study_config/run_fmri_glm.txt (got '$OPTARG')." >&2
+            echo "       Edit that config, then re-run without -S." >&2
+            echo "       For a one-off run, use: -x fmri_smooth_fwhm=<value>" >&2
+            echo >&2
+            exit 2
         ;;
-        U) # EXPERIMENTAL opt-in: prefer the rfa-modulated lore_sd FOD in KUL_FWT, if found
-            use_rfa_mod_fod=1
+        P) # retired: now fmri_pfwe
+            echo >&2
+            echo "ERROR: -P was replaced by 'fmri_pfwe' in study_config/run_fmri_glm.txt (got '$OPTARG')." >&2
+            echo "       Edit that config, then re-run without -P." >&2
+            echo "       For a one-off run, use: -x fmri_pfwe=<value>" >&2
+            echo >&2
+            exit 2
         ;;
-        Q) # opt-in: run KUL_FWT's per-bundle tractometry (-Q). Off by default —
-           # adds substantial runtime (real per-bundle work, ~50 bundle/hemisphere
-           # combinations processed sequentially with no bundle-level parallelism yet).
-            run_fwt_tractometry=1
+        E) # retired: now glm_engine
+            echo >&2
+            echo "ERROR: -E was replaced by 'glm_engine' in study_config/run_fmri_glm.txt (got '$OPTARG')." >&2
+            echo "       Edit that config, then re-run without -E." >&2
+            echo "       For a one-off run, use: -x glm_engine=<value>" >&2
+            echo >&2
+            exit 2
         ;;
-        N) # opt-in: run presurgical/eloquent-cortex rsfMRI network mapping
-           # (KUL_run_rsfMRI_networks.sh). Off by default.
-            rsfmri_networks=1
+        C) # retired: now rsfmri_profile
+            echo >&2
+            echo "ERROR: -C was replaced by 'rsfmri_profile' in study_config/run_rsfmri_networks.txt (got '$OPTARG')." >&2
+            echo "       Edit that config, then re-run without -C." >&2
+            echo "       For a one-off run, use: -x rsfmri_profile=<value>" >&2
+            echo >&2
+            exit 2
         ;;
-        C) # condition profile for -N (default: Presurgical)
-            rsfmri_profile=$OPTARG
+        y) # retired: now pyfmri env
+            echo >&2
+            echo "ERROR: -y was replaced by 'pyfmri env' in the $KUL_PYFMRI_ENV environment variable (got '$OPTARG')." >&2
+            echo "       Edit that config, then re-run without -y." >&2
+            echo "       For a one-off run, use: -x pyfmri env=<value>" >&2
+            echo >&2
+            exit 2
         ;;
-        y) # conda env override for -N and -E nilearn (default: $KUL_PYFMRI_ENV)
-            pyfmri_env_override=$OPTARG
+        m) # retired: now dicom env
+            echo >&2
+            echo "ERROR: -m was replaced by 'dicom env' in the $KUL_DICOM_ENV environment variable (got '$OPTARG')." >&2
+            echo "       Edit that config, then re-run without -m." >&2
+            echo "       For a one-off run, use: -x dicom env=<value>" >&2
+            echo >&2
+            exit 2
         ;;
-        m) # conda env override for the -R/-F DICOM step (default: $KUL_DICOM_ENV)
-            dicom_env_override=$OPTARG
+        N) # retired: now do_rsfmri_networks
+            echo >&2
+            echo "ERROR: -N was replaced by 'do_rsfmri_networks' in study_config/run_rsfmri_networks.txt." >&2
+            echo "       Edit that config, then re-run without -N." >&2
+            echo "       For a one-off run, use: -x do_rsfmri_networks=<value>" >&2
+            echo >&2
+            exit 2
+        ;;
+        X) # retired: now use_fastsurfer
+            echo >&2
+            echo "ERROR: -X was replaced by 'use_fastsurfer' in study_config/run_multiparc.txt." >&2
+            echo "       Edit that config, then re-run without -X." >&2
+            echo "       For a one-off run, use: -x use_fastsurfer=<value>" >&2
+            echo >&2
+            exit 2
+        ;;
+        U) # retired: now fwt_rfa_modulated_fod
+            echo >&2
+            echo "ERROR: -U was replaced by 'fwt_rfa_modulated_fod' in study_config/run_fwt.txt." >&2
+            echo "       Edit that config, then re-run without -U." >&2
+            echo "       For a one-off run, use: -x fwt_rfa_modulated_fod=<value>" >&2
+            echo >&2
+            exit 2
+        ;;
+        Q) # retired: now fwt_tractometry
+            echo >&2
+            echo "ERROR: -Q was replaced by 'fwt_tractometry' in study_config/run_fwt.txt." >&2
+            echo "       Edit that config, then re-run without -Q." >&2
+            echo "       For a one-off run, use: -x fwt_tractometry=<value>" >&2
+            echo >&2
+            exit 2
+        ;;
+        A) # retired: now fwt_reordered_filtering
+            echo >&2
+            echo "ERROR: -A was replaced by 'fwt_reordered_filtering' in study_config/run_fwt.txt." >&2
+            echo "       Edit that config, then re-run without -A." >&2
+            echo "       For a one-off run, use: -x fwt_reordered_filtering=<value>" >&2
+            echo >&2
+            exit 2
+        ;;
+        W) # retired: now do_dsc
+            echo >&2
+            echo "ERROR: -W was replaced by 'do_dsc' in study_config/run_dsc.txt." >&2
+            echo "       Edit that config, then re-run without -W." >&2
+            echo "       For a one-off run, use: -x do_dsc=<value>" >&2
+            echo >&2
+            exit 2
         ;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -295,33 +342,111 @@ if [ $p_flag -eq 0 ] ; then
 	exit 2
 fi
 
-if [ "$fmri_engine" != "spm" ] && [ "$fmri_engine" != "nilearn" ]; then
+# -t is used unquoted in arithmetic tests all over this script (KUL_scaffold's
+# template dispatch, the lesion-type dispatch below, the Karawun mapping), and
+# every one of those is an if/elif chain with no else. An out-of-range -t
+# therefore used to fail silently and late rather than loudly and early: -t 8
+# matched no scaffold branch, so KUL_scaffold created an EMPTY study_config/ and
+# exited 0 as if it had worked, and the lesion-type dispatch left hdglio/vbg/
+# alps unset, which only surfaced much further down as bash integer errors. A
+# non-numeric -t (a typo'd -t on the command line swallowing the next word)
+# blew up on "[: too many arguments" at the first test instead. Validate once,
+# here, so every downstream chain can keep assuming 1-7.
+if ! [[ "$type" =~ ^[0-9]+$ ]] || [ "$type" -lt 1 ] || [ "$type" -gt 7 ]; then
 	echo
-	echo "Option -E must be 'spm' or 'nilearn' (got '$fmri_engine')." >&2
+	echo "Option -t must be an integer between 1 and 7 (got '$type')." >&2
+	echo "  1: intra-axial tumor segmentation + vbg" >&2
+	echo "  2: extra-axial tumor segmentation + vbg" >&2
+	echo "  3: vbg with a manual lesion mask" >&2
+	echo "  4: dMRI/fMRI without glioma (cavernoma, epilepsy, ...)" >&2
+	echo "  5: dMRI for DBS of essential tremor (DRT tract)" >&2
+	echo "  6: dMRI for DBS of Parkinson's disease (CSHD pathway)" >&2
+	echo "  7: processing stream for DTI_ALPS" >&2
 	echo
 	exit 2
 fi
-echo " fMRI GLM engine set to: $fmri_engine"
+
+# Read one key from a study_config file.
+#
+# Anchored on '^key:' on purpose. KUL_preproc_all.sh uses an unanchored
+# `grep key $conf`, which also matches any line that merely CONTAINS the key --
+# a comment mentioning it, or a longer key ending in the same word. Everything
+# after the first ':' is the value, so values may themselves contain colons.
+#
+# Falls back to $3 when the file is missing (an -R/-F export-only run in a tree
+# with no study_config/) or the key is absent (a patient folder scaffolded
+# before that key existed), so old study folders keep working unchanged.
+#
+# A -x key=value on the command line wins over the file, for one-off runs that
+# should not edit the study's own config.
+function KUL_read_config {
+    local _f="$1" _key="$2" _default="$3" _val
+    if [ -n "${cfg_override[$_key]+x}" ]; then
+        echo "${cfg_override[$_key]}"
+        return 0
+    fi
+    [ -f "$_f" ] || { echo "$_default"; return 0; }
+    _val=$(grep -E "^[[:space:]]*${_key}:" "$_f" | head -n 1 | cut -d':' -f2- \
+           | tr -d '\r' | sed 's/^ *//;s/ *$//')
+    [ -z "$_val" ] && _val="$_default"
+    echo "$_val"
+}
+
+# Copy a KUL_preproc_all.sh config into KUL_LOG/ as this run's provenance
+# record, substituting this participant and this run's -n.
+#
+# The *_ncpu value shipped in study_config/ is a placeholder. It used to be
+# hardcoded per processing type (fmriprep 64/40/20, freesurfer 32/24, dwiprep
+# 64/40/20/15), which is both how three copies of an otherwise identical file
+# came to exist and why -n never reached these three steps at all.
+#
+# The participant substitution is anchored and replaces the whole value, rather
+# than appending to the key as it used to: a template that already carried a
+# value (study_config/run_dwiprep.txt shipped "BIDS_participants: 001") produced
+# "BIDS_participants: JaneDoe001" under the old form.
+function KUL_prepare_step_config {
+    local _src="$1" _dst="$2" _ncpu_key="$3"
+    cp "$_src" "$_dst"
+    sed -i "s/^BIDS_participants:.*/BIDS_participants: ${participant}/" "$_dst"
+    sed -i "s/^${_ncpu_key}:.*/${_ncpu_key}: ${ncpu}/" "$_dst"
+}
 
 function KUL_scaffold {
 
     echo "Making scaffold for clinical_sub-${participant}_type${type}"
-    mkdir -p $cwd/clinical_sub-${participant}_type${type}/DICOM
-    mkdir -p $cwd/clinical_sub-${participant}_type${type}/study_config
-    rm -fr $cwd/clinical_sub-${participant}_type${type}/study_config/*
+    local _study_d="$cwd/clinical_sub-${participant}_type${type}"
+    mkdir -p $_study_d/DICOM
+    mkdir -p $_study_d/study_config
+    rm -fr $_study_d/study_config/*
+
+    local _type_d
     if [ $type -lt 5 ]; then
         echo "Setting up for a tumor/epilepsy/... patient (type: $type)"
-        cp ${kul_main_dir}/study_config/clinical_fmri_dmri/* $cwd/clinical_sub-${participant}_type${type}/study_config
+        _type_d="clinical_fmri_dmri"
     elif [ $type -eq 5 ]; then
-        echo "Setting up for a DBS patient (type: $type)"
-        cp ${kul_main_dir}/study_config/clinical_dmri_dbs_drt/* $cwd/clinical_sub-${participant}_type${type}/study_config
+        echo "Setting up for a DBS patient, DRT tract (type: $type)"
+        _type_d="clinical_dmri_dbs_drt"
     elif [ $type -eq 6 ]; then
-        echo "Setting up for a DBS patient (type: $type)"
-        cp ${kul_main_dir}/study_config/clinical_dmri_dbs_hdp/* $cwd/clinical_sub-${participant}_type${type}/study_config
+        echo "Setting up for a DBS patient, CSHD pathway (type: $type)"
+        _type_d="clinical_dmri_dbs_hdp"
     elif [ $type -eq 7 ]; then
         echo "Setting up for DTI-ALPS processing (type: $type)"
-        cp ${kul_main_dir}/study_config/DTI_ALPS_proc/* $cwd/clinical_sub-${participant}_type${type}/study_config
+        _type_d="DTI_ALPS_proc"
     fi
+    # -t is validated to 1-7 above, so _type_d is always set by here.
+
+    # _base first, then the type directory over it. A type directory holds only
+    # the files it genuinely changes, so a config that is the same for every
+    # type exists in exactly one place and cannot drift between them. Overriding
+    # is per FILE, not per line: shipping run_fmriprep.txt in a type directory
+    # replaces the base one wholesale.
+    cp ${kul_main_dir}/study_config/_base/* $_study_d/study_config/
+    cp ${kul_main_dir}/study_config/${_type_d}/* $_study_d/study_config/ 2>/dev/null
+    # README.md documents the layout for whoever edits study_config/ in the repo
+    # -- it is not a config, so it has no business in a patient folder.
+    rm -f $_study_d/study_config/README.md
+
+    echo "  study_config/: $(ls $_study_d/study_config | wc -l) files (_base + ${_type_d})"
 
     exit 0
 
@@ -354,6 +479,87 @@ fi
 if [ $export_only -eq 0 ] && [ ! -d $cwd/study_config ]; then
     KUL_scaffold
 fi
+
+
+# --- study_config: one file per sub-command ------------------------------
+# Each of these drives exactly one script that KUL_clinical_fmridti.sh calls,
+# and each key maps to one flag of that script (see the comments in the files
+# themselves). Read here, after the scaffold above has guaranteed the files
+# exist, and before anything below uses the values.
+#
+# KUL_scaffold exits, so reaching this line means study_config/ was already
+# there -- except on an -R/-F export-only run, where the files may legitimately
+# be absent and every read falls back to its default.
+_cfg_d="$cwd/study_config"
+
+# KUL_VBG.sh -- whether VBG runs at all, and extra-axial mode, come from -t
+vbg_brain_extraction=$(KUL_read_config   "$_cfg_d/run_vbg.txt" vbg_brain_extraction   1)
+vbg_parcellation=$(KUL_read_config       "$_cfg_d/run_vbg.txt" vbg_parcellation       1)
+vbg_use_template_patch=$(KUL_read_config "$_cfg_d/run_vbg.txt" vbg_use_template_patch 1)
+vbg_multiscale_parc=$(KUL_read_config    "$_cfg_d/run_vbg.txt" vbg_multiscale_parc    1)
+vbg_overlap_report=$(KUL_read_config     "$_cfg_d/run_vbg.txt" vbg_overlap_report     1)
+vbg_hybrid_donor_blend=$(KUL_read_config "$_cfg_d/run_vbg.txt" vbg_hybrid_donor_blend 1)
+vbg_lesion_space=$(KUL_read_config       "$_cfg_d/run_vbg.txt" vbg_lesion_space       T1)
+
+# KUL_FWT_make_VOIs.sh / KUL_FWT_make_TCKs.sh -- whether FWT runs comes from -t
+fwt_tracks_list=$(KUL_read_config          "$_cfg_d/run_fwt.txt" fwt_tracks_list          tracks_list.txt)
+fwt_tracking_approach=$(KUL_read_config    "$_cfg_d/run_fwt.txt" fwt_tracking_approach    1)
+fwt_algorithm=$(KUL_read_config            "$_cfg_d/run_fwt.txt" fwt_algorithm            iFOD2)
+fwt_filtering=$(KUL_read_config            "$_cfg_d/run_fwt.txt" fwt_filtering            1)
+fwt_screenshots=$(KUL_read_config          "$_cfg_d/run_fwt.txt" fwt_screenshots          1)
+fwt_tractometry=$(KUL_read_config          "$_cfg_d/run_fwt.txt" fwt_tractometry          0)
+fwt_reordered_filtering=$(KUL_read_config  "$_cfg_d/run_fwt.txt" fwt_reordered_filtering  0)
+fwt_rfa_modulated_fod=$(KUL_read_config    "$_cfg_d/run_fwt.txt" fwt_rfa_modulated_fod    0)
+# Empty default on purpose: unset means "let KUL_FWT_make_TCKs.sh decide", which is
+# MRtrix's own cutoff for a CSD reconstruction and 0.05 for a lore_sd one. Only a
+# non-empty value is passed through as -X.
+fwt_cutoff=$(KUL_read_config               "$_cfg_d/run_fwt.txt" fwt_cutoff               "")
+
+# KUL_fmriproc_spm_new.sh / KUL_fmriproc_nilearn_new.sh
+do_fmri_glm=$(KUL_read_config      "$_cfg_d/run_fmri_glm.txt" do_fmri_glm      1)
+fmri_engine=$(KUL_read_config      "$_cfg_d/run_fmri_glm.txt" glm_engine       spm)
+smooth_fwhm=$(KUL_read_config      "$_cfg_d/run_fmri_glm.txt" fmri_smooth_fwhm 5)
+pfwe=$(KUL_read_config             "$_cfg_d/run_fmri_glm.txt" fmri_pfwe        0.01)
+
+# KUL_dwiprep.sh distortion-correction scheme; "auto" is resolved from the BIDS
+# dwi series in KUL_detect_dwi_acq, once dcm2bids has actually run
+synb0_setting=$(KUL_read_config   "$_cfg_d/${dwiprep_config_file}" synbzero_disco_instead_of_topup auto)
+revonly_setting=$(KUL_read_config "$_cfg_d/${dwiprep_config_file}" rev_phase_for_topup_only        auto)
+
+# KUL_dwiprep_MNI.sh -- lives in the -D config, since it is part of the dwiprep
+# family and follows whichever variant that flag selected
+do_dwiprep_MNI=$(KUL_read_config "$_cfg_d/${dwiprep_config_file}" do_dwiprep_MNI 1)
+
+# KUL_run_rsfMRI_networks.sh
+rsfmri_networks=$(KUL_read_config "$_cfg_d/run_rsfmri_networks.txt" do_rsfmri_networks 0)
+rsfmri_profile=$(KUL_read_config  "$_cfg_d/run_rsfmri_networks.txt" rsfmri_profile     Presurgical)
+
+# KUL_dsc_perfusion.sh -- kept as skip_dsc, the sense the call site already uses
+do_dsc=$(KUL_read_config "$_cfg_d/run_dsc.txt" do_dsc 1)
+if [ "$do_dsc" = "1" ]; then skip_dsc=0; else skip_dsc=1; fi
+
+# KUL_FS_multiparc.sh -- whether multiparc runs comes from -t
+use_fastsurfer=$(KUL_read_config "$_cfg_d/run_multiparc.txt" use_fastsurfer 0)
+
+# KUL_karawun_prepare.sh -- the 1/2/3 case mapping is derived from -t
+do_karawun=$(KUL_read_config              "$_cfg_d/run_karawun.txt" do_karawun              1)
+karawun_threshold_tumor=$(KUL_read_config "$_cfg_d/run_karawun.txt" karawun_threshold_tumor 3)
+karawun_threshold_dbs=$(KUL_read_config   "$_cfg_d/run_karawun.txt" karawun_threshold_dbs   10)
+
+if [ ${#cfg_override[@]} -gt 0 ]; then
+    echo " study_config overrides from -x:"
+    for _k in "${!cfg_override[@]}"; do echo "   ${_k} = ${cfg_override[$_k]}"; done
+fi
+
+# Validated here rather than straight after getopts, because it is now a config
+# value (glm_engine in run_fmri_glm.txt) and not a flag.
+if [ "$fmri_engine" != "spm" ] && [ "$fmri_engine" != "nilearn" ]; then
+	echo
+	echo "ERROR: glm_engine in study_config/run_fmri_glm.txt must be 'spm' or 'nilearn' (got '$fmri_engine')." >&2
+	echo
+	exit 2
+fi
+echo " fMRI GLM engine set to: $fmri_engine"
 
 
 # Pre-flight check of the -D dwiprep config: catch a lore_sd env
@@ -787,7 +993,7 @@ if [ $results -gt 0 ];then
     # as automatic for the user and touches nothing else.
     # Falls back to plain python3 (the historical behaviour) if the env is
     # missing, so hosts that never created it keep working.
-    _dicom_env="${dicom_env_override:-$KUL_DICOM_ENV}"
+    _dicom_env="$KUL_DICOM_ENV"
     _nii2dcm_py=""
     if command -v conda >/dev/null 2>&1; then
         _conda_base=$(conda info --base 2>/dev/null)
@@ -2432,7 +2638,7 @@ function KUL_verify_results {
 # Runs in a subshell so a successful activation does not leak into the pipeline's
 # own environment.
 function KUL_check_pyfmri_env {
-    local _env="${pyfmri_env_override:-$KUL_PYFMRI_ENV}"
+    local _env="$KUL_PYFMRI_ENV"
     local _err _rc
 
     # Bootstrap in this shell as well, not only inside the subshell below, or the
@@ -2451,7 +2657,7 @@ function KUL_check_pyfmri_env {
 
     echo "" >&2
     echo "ERROR: the fMRI python env '$_env' is not usable, and this run needs it:" >&2
-    echo "       the task-fMRI GLM (-E nilearn), melodic, and the rsfMRI networks (-N)." >&2
+    echo "       the task-fMRI GLM (glm_engine: nilearn), melodic, and the rsfMRI networks." >&2
     if conda env list 2>/dev/null | awk '{print $1}' | grep -qx "$_env"; then
         echo "  The env EXISTS, so this is an activation or package problem rather than a" >&2
         echo "  missing env. If conda is not initialised in this shell, run KUL_Linux_setup's" >&2
@@ -2694,9 +2900,7 @@ function KUL_run_fmriprep {
     if [ ! -f fmriprep/sub-${participant}.html ]; then
         
         # preparing for fmriprep
-        cp study_config/run_fmriprep.txt KUL_LOG/sub-${participant}_run_fmriprep.txt
-        sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_fmriprep.txt
-        rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
+        KUL_prepare_step_config study_config/run_fmriprep.txt KUL_LOG/sub-${participant}_run_fmriprep.txt fmriprep_ncpu
         if [ $n_fMRI -gt 0 ]; then
             #fmriprep_options="--fs-no-reconall --use-aroma --use-syn-sdc "
             fmriprep_options="--fs-no-reconall "
@@ -2745,12 +2949,113 @@ function KUL_run_fmriprep {
     fi
 }
 
+# Resolve synbzero_disco_instead_of_topup / rev_phase_for_topup_only from the
+# data, when they are set to "auto".
+#
+# These two describe the ACQUISITION, not the processing type, but the
+# templates pinned them per -t: types 1-4 shipped 1/1, i.e. "no usable reverse
+# phase, synthesise a b0 with Synb0-DISCO" plus "if there is a reverse phase,
+# use it for topup only". On a full AP/PA pair -- what the Siemens protocol
+# acquires -- both are wrong: it throws away half the diffusion data and
+# replaces a real fieldmap with a synthetic one.
+#
+# -b (synb0) means "use Synb0-DISCO INSTEAD of topup", so it is only ever right
+# when there is no opposite phase-encoding direction to run topup with.
+# -r (rev_phase_for_topup_only) is only right when the opposite direction is
+# b0-only and therefore carries no diffusion signal worth keeping.
+#
+#   one PE direction only            -> synb0=1, revonly=0
+#   both, opposite is b0-only        -> synb0=0, revonly=1
+#   both, opposite is diffusion-wtd  -> synb0=0, revonly=0
+function KUL_detect_dwi_acq {
+
+    local _det
+    _det=$(python3 - "$cwd/BIDS/sub-${participant}" <<'PYEOF'
+import glob, json, os, sys
+
+bids = sys.argv[1]
+series = []
+for nii in sorted(glob.glob(os.path.join(bids, "**", "dwi", "*_dwi.nii.gz"), recursive=True)):
+    stem = nii[:-len(".nii.gz")]
+    pe, maxb = None, None
+    try:
+        with open(stem + ".json") as fh:
+            pe = json.load(fh).get("PhaseEncodingDirection")
+    except Exception:
+        pass
+    try:
+        with open(stem + ".bval") as fh:
+            vals = [float(v) for v in fh.read().split()]
+            maxb = max(vals) if vals else 0.0
+    except Exception:
+        pass
+    series.append((os.path.basename(stem), pe, maxb))
+
+if not series:
+    print("NODATA"); sys.exit(0)
+if any(pe is None for _, pe, _ in series):
+    print("UNKNOWN_PE"); sys.exit(0)
+
+# The main acquisition is the direction holding the highest b-value; anything
+# encoded the other way is the reverse-phase data.
+dirs = {pe for _, pe, _ in series}
+main_pe = max(series, key=lambda r: (r[2] if r[2] is not None else 0))[1]
+rev = [r for r in series if r[1] != main_pe]
+
+if len(dirs) == 1:
+    print("ONE_DIR", main_pe, len(series))
+elif any((r[2] or 0) > 100 for r in rev):
+    print("REV_FULL", main_pe, max((r[2] or 0) for r in rev))
+else:
+    print("REV_B0", main_pe, max((r[2] or 0) for r in rev))
+PYEOF
+    )
+
+    local _kind="${_det%% *}"
+    case "$_kind" in
+        ONE_DIR)
+            _dwi_synb0=1; _dwi_revonly=0
+            echo "  [auto] dwi: a single phase-encoding direction -> Synb0-DISCO instead of topup ($_det)"
+            ;;
+        REV_B0)
+            _dwi_synb0=0; _dwi_revonly=1
+            echo "  [auto] dwi: reverse phase is b0-only -> topup, reverse phase not used as data ($_det)"
+            ;;
+        REV_FULL)
+            _dwi_synb0=0; _dwi_revonly=0
+            echo "  [auto] dwi: full reverse-phase pair -> topup, both directions used as data ($_det)"
+            ;;
+        *)
+            echo >&2
+            echo "ERROR: cannot determine the dwi acquisition scheme automatically ($_det)." >&2
+            echo "       Guessing here would either discard half the diffusion data or replace a" >&2
+            echo "       real fieldmap with a synthetic one, so set both keys explicitly in" >&2
+            echo "       study_config/${dwiprep_config_file}:" >&2
+            echo "         synbzero_disco_instead_of_topup: 0|1" >&2
+            echo "         rev_phase_for_topup_only: 0|1" >&2
+            echo >&2
+            return 1
+            ;;
+    esac
+    return 0
+}
+
 function KUL_run_dwiprep {
     if [ $n_dwi -gt 0 ];then
         if [ ! -f dwiprep/sub-${participant}/dwiprep_is_done.log ]; then
-            cp study_config/${dwiprep_config_file} KUL_LOG/sub-${participant}_run_dwiprep.txt
-            sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_dwiprep.txt
-            rm -f KUL_LOG/sub-${participant}_run_dwiprep.txt.bck
+            KUL_prepare_step_config study_config/${dwiprep_config_file} KUL_LOG/sub-${participant}_run_dwiprep.txt dwiprep_ncpu
+
+            # "auto" is resolved from BIDS here, not in the config-load block:
+            # BIDS only exists once dcm2bids has run, which is well after that.
+            if [ "$synb0_setting" = "auto" ] || [ "$revonly_setting" = "auto" ]; then
+                KUL_detect_dwi_acq || return 1
+            fi
+            [ "$synb0_setting"   != "auto" ] && _dwi_synb0=$synb0_setting
+            [ "$revonly_setting" != "auto" ] && _dwi_revonly=$revonly_setting
+            sed -i "s/^synbzero_disco_instead_of_topup:.*/synbzero_disco_instead_of_topup: ${_dwi_synb0}/" \
+                KUL_LOG/sub-${participant}_run_dwiprep.txt
+            sed -i "s/^rev_phase_for_topup_only:.*/rev_phase_for_topup_only: ${_dwi_revonly}/" \
+                KUL_LOG/sub-${participant}_run_dwiprep.txt
             
             KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_dwiprep.txt 
             
@@ -2762,9 +3067,7 @@ function KUL_run_dwiprep {
 
 function KUL_run_freesurfer {
     if [ ! -f BIDS/derivatives/freesurfer/${participant}_freesurfer_is.done ]; then
-        cp study_config/run_freesurfer.txt KUL_LOG/sub-${participant}_run_freesurfer.txt
-        sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_freesurfer.txt
-        rm -f KUL_LOG/sub-${participant}_run_freesurfer.txt.bck
+        KUL_prepare_step_config study_config/run_freesurfer.txt KUL_LOG/sub-${participant}_run_freesurfer.txt freesurfer_ncpu
         KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_freesurfer.txt 
     else
         echo "Freesurfer already done"
@@ -2979,12 +3282,19 @@ function KUL_run_VBG {
             fs_v=$(recon-all --version)
             kul_echo "Using $fs_v for VBG"
 
+            # Built from study_config/run_vbg.txt. -b (BIDS layout) and the
+            # -l/-o/-m paths are structural, not tuneable, so they stay here.
+            _vbg_opts="-z ${vbg_lesion_space} -b -B ${vbg_brain_extraction} -P ${vbg_parcellation}"
+            [ "$vbg_use_template_patch" = "1" ] && _vbg_opts="${_vbg_opts} -t"
+            [ "$vbg_multiscale_parc"    = "1" ] && _vbg_opts="${_vbg_opts} -M"
+            [ "$vbg_overlap_report"     = "1" ] && _vbg_opts="${_vbg_opts} -O"
+            [ "$vbg_hybrid_donor_blend" = "1" ] && _vbg_opts="${_vbg_opts} -H"
             task_in="KUL_VBG.sh -S ${participant} \
                 -l $vbg_lesion \
                 -o $vbg_dir \
                 -m $vbg_dir \
                 $vbg_extra_axial \
-                -z T1 -b -B 1 -t -P 1 -M -O -H -n $ncpu"
+                ${_vbg_opts} -n $ncpu"
             KUL_task_exec $verbose_level "KUL_VBG" "7_VBG" || { kul_echo "KUL_VBG failed — not copying possibly incomplete output to freesurfer derivatives"; return 1; }
 
             # copy the output of VBG to the derivatives freesurfer directory
@@ -3049,7 +3359,7 @@ function KUL_run_FWT {
     # _kul_nis_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
     # export PATH="${_kul_nis_dir}/../KUL_FWT:$PATH"
     if [ $n_dwi -gt 0 ];then
-        config="tracks_list.txt"
+        config="${fwt_tracks_list}"   # study_config/run_fwt.txt
         if [ ! -f KUL_LOG/sub-${participant}_FWT.done ]; then
 
             # Resolve FS aparc+aseg path: prefer VBG FS output, fall back to standard freesurfer derivatives
@@ -3071,18 +3381,19 @@ function KUL_run_FWT {
             KUL_task_exec $verbose_level "KUL_FWT voi generation" "12_FWTvoi" || { kul_echo "FWT VOI generation failed — NOT writing FWT.done"; return 1; }
 
             KUL_activate_conda_env ${scilpy}
-            _fwt_rfa_opt=""
-            [ $use_rfa_mod_fod -eq 1 ] && _fwt_rfa_opt="-U"
-            _fwt_qq_opt=""
-            [ $run_fwt_tractometry -eq 1 ] && _fwt_qq_opt="-Q"
+            # Built from study_config/run_fwt.txt.
+            _fwt_opts="-T ${fwt_tracking_approach} -a ${fwt_algorithm} -f ${fwt_filtering}"
+            [ "$fwt_screenshots"         = "1" ] && _fwt_opts="${_fwt_opts} -S"
+            [ "$fwt_rfa_modulated_fod"   = "1" ] && _fwt_opts="${_fwt_opts} -U"
+            [ "$fwt_tractometry"         = "1" ] && _fwt_opts="${_fwt_opts} -Q"
+            [ "$fwt_reordered_filtering" = "1" ] && _fwt_opts="${_fwt_opts} -R"
+            [ -n "$fwt_cutoff" ]                 && _fwt_opts="${_fwt_opts} -X ${fwt_cutoff}"
             task_in="KUL_FWT_make_TCKs.sh -p ${participant} \
             -F ${_fs_apas} \
             -c $cwd/study_config/${config} \
             -d $cwd/dwiprep/sub-${participant}/sub-${participant} \
             -o $kulderivativesdir/sub-${participant}/FWT \
-            -T 1 -a iFOD2 \
-            -f 1 \
-            -S ${_fwt_rfa_opt} ${_fwt_qq_opt} \
+            ${_fwt_opts} \
             -n $ncpu"
             KUL_task_exec $verbose_level "KUL_FWT tract generation" "12_FWTtck" || { kul_echo "FWT tract generation failed — NOT writing FWT.done"; return 1; }
 
@@ -3138,14 +3449,23 @@ function KUL_run_FWT {
         # and a later re-run picks them all up.
         _qq_src="$kulderivativesdir/sub-${participant}/FWT/sub-${participant}_TCKs_output"
         _qq_dst="REPORT/sub-${participant}_06_Tract_QQ"
-        # The screenshot contact sheet (KUL_FWT_bundle_report.py) links to each
-        # bundle's spider page by bare filename, so both have to land in the same
-        # directory for "metrics ->" to resolve. Hence the flat copy here rather
-        # than per-bundle subdirectories.
+        # The screenshot contact sheet (KUL_FWT_bundle_report.py) embeds each
+        # bundle's spider page via <iframe src="<bundle>_output/QQ/<file>.html">
+        # (a relative path from the report's own directory, not a bare filename --
+        # a bare filename 404s at the report's original TCKs_output location,
+        # where the report and each bundle's QQ page are NOT siblings). So the
+        # copy here has to mirror that same <bundle>_output/QQ/ nesting under
+        # $_qq_dst, not flatten everything into one directory, or the copied
+        # report's iframes point at paths that don't exist in the copy.
         if compgen -G "${_qq_src}/*_output/QQ/*spider3d*.html" > /dev/null 2>&1 || \
            compgen -G "${_qq_src}/sub-${participant}*_FWT_report.html" > /dev/null 2>&1; then
             mkdir -p "$_qq_dst"
-            cp -f "${_qq_src}"/*_output/QQ/*spider3d*.html "$_qq_dst/" 2>/dev/null || true
+            for _spider_src in "${_qq_src}"/*_output/QQ/*spider3d*.html; do
+                [ -f "$_spider_src" ] || continue
+                _bundle_outdir=$(basename "$(dirname "$(dirname "$_spider_src")")")
+                mkdir -p "$_qq_dst/${_bundle_outdir}/QQ"
+                cp -f "$_spider_src" "$_qq_dst/${_bundle_outdir}/QQ/"
+            done
             cp -f "${_qq_src}"/sub-${participant}*_FWT_report.html "$_qq_dst/" 2>/dev/null || true
             echo "  tractometry (QQ) reports copied to $_qq_dst"
         fi
@@ -3216,13 +3536,18 @@ function KUL_clear_cT1w {
 
 function KUL_fmriproc {
 
+    # study_config/run_fmri_glm.txt can switch the whole GLM step off; it is
+    # skipped anyway when BIDS holds no task runs.
+    if [ "$do_fmri_glm" != "1" ]; then
+        echo "do_fmri_glm is not 1 in study_config/run_fmri_glm.txt - skipping the task-fMRI GLM"
+        return 0
+    fi
+
     if [ $n_fMRI -gt 0 ];then
 
         if [ ! -f ${cwd}/KUL_LOG/sub-${participant}_SPM.done ]; then
             if [ "$fmri_engine" == "nilearn" ]; then
-                _pyfmri_C_opt=""
-                [ -n "$pyfmri_env_override" ] && _pyfmri_C_opt="-C $pyfmri_env_override"
-                task_in="KUL_fmriproc_nilearn_new.sh -p $participant -S $smooth_fwhm -P $pfwe -c $ncpu $_pyfmri_C_opt"
+                task_in="KUL_fmriproc_nilearn_new.sh -p $participant -S $smooth_fwhm -P $pfwe -c $ncpu"
                 KUL_task_exec $verbose_level "KUL_fmriproc_nilearn_new" "7_fmriproc_nilearn" || kul_echo "KUL_fmriproc_nilearn_new failed for sub-${participant} — SPM.done will not be created (check 7_fmriproc_nilearn.error.log)"
             else
                 task_in="KUL_fmriproc_spm_new.sh -p $participant -S $smooth_fwhm -P $pfwe -c $ncpu"
@@ -3281,7 +3606,7 @@ function KUL_fmriproc {
             ln -sfn "$_mrep" "REPORT/sub-${participant}_05_melodic_${_mtask#stats_}.html"
         done
 
-        # The rsfMRI-networks step (-N) writes its report into its own derivative
+        # The rsfMRI-networks step writes its report into its own derivative
         # and into RESULTS/rsfMRI_Networks, but never into REPORT -- so the one
         # place a clinician looks did not have it.
         _rsn_rep="$kulderivativesdir/rsfMRI_networks/analysis/reports/sub-${participant}_rsfmri_networks_report"
@@ -3298,9 +3623,7 @@ function KUL_run_rsfMRI_networks {
     if [ $rsfmri_networks -eq 1 ]; then
         rsfmri_check=${cwd}/KUL_LOG/sub-${participant}_rsfMRI_networks.done
         if [ ! -f $rsfmri_check ]; then
-            _pyfmri_c_opt=""
-            [ -n "$pyfmri_env_override" ] && _pyfmri_c_opt="-c $pyfmri_env_override"
-            task_in="KUL_run_rsfMRI_networks.sh -p $participant $_pyfmri_c_opt -P $rsfmri_profile -v $verbose_level"
+            task_in="KUL_run_rsfMRI_networks.sh -p $participant -P $rsfmri_profile -v $verbose_level"
             KUL_task_exec $verbose_level "KUL_run_rsfMRI_networks" "9_rsfmri_networks" || kul_echo "KUL_run_rsfMRI_networks failed for sub-${participant} — rsfMRI_networks.done will not be created (check 9_rsfmri_networks.error.log)"
         else
             echo "rsfMRI networks already done"
@@ -3311,7 +3634,7 @@ function KUL_run_rsfMRI_networks {
 function KUL_run_dsc {
 
     if [ $skip_dsc -eq 1 ]; then
-        echo "DSC perfusion processing skipped (-W)"
+        echo "DSC perfusion processing skipped (do_dsc is not 1 in study_config/run_dsc.txt)"
         return 0
     fi
     if [ ${n_dsc:-0} -eq 0 ]; then
@@ -3330,11 +3653,8 @@ function KUL_run_dsc {
     _dsc_anat="$globalresultsdir/Anat/cT1w_reg2_T1w.nii.gz"
     [ -f "$_dsc_anat" ] || _dsc_anat="$globalresultsdir/Anat/T1w.nii.gz"
 
-    _dsc_y_opt=""
-    [ -n "$pyfmri_env_override" ] && _dsc_y_opt="-y $pyfmri_env_override"
-
     task_in="${kul_main_dir}/KUL_dsc_perfusion.sh -p ${participant} \
-        -a ${_dsc_anat} ${_dsc_y_opt} \
+        -a ${_dsc_anat} \
         -n ${ncpu} -v ${verbose_level}"
     KUL_task_exec $verbose_level "KUL_dsc_perfusion (DSC perfusion maps)" "13_DSC" || \
         { kul_echo "KUL_dsc_perfusion failed - NOT writing DSC.done"; return 1; }
@@ -3377,6 +3697,11 @@ function KUL_run_dwiprep_anat {
 }
 
 function KUL_run_dwiprep_MNI {
+
+    if [ "$do_dwiprep_MNI" != "1" ]; then
+        echo "dwiprep_MNI skipped (do_dwiprep_MNI is not 1 in study_config/${dwiprep_config_file})"
+        return 0
+    fi
 
     dwi_MNI_check=${cwd}/KUL_LOG/sub-${participant}_dwiprep_MNI.done
     if [ ! -f $dwi_MNI_check ]; then
@@ -3538,7 +3863,8 @@ wait
 KUL_run_multiparc
 wait
 
-# STEP 9b-bis - run rsfMRI network analysis (opt-in, -N)
+# STEP 9b-bis - run rsfMRI network analysis (opt-in: do_rsfmri_networks in
+#               study_config/run_rsfmri_networks.txt)
 # After VBG/multiparc, not before: the pipeline's step0 warps
 # lausanne2018.scale3+aseg.mgz into its analysis space, and the seeds in the
 # Presurgical_Somatotopic profile (Lip/Hand/Foot L/R) are defined on it. That
@@ -3548,7 +3874,7 @@ wait
 # and silently dropped those seeds on every type.
 KUL_run_rsfMRI_networks
 
-# STEP 9c - DSC perfusion (runs whenever perf data exists, unless -W)
+# STEP 9c - DSC perfusion (runs whenever perf data exists, unless do_dsc: 0)
 # after VBG/multiparc, so the FreeSurfer aseg the NAWM reference needs exists
 KUL_run_dsc
 
@@ -3560,7 +3886,13 @@ KUL_run_dsc
 # STEP 10 run dwiprep_anat
 KUL_run_dwiprep_anat
 
-# STEP 11 run dwiprep_MNI (needed for DTI-ALPS; skipped for other types)
+# STEP 11 run dwiprep_MNI -- warps T1w/FA/ADC/DEC into MNI152NLin2009cAsym.
+# Runs for every type, and always did: the old comment here claimed it was
+# "needed for DTI-ALPS; skipped for other types" and both halves were wrong.
+# KUL_calc_DTIALPS.sh takes its MNI->T1w transform from fmriprep and its
+# dMRI->T1w from dwiprep's dwi_reg/, and reads nothing this step writes.
+# Nothing else in KUL_NIS consumes its MNI/ outputs either -- they are a
+# standalone product -- so it is switchable via do_dwiprep_MNI in the -D config.
 KUL_run_dwiprep_MNI
 
 # STEP 12a run DTI_ALPS calculation (type 7 only)
@@ -3599,13 +3931,18 @@ elif [ ! -f $karawun_prepare_check ]; then
     _karawun_rc=0
     _karawun_type=""
     if [ $type -lt 5 ]; then
-        _karawun_type=1; _karawun_thr=3;  _karawun_what="Preparing Karawun folder"
+        _karawun_type=1; _karawun_thr=${karawun_threshold_tumor}; _karawun_what="Preparing Karawun folder"
     elif [ $type -eq 5 ]; then
-        _karawun_type=2; _karawun_thr=10; _karawun_what="Preparing Karawun folder (DBS ET)"
+        _karawun_type=2; _karawun_thr=${karawun_threshold_dbs};   _karawun_what="Preparing Karawun folder (DBS ET)"
     elif [ $type -eq 6 ]; then
-        _karawun_type=3; _karawun_thr=10; _karawun_what="Preparing Karawun folder (DBS Parkinson)"
+        _karawun_type=3; _karawun_thr=${karawun_threshold_dbs};   _karawun_what="Preparing Karawun folder (DBS Parkinson)"
     fi
-    if [ -z "$_karawun_type" ]; then
+    # Two distinct reasons to skip, reported distinctly: the step is switched off
+    # in study_config/run_karawun.txt, or this -t has no Karawun case at all.
+    if [ "$do_karawun" != "1" ]; then
+        echo "do_karawun is not 1 in study_config/run_karawun.txt - skipping Karawun prep."
+        echo "  Set do_karawun: 1 there, or run 'KUL_karawun_prepare.sh -p ${participant} -t <1|2|3>' by hand."
+    elif [ -z "$_karawun_type" ]; then
         # type 7 (DTI-ALPS), and anything added later. This used to fall through
         # every branch in silence: _karawun_rc stayed 0, the marker was touched,
         # and the run reported a successful prep having done nothing at all.
@@ -3656,6 +3993,22 @@ else
     # DICOMs but correctly leaves Karawun alone. Delete the marker to force a
     # rebuild.
     echo "Karawun folder already prepared (delete KUL_LOG/sub-${participant}_karawun_prepare.done to rebuild)"
+    # KUL_karawun_prepare.sh prints the importTractography command, but only runs
+    # (and so only prints) the FIRST time -- every later run takes this branch and
+    # used to say nothing further, so the command was visible exactly once, in
+    # whichever run first created the folder. Re-print it here every time instead,
+    # since a later run's fMRI-label pass (above) can still have just added new
+    # labels this folder didn't have on that first run.
+    _karawun_fat1w="Karawun/sub-${participant}/FAT1w.nii.gz"
+    [ -f "$_karawun_fat1w" ] || _karawun_fat1w=""
+    echo "See to it that Karawun/sub-${participant}/DICOM/ contains a donor DICOM"
+    echo "(a single file is enough), then:"
+    echo "conda activate KarawunDev"
+    echo "importTractography -d Karawun/sub-${participant}/DICOM/*.dcm \\"
+    echo "-o Karawun/sub-${participant}/sub-${participant}_for_elements \\"
+    echo "-n Karawun/sub-${participant}/T1w.nii.gz $_karawun_fat1w \\"
+    echo "-t Karawun/sub-${participant}/tck/*.tck \\"
+    echo "-l Karawun/sub-${participant}/labels/*.gz"
 fi
 
 # The PACS drop folders, so the operator has somewhere to copy the maps they
@@ -3729,9 +4082,13 @@ if [ $results -eq 0 ]; then
     if [ -f "Karawun/sub-${participant}/T1w.nii.gz" ]; then
         echo "      The Karawun folder for Brainlab has already been prepared:"
         echo "        Karawun/sub-${participant}/   T1w, FAT1w, tck/, labels/"
-        echo "      Review it too. It is gated by"
-        echo "      KUL_LOG/sub-${participant}_karawun_prepare.done - delete that"
-        echo "      marker to have the next run rebuild it."
+        echo "      (tracts + lesion label, if any -- this happens automatically"
+        echo "      at the end of every run, no flag needed). Review it too. It"
+        echo "      is gated by KUL_LOG/sub-${participant}_karawun_prepare.done -"
+        echo "      delete that marker to have the next run rebuild it."
+        echo "      NOTE: fMRI activation label(s) are NOT in labels/ yet if this"
+        echo "      subject has fMRI data. Those are added separately, the first"
+        echo "      time you run -F or -R below (step 2 or 5) -- see step 5."
     else
         echo "      NOTE: the Karawun/Brainlab folder was NOT prepared (see the"
         echo "      Karawun message earlier in this run). Without it, -R cannot"
@@ -3763,8 +4120,12 @@ if [ $results -eq 0 ]; then
     echo ""
     echo "   5. Once happy with the review and the donor DICOM is in place:"
     echo "        KUL_clinical_fmridti.sh -p ${participant} -t ${type} -R <1-7> [-O orientations]"
-    echo "      This writes the PACS DICOMs, and also adds the fMRI activation"
-    echo "      labels to Karawun/sub-${participant}/labels/ for Brainlab."
+    echo "      This writes the PACS DICOMs, and -- if this subject has fMRI"
+    echo "      data -- ALSO adds the fMRI activation labels into the Karawun"
+    echo "      folder that already exists from step 1 (Karawun itself is not"
+    echo "      re-created here, only the fMRI overlays are added to it)."
+    echo "      -F (step 2) does the same fMRI-label addition without writing"
+    echo "      PACS DICOMs, if you want Brainlab labels but no PACS export yet."
     echo "      Re-running -R with a different underlay (e.g. -R 4 then -R 2)"
     echo "      regenerates the PACS DICOMs for that underlay; the Karawun"
     echo "      folder does not depend on the underlay and is left alone."

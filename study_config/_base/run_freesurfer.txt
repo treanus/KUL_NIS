@@ -19,7 +19,10 @@ BIDS_participants:
 # note: with ncpu=2, freesurfer takes about 10 hours
 do_freesurfer: 1
 freesurfer_options:
-freesurfer_ncpu: 32
+#  NOTE: KUL_clinical_fmridti.sh overwrites this with its own -n when it copies
+#  this config to KUL_LOG/, so the value here only applies to standalone
+#  KUL_preproc_all.sh runs. Do not tune it per processing type.
+freesurfer_ncpu: 16
 freesurfer_simultaneous: 1
 freesurfer_store_in_derivatives: 1
 

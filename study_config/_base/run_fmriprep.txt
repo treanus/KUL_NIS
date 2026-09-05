@@ -27,7 +27,10 @@ do_fmriprep: 1
 fmriprep_version: 25.1.4
 fmriprep_options: --skip-bids-validation --output-spaces func MNI152NLin2009cAsym:res-2 MNI152NLin6Asym:res-2
 fmriprep_bids_filter_file: study_config/bids_filter_no_gadolinium.json
-fmriprep_ncpu: 64
+#  NOTE: KUL_clinical_fmridti.sh overwrites this with its own -n when it copies
+#  this config to KUL_LOG/, so the value here only applies to standalone
+#  KUL_preproc_all.sh runs. Do not tune it per processing type.
+fmriprep_ncpu: 16
 fmriprep_mem: 60
 fmriprep_simultaneous: 1
 

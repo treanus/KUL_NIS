@@ -1,5 +1,5 @@
 ## This is for individual bundle tracking
 CSHDP_LT,10000
 CSHDP_RT,10000
-CST_LT,3000
-CST_RT,3000
+CST_LT,8000
+CST_RT,8000

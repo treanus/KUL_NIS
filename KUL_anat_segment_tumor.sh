@@ -120,6 +120,53 @@ fi
 
 
 # --- functions ---
+
+# Run resseg on a brain-mask-restricted input, with a sanity check against
+# hallucination: resseg's model was never trained on hard-zero-masked
+# images, and can occasionally predict a "cavity" entirely inside the
+# zeroed-out (masked-away) region -- i.e. pure hallucination on background
+# it has never seen anything like, unrelated to any real anatomy. Detected
+# by checking what fraction of the predicted cavity falls outside the mask
+# that built its own input; if that's the majority of the prediction, retry
+# once with a larger dilation margin (more real tissue context around the
+# mask boundary tends to avoid this), and just keep whichever result is
+# sane. Globals used: $resseg_intermediate1, $resseginput, $ressegoutputdir,
+# $ncpu, $resseg_seed, $verbose_level, $resseg_mask_dilation_npass,
+# $resseg_mask_dilation_npass_fallback.
+function KUL_resseg_masked_run {
+    local base_mask="$1"     # undilated, native-space binary mask
+    local masked_input="$2"  # output: masked T1 to feed resseg
+    local cavity_out="$3"    # output: resseg's cavity segmentation
+    local label="$4"         # for logging / log-file naming
+    local dil_mask="$ressegoutputdir/${label}_maskdil.nii.gz"
+    local npass n_found n_outside outside_frac
+
+    for npass in $resseg_mask_dilation_npass $resseg_mask_dilation_npass_fallback; do
+        maskfilter $base_mask dilate -npass $npass -nthreads $ncpu $dil_mask -force
+        mrcalc $resseg_intermediate1/${resseginput}.nii.gz $dil_mask -mult $masked_input -force
+
+        KUL_activate_conda_env resseg
+            task_in="resseg -a 3 -s $resseg_seed -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
+                -o $cavity_out $masked_input"
+            KUL_task_exec $verbose_level "resseg $label (npass=$npass)" "resseg_${label}"
+        conda deactivate
+
+        n_found=$(mrstats $cavity_out -output count -ignorezero)
+        if [ "$n_found" -gt 0 ]; then
+            n_outside=$(mrcalc $masked_input 0 -eq $cavity_out -mult - -quiet | mrstats - -output count -ignorezero -quiet)
+            outside_frac=$(echo "scale=3; $n_outside / $n_found" | bc -l)
+            kul_echo "  resseg $label (npass=$npass): $n_found voxels found, $n_outside outside the masked input (fraction: $outside_frac)"
+            if (( $(echo "$outside_frac < 0.5" | bc -l) )); then
+                break
+            fi
+            kul_echo "  resseg $label: hallucinated on masked-out background at npass=$npass"
+        else
+            kul_echo "  resseg $label (npass=$npass): nothing found"
+        fi
+        [ "$npass" -eq "$resseg_mask_dilation_npass_fallback" ] || kul_echo "  retrying resseg $label with a larger dilation margin"
+    done
+}
+
 function KUL_antsApply_Transform {
     antsApplyTransforms -d 3 --float 1 \
         --verbose 1 \
@@ -268,32 +315,80 @@ function KUL_resseg {
         mkdir -p $resseginputdir2
         mkdir -p $ressegoutputdir
 
-        cp $T1w $resseginputdir1/${resseginput}.nii.gz
+        # everything that isn't itself fed to resseg lives in intermediate1/
+        # -- resseginputdir1's own top level holds only the final masked
+        # image resseg run 1 actually takes as input
+        resseg_intermediate1="$resseginputdir1/intermediate"
+        mkdir -p $resseg_intermediate1
 
-        # run resseg 1st time
+        cp $T1w $resseg_intermediate1/${resseginput}.nii.gz
+
+        # fixed seed so the two resseg runs (and repeat invocations of this
+        # script) are reproducible -- resseg's TTA (-a 3) is stochastic
+        # without one, and the two runs' arbitration (STEP 5C, below) is only
+        # meaningful if each run's result is stable from one invocation to
+        # the next
+        resseg_seed=42
+
+        # both masks start at the same (tighter) margin, so the only
+        # difference between the two runs is which mask (subject-specific
+        # vs normal-population template) -- not how generously either is
+        # dilated -- unless a run hallucinates, in which case
+        # KUL_resseg_masked_run retries it at the larger fallback margin.
+        resseg_mask_dilation_npass=5
+        resseg_mask_dilation_npass_fallback=15
+
+        # resseg-mni still runs once, up front -- its transform is used
+        # internally by resseg itself for its own MNI-space inference
+        # (unrelated to the brain-to-brain registration below), and is
+        # shared by both runs
         KUL_activate_conda_env resseg
             task_in="resseg-mni -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
                 -r $ressegoutputdir/${resseginput}_reg2mni.nii.gz \
-                $resseginputdir1/${resseginput}.nii.gz"
+                $resseg_intermediate1/${resseginput}.nii.gz"
             KUL_task_exec $verbose_level "resseg running mni" "resseg_mni"
-
-            task_in="resseg -a 3 -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
-                -o $ressegoutputdir/${resseginput}_cavity1.nii.gz \
-                $resseginputdir1/${resseginput}.nii.gz"
-            KUL_task_exec $verbose_level "resseg run 1" "resseg_run1"
         conda deactivate
 
+        # Build the NORMAL-BRAIN (Colin27) mask in native space for run 1.
+        # A brain-to-brain rigid+affine registration (not resseg-mni's own
+        # full-head-to-full-head one) gives a more accurate mapping in the
+        # region that matters. Unlike run 2's patient-specific BET mask, a
+        # template mask reflects where a normal brain would be, so it cannot
+        # exclude a resection cavity the way this patient's own (possibly
+        # post-surgical) brain extraction might.
+        colin_t1="$HOME/.cache/torchio/mni_colin27_1998_nifti/colin27_t1_tal_lin.nii.gz"
+        colin_mask="$HOME/.cache/torchio/mni_colin27_1998_nifti/colin27_t1_tal_lin_mask.nii.gz"
+        mrcalc $colin_t1 $colin_mask -mult $ressegoutputdir/colin27_brain.nii.gz -force
+        mrcalc $resseg_intermediate1/${resseginput}.nii.gz $kulderivativesdir/hdglio/output/mask.nii.gz -mult \
+            $resseg_intermediate1/${resseginput}_brain.nii.gz -force
 
-        # run resseg 2nd time
-        hdgliooutputdir="$kulderivativesdir/hdglio"
-        # make a betted T1 as input
-        maskfilter $hdgliooutputdir/output/mask.nii.gz dilate - -npass 15 -nthreads $ncpu | mrcalc $resseginputdir1/${resseginput}.nii.gz - -mul $resseginputdir2/${resseginput}.nii.gz -force
-        KUL_activate_conda_env resseg
-            task_in="resseg -a 3 -t $ressegoutputdir/${resseginput}_reg2mni.tfm \
-                -o $ressegoutputdir/${resseginput}_cavity2.nii.gz \
-                $resseginputdir2/${resseginput}.nii.gz"
-            KUL_task_exec $verbose_level "resseg run 2" "resseg_run2"
-        conda deactivate
+        antsRegistrationSyN.sh -d 3 \
+            -f $ressegoutputdir/colin27_brain.nii.gz \
+            -m $resseg_intermediate1/${resseginput}_brain.nii.gz \
+            -t a -n $ncpu \
+            -o $ressegoutputdir/native2colin_
+
+        antsApplyTransforms -d 3 --float 1 \
+            -i $colin_mask \
+            -o $resseg_intermediate1/colin_mask_native.nii.gz \
+            -r $resseg_intermediate1/${resseginput}.nii.gz \
+            -t [$ressegoutputdir/native2colin_0GenericAffine.mat,1] -n NearestNeighbor
+
+        # run resseg 1st time (Colin27-derived mask), with hallucination
+        # retry
+        KUL_resseg_masked_run \
+            "$resseg_intermediate1/colin_mask_native.nii.gz" \
+            "$resseginputdir1/${resseginput}_mnimasked.nii.gz" \
+            "$ressegoutputdir/${resseginput}_cavity1.nii.gz" \
+            "run1"
+
+        # run resseg 2nd time (subject-specific BET mask), with
+        # hallucination retry
+        KUL_resseg_masked_run \
+            "$kulderivativesdir/hdglio/output/mask.nii.gz" \
+            "$resseginputdir2/${resseginput}.nii.gz" \
+            "$ressegoutputdir/${resseginput}_cavity2.nii.gz" \
+            "run2"
 
 
     else
@@ -495,23 +590,62 @@ if [ $result -eq 0 ]; then
 
 
     # STEP 5C - Correct RESSEG
-    # 1st try to determine if the 2 resseg runs overlap
-    # subtract hdglio-lesion-total and csf from resseg 
-    #   and clean
+    # resseg is run twice (run 1: raw full head; run 2: dilated-BET-masked) as
+    # a lightweight consistency check. The two runs can legitimately disagree
+    # -- run 1 in particular, having no brain mask, can hallucinate a "cavity"
+    # on extracranial structures (e.g. the maxillary sinus, which is a dark,
+    # fluid-filled shape not unlike a resection cavity). Arbitrate cheapest
+    # signal first, only escalating when inconclusive:
+    #   1. spatial overlap between the two runs
+    #   2. distance to the HD-GLIO lesion (a genuine cavity sits directly
+    #      adjacent to/overlapping the resection target; a stray extracranial
+    #      detection does not) -- only when HD-GLIO actually found a lesion
+    # If neither resolves it, we discard resseg (as before), but now say so
+    # loudly instead of silently -- this mask feeds VBG for the rest of the
+    # pipeline, so a silent wrong/missing cavity is worse than a visible one.
 
     # calculate the overlap between the 2 resseg runs
     mrcalc $input_resseg1 $input_resseg2 -add $kulderivativesdir/resseg/T1_cavity_combined.nii.gz -force
     cav_overlap=$(mrstats $kulderivativesdir/resseg/T1_cavity_combined.nii.gz -output max)
 
-    if [ $cav_overlap -lt 2 ]; then
-        # there is no overlap, we discard resseg output
-        resseg_keep=""
-        resseg_use=0
-    else
-        # there seems to be overlap, let's keep #1
+    resseg_keep=""
+    resseg_use=0
+    resseg_decision="none"
+
+    if [ $cav_overlap -ge 2 ]; then
+        # the 2 runs agree spatially -- keep #1, as before
         resseg_keep=$input_resseg1
         resseg_use=1
-    fi    
+        resseg_decision="overlap"
+
+    elif [ $hdglio_type_found -ne 0 ]; then
+        kul_echo "resseg runs disagree (no overlap); arbitrating by distance to the HD-GLIO lesion"
+        n1=$(mrstats $input_resseg1 -output count -ignorezero)
+        n2=$(mrstats $input_resseg2 -output count -ignorezero)
+
+        if [ "$n1" -gt 0 ] && [ "$n2" -gt 0 ]; then
+            ImageMath 3 $kulderivativesdir/resseg/lesion_dist.nii.gz MaurerDistance $hdglio_output3
+            dist1=$(mrstats $kulderivativesdir/resseg/lesion_dist.nii.gz -mask $input_resseg1 -output min)
+            dist2=$(mrstats $kulderivativesdir/resseg/lesion_dist.nii.gz -mask $input_resseg2 -output min)
+            kul_echo "  run 1 nearest distance to lesion: ${dist1}mm; run 2: ${dist2}mm"
+            if (( $(echo "$dist1 < $dist2" | bc -l) )); then
+                resseg_keep=$input_resseg1
+            else
+                resseg_keep=$input_resseg2
+            fi
+            resseg_use=1
+            resseg_decision="distance"
+        elif [ "$n1" -gt 0 ]; then
+            resseg_keep=$input_resseg1; resseg_use=1; resseg_decision="distance-only-run1"
+        elif [ "$n2" -gt 0 ]; then
+            resseg_keep=$input_resseg2; resseg_use=1; resseg_decision="distance-only-run2"
+        fi
+    fi
+
+    if [ $resseg_use -eq 0 ]; then
+        kul_echo "WARNING: could not confidently arbitrate the resseg cavity candidates for sub-${participant} (decision path: $resseg_decision)."
+        kul_echo "  Proceeding WITHOUT a resseg cavity contribution -- MANUAL REVIEW RECOMMENDED for the resection cavity."
+    fi
     
     # STEP 5D - Depending on output compute
     if [ $hdglio_type_found -eq 0 ]; then

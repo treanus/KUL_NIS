@@ -935,14 +935,14 @@ if [ $expert -eq 1 ]; then
     kul_echo "  Using Expert mode"
 
     # check exit_after
-    exit_after=$(grep exit_after $conf | grep -v \# |  sed 's/[^0-9]//g')
+    exit_after=$(grep -E "^[[:space:]]*exit_after:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" |  sed 's/[^0-9]//g')
     if [ -z "$exit_after" ]; then
         exit_after=0
     fi 
     kul_echo "  exit_after: $exit_after"
 
     #check make_pbs_files_instead_of_running
-    make_pbs_files_instead_of_running=$(grep make_pbs_files_instead_of_running $conf | grep -v \# | sed 's/[^0-9]//g')
+    make_pbs_files_instead_of_running=$(grep -E "^[[:space:]]*make_pbs_files_instead_of_running:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
     if [ -z "$make_pbs_files_instead_of_running" ]; then
         make_pbs_files_instead_of_running=0
     fi 
@@ -950,13 +950,23 @@ if [ $expert -eq 1 ]; then
 
     if [ $make_pbs_files_instead_of_running -eq 1 ]; then
 
-        pbs_cpu=$(grep pbs_cpu $conf | grep -v \# | sed 's/[^0-9]//g')
-        pbs_mem=$(grep pbs_mem $conf | grep -v \# | sed 's/[^0-9]//g')
-        pbs_lp=$(grep pbs_lp $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
-        pbs_email=$(grep pbs_email $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
-        pbs_walltime=$(grep pbs_walltime $conf | grep -v \# | cut -d':' -f 2- | tr -d '\r')
-        pbs_singularity_mriqc=$(grep pbs_singularity_mriqc $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
-        pbs_singularity_fmriprep=$(grep pbs_singularity_fmriprep $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        pbs_cpu=$(grep -E "^[[:space:]]*pbs_cpu:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
+        pbs_mem=$(grep -E "^[[:space:]]*pbs_mem:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
+        # Config reads are anchored on '^key:' and take only the first match.
+        # They used to be an unanchored `grep -E "^[[:space:]]*key:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//"`, which
+        # matched any line CONTAINING the key: a longer key ending in the same
+        # word, or a value that happened to mention it. Nothing collided in the
+        # shipped configs, but only by luck -- adding do_dwiprep_MNI alongside
+        # do_dwiprep was a near miss, saved only because that one grep happened
+        # to include the colon. `head -n 1` makes a duplicated key deterministic
+        # instead of producing a two-line value, and stripping an inline '#'
+        # comment replaces `grep -v \#`, which silently dropped the WHOLE line
+        # when someone annotated a setting.
+        pbs_lp=$(grep -E "^[[:space:]]*pbs_lp:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r')
+        pbs_email=$(grep -E "^[[:space:]]*pbs_email:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r')
+        pbs_walltime=$(grep -E "^[[:space:]]*pbs_walltime:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2- | tr -d '\r')
+        pbs_singularity_mriqc=$(grep -E "^[[:space:]]*pbs_singularity_mriqc:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r')
+        pbs_singularity_fmriprep=$(grep -E "^[[:space:]]*pbs_singularity_fmriprep:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r')
 
         kul_echo "  pbs_cpu: $pbs_cpu"
         kul_echo "  pbs_mem: $pbs_mem"
@@ -970,7 +980,7 @@ if [ $expert -eq 1 ]; then
 
 
     #check mriqc and options
-    do_mriqc=$(grep do_mriqc $conf | grep -v \# | sed 's/[^0-9]//g')
+    do_mriqc=$(grep -E "^[[:space:]]*do_mriqc:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
     if [ -z "$do_mriqc" ]; then
         do_mriqc=0
     fi 
@@ -978,26 +988,26 @@ if [ $expert -eq 1 ]; then
     
     if [ $do_mriqc -eq 1 ]; then
 
-        mriqc_version=$(grep mriqc_version $conf | grep -v \# | cut -d':' -f 2-1000)
+        mriqc_version=$(grep -E "^[[:space:]]*mriqc_version:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2-1000)
         mriqc_version="$(echo -e "${mriqc_version}" | tr -d '[:space:]')" #remove all whitespaces
         if [ -z "$mriqc_version" ]; then
             mriqc_version=latest
         fi 
 
-        mriqc_options=$(grep mriqc_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        mriqc_options=$(grep -E "^[[:space:]]*mriqc_options:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r')
 
-        mriqc_ncpu=$(grep mriqc_ncpu $conf | grep -v \# | sed 's/[^0-9]//g' | tr -d '\r')
+        mriqc_ncpu=$(grep -E "^[[:space:]]*mriqc_ncpu:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g' | tr -d '\r')
         ncpu_mriqc=$mriqc_ncpu
         ncpu_mriqc_ants=$mriqc_ncpu
         
-        mriqc_mem=$(grep mriqc_mem $conf | grep -v \# | sed 's/[^0-9]//g' | tr -d '\r')
+        mriqc_mem=$(grep -E "^[[:space:]]*mriqc_mem:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g' | tr -d '\r')
         mem_gb=$mriqc_mem
     
         #get bids_participants
-        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+        BIDS_subjects=($(grep -E "^[[:space:]]*BIDS_participants:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r'))
         n_subj=${#BIDS_subjects[@]}
             
-        mriqc_simultaneous=$(grep mriqc_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g' | tr -d '\r')
+        mriqc_simultaneous=$(grep -E "^[[:space:]]*mriqc_simultaneous:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g' | tr -d '\r')
 
         if [ $make_pbs_files_instead_of_running -eq 1 ]; then
             mriqc_simultaneous_pbs=$(($mriqc_simultaneous-1))
@@ -1069,7 +1079,7 @@ if [ $expert -eq 1 ]; then
 
 
     #check fmriprep and options
-    do_fmriprep=$(grep do_fmriprep $conf | grep -v \# | sed 's/[^0-9]//g')
+    do_fmriprep=$(grep -E "^[[:space:]]*do_fmriprep:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
     if [ -z "$do_fmriprep" ]; then
         do_fmriprep=0
     fi 
@@ -1077,7 +1087,7 @@ if [ $expert -eq 1 ]; then
     
     if [ $do_fmriprep -eq 1 ]; then
 
-        fmriprep_version=$(grep fmriprep_version $conf | grep -v \# | cut -d':' -f 2-1000)
+        fmriprep_version=$(grep -E "^[[:space:]]*fmriprep_version:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2-1000)
         fmriprep_version="$(echo -e "${fmriprep_version}" | tr -d '[:space:]')" #remove all whitespaces
         if [ -z "$fmriprep_version" ]; then
             fmriprep_version=latest
@@ -1085,9 +1095,9 @@ if [ $expert -eq 1 ]; then
 
         fmriprep_version_major=$(echo $fmriprep_version | cut -d'.' -f 1)
         
-        fmriprep_options=$(grep fmriprep_options $conf | grep -v \# | cut -d':' -f 2-1000)
+        fmriprep_options=$(grep -E "^[[:space:]]*fmriprep_options:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2-1000)
         
-        fmriprep_bids_filter_file=$(grep fmriprep_bids_filter_file $conf | grep -v \# | cut -d':' -f 2-1000)
+        fmriprep_bids_filter_file=$(grep -E "^[[:space:]]*fmriprep_bids_filter_file:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2-1000)
         fmriprep_bids_filter_file="$(echo -e "${fmriprep_bids_filter_file}" | tr -d '[:space:]')" #remove all whitespaces
         if [ ! -z "$fmriprep_bids_filter_file" ]; then
             fmriprep_filter_mount=" -v ${cwd}/$fmriprep_bids_filter_file:/resources/bids_configuration/KUL_filter.json "
@@ -1096,19 +1106,19 @@ if [ $expert -eq 1 ]; then
             fmriprep_filter_mount=""
         fi
 
-        fmriprep_ncpu=$(grep fmriprep_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        fmriprep_ncpu=$(grep -E "^[[:space:]]*fmriprep_ncpu:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
         ncpu_fmriprep=$fmriprep_ncpu
         ncpu_fmriprep_ants=$fmriprep_ncpu
         
-        fmriprep_mem=$(grep fmriprep_mem $conf | grep -v \# | sed 's/[^0-9]//g')
+        fmriprep_mem=$(grep -E "^[[:space:]]*fmriprep_mem:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
         gb=1024
         mem_mb=$(echo $fmriprep_mem $gb | awk '{print $1 * $2 }')
 
         #get bids_participants
-        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2))
+        BIDS_subjects=($(grep -E "^[[:space:]]*BIDS_participants:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2))
         n_subj=${#BIDS_subjects[@]}
             
-        fmriprep_simultaneous=$(grep fmriprep_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
+        fmriprep_simultaneous=$(grep -E "^[[:space:]]*fmriprep_simultaneous:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
 
         if [ $make_pbs_files_instead_of_running -eq 1 ]; then
             fmriprep_simultaneous_pbs=$(($fmriprep_simultaneous-1))
@@ -1125,7 +1135,7 @@ if [ $expert -eq 1 ]; then
         kul_echo "  number of BIDS_participants: $n_subj"
         kul_echo "  fmriprep_simultaneous: $fmriprep_simultaneous"
         
-        fmriprep_force_redo=$(grep fmriprep_force_redo $conf | grep -v \# | sed 's/[^0-9]//g')
+        fmriprep_force_redo=$(grep -E "^[[:space:]]*fmriprep_force_redo:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
 
         # check if already performed fmriprep
         todo_bids_participants=()
@@ -1186,7 +1196,7 @@ if [ $expert -eq 1 ]; then
 
 
     #check freesurfer and options
-    do_freesurfer=$(grep do_freesurfer $conf | grep -v \# | sed 's/[^0-9]//g')
+    do_freesurfer=$(grep -E "^[[:space:]]*do_freesurfer:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
     if [ -z "$do_freesurfer" ]; then
         do_freesurfer=0
     fi 
@@ -1194,24 +1204,24 @@ if [ $expert -eq 1 ]; then
     
     if [ $do_freesurfer -eq 1 ]; then
 
-        freesurfer_options=$(grep freesurfer_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
-        fs_options_direct=$(grep freesurfer_direct_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        freesurfer_options=$(grep -E "^[[:space:]]*freesurfer_options:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r')
+        fs_options_direct=$(grep -E "^[[:space:]]*freesurfer_direct_options:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r')
 
-        freesurfer_ncpu=$(grep freesurfer_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        freesurfer_ncpu=$(grep -E "^[[:space:]]*freesurfer_ncpu:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
         ncpu_freesurfer=$freesurfer_ncpu
 
         freesurfer_store_in_derivatives=0
-        freesurfer_store_in_derivatives=$(grep freesurfer_store_in_derivatives $conf | grep -v \# | sed 's/[^0-9]//g')
+        freesurfer_store_in_derivatives=$(grep -E "^[[:space:]]*freesurfer_store_in_derivatives:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
  
         #get bids_participants
-        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+        BIDS_subjects=($(grep -E "^[[:space:]]*BIDS_participants:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r'))
         if [ -z "$BIDS_subjects" ]; then
             bids_search=($(find BIDS/ -maxdepth 1 -name "sub-*" -type d))
             BIDS_subjects=${bids_search[@]#*-}
         fi
         n_subj=${#BIDS_subjects[@]}
             
-        freesurfer_simultaneous=$(grep freesurfer_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
+        freesurfer_simultaneous=$(grep -E "^[[:space:]]*freesurfer_simultaneous:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
 
         kul_echo "  freesurfer_options: $freesurfer_options"
         kul_echo "  freesurfer_direct_options: $fs_options_direct"
@@ -1280,7 +1290,7 @@ if [ $expert -eq 1 ]; then
 
 
     #check dwiprep and options
-    do_dwiprep=$(grep do_dwiprep: $conf | grep -v \# | sed 's/[^0-9]//g')
+    do_dwiprep=$(grep -E "^[[:space:]]*do_dwiprep:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
     if [ -z "$do_dwiprep" ]; then
         do_dwiprep=0
     fi 
@@ -1288,42 +1298,42 @@ if [ $expert -eq 1 ]; then
 
     if [ $do_dwiprep -eq 1 ]; then
 
-        dwiprep_options=$(grep dwiprep_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        dwiprep_options=$(grep -E "^[[:space:]]*dwiprep_options:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r')
         dwipreproc_options=$dwiprep_options
         
-        synbzero_disco_instead_of_topup=$(grep synbzero_disco_instead_of_topup $conf | grep -v \# | sed 's/[^0-9]//g')
+        synbzero_disco_instead_of_topup=$(grep -E "^[[:space:]]*synbzero_disco_instead_of_topup:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
         [ -z "$synbzero_disco_instead_of_topup" ] && synbzero_disco_instead_of_topup=0
 
         # optional config field; default to 0 (off) when absent from $conf so
         # the numeric comparisons below ("-eq 1") don't choke on an empty string
-        shard_recon=$(grep shard_recon $conf | grep -v \# | sed 's/[^0-9]//g')
+        shard_recon=$(grep -E "^[[:space:]]*shard_recon:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
         [ -z "$shard_recon" ] && shard_recon=0
 
-        rev_phase_for_topup_only=$(grep rev_phase_for_topup_only $conf | grep -v \# | sed 's/[^0-9]//g')
+        rev_phase_for_topup_only=$(grep -E "^[[:space:]]*rev_phase_for_topup_only:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
         [ -z "$rev_phase_for_topup_only" ] && rev_phase_for_topup_only=0
 
-        dwi2mask_method=$(grep dwi2mask_method $conf | grep -v \# | cut -d':' -f 2 | sed 's/[^0-9]//g')
+        dwi2mask_method=$(grep -E "^[[:space:]]*dwi2mask_method:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | sed 's/[^0-9]//g')
 
-        eddy_options=$(grep eddy_options $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
+        eddy_options=$(grep -E "^[[:space:]]*eddy_options:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r')
 
         # defaults to $KUL_LORESD_ENV (the fixed name the installer creates it
         # under) when the config field is blank; only needed as an override
-        loresd_env=$(grep loresd_env $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r' | sed 's/^ *//;s/ *$//')
+        loresd_env=$(grep -E "^[[:space:]]*loresd_env:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r' | sed 's/^ *//;s/ *$//')
         [ -z "$loresd_env" ] && loresd_env="$KUL_LORESD_ENV"
 
-        dwiprep_ncpu=$(grep dwiprep_ncpu $conf | grep -v \# | cut -d':' -f 2 | sed 's/[^0-9]//g')
+        dwiprep_ncpu=$(grep -E "^[[:space:]]*dwiprep_ncpu:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | sed 's/[^0-9]//g')
         ncpu_dwiprep=$dwiprep_ncpu
 
-        use_native_dwi=$(grep use_native_dwi $conf | grep -v \# | sed 's/[^0-9]//g')
+        use_native_dwi=$(grep -E "^[[:space:]]*use_native_dwi:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
         if [ -z "$use_native_dwi" ]; then
             use_native_dwi=1
         fi
         
         #get bids_participants
-        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+        BIDS_subjects=($(grep -E "^[[:space:]]*BIDS_participants:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r'))
         n_subj=${#BIDS_subjects[@]}
             
-        dwiprep_simultaneous=$(grep dwiprep_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
+        dwiprep_simultaneous=$(grep -E "^[[:space:]]*dwiprep_simultaneous:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
 
         kul_echo "  dwiprep_options: $dwiprep_options"
         kul_echo "  synbzero_disco_instead_of_topup: $synbzero_disco_instead_of_topup"
@@ -1391,7 +1401,7 @@ if [ $expert -eq 1 ]; then
     fi
 
     #check synb0 and options
-    do_synb0=$(grep do_synb0: $conf | grep -v \# | sed 's/[^0-9]//g')
+    do_synb0=$(grep -E "^[[:space:]]*do_synb0:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
     if [ -z "$do_synb0" ]; then
         do_synb0=0
     fi 
@@ -1399,17 +1409,17 @@ if [ $expert -eq 1 ]; then
 
     if [ $do_synb0 -eq 1 ]; then
 
-        synb0_cleanup=$(grep synb0_cleanup $conf | grep -v \# | sed 's/[^0-9]//g')
+        synb0_cleanup=$(grep -E "^[[:space:]]*synb0_cleanup:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
         cleanup_synb0=$(($synb0_cleanup))
 
-        synb0_ncpu=$(grep synb0_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        synb0_ncpu=$(grep -E "^[[:space:]]*synb0_ncpu:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
         ncpu_synb0=$(($synb0_ncpu))
 
         #get bids_participants
-        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+        BIDS_subjects=($(grep -E "^[[:space:]]*BIDS_participants:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r'))
         n_subj=${#BIDS_subjects[@]}
             
-        synb0_simultaneous=$(grep synb0_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
+        synb0_simultaneous=$(grep -E "^[[:space:]]*synb0_simultaneous:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
 
         kul_echo "  synb0_cleanup: $cleanup_synb0"
         kul_echo "  synb0_ncpu: $ncpu_synb0"
@@ -1475,22 +1485,22 @@ if [ $expert -eq 1 ]; then
     # Rest of processing steps
 
     #check dwiprep_anat and options
-    do_dwiprep_anat=$(grep do_dwiprep_anat: $conf | grep -v \# | sed 's/[^0-9]//g')
+    do_dwiprep_anat=$(grep -E "^[[:space:]]*do_dwiprep_anat:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
     if [ -z "$do_dwiprep_anat" ]; then
         do_dwiprep_anat=0
     fi 
     kul_echo "  do_dwiprep_anat: $do_dwiprep_anat"
 
     #get bids_participants
-    BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+    BIDS_subjects=($(grep -E "^[[:space:]]*BIDS_participants:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r'))
     n_subj=${#BIDS_subjects[@]}
             
-    dwiprep_anat_simultaneous=$(grep dwiprep_anat_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
+    dwiprep_anat_simultaneous=$(grep -E "^[[:space:]]*dwiprep_anat_simultaneous:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
 
     # continue with KUL_dwiprep_anat, which depends on finished data from freesurfer, fmriprep & KUL_dwiprep
     if [ $do_dwiprep_anat -eq 1 ]; then
 
-        dwiprep_anat_ncpu=$(grep dwiprep_anat_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        dwiprep_anat_ncpu=$(grep -E "^[[:space:]]*dwiprep_anat_ncpu:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
         
         kul_echo "  dwiprep_anat_ncpu: $dwiprep_anat_ncpu"
         kul_echo "  BIDS_participants: ${BIDS_subjects[@]}"
@@ -1544,22 +1554,22 @@ if [ $expert -eq 1 ]; then
     fi 
 
     #check dwiprep_MNI and options
-    do_dwiprep_MNI=$(grep do_dwiprep_MNI: $conf | grep -v \# | sed 's/[^0-9]//g')
+    do_dwiprep_MNI=$(grep -E "^[[:space:]]*do_dwiprep_MNI:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
     if [ -z "$do_dwiprep_MNI" ]; then
         do_dwiprep_MNI=0
     fi 
     kul_echo "  do_dwiprep_MNI: $do_dwiprep_MNI"
 
     #get bids_participants
-    BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+    BIDS_subjects=($(grep -E "^[[:space:]]*BIDS_participants:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r'))
     n_subj=${#BIDS_subjects[@]}
             
-    dwiprep_MNI_simultaneous=$(grep dwiprep_MNI_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
+    dwiprep_MNI_simultaneous=$(grep -E "^[[:space:]]*dwiprep_MNI_simultaneous:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
 
     # continue with KUL_dwiprep_MNI, which depends on finished data from freesurfer, fmriprep & KUL_dwiprep
     if [ $do_dwiprep_MNI -eq 1 ]; then
 
-        dwiprep_MNI_ncpu=$(grep dwiprep_MNI_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
+        dwiprep_MNI_ncpu=$(grep -E "^[[:space:]]*dwiprep_MNI_ncpu:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
 
         kul_echo "  dwiprep_MNI_ncpu: $dwiprep_MNI_ncpu"
         kul_echo "  BIDS_participants: ${BIDS_subjects[@]}"
@@ -1617,7 +1627,7 @@ if [ $expert -eq 1 ]; then
 
     # continue with KUL_dwiprep_fibertract
     #check do_dwiprep_fibertract and options
-    do_dwiprep_fibertract=$(grep do_dwiprep_fibertract $conf | grep -v \# | sed 's/[^0-9]//g')
+    do_dwiprep_fibertract=$(grep -E "^[[:space:]]*do_dwiprep_fibertract:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
     if [ -z "$do_dwiprep_fibertract" ]; then
         do_dwiprep_fibertract=0
     fi 
@@ -1626,15 +1636,15 @@ if [ $expert -eq 1 ]; then
     if [ $do_dwiprep_fibertract -eq 1 ]; then
 
         # get bids_participants
-        BIDS_subjects=($(grep BIDS_participants $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r'))
+        BIDS_subjects=($(grep -E "^[[:space:]]*BIDS_participants:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r'))
         n_subj=${#BIDS_subjects[@]}
         # get other parameters    
-        dwiprep_fibertract_ncpu=$(grep dwiprep_fibertract_ncpu $conf | grep -v \# | sed 's/[^0-9]//g')
-        dwiprep_fibertract_simultaneous=$(grep dwiprep_fibertract_simultaneous $conf | grep -v \# | sed 's/[^0-9]//g')
-        dwiprep_fibertract_rois_file=$(grep dwiprep_fibertract_rois_file $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
-        dwiprep_fibertract_conf_file=$(grep dwiprep_fibertract_conf_file $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
-        dwiprep_fibertract_response_file=$(grep dwiprep_fibertract_response_file $conf | grep -v \# | cut -d':' -f 2 | tr -d '\r')
-        dwiprep_fibertract_whole_brain=$(grep dwiprep_fibertract_whole_brain $conf | grep -v \# | sed 's/[^0-9]//g')
+        dwiprep_fibertract_ncpu=$(grep -E "^[[:space:]]*dwiprep_fibertract_ncpu:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
+        dwiprep_fibertract_simultaneous=$(grep -E "^[[:space:]]*dwiprep_fibertract_simultaneous:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
+        dwiprep_fibertract_rois_file=$(grep -E "^[[:space:]]*dwiprep_fibertract_rois_file:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r')
+        dwiprep_fibertract_conf_file=$(grep -E "^[[:space:]]*dwiprep_fibertract_conf_file:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r')
+        dwiprep_fibertract_response_file=$(grep -E "^[[:space:]]*dwiprep_fibertract_response_file:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | cut -d':' -f 2 | tr -d '\r')
+        dwiprep_fibertract_whole_brain=$(grep -E "^[[:space:]]*dwiprep_fibertract_whole_brain:" $conf | head -n 1 | sed "s/[[:space:]]*#.*$//" | sed 's/[^0-9]//g')
 
         if [ $silent -eq 0 ]; then
 

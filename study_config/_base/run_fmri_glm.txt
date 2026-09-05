@@ -1,0 +1,17 @@
+# KUL_Neuro_Imaging_Tools
+#  config file for the task-fMRI GLM step of KUL_clinical_fmridti.sh, run by
+#  either KUL_fmriproc_spm_new.sh or KUL_fmriproc_nilearn_new.sh.
+
+#  run the task-fMRI GLM at all (skipped anyway if no task runs are found)
+do_fmri_glm: 1
+
+#  which engine to run:
+#    spm     : KUL_fmriproc_spm_new.sh     (MATLAB/SPM12, needs a MATLAB license)
+#    nilearn : KUL_fmriproc_nilearn_new.sh (python3 nilearn/nibabel/numpy/pandas)
+glm_engine: spm
+
+#  -S: SUSAN smoothing FWHM in mm
+fmri_smooth_fwhm: 5
+
+#  -P: FWE-corrected p-value for the Bizzi fMRI thresholding
+fmri_pfwe: 0.01

@@ -497,14 +497,6 @@ if args.match_donor and input_type == 'png_dir':
     print(f'Donor 3D: {n_donor_frames} frames, {donor_cols}×{donor_rows} px, ps={donor_ps:.4f}mm')
     print(f'Output IOP (from NIfTI SAG): {out_iop_str}')
 
-    # Build per-frame table: IPP and SliceLocation
-    donor_frames = []
-    for j in range(n_donor_frames):
-        ipp = [or3[x] + donor_slice_dir[x] * sp3[2] * j for x in range(3)]
-        loc = sum(ipp[x] * donor_slice_dir[x] for x in range(3))
-        donor_frames.append({'ipp': ipp, 'loc': loc})
-    donor_frames.sort(key=lambda f: f['loc'])
-
     # Build PNG table sorted by SliceLocation along the donor slice normal
     pngs = sorted(glob.glob(os.path.join(nifti_input, '*.png')))
     if not pngs:
@@ -523,8 +515,12 @@ if args.match_donor and input_type == 'png_dir':
         png_table = [(i, i, pngs[i]) for i in range(len(pngs))]
 
     if len(png_table) != n_donor_frames:
-        print(f'Warning: {len(png_table)} PNGs vs {n_donor_frames} donor frames — '
-              f'using nearest-neighbour matching')
+        # Informational only: every PNG below is written as its own slice
+        # regardless of the donor's frame count -- geometry comes entirely from
+        # the underlay (compute_slice_geometry), so a count mismatch here has
+        # no effect on correctness.
+        print(f'Note: {len(png_table)} PNGs vs {n_donor_frames} donor frames '
+              f'(informational only -- all {len(png_table)} PNGs are written)')
 
     # Compute rendering margin geometrically from the in-plane FOV and PNG dimensions.
     # Pixel-content thresholds are unreliable: both the rendering margin and the dark
@@ -629,7 +625,9 @@ if args.match_donor and input_type == 'png_dir':
         slice_2d.SetMetaData("0018|0088", f"{out_slice_sp:.4f}")
         # PixelSpacing is [between rows, between columns] = [dy, dx].
         slice_2d.SetMetaData("0028|0030", f"{out_sp_y:.6f}\\{out_sp_x:.6f}")
-        slice_2d.SetMetaData("0020|0013", str(out_idx))
+        # Instance Number is 1-based by convention; 0 mis-sorts in some viewers
+        # (same fix as writeSlices(), never propagated here until now).
+        slice_2d.SetMetaData("0020|0013", str(out_idx + 1))
         slice_2d.SetMetaData("0008|0012", modification_date)
         slice_2d.SetMetaData("0008|0013", modification_time)
         slice_2d.SetMetaData("0008|0018",
@@ -734,7 +732,9 @@ if input_type == 'png_dir' and underlay_geom is not None and args.plane in ('TRA
         slice_img.SetMetaData("0018|0050", f"{thick:.4f}")
         slice_img.SetMetaData("0018|0088", f"{thick:.4f}")
         slice_img.SetMetaData("0028|0030", f"{out_sp_y:.6f}\\{out_sp_x:.6f}")
-        slice_img.SetMetaData("0020|0013", str(i))
+        # Instance Number is 1-based by convention; 0 mis-sorts in some viewers
+        # (same fix as writeSlices(), never propagated here until now).
+        slice_img.SetMetaData("0020|0013", str(i + 1))
         slice_img.SetMetaData("0008|0012", modification_date)
         slice_img.SetMetaData("0008|0013", modification_time)
         # Explicit unique SOP Instance UID per slice — without this, nothing

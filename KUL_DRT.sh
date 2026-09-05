@@ -125,7 +125,7 @@ function KUL_run_fmriprep {
         
         # preparing for fmriprep
         cp study_config/run_fmriprep.txt KUL_LOG/sub-${participant}_run_fmriprep.txt
-        sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_fmriprep.txt
+        sed -i.bck "s/^BIDS_participants:.*/BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_fmriprep.txt
         rm -f KUL_LOG/sub-${participant}_run_fmriprep.txt.bck
         fmriprep_options="--fs-no-reconall --anat-only "
         sed -i.bck "s/fmriprep_options: /fmriprep_options: ${fmriprep_options}/" KUL_LOG/sub-${participant}_run_fmriprep.txt
@@ -257,7 +257,7 @@ KUL_run_fmriprep &
 # STEP 3 - run dwiprep and continue
 if [ ! -f dwiprep/sub-${participant}/dwiprep_is_done.log ]; then
     cp study_config/run_dwiprep.txt KUL_LOG/sub-${participant}_run_dwiprep.txt
-    sed -i.bck "s/BIDS_participants: /BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_dwiprep.txt
+    sed -i.bck "s/^BIDS_participants:.*/BIDS_participants: ${participant}/" KUL_LOG/sub-${participant}_run_dwiprep.txt
     rm -f KUL_LOG/sub-${participant}_run_dwiprep.txt.bck
     KUL_preproc_all.sh -e -c KUL_LOG/sub-${participant}_run_dwiprep.txt 
 else

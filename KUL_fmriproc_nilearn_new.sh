@@ -247,13 +247,20 @@ function KUL_populate_SPM_results {
                   | sort -u); do
         found_wc=$(ls "$globalresultsdir_all"/afMRI_${task}_wc*.nii 2>/dev/null | head -1)
         if [ -n "$found_wc" ]; then variant="_wc"; else variant=""; fi
-        for f in "$globalresultsdir_all"/afMRI_${task}${variant}*.nii; do
-            [ -f "$f" ] || continue
-            # skip the other variant's files that the glob can pick up when
-            # variant is empty (afMRI_TAAL*.nii also matches afMRI_TAAL_wc*.nii)
-            if [ -z "$variant" ] && [[ "$(basename "$f")" == afMRI_${task}_wc* ]]; then continue; fi
+        # Exactly one file per task: the p001unc_k50-thresholded map, matching
+        # the SPM12 engine's own hardwired selection (this script's own header
+        # comment: SPM/ holds ONLY the wc, p001unc_k50 outcome per task). NOT a
+        # glob -- afMRI_${task}${variant}*.nii previously matched every
+        # threshold variant (plain/FWE/p001unc) for the chosen wc/plain axis
+        # and copied all of them, silently tripling SPM/'s file count (3
+        # variants x N tasks) and, downstream, burning 3x the Karawun fMRI
+        # label palette slots (KUL_clinical_fmridti.sh assigns one per file
+        # found in SPM/) -- enough real tasks and that overruns even the
+        # extended 64-colour palette with "Error - too many labels".
+        f="$globalresultsdir_all/afMRI_${task}${variant}_p001unc_k50.nii"
+        if [ -f "$f" ]; then
             cp -f "$f" "$globalresultsdir/$(basename "$f")" && n_copied=$((n_copied+1))
-        done
+        fi
         echo "  SPM results for ${task}: copied ${variant:-plain} variant"
     done
     echo "  populated $globalresultsdir with $n_copied map(s)"
