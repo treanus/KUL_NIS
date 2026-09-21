@@ -111,6 +111,18 @@ KUL_clinical_fmridti.sh -p {participant} -t 1 -R 4 -O SAG
 
 A normal run (no `-R`/`-F`) still fails fast on all of those checks exactly as before.
 
+**Testing the export before writing DICOMs.** `-F` takes the same underlay argument as
+`-R` but stops short of the PACS export, so it is the safe way to see what a given
+underlay, orientation set and threshold actually look like:
+
+```bash
+KUL_clinical_fmridti.sh -p {participant} -t 1 -F 4 -O SAG
+```
+
+That renders the figures and adds the fMRI activation labels to `Karawun/`, but writes no
+PACS DICOMs and needs no donor DICOM in place yet. Once the screenshots look right, re-run
+the same underlay with `-R` to produce the DICOMs.
+
 **`-R` does not push to Brainlab.** When Karawun prep finishes it prints an
 `importTractography` command to run manually (after `conda activate KarawunDev`), which
 writes `Karawun/sub-{participant}/sub-{participant}_for_elements`.
@@ -349,6 +361,7 @@ from every export. It needs `dwiprep/sub-X/sub-X/qa/fa_reg2T1w.nii.gz`, i.e.
 | `-B` | Delete regenerable intermediates, then archive what remains into a password-protected `../Finished_<date>_sub-<p>_type<t>.7z` and exit (see [Backup and cleanup](#backup-and-cleanup--b-) above). **Destructive and one-way.** |
 | `-r` | Redo certain steps (the program will ask) |
 | `-R` | Generate DICOMs for PACS and Karawun (run **after** reviewing figures). Underlay choice: `1`=cT1w, `2`=FLAIR, `3`=SWI, `4`=T1w, `5`=FGATIR, `6`=DIR, `7`=MP2RAGE(INV2) |
+| `-F` | Dry run for `-R`: same underlay choices (`1`-`7`), but renders figures/screenshots only and writes **no** PACS DICOMs. Use it to check underlay, orientations and activation thresholds before committing to an export. Needs no donor DICOM and does not ask which maps to export (both are PACS-only); it *does* add the fMRI activation labels to `Karawun/`, and still prompts for thresholds unless `-T` is given |
 | `-O` | Orientations to render, comma-separated (default: `TRA,SAG,COR`) |
 | `-e` | Add an edge outline to SPM/Melodic overlays (dark-blue contour at the threshold boundary) |
 | `-T` | Fixed threshold for **all** SPM/Melodic overlays (default: auto = `max/3` per map; if omitted and interactive, you are prompted for one threshold per map) |

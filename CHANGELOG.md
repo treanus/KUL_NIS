@@ -1,5 +1,53 @@
 # Changelog
 
+## Unreleased (2026-09-21 — Brainlab got different fMRI maps than PACS; `-F` was undocumented)
+
+### Karawun fMRI labels ignored the operator's curated selection
+
+`PACS_input/overlays/` is the documented place to say *which* maps get exported:
+drop files there and automatic discovery is skipped, for PACS. The Karawun label
+writer never looked at it — it globbed `RESULTS/sub-*/SPM/` unconditionally.
+
+So on a case where the operator curated two FWE-corrected maps, PACS received
+exactly those, and Brainlab received four `p001unc` maps instead: the *more
+permissive* threshold going to the surgical plan, plus the individual per-task
+runs that had been deliberately left out of the export. Both outputs looked
+plausible; nothing warned.
+
+It broke the thresholds too. `spm_thresh_map` is keyed by the curated basenames,
+so a lookup by the `RESULTS/SPM` name never matched, `spm_thresh_override` was
+unset, and every Karawun label quietly fell back to auto `max/3` — the values
+typed at the prompt (or given with `-T`) only ever reached the PACS DICOMs.
+
+Fix: the label writer now reuses the PACS side's own `_use_dropdir` decision and
+reads from `$_drop_thr` when the operator has curated it, `RESULTS/SPM`
+otherwise — one source of truth, so the two destinations cannot drift again.
+`_spmfile` resolution follows the same variable, so the file read is the file
+named, and the threshold lookup now matches by construction.
+
+Only `afMRI_*` files are taken: `overlays/` legitimately also carries the lesion
+and perfusion maps, which are not activation tasks and already have their own
+Karawun palette entries — turning those into fMRI labels coloured 51+ would be
+wrong. Skips are logged rather than silent. The `RESULTS/SPM` fallback is
+unaffected, since that step prefixes every map it writes.
+
+### `-F` was marked internal, omitted from the docs, and recommended to users anyway
+
+`-F` renders figures and screenshots without writing PACS DICOMs — the dry run
+before committing to an export. It was wired up and working, its case-block
+comment read `#internal:`, and it appeared in neither `Usage` nor the options
+table in `docs/KUL_clinical_fmridti/KUL_clinical_fmridti.md` (only in passing
+prose as the pair `-R`/`-F`, which assumes you already know what it is).
+
+Meanwhile the end-of-run guidance printed by the script tells the operator to run
+it, as step 2 of the export workflow.
+
+Now documented in both places, with what actually differs from `-R`: same `1`-`7`
+underlay choices, needs no donor DICOM and does not ask which maps to export
+(both are PACS-only), still adds the fMRI activation labels to `Karawun/`, and
+still prompts for thresholds unless `-T` is given. The `#internal:` label is
+gone, and the docs gain a worked example in *Running the export on its own*.
+
 ## Unreleased (2026-09-05 — resseg cavity segmentation rebuilt; Karawun T1w rescale was silently broken)
 
 ### resseg was finding cavities outside the brain, and its arbitration was a coin toss

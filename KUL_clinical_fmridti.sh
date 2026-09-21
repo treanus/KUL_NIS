@@ -83,6 +83,12 @@ Optional arguments:
         5: use FGATIR as underlay
         6: use DIR as underlay
         7: use MP2RAGE (INV2) as underlay
+     -F:  same underlay choices (1-7) as -R, but render figures/screenshots only
+          and write NO PACS DICOMs. Use it to check underlay, orientations and
+          activation thresholds before committing to an export. Needs no donor
+          DICOM, and does not ask which maps to export (that is PACS-only); it
+          does still add the fMRI activation labels to the Karawun folder, and
+          still prompts for thresholds unless -T is given.
      -O:  orientations to render, comma-separated (default: TRA,SAG,COR)
      -e:  add edge outline to SPM/Melodic overlays (dark blue contour at threshold boundary)
      -T:  fixed threshold for ALL SPM/Melodic overlays (default: auto = max/3 per map)
@@ -182,7 +188,7 @@ else
 			results=$OPTARG
             make_dcm=1
 		;;
-        F) #internal: generate figures/screenshots only (no DICOMs)
+        F) #render figures/screenshots only, no PACS DICOMs (dry run before -R)
             results=$OPTARG
         ;;
         O) #orientations
@@ -2009,8 +2015,10 @@ print(f'{lo:g},{hi:g}')
     [ ${#_btractnames[@]} -gt 0 ] && _flush_bundle_batch
 
     # ── Per-task scaled fMRI labels for Karawun/Brainlab ────────────────────
-    # RESULTS/sub-.../SPM now holds exactly one (hardwired wc_p001unc_k50)
-    # map per task. Binarize each at its resolved threshold and multiply by a
+    # Source is whatever the PACS export resolved for this run (see
+    # _use_dropdir above): PACS_input/overlays/ when the operator has curated
+    # it, RESULTS/sub-.../SPM otherwise. Binarize each at its resolved
+    # threshold and multiply by a
     # stable per-task integer (1..N, tasks sorted alphabetically) so each task
     # gets a distinct value — written as SEPARATE files, matching the existing
     # Karawun/Brainlab convention (see KUL_karawun2brainlab.sh: each tract/task
@@ -2019,10 +2027,34 @@ print(f'{lo:g},{hi:g}')
     # Only runs once Karawun prep has produced its own T1w.nii.gz (the grid
     # every Karawun label is regridded onto).
     if [ -f "Karawun/sub-${participant}/T1w.nii.gz" ]; then
+        # One source of truth with the PACS side. This used to glob
+        # RESULTS/SPM/ unconditionally, so a curated FWE-corrected selection
+        # went to PACS while Brainlab silently got the hardwired p001unc maps
+        # -- the more permissive threshold going to the surgical plan, plus
+        # per-run maps the operator had deliberately left out of the export.
+        # It also broke the thresholds: spm_thresh_map is keyed by the curated
+        # basenames, so a lookup by the RESULTS/SPM name never matched and
+        # every label quietly fell back to auto max/3 instead of the value
+        # typed at the prompt (or given with -T).
+        #
+        # Only afMRI_* files are taken. overlays/ legitimately also carries
+        # non-activation overlays -- the lesion, perfusion maps -- which are
+        # not tasks and already have their own Karawun palette entries; the
+        # SPM fallback is unaffected since that step prefixes every map.
+        if [ ${_use_dropdir:-0} -eq 1 ]; then
+            _kw_spm_src="$_drop_thr"
+        else
+            _kw_spm_src="$globalresultsdir/SPM"
+        fi
+        echo "Karawun fMRI labels sourced from: ${_kw_spm_src}"
         _spm_task_names=()
-        for _spm in "$globalresultsdir/SPM/"*.nii.gz "$globalresultsdir/SPM/"*.nii; do
+        for _spm in "$_kw_spm_src/"*.nii.gz "$_kw_spm_src/"*.nii; do
             [ -f "$_spm" ] || continue
             _spmname=$(basename "$_spm"); _spmname=${_spmname%.nii.gz}; _spmname=${_spmname%.nii}
+            if [[ "$_spmname" != afMRI_* ]]; then
+                echo "  skipping '${_spmname}' (not an afMRI_* activation map)"
+                continue
+            fi
             _spm_task_names+=("$_spmname")
         done
         if [ ${#_spm_task_names[@]} -gt 0 ]; then
@@ -2058,8 +2090,8 @@ print(f'{lo:g},{hi:g}')
                     echo "WARNING: more fMRI maps than reserved label colours; using ${_label_int}"
                 fi
                 echo "Karawun fMRI label: task '${_spmname}' scaled to value ${_label_int}"
-                _spmfile="$globalresultsdir/SPM/${_spmname}.nii"
-                [ -f "$_spmfile" ] || _spmfile="$globalresultsdir/SPM/${_spmname}.nii.gz"
+                _spmfile="$_kw_spm_src/${_spmname}.nii"
+                [ -f "$_spmfile" ] || _spmfile="$_kw_spm_src/${_spmname}.nii.gz"
                 [ -f "$_spmfile" ] || continue
 
                 if [ -n "${spm_thresh_map[$_spmname]+x}" ]; then
