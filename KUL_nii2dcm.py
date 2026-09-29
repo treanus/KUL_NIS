@@ -413,7 +413,13 @@ if args.underlay is not None and args.plane is not None:
 
 # -------------------------------------------------------------------------
 # DONOR-MATCH MODE: SAG PNGs matched to donor frames by SliceLocation.
-# Copies exact IPP/IOP/PixelSpacing from the donor — no geometry computation.
+#
+# NOTE: this used to copy IPP/IOP/PixelSpacing straight from the donor, and this
+# banner used to say so. It no longer does any of that -- every geometry tag is
+# computed from the UNDERLAY (see compute_slice_geometry calls below, and the
+# in-plane/FOV reasoning further down). The donor now supplies only identity,
+# Frame of Reference UID, and the slice ordering key. Taking geometry from the
+# donor was wrong whenever donor and underlay did not share a field of view.
 # -------------------------------------------------------------------------
 if args.match_donor and input_type == 'png_dir':
     print('Donor-match mode: reading donor 3D geometry...')
@@ -473,8 +479,12 @@ if args.match_donor and input_type == 'png_dir':
     n_donor_frames  = sz3[2]
 
     # IOP for the output DICOMs comes from the underlay NIfTI (SAG orientation),
-    # NOT from the donor — the donor is acquired axially, so its IOP is axial and
-    # would produce completely wrong orientation for SAG output slices.
+    # NOT from the donor. The donor's own acquisition plane is irrelevant here and
+    # must not be assumed: it is whatever series happened to be dropped in as the
+    # donor (on the case this was last checked, a sagittal precontrast T1; it has
+    # also been an axial series, and a localiser). Whatever it is, its IOP
+    # describes ITS plane, not the plane being written, so using it would give the
+    # output slices an orientation unrelated to their pixel content.
     # The donor provides only Frame of Reference UID, patient/study metadata,
     # and (below) the frame count/order + pixel matrix size to match.
     if underlay_geom is None:
