@@ -550,7 +550,14 @@ use_fastsurfer=$(KUL_read_config "$_cfg_d/run_multiparc.txt" use_fastsurfer 0)
 # KUL_karawun_prepare.sh -- the 1/2/3 case mapping is derived from -t
 do_karawun=$(KUL_read_config              "$_cfg_d/run_karawun.txt" do_karawun              1)
 karawun_threshold_tumor=$(KUL_read_config "$_cfg_d/run_karawun.txt" karawun_threshold_tumor 3)
-karawun_threshold_dbs=$(KUL_read_config   "$_cfg_d/run_karawun.txt" karawun_threshold_dbs   10)
+# Deliberately NO default. For the DBS types this is passed to
+# KUL_karawun_prepare.sh as -r, which OVERRIDES the per-bundle core percentages
+# in its KUL_karawun_tract_meta table (CSHDP 40, DRT 20, ThR_S1 10, ...). While
+# this defaulted to 10, every DBS bundle silently got 10 and those table values
+# were dead: tuning them had no effect on any run. Left empty, -r is not passed
+# at all and each bundle uses its own tuned percentage. Set it in
+# study_config/run_karawun.txt only to force one value across all bundles.
+karawun_threshold_dbs=$(KUL_read_config   "$_cfg_d/run_karawun.txt" karawun_threshold_dbs   "")
 
 if [ ${#cfg_override[@]} -gt 0 ]; then
     echo " study_config overrides from -x:"
@@ -3997,7 +4004,13 @@ elif [ ! -f $karawun_prepare_check ]; then
             _karawun_rc=1
         else
             kul_echo "$_karawun_what"
-            KUL_karawun_prepare.sh -p ${participant} -t $_karawun_type -r $_karawun_thr || _karawun_rc=$?
+            # -r only when there is actually a value: an empty "-r" would have
+            # getopts swallow the next token as its argument. Omitting it lets
+            # KUL_karawun_prepare.sh use its per-bundle core percentages, which
+            # is the default for DBS (see karawun_threshold_dbs above).
+            _karawun_r_arg=()
+            [ -n "$_karawun_thr" ] && _karawun_r_arg=(-r "$_karawun_thr")
+            KUL_karawun_prepare.sh -p ${participant} -t $_karawun_type "${_karawun_r_arg[@]}" || _karawun_rc=$?
         fi
 
         # Only claim success if it actually produced something. The exit code

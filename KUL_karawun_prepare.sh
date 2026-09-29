@@ -38,7 +38,11 @@ Optional arguments:
         type 1: (DEFAULT) prepare for tumor patient
         type 2: prepare for a ET DBS patient (DRT)
         type 3: prepare for a Parkinson DBS patient (CSHDP)
-     -r:  use a relative treshold (in percent of tract density)
+     -r:  relative threshold, in percent. For types 2/3 (DBS) this is a
+          percentage of the bundle's own peak density and overrides the
+          per-bundle values in KUL_karawun_tract_meta; omit it to use those.
+          For types 1/4 (tumor) it keeps its original meaning, a percentage
+          of the streamline count.
      -a:  use the ACT output
      -v:  show output from commands
 
@@ -100,7 +104,7 @@ ncpu=15
 type=1
 act_type=0
 relative=0
-treshold=0 
+threshold=0
 
 # Set required options
 p_flag=0
@@ -178,6 +182,9 @@ function KUL_karawun_get_tract {
     local fin_map="${tract_dir}/${tract_name_orig}_fin_map_BT${ACT}_iFOD2.nii.gz"
     local use_tck=""
     local use_map=""
+    # DBS types get a different core definition entirely -- see the block below.
+    local _is_dbs=0 _core_pct="" _peak="" _core_thr="" _tmpd="" _nz="" _rank=""
+    if [ $type -eq 2 ] || [ $type -eq 3 ]; then _is_dbs=1; fi
 
     if [ -f "$fin_tck" ]; then
         use_tck="$fin_tck"
@@ -199,6 +206,100 @@ function KUL_karawun_get_tract {
 
     if [ -n "$use_tck" ]; then
         cp "$use_tck" Karawun/sub-${participant}/tck/${tract_name_final}.tck
+
+        # ── DBS core: thin, high-resolution core for stereotactic targeting ──
+        #
+        # Built from the STREAMLINES onto the T1w grid, not from FWT's density
+        # map. Three separate problems made the old core useless for DBS, and
+        # only the third is obvious:
+        #
+        # 1. Unit mismatch. The tumour path below compares the density map
+        #    against a fraction of the streamline COUNT, but FWT writes that map
+        #    with `tckmap -precise` (KUL_FWT_make_TCKs.sh), so each voxel holds
+        #    summed streamline LENGTH in mm. A voxel carrying the whole bundle
+        #    reads ~N*voxel_size, not N, so the requested percentage was never
+        #    the percentage applied -- and the error scaled with voxel size, so
+        #    the same setting behaved differently on every new acquisition.
+        #
+        # 2. Interpolation bleed. That map was regridded to T1w with
+        #    `-interp linear` and thresholded AFTERWARDS, so interpolation spread
+        #    density up to a full source voxel outward and a low threshold kept
+        #    the skirt -- about 2mm of pure dilation in every direction.
+        #
+        # 3. Resolution. Decisive, and the reason this no longer uses that map at
+        #    all. FWT's map lives on the dMRI grid: 2.4mm isotropic on the case
+        #    this was built against, where the DISTAL STN-motor VOI is NINE
+        #    voxels. A core thresholded there is quantised to ~14mm3 blocks, so
+        #    tightening the threshold does not buy precision, it just deletes the
+        #    target: measured on real data, core-STN overlap fell to exactly zero
+        #    at 15% and above. No threshold choice on that grid can resolve a
+        #    motor subdivision a few voxels across.
+        #
+        # So map the streamlines straight onto the T1w grid instead. Same tracts,
+        # ~0.85mm voxels, 23868 nonzero voxels instead of 1716, and no regrid
+        # anywhere in the path -- which removes (2) by construction rather than
+        # by reordering it.
+        #
+        # Measured on a validation case (CSHDP, 9937 streamlines, mean
+        # length 78.5mm), at the table's own 40:
+        #
+        #        core volume   effective radius
+        #   old       5749mm3       4.83mm     <- wider than the whole motor STN
+        #   new (LT)   892mm3       1.90mm
+        #   new (RT)  1065mm3       2.08mm
+        #
+        # For scale, the STN-motor VOI is 280mm3, a sphere of radius 4.06mm. The
+        # old core was a ~9.7mm-diameter tube through a target it could not fit
+        # inside; the new one is ~4mm and sits within it.
+        #
+        # Types 1-4 (tumour) deliberately keep the old formula byte-for-byte.
+        if [ $_is_dbs -eq 1 ]; then
+            # Per-bundle percentage from KUL_karawun_tract_meta (CSHDP 40,
+            # DRT 20, ...); -r overrides it globally when the caller passes one.
+            _core_pct="$tract_threshold"
+            [ $relative -eq 1 ] && _core_pct="$threshold"
+            if ! [[ "$_core_pct" =~ ^[0-9]+$ ]] || [ "$_core_pct" -le 0 ] || [ "$_core_pct" -gt 100 ]; then
+                _core_pct=40
+                echo "  ${tract_name_final}: no usable core percentage, defaulting to ${_core_pct}% of peak"
+            fi
+
+            _tmpd=$(mktemp -d)
+            tckmap -quiet -force -precise \
+                -template Karawun/sub-${participant}/T1w.nii.gz \
+                "$use_tck" "$_tmpd/hires.nii.gz" 2>/dev/null
+
+            # Reference peak as a percentile of the bundle's own nonzero voxels,
+            # with the RANK SCALED to bundle size -- not a fixed rank. A fixed
+            # rank is meaningless across bundles: top-50 was the 97th percentile
+            # (33% of max) on the 1716-voxel dMRI map and roughly the 99.8th
+            # (~78% of max) on this 23868-voxel one, so the same nominal
+            # percentage meant entirely different cuts. Scaled to 0.5% of nonzero
+            # voxels it measured 53.7% of max on the left and 53.1% on the right
+            # -- stable enough to tune a number against. Using the bare max
+            # instead would key everything to one voxel, and the top of a tckmap
+            # TDI is spiky: rank 3 was already 68% of max here.
+            _nz=$(mrcalc -quiet "$_tmpd/hires.nii.gz" 0 -gt "$_tmpd/nz.mif" -force \
+                  && mrstats -quiet -output count -mask "$_tmpd/nz.mif" "$_tmpd/hires.nii.gz" | tr -d '[:space:]')
+            if [ -z "$_nz" ] || [ "$_nz" -lt 1 ] 2>/dev/null; then
+                echo "  Warning: ${tract_name_orig}: tckmap produced an empty map -- label not generated"
+                rm -rf "$_tmpd"; return 0
+            fi
+            _rank=$(awk -v n="$_nz" 'BEGIN{r=int(0.005*n+0.5); if(r<1)r=1; print r}')
+            mrthreshold -quiet -force -top "$_rank" "$_tmpd/hires.nii.gz" "$_tmpd/top.mif" 2>/dev/null
+            _peak=$(mrstats -quiet -output min -mask "$_tmpd/top.mif" "$_tmpd/hires.nii.gz" 2>/dev/null | tr -d '[:space:]')
+            if [ -z "$_peak" ] || [ "$(echo "${_peak} <= 0" | bc -l 2>/dev/null)" = "1" ]; then
+                echo "  Warning: ${tract_name_orig}: no usable peak density -- label not generated"
+                rm -rf "$_tmpd"; return 0
+            fi
+
+            _core_thr=$(echo "scale=6; ${_peak} * ${_core_pct} / 100" | bc -l)
+            mrcalc -quiet "$_tmpd/hires.nii.gz" "${_core_thr}" -gt ${tract_color} -mul \
+                Karawun/sub-${participant}/labels/${tract_name_final}_center.nii.gz -force
+            echo "  ${tract_name_final}: core at ${_core_pct}% of peak (rank ${_rank}/${_nz} = ${_peak}) -> threshold ${_core_thr}"
+            rm -rf "$_tmpd"
+            return 0
+        fi
+
 
         if [ $type -eq 1 ]; then
 

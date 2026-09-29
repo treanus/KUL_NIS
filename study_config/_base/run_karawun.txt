@@ -7,6 +7,25 @@
 
 do_karawun: 1
 
-#  -r: streamline-density threshold, per case class
+#  karawun_threshold_tumor -> -r for types 1-4. Percentage of the streamline
+#  count, the original meaning; leave it alone unless you want tumour label
+#  geometry to change.
 karawun_threshold_tumor: 3
-karawun_threshold_dbs: 10
+
+#  karawun_threshold_dbs -> -r for types 5/6. DELIBERATELY UNSET.
+#
+#  For the DBS types this is a percentage of the bundle's own peak density, and
+#  setting it here OVERRIDES the per-bundle percentages in
+#  KUL_karawun_prepare.sh's KUL_karawun_tract_meta table (CSHDP 40, DRT 20,
+#  CST 20, ...). While this said 10, every DBS bundle silently got 10 and those
+#  table values were dead code -- tuning them changed nothing.
+#
+#  10 is also far too permissive for a stereotactic target: on
+#  a validation case it gave a CSHDP core of 5749mm3, an effective radius
+#  of 4.83mm, i.e. a ~9.7mm-diameter tube through an STN-motor VOI of 280mm3
+#  (a sphere of radius 4.06mm) -- the core was wider than the target it was
+#  meant to localise within, and covered 25-41% of the whole nucleus. At the
+#  table's 40 the same bundle is 892mm3 / 1.90mm radius and lands focally.
+#
+#  Set it only to force ONE percentage across every bundle.
+# karawun_threshold_dbs: 40
