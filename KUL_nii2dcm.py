@@ -251,6 +251,79 @@ def _ds16(v):
     return f"{v:.6g}"[:16]
 
 
+def _mrview_px_per_mm(png_w, png_h, fov):
+    """Pixels per mm in an mrview capture at field of view `fov` (mm).
+
+    mrview spreads its FOV over width + height, not over the smaller side
+    (cpp/gui/mrview/mode/base.cpp, Base::setup_projection):
+        fov_px = FOV / (w + h);  ortho(-w*fov_px, w*fov_px, -h*fov_px, h*fov_px)
+    so one mm is (w + h) / (2 * FOV) pixels on both axes. The default FOV set
+    by Base::reset_view is max(dim[x], dim[y]) of the initial plane, which is
+    always the volume's largest physical extent.
+
+    This used to be min(w, h) / FOV, which is only right for a square
+    viewport. Captures come out 512x569, so every series was written with
+    anatomy magnified by (w + h) / (2 * min(w, h)) = 1.056: distances measured
+    on PACS read ~5.6% long and positions drifted up to ~6 mm off-centre.
+    Found 2026-10-20 by registering PACS output back to the underlay NIfTI.
+    """
+    return (png_w + png_h) / (2.0 * fov)
+
+
+def _crop_padded(arr, top, left, height, width):
+    """Crop arr[top:top+height, left:left+width], padding with black outside it.
+
+    At the true mrview scale the largest in-plane axis is wider than the
+    viewport (e.g. 240 mm -> 540 px in a 512 px capture), i.e. mrview clips the
+    edges. Padding keeps the output grid and geometry exact; the clipped strip
+    is simply black, as it would be in mrview's own background.
+    """
+    out = np.zeros((height, width) + arr.shape[2:], dtype=arr.dtype)
+    h, w = arr.shape[:2]
+    y0, x0 = max(top, 0), max(left, 0)
+    y1, x1 = min(top + height, h), min(left + width, w)
+    if y1 > y0 and x1 > x0:
+        out[y0 - top:y1 - top, x0 - left:x1 - left] = arr[y0:y1, x0:x1]
+    return out
+
+
+def _square_inplane(n_x, sp_x, n_y, sp_y):
+    """Return (n_x, n_y, spacing) for a square-pixel grid covering the same FOV.
+
+    Agfa Enterprise Imaging only offers MPR when PixelSpacing is square: with a
+    0.9 x 0.833 x 0.833 underlay, TRA and COR (which each carry the 0.9 axis
+    in-plane) would not MPR while SAG (both 0.833 axes in-plane) did. Verified
+    on PACS 2026-09-29 with MPRTEST_{sbs,iso,both}_CST_COR/TRA: iso and both
+    reformatted, sbs (correct SpacingBetweenSlices, non-square pixels) did not.
+    Matrix squareness is irrelevant. The finer spacing is kept on both axes so
+    no in-plane resolution is lost.
+    """
+    sp = min(sp_x, sp_y)
+    return max(1, round(n_x * sp_x / sp)), max(1, round(n_y * sp_y / sp)), sp
+
+
+def _fix_spacing_between_slices(out_dir, step):
+    """Write the real slice step into SpacingBetweenSlices (0018,0088).
+
+    Setting it through SetMetaData does not survive: GDCM rewrites it from the
+    2-D slice's own (absent, so 1.0) z-spacing, and every series used to land
+    on PACS with SpacingBetweenSlices = 1 whatever the actual step. Agfa's MPR
+    does not gate on it (see _square_inplane), but other viewers and
+    validators read it, so it is patched afterwards as a pure metadata edit.
+    """
+    try:
+        import pydicom
+    except ImportError:
+        print('Warning: pydicom not available -- SpacingBetweenSlices left at 1.')
+        print('         Install it into the DICOM env (pip install pydicom).')
+        return
+    step_s = _ds16(abs(step))
+    for f in sorted(glob.glob(os.path.join(out_dir, '*.dcm'))):
+        ds = pydicom.dcmread(f)
+        ds.SpacingBetweenSlices = step_s
+        ds.save_as(f)
+
+
 def _ds(v):
     """Format a float for a DICOM DS element.
 
@@ -538,7 +611,7 @@ if args.match_donor and input_type == 'png_dir':
     # mrview's mode-1 view uses ONE zoom for the whole volume (so anatomy doesn't visually
     # resize when scrolling between orthogonal planes), based on the single largest
     # physical extent across ALL 3 volume axes -- not just this plane's own 2 in-plane
-    # dimensions. Verified empirically against mrview with synthetic phantoms.
+    # dimensions. The px/mm itself comes from mrview's projection, see _mrview_px_per_mm.
     sample_img  = Image.open(pngs[len(pngs) // 2])
     PNG_W, PNG_H = sample_img.size   # width × height in pixels
 
@@ -559,10 +632,15 @@ if args.match_donor and input_type == 'png_dir':
     out_w, out_h = nifti_sz_tmp[1], nifti_sz_tmp[2]
     out_sp_x, out_sp_y = nifti_sp_tmp[1], nifti_sp_tmp[2]
     out_slice_sp = nifti_sp_tmp[0]              # sagittal step = underlay i spacing
+    # Square pixels for PACS MPR (see _square_inplane). The crop below still
+    # uses the true FOV; only the output grid changes.
+    _src_sp_x, _src_sp_y = out_sp_x, out_sp_y
+    out_w, out_h, out_sp_x = _square_inplane(out_w, out_sp_x, out_h, out_sp_y)
+    out_sp_y = out_sp_x
     _global_max_fov = max(nifti_sz_tmp[0] * nifti_sp_tmp[0],
                           nifti_sz_tmp[1] * nifti_sp_tmp[1],
                           nifti_sz_tmp[2] * nifti_sp_tmp[2])
-    scale = min(PNG_W, PNG_H) / _global_max_fov   # px/mm, matches mrview's fixed zoom
+    scale = _mrview_px_per_mm(PNG_W, PNG_H, _global_max_fov)   # px/mm, see helper
     content_W = round(j_fov * scale)             # expected rendered content width  (px)
     content_H = round(k_fov * scale)             # expected rendered content height (px)
     crop_left  = (PNG_W - content_W) // 2
@@ -610,13 +688,16 @@ if args.match_donor and input_type == 'png_dir':
     for out_idx, (png_idx, png_loc, png_path) in enumerate(png_table):
         # Load, crop rendering margin, resize to donor dimensions
         img_arr = np.array(Image.open(png_path).convert('RGB'))
-        img_arr = img_arr[crop_top:crop_bot, crop_left:crop_right, :]
+        img_arr = _crop_padded(img_arr, crop_top, crop_left, content_H, content_W)
         img_resized = np.array(
             Image.fromarray(img_arr).resize((out_w, out_h), LANCZOS))
         # IPP = physical position of top-left pixel for this SAG slice, using
         # the same per-axis flip convention as out_row_dir/out_col_dir above
         # (verified against mrview's actual rendering, not assumed).
         position, _, _, normal, _ = compute_slice_geometry(underlay_geom, 'SAG', png_idx)
+        # Pixel 0 centre moves by half the spacing change, keeping the FOV edge fixed.
+        position = [position[x] + out_row_dir[x] * (out_sp_x - _src_sp_x) / 2
+                    + out_col_dir[x] * (out_sp_y - _src_sp_y) / 2 for x in range(3)]
 
         slice_2d = sitk.GetImageFromArray(img_resized, isVector=True)
         slice_2d.SetSpacing([out_sp_x, out_sp_y])
@@ -647,6 +728,7 @@ if args.match_donor and input_type == 'png_dir':
         writer.SetFileName(out_path)
         writer.Execute(slice_2d)
 
+    _fix_spacing_between_slices(dcm_output, out_slice_sp)
     print(f'Wrote {len(png_table)} matched SAG DICOMs to {dcm_output}')
     sys.exit(0)
 
@@ -665,6 +747,11 @@ if input_type == 'png_dir' and underlay_geom is not None and args.plane in ('TRA
         h_fov, v_fov    = N_i * nifti_sp[0], N_k * nifti_sp[2]
         out_w,  out_h   = N_i, N_k
         out_sp_x, out_sp_y = nifti_sp[0], nifti_sp[2]
+    # Square pixels for PACS MPR (see _square_inplane). h_fov/v_fov, used for
+    # the crop below, are unchanged; only the output grid is.
+    _src_sp_x, _src_sp_y = out_sp_x, out_sp_y
+    out_w, out_h, out_sp_x = _square_inplane(out_w, out_sp_x, out_h, out_sp_y)
+    out_sp_y = out_sp_x
 
     pngs = sorted(glob.glob(os.path.join(nifti_input, '*.png')))
     if not pngs:
@@ -676,9 +763,10 @@ if input_type == 'png_dir' and underlay_geom is not None and args.plane in ('TRA
     # mrview's mode-1 view uses ONE zoom for the whole volume (so anatomy doesn't
     # visually resize when scrolling between orthogonal planes), based on the single
     # largest physical extent across ALL 3 volume axes -- not just this plane's own
-    # 2 in-plane dimensions. Verified empirically against mrview with synthetic phantoms.
+    # 2 in-plane dimensions. The px/mm itself comes from mrview's projection,
+    # see _mrview_px_per_mm.
     _global_max_fov = max(N_i * nifti_sp[0], N_j * nifti_sp[1], N_k * nifti_sp[2])
-    scale     = min(PNG_W, PNG_H) / _global_max_fov
+    scale     = _mrview_px_per_mm(PNG_W, PNG_H, _global_max_fov)
     content_W = round(h_fov * scale)
     content_H = round(v_fov * scale)
     crop_left  = (PNG_W - content_W) // 2
@@ -722,12 +810,15 @@ if input_type == 'png_dir' and underlay_geom is not None and args.plane in ('TRA
     for i, png_path in enumerate(pngs):
         position, row_dir, col_dir, normal, thick = compute_slice_geometry(
             underlay_geom, args.plane, i)
+        # Pixel 0 centre moves by half the spacing change, keeping the FOV edge fixed.
+        position = [position[x] + row_dir[x] * (out_sp_x - _src_sp_x) / 2
+                    + col_dir[x] * (out_sp_y - _src_sp_y) / 2 for x in range(3)]
         iop_str   = "\\".join(f"{v:.6f}" for v in row_dir + col_dir)
         ipp_str   = "\\".join(f"{v:.6f}" for v in position)
         slice_loc = sum(position[x] * normal[x] for x in range(3))
 
         img_arr    = np.array(Image.open(png_path).convert('RGB'))
-        img_arr    = img_arr[crop_top:crop_bot, crop_left:crop_right, :]
+        img_arr    = _crop_padded(img_arr, crop_top, crop_left, content_H, content_W)
         img_resized = np.array(
             Image.fromarray(img_arr).resize((out_w, out_h), LANCZOS))
 
@@ -762,6 +853,7 @@ if input_type == 'png_dir' and underlay_geom is not None and args.plane in ('TRA
         writer.SetFileName(out_path)
         writer.Execute(slice_img)
 
+    _fix_spacing_between_slices(dcm_output, thick)
     print(f'Wrote {len(pngs)} {args.plane} DICOMs to {dcm_output}')
     sys.exit(0)
 
@@ -980,6 +1072,11 @@ list(map(
                           series_uid=series_uid),
     range(new_img.GetDepth())
 ))
+
+_fix_spacing_between_slices(
+    dcm_output,
+    compute_slice_geometry(_geom, _plane, 0)[4] if _geom is not None and _plane is not None
+    else new_img.GetSpacing()[2])
 
 if _is_quant:
     # Default window from robust percentiles of the FOREGROUND stored values.
