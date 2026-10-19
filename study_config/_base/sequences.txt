@@ -77,6 +77,15 @@ func,fMRI_HAND,HAND,-,-
 func,fMRI_FOOT,FOOT,-,-
 func,TAAL_EN,TAAL,-,-
 func,TAAL_DE,TAAL,-,-
+# The language runs are also seen numbered instead of labelled by language:
+#   ep2d_p2_s4_2.2i_fMRI_TAAL1
+#   ep2d_p2_s4_2.2i_fMRI_TAAL2
+# Each becomes a run of the TAAL task. The [0-9] is what keeps this row from
+# also matching a series named ..._fMRI_TAAL_EN, which the row above places;
+# and "fMRI_TAAL" rather than bare "TAAL" keeps it off the Philips
+# ..._fMRI_MB3_TAAL1 series, which MB3_T places. A series matching two rows is
+# dropped ("Several Pairing").
+func,fMRI_TAAL[0-9],TAAL,-,-
 
 # --- dMRI: Philips ---------------------------------------------------------
 dwi,p1_b1200,-,3,j-,b1200
@@ -118,7 +127,15 @@ dwi,s3_PA,-,-,-,b2500
 # --- DSC perfusion (tumour work-up); processed by KUL_dsc_perfusion.sh -----
 # The pe_dir column is what restricts its EPI distortion correction.
 # Two vendor-specific search-strings: Philips names the series
-# "T2_DSC_Perfusion", Siemens uses "_perf_" (seen in production, mb/pe_dir
+# "T2_DSC_Perfusion", Siemens uses "ep2d_perf_p3" (seen in production, mb/pe_dir
 # differ by protocol -- check the actual series before trusting these as-is).
+#
+# The Siemens row is end-anchored on the PAT factor (p2, p3, ...). Unanchored
+# "_perf_" also matches what the console derives from the acquisition:
+#   ep2d_perf_p3_MoCo
+#   GBP_ / PBP_ / RELCBF_LOCAL_ / RELCCBV_LOCAL_ / RELMTT_LOCAL_ / TTP_ep2d_perf_p3_MoCo
+# and every one of those then lands in perf/ as an extra dsc run. If the console
+# ever writes its maps without the _MoCo suffix this stops excluding them --
+# anchor the start as well then: ^ep2d_perf_p[0-9]$
 DSC,T2_DSC_Perfusion,-,2,j
-DSC,_perf_,-,1,j-
+DSC,_perf_p[0-9]$,-,1,j-
