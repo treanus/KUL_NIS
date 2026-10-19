@@ -191,6 +191,28 @@ elif [ $verbose_level -eq 2 ] ; then
     ants_verbose=1
 fi
 
+# Apply a transform to a WRAPPED phase image (-pi..pi, e.g. Philips SWIp).
+# Interpolating the phase itself, with any kernel, averages across the +-pi
+# jumps and paints false values along every wrap. So resample cos(phi) and
+# sin(phi) -- smooth, wrap-free -- and recombine them into an angle. mrcalc has
+# no atan2, but building the complex number and taking its phase is the same.
+function KUL_antsApply_Transform_phase {
+    local _tmp
+    _tmp=$(mktemp -d "${TMPDIR:-/tmp}/kul_phase_XXXXXX")
+    mrcalc "$input" -cos "$_tmp/cos.nii.gz" -force -quiet
+    mrcalc "$input" -sin "$_tmp/sin.nii.gz" -force -quiet
+    for _c in cos sin; do
+        antsApplyTransforms -d 3 --float 1 --verbose $ants_verbose \
+            -i "$_tmp/${_c}.nii.gz" -o "$_tmp/${_c}_reg.nii.gz" \
+            -r "$reference" -t "$transform" -n Linear
+    done
+    mrcalc "$_tmp/cos_reg.nii.gz" "$_tmp/sin_reg.nii.gz" -complex -phase \
+        "$output" -force -quiet
+    local _rc=$?
+    rm -rf "$_tmp"
+    return $_rc
+}
+
 function KUL_antsApply_Transform {
 
     echo "interpolation_type: $interpolation_type"
@@ -491,12 +513,20 @@ function KUL_register_anatomical_images {
         task_in="KUL_rigid_register"
         KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "anat_register_rigid"
 
-        input=$SWIp
-        transform="${registeroutputdir}/${source_mri_label}_reg2_T1w0GenericAffine.mat"
-        output="${kulderivativesdir}/${source_mri_label}_phase_reg2_T1w.nii.gz"
-        reference=$target_mri
-        task_in="KUL_antsApply_Transform"
-        KUL_task_exec $verbose_level "Applying the rigid registration of SWIm to SWIp too" "anat_register_rigid"
+        # The phase shares the magnitude's acquisition, so it takes the
+        # magnitude's transform. This step never ran before: reference was
+        # $target_mri (unset in this mode -- only target_mri2 is) and the
+        # transform had no -t, so antsApplyTransforms got "-r <the .mat>",
+        # segfaulted, and KUL_task_exec only warned. The output name matches the
+        # *reg2_T1w.nii.gz glob the clinical script copies into RESULTS/Anat.
+        if [ -n "$SWIp" ]; then
+            input=$SWIp
+            transform="${registeroutputdir}/${source_mri_label}_reg2_T1w0GenericAffine.mat"
+            output="${kulderivativesdir}/${source_mri_label}_phase_reg2_T1w.nii.gz"
+            reference=$target_mri2
+            task_in="KUL_antsApply_Transform_phase"
+            KUL_task_exec $verbose_level "Applying the rigid registration of SWIm to SWIp too" "anat_register_rigid"
+        fi
     fi
     if [ $nDIR -gt 0 ];then
         source_mri_label="DIR"
