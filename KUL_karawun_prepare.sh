@@ -729,14 +729,21 @@ fi
     fi
 
 # give information
-echo "See to it that Karawun/sub-${participant}/DICOM/ contains a donor DICOM"
-echo "(a single file is enough) before importing - use one slice from a"
-echo "high-resolution anatomical series (T1w, FLAIR, T2, ...). Use the same"
-echo "donor for the PACS export too, so the metadata stays consistent."
-echo "Then copy into terminal: "
+# KUL_clinical_fmridti.sh sets KUL_KARAWUN_DEFER_HINT=1 and prints the same
+# command (with the donor resolved) as the last thing in its own output, so it
+# is not buried mid-log; only print here when run on its own.
+if [ "${KUL_KARAWUN_DEFER_HINT:-0}" != "1" ]; then
+echo "Put ONE donor DICOM in Karawun/sub-${participant}/DICOM/ before importing:"
+echo "one image slice from a high-resolution anatomical series (T1w, FLAIR, T2,"
+echo "...), or one enhanced multi-frame file. importTractography -d takes exactly"
+echo "one file. In a per-slice Philips PACS export every series folder also holds"
+echo "a Raw Data Storage object without pixels (often MR000001.dcm) - that one"
+echo "fails; copy an actual slice. Use the same donor for the PACS export too, so"
+echo "the metadata stays consistent. Then copy into terminal:"
 echo "conda activate KarawunDev"
-echo "importTractography -d Karawun/sub-${participant}/DICOM/*.dcm \
+echo "importTractography -d Karawun/sub-${participant}/DICOM/<ONE_IMAGE_SLICE>.dcm \
 -o Karawun/sub-${participant}/sub-${participant}_for_elements \
 -n Karawun/sub-${participant}/T1w.nii.gz $FAT1w \
 -t Karawun/sub-${participant}/tck/*.tck \
 -l Karawun/sub-${participant}/labels/*.gz"
+fi

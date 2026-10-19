@@ -1136,9 +1136,13 @@ except Exception:
         printf '%s' "$(( _donor_series_base * 100 + _idx * 10 + _oi ))"
     }
 
-    # Compute correct PixelSpacing for each orientation from the underlay geometry.
-    # mrview -size N,N renders the full image FOV into exactly N pixels per side;
-    # the larger in-plane physical dimension spans mrview_resolution pixels.
+    # Nominal PixelSpacing per orientation, passed to KUL_nii2dcm.py as -p. Only
+    # its standard (no-underlay) path uses it: the TRA/COR and SAG donor-match
+    # paths, which every -u/-o call here takes, derive spacing from the underlay
+    # and mrview's own projection instead. Note this assumes N px span the
+    # largest in-plane extent, which mrview does not do -- it maps FOV onto
+    # (w+h)/2 px (see _mrview_px_per_mm in KUL_nii2dcm.py) -- so do not reuse
+    # these values for geometry.
     _dims=($(mrinfo $underlay -size))
     _vox=($(mrinfo $underlay -spacing))
     px_tra=$(python3 -c "print(max(${_dims[0]}*${_vox[0]},${_dims[1]}*${_vox[1]})/$mrview_resolution)")
@@ -4010,6 +4014,9 @@ elif [ ! -f $karawun_prepare_check ]; then
             # is the default for DBS (see karawun_threshold_dbs above).
             _karawun_r_arg=()
             [ -n "$_karawun_thr" ] && _karawun_r_arg=(-r "$_karawun_thr")
+            # Its own import hint is suppressed: KUL_karawun_import_hint prints
+            # it at the end of this run instead.
+            KUL_KARAWUN_DEFER_HINT=1 \
             KUL_karawun_prepare.sh -p ${participant} -t $_karawun_type "${_karawun_r_arg[@]}" || _karawun_rc=$?
         fi
 
@@ -4038,22 +4045,9 @@ else
     # DICOMs but correctly leaves Karawun alone. Delete the marker to force a
     # rebuild.
     echo "Karawun folder already prepared (delete KUL_LOG/sub-${participant}_karawun_prepare.done to rebuild)"
-    # KUL_karawun_prepare.sh prints the importTractography command, but only runs
-    # (and so only prints) the FIRST time -- every later run takes this branch and
-    # used to say nothing further, so the command was visible exactly once, in
-    # whichever run first created the folder. Re-print it here every time instead,
-    # since a later run's fMRI-label pass (above) can still have just added new
-    # labels this folder didn't have on that first run.
-    _karawun_fat1w="Karawun/sub-${participant}/FAT1w.nii.gz"
-    [ -f "$_karawun_fat1w" ] || _karawun_fat1w=""
-    echo "See to it that Karawun/sub-${participant}/DICOM/ contains a donor DICOM"
-    echo "(a single file is enough), then:"
-    echo "conda activate KarawunDev"
-    echo "importTractography -d Karawun/sub-${participant}/DICOM/*.dcm \\"
-    echo "-o Karawun/sub-${participant}/sub-${participant}_for_elements \\"
-    echo "-n Karawun/sub-${participant}/T1w.nii.gz $_karawun_fat1w \\"
-    echo "-t Karawun/sub-${participant}/tck/*.tck \\"
-    echo "-l Karawun/sub-${participant}/labels/*.gz"
+    # The importTractography command is printed by KUL_karawun_import_hint as
+    # the very last thing every run outputs, so it is not buried mid-log.
+    echo "Karawun import command: printed at the end of this run."
 fi
 
 # The PACS drop folders, so the operator has somewhere to copy the maps they
@@ -4157,11 +4151,16 @@ if [ $results -eq 0 ]; then
     echo "   4. Drop ONE donor DICOM into either of these:"
     echo "        Karawun/sub-${participant}/DICOM/     <- searched first"
     echo "        $globalresultsdir/DICOM/"
-    echo "      One file is enough - a single slice from a high-resolution"
-    echo "      anatomical series (T1w, FLAIR, T2, ...). The same donor is"
-    echo "      used for both PACS and Karawun/Brainlab, so one is all you"
-    echo "      need; Karawun/ is the better place since the import command"
-    echo "      in step 6 reads from there."
+    echo "      One image slice from a high-resolution anatomical series"
+    echo "      (T1w, FLAIR, T2, ...), or one enhanced multi-frame file. The"
+    echo "      same donor serves PACS (identity, study, frame of reference -"
+    echo "      geometry comes from the underlay) and Brainlab, whose"
+    echo "      importTractography -d takes exactly one file. Karawun/ is the"
+    echo "      better place, since the step-6 command reads from there."
+    echo "      Careful with per-slice PACS exports: each Philips series folder"
+    echo "      also holds a non-image object (Raw Data Storage, no pixels;"
+    echo "      often MR000001.dcm) that cannot be a donor. Copy an actual"
+    echo "      slice, e.g. MR000000.dcm, and check it opens as an image."
     echo ""
     echo "   5. Once happy with the review and the donor DICOM is in place:"
     echo "        KUL_clinical_fmridti.sh -p ${participant} -t ${type} -R <1-7> [-O orientations]"
@@ -4175,9 +4174,9 @@ if [ $results -eq 0 ]; then
     echo "      regenerates the PACS DICOMs for that underlay; the Karawun"
     echo "      folder does not depend on the underlay and is left alone."
     echo ""
-    echo "   6. -R does not push to Brainlab by itself. Karawun prep printed"
-    echo "      the importTractography command to run manually (conda"
-    echo "      activate KarawunDev first); it writes"
+    echo "   6. -R does not push to Brainlab by itself. Run the"
+    echo "      importTractography command printed below, last thing in this"
+    echo "      output; it writes"
     echo "      Karawun/sub-${participant}/sub-${participant}_for_elements."
     echo "================================================================"
     echo ""
@@ -4186,5 +4185,52 @@ elif [ $make_dcm -eq 0 ]; then
     echo "Screenshots done - review them in $globalresultsdir/ before running -R to push to PACS/Karawun."
     echo ""
 fi
+
+# Brainlab import command, deliberately the last thing printed so it is not lost
+# in the log. importTractography's -d takes exactly ONE DICOM file and it must
+# hold pixels: the old "-d DICOM/*.dcm" broke as soon as the folder held more
+# than one file, and a Philips Raw Data Storage object (shipped in every series
+# folder of a per-slice PACS export) failed it outright. So resolve one image
+# here. PixelData (7FE0,0010) is detected by its tag bytes, which needs no
+# python env at this point; checked against pydicom on 72 files (per-slice
+# images, raw objects, enhanced multi-frame) with no disagreement.
+function KUL_karawun_import_hint {
+    local _kdir="Karawun/sub-${participant}"
+    [ -f "$_kdir/T1w.nii.gz" ] || return 0
+    local _fat1w="$_kdir/FAT1w.nii.gz"
+    [ -f "$_fat1w" ] || _fat1w=""
+    local _donor="" _f _n_other=0
+    while IFS= read -r -d '' _f; do
+        if LC_ALL=C grep -q -a -F $'\xe0\x7f\x10\x00' "$_f"; then
+            _donor="$_f"; break
+        fi
+        _n_other=$((_n_other + 1))
+    done < <(find "$_kdir/DICOM" -type f -not -name ".*" -not -iname "DICOMDIR" -print0 2>/dev/null | sort -z)
+
+    echo ""
+    echo "================================================================"
+    echo " Brainlab/Karawun import (run manually, after reviewing labels/):"
+    echo ""
+    if [ -n "$_donor" ]; then
+        echo " Donor DICOM: $_donor"
+        [ $_n_other -gt 0 ] && echo " (skipped ${_n_other} file(s) without image data, e.g. Philips raw objects)"
+    else
+        _donor="$_kdir/DICOM/<ONE_IMAGE_SLICE>.dcm"
+        echo " No usable donor in $_kdir/DICOM/ yet$([ $_n_other -gt 0 ] && echo " (${_n_other} file(s) there hold no image data)")."
+        echo " Copy ONE image slice of a high-resolution anatomical series"
+        echo " there (not a Raw Data Storage object, often MR000001.dcm in a"
+        echo " Philips export) and put its name in the command below."
+    fi
+    echo ""
+    echo " conda activate KarawunDev"
+    echo " importTractography -d \"$_donor\" \\"
+    echo "   -o $_kdir/sub-${participant}_for_elements \\"
+    echo "   -n $_kdir/T1w.nii.gz $_fat1w \\"
+    echo "   -t $_kdir/tck/*.tck \\"
+    echo "   -l $_kdir/labels/*.gz"
+    echo "================================================================"
+    echo ""
+}
+KUL_karawun_import_hint
 
 echo "Finished"
