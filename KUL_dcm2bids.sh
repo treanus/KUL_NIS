@@ -1142,15 +1142,26 @@ while IFS=, read identifier search_string task mb pe_dir acq_label; do
             # read the relevant dicom tags
             kul_dcmtags "${seq_file}"
 
-            # Two explicit entries: magnitude (REAL, no PHASE) and phase (PHASE+REAL).
-            # This excludes inline-derived MinIP images (ImageType starts with DERIVED).
+            # Two explicit entries: magnitude and phase. ImageType must match one
+            # of the listed variants exactly (dcm2bids compares lists element by
+            # element), so every Philips SWI flavour seen in production is listed:
+            #   older SWI:        ORIGINAL\PRIMARY\T1\MIXED\REAL       (+ PHASE for phase)
+            #   csAI_SWIp (2026): ORIGINAL\PRIMARY\SW\M\SW\M\FFE\MAGNITUDE
+            #                     ORIGINAL\PRIMARY\SW\P\SW\P\FFE\PHASE
+            # The csAI variant matched none of the old lists and was dropped as
+            # "No Pairing" with only an INFO line in the dcm2bids log.
+            # Inline-derived MinIP images (ImageType starts with DERIVED) stay excluded.
             sub_bids_SWIm='{"datatype": "anat", "suffix": "SWI", "criteria": {
              "SeriesDescription": "'${search_pattern}'",
-             "ImageType": ["ORIGINAL", "PRIMARY", "T1", "MIXED", "REAL"]}}'
+             "ImageType": {"any": [
+                ["ORIGINAL", "PRIMARY", "T1", "MIXED", "REAL"],
+                ["ORIGINAL", "PRIMARY", "SW", "M", "SW", "M", "FFE", "MAGNITUDE"]]}}}'
 
             sub_bids_SWIp='{"datatype": "anat", "suffix": "SWIp", "criteria": {
              "SeriesDescription": "'${search_pattern}'",
-             "ImageType": ["ORIGINAL", "PRIMARY", "T1", "MIXED", "PHASE", "REAL"]}}'
+             "ImageType": {"any": [
+                ["ORIGINAL", "PRIMARY", "T1", "MIXED", "PHASE", "REAL"],
+                ["ORIGINAL", "PRIMARY", "SW", "P", "SW", "P", "FFE", "PHASE"]]}}}'
 
             sub_bids_[$bs]=$(echo ${sub_bids_SWIm} | python -m json.tool)
             bs=$((bs+1))
