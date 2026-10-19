@@ -574,21 +574,34 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		# eddy_openmp) defaults to single-threaded as of FSL 6.0.7.8 and does not
 		# honour OMP_NUM_THREADS (confirmed by FSL's own maintainers on Neurostars)
 		# -- without this, eddy silently runs on a single core on any machine
-		# without a working CUDA eddy_cuda. dwifslpreproc applies this same
-		# -eddy_options string regardless of which binary it ends up running, so
-		# only add it when no eddy_cuda* binary is on PATH at all (i.e. CPU eddy
-		# is guaranteed to be what actually runs), and only if the resolved CPU
-		# binary's own --help actually advertises --nthr (older eddy_openmp
-		# builds may not). Mirrors the same capability probe used for topup
-		# below. Skipped if the user already passed --nthr via -e.
-		if [[ "$full_eddy_options" != *"--nthr="* ]] && ! compgen -c eddy_cuda >/dev/null 2>&1; then
+		# without a working CUDA eddy_cuda -- and also when eddy_cuda is installed
+		# but fails at run time (e.g. out of GPU memory because another process
+		# holds it), since dwifslpreproc then falls back to the CPU binary with
+		# the very same options. That fallback once ran single-threaded for 25 h.
+		#
+		# dwifslpreproc applies this one -eddy_options string to whichever binary
+		# it ends up running, so add --nthr only if every candidate accepts it:
+		# each eddy_cuda* on PATH plus the CPU binary it would fall back to. FSL
+		# 6.0.7's eddy_cuda does (it lists --nthr and ignores it on the GPU);
+		# older eddy_openmp / eddy_cuda builds may not, and an unknown option
+		# makes eddy print its usage and exit. Mirrors the capability probe used
+		# for topup below. Skipped if the user already passed --nthr via -e.
+		if [[ "$full_eddy_options" != *"--nthr="* ]]; then
 			eddy_cpu_bin=""
 			compgen -c eddy_cpu >/dev/null 2>&1 && eddy_cpu_bin="eddy_cpu"
 			[[ -z "$eddy_cpu_bin" ]] && compgen -c eddy_openmp >/dev/null 2>&1 && eddy_cpu_bin="eddy_openmp"
-			if [[ -n "$eddy_cpu_bin" ]] && "$eddy_cpu_bin" --help 2>&1 | grep -q -- '--nthr'; then
+			eddy_nthr_ok=1
+			eddy_nthr_blocker=""
+			for eddy_bin in $(compgen -c eddy_cuda 2>/dev/null | sort -u) $eddy_cpu_bin; do
+				if ! "$eddy_bin" --help 2>&1 | grep -q -- '--nthr'; then
+					eddy_nthr_ok=0
+					eddy_nthr_blocker="$eddy_bin"
+				fi
+			done
+			if [[ -n "$eddy_cpu_bin" ]] && [ $eddy_nthr_ok -eq 1 ]; then
 				full_eddy_options="$full_eddy_options --nthr=$ncpu"
 			else
-				kul_echo "eddy CPU binary ($eddy_cpu_bin) on this FSL install does not advertise --nthr support; running without an explicit thread count"
+				kul_echo "eddy binary (${eddy_nthr_blocker:-none found}) on this FSL install does not advertise --nthr support; running without an explicit thread count"
 			fi
 		fi
 		#echo "full_eddy_options: $full_eddy_options"
