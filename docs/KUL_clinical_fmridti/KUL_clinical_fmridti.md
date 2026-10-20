@@ -514,7 +514,7 @@ name.
 
 These three flags control how the fMRI activation overlays look. Because each screenshot is rendered **once** and that same PNG feeds both the review figures and the PACS DICOMs, these settings apply to **both** outputs:
 
-- **`-a` opacity** — default `0.7`. Lowering it (e.g. `-a 0.3`) makes activation more transparent so the underlying anatomy is visible. Be aware that very low opacity can make weak / threshold-level activation hard to read on PACS.
+- **`-a` opacity** — default `0.3`, so the anatomy under the activation stays readable. Raise it (e.g. `-a 0.7`, the default before 2026-10-20) for a more solid overlay. Be aware that very low opacity can make weak / threshold-level activation hard to read on PACS.
 - **`-e` edge outline** — draws a solid dark-blue contour at the threshold boundary, which keeps cluster extent legible even at low opacity.
 - **`-T` threshold** — fixes the activation threshold for every map (default is automatic, `max/3` per map).
 

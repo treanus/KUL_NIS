@@ -94,7 +94,7 @@ Optional arguments:
      -T:  fixed threshold for ALL SPM/Melodic overlays (default: auto = max/3 per map)
           if not given and running interactively, you will be prompted to enter
           one threshold per map (space-separated, matching the listed order)
-     -a:  opacity of SPM/Melodic (fMRI) activation overlays (0=transparent, 1=opaque; default 0.7)
+     -a:  opacity of SPM/Melodic (fMRI) activation overlays (0=transparent, 1=opaque; default 0.3)
           lower values let underlying anatomy show through on figures and PACS DICOMs
      -D:  dwiprep config file to use from study_config/ (default: run_dwiprep.txt)
           use e.g. -D run_dwiprep_lore_sd.txt to run lore-sd based FOD estimation
@@ -135,7 +135,7 @@ scilpy="$KUL_SCILPY_ENV"
 orientations="TRA,SAG,COR"
 spm_edge=0
 spm_thresh_override=""
-spm_opacity=0.7
+spm_opacity=0.3
 smooth_fwhm=5
 pfwe=0.01
 use_fastsurfer=0
