@@ -1,0 +1,21 @@
+# KUL_Neuro_Imaging_Tools
+#  config file for the task-fMRI GLM step of KUL_clinical_fmridti.sh, run by
+#  either KUL_fmriproc_spm_new.sh or KUL_fmriproc_nilearn_new.sh.
+
+#  run the task-fMRI GLM at all (skipped anyway if no task runs are found)
+do_fmri_glm: 1
+
+#  which engine to run:
+#    nilearn : KUL_fmriproc_nilearn_new.sh (python3 nilearn/nibabel/numpy/pandas)
+#              -- the default; no MATLAB needed
+#    spm     : KUL_fmriproc_spm_new.sh     (MATLAB/SPM12, needs a MATLAB license)
+#  Both use the fMRIPrep brain mask and the same bias-corrected, SUSAN-smoothed
+#  input. They differ in FWE control: nilearn uses Bonferroni, SPM uses
+#  random-field theory, which is less conservative for smooth maps.
+glm_engine: nilearn
+
+#  -S: SUSAN smoothing FWHM in mm
+fmri_smooth_fwhm: 5
+
+#  -P: FWE-corrected p-value for the Bizzi fMRI thresholding
+fmri_pfwe: 0.01

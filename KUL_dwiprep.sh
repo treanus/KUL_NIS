@@ -9,9 +9,17 @@
 # v0.1 - dd 09/11/2018 - created
 version="v1.4 - dd 24/02/2026"
 
-# The multiband factor for shard-recon.
-# needs to be turned into a configurable parameter if shard-recon is used!
-mb=2
+# Multiband factor, used only by shard-recon (-c) for its slice-timing model
+# (-mb ${mb} -sorder 1,0). Left unset here on purpose: it is read from the dwi
+# BIDS sidecar's MultibandAccelerationFactor at the point of use, and -M
+# overrides that.
+#
+# This used to be hardcoded to 2. A wrong multiband factor does not crash
+# dwimotioncorrect -- it silently produces a wrong motion correction, because
+# the factor defines which slices were acquired simultaneously. Of the two
+# studies to hand, one is MB2 and the other MB3, so the hardcoded value was
+# already wrong for half of them with nothing to indicate it.
+mb=""
 
 # for some old studies, the header info is not available
 # in that case one can set an environment variable
@@ -48,15 +56,35 @@ Required arguments:
 Optional arguments:
 
 	 -d:  dwiprep options: can be dhollander, tax, tournier and/or lore_sd (default = dhollander) e.g. "tax dhollander"
-	 -u:  use native (non-upsampled) data for all FOD/DTI estimation (default: use upsampled dwi_preproced.mif)
+	 -u:  keep the native (acquired) resolution: dwi_preproced.mif is NOT upsampled to
+	      1.3 mm, so everything derived from it -- dwi_mask, dwi_preproced_reg2T1w, the
+	      tensor and qa/fa_reg2T1w.nii.gz, and hence KUL_FWT's VOI space -- stays at the
+	      acquired resolution too. Default is to upsample (the MRtrix FBA recommendation:
+	      estimate FODs on upsampled data rather than interpolating them afterwards).
 	 -s:  session (BIDS session)
 	 -n:  number of cpu for parallelisation (default 6)
 	 -b:  use Synb0-DISCO instead of topup (requires docker)
 	 -c:  use shard-recon instead of eddy
+	      NOTE: shard-recon is incompatible with current MRtrix3 -- see the
+	      warning printed when -c is given
+	 -M:  multiband factor for shard-recon (default: MultibandAccelerationFactor
+	      from the dwi BIDS sidecar). Only used with -c. A wrong value does not
+	      fail, it silently produces a wrong motion correction.
 	 -e:  options to pass to eddy (default "--slm=linear --repol")
+	 -z:  MB=2 band-seam handling: off | check | auto (default: off)
+	      The dark slice at N/2 (between the two multiband bands) is screened in every phase-encoding group of
+	      dwi/degibbs.mif (dip < 0.95 on the mean of all volumes; 0.95-0.98 is flagged; otherwise untouched).
+	        check: screen only, write the QC (qa/seam/), never change the data
+	        auto : screen and, only where the dip is present, divide out a smooth gain; the uncorrected series
+	               is kept as dwi/degibbs_preseam.mif
+	      Runs after dwidenoise+mrdegibbs and before dwifslpreproc/shard-recon; only for
+	      MultibandAccelerationFactor=2 in the dwi sidecar. See share/dwiprep/KUL_dwiprep_seam.py
 	 -v:  show output from mrtrix commands (0=silent, 1=normal, 2=verbose; default=1)
 	 -r:  use reverse phase data only for topup and not for further processing
 	 -m:  specify the dwi2mask method (1=hdbet, 2=b02template-ants, 3=legacy; 4=synthstrip; default = 3)
+	 -x:  optional, give full path to custom output directory
+	 -f:  compulsory for lore-sd, provide the name for the conda env where lore_sd is installed
+	 		The script will quite if user asks for lore-sd but doesn't provide this
 
 
 Documentation:
@@ -67,9 +95,10 @@ Documentation:
 		1/ contactenation of different dMRI datasets accounting for differential intensity scaling using dwicat
 		2/ dwidenoise
 		3/ mrdegibs
+		3b/ (only with -z check|auto) MB=2 seam screening and, with auto, correction, per phase-encoding group
 		4/ dwifslpreproc or shard-recon, either using topup or synb0-disco
 		5/ dwibiascorrects
-		6/ upsampling to an isotropic resolution of 1.3 mm 
+		6/ upsampling to an isotropic resolution of 1.3 mm (skipped with -u, see below)
 		7/ creation of dwi_mask
 		8/ response estimation
 		9: outputs an ADC, FA en DEC image in the for quality assurance purpose
@@ -93,6 +122,7 @@ dwipreproc_options="dhollander"
 use_upsampled=1
 dwi2mask_method=3
 shard=0
+seam=off
 
 # Specify additional options for FSL eddy
 eddy_options="--slm=linear --repol"
@@ -109,7 +139,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-	while getopts "p:s:n:d:e:m:v:rbcu" OPT; do
+	while getopts "p:s:n:d:e:m:v:x:f:M:z:rbcu" OPT; do
 
 		case $OPT in
 		p) #participant
@@ -144,8 +174,21 @@ else
 		c) #shard
 			shard=1
 		;;
+		M) #multiband factor (shard-recon only; overrides the BIDS sidecar)
+			mb=$OPTARG
+		;;
+		z) #MB=2 band-seam screening (check) or screening + correction (auto) after degibbs
+			seam=$OPTARG
+			case $seam in off|check|auto) ;; *) echo "ERROR: -z takes off, check or auto (got '$seam')" >&2; exit 1;; esac
+		;;
 		u) #use native (non-upsampled) data
 			use_upsampled=0
+		;;
+		x) #use this directory for preproc and output
+			preproc=$OPTARG
+		;;
+		f) # use the name specified for lore_sd env name 
+			loresd_env=$OPTARG
 		;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
@@ -186,6 +229,23 @@ elif [ $local_verbose_level -eq 2 ] ; then
 fi
 
 
+if [[ $dwipreproc_options == *"lore_sd"* ]]; then
+	# Did user specify conda env name?
+	if [[ -z "$loresd_env" ]]; then
+		echo "ERROR: lore_sd was requested in the dwipreproc options, but no conda env was given."
+		echo "       Supply the conda env that has lore_sd installed with:  -f <conda_env_name>"
+		exit 1
+	fi
+	# optional but recommended: confirm the env actually exists
+	if ! conda env list | awk '{print $1}' | grep -qx "$loresd_env"; then
+		echo "ERROR: conda env '$loresd_env' was not found (checked 'conda env list')."
+		exit 1
+	fi
+
+	echo "       conda env provided where lore_sd is installed $loresd_env"
+
+fi
+
 # REST OF SETTINGS ---
 
 # timestamp
@@ -206,74 +266,90 @@ fi
 
 ### Functions ---------------------------------------
 function KUL_dwiprep_convert {
-# test if conversion has been done
-if [ ! -f ${preproc}/dwi_orig.mif ]; then
+	# test if conversion has been done
+	if [ ! -f ${preproc}/dwi_orig.mif ]; then
 
-	kul_echo " Preparing datasets from BIDS directory..."
-	#echo "preproc: $preproc"
+		kul_echo " Preparing datasets from BIDS directory..."
+		#echo "preproc: $preproc"
 
-	if [ $number_of_bids_dwi_found -eq 1 ]; then #FLAG, if comparing dMRI sequences, they should not be catted
+		if [ $number_of_bids_dwi_found -eq 1 ]; then #FLAG, if comparing dMRI sequences, they should not be catted
 
-		kul_echo "   only 1 dwi dataset, scaling not necessary"
-		dwi_base=${bids_dwi_found%%.*}
-		mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
-		-json_import ${dwi_base}.json -strides 1:3 -force \
-		-clear_property comments -nthreads $ncpu ${preproc}/dwi_orig.mif
-		
+			kul_echo "   only 1 dwi dataset, scaling not necessary"
+			dwi_base=${bids_dwi_found%%.*}
+			mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
+			-json_import ${dwi_base}.json -strides 1:3 -force \
+			-clear_property comments -nthreads $ncpu ${preproc}/dwi_orig.mif
+			
+		else
+
+			kul_echo "   found $number_of_bids_dwi_found dwi datasets, checking number_of slices (and adjusting), scaling & catting"
+
+			### find number of slices of the multiple datasets and correct if necessary
+			dwi_i=1
+			for dwi_file in $bids_dwi_found; do
+				dwi_base=${dwi_file%%.*}
+
+				# read the number of slices
+				ns_dwi[dwi_i]=$(mrinfo ${dwi_base}.nii.gz -size | awk '{print $(NF-1)}')
+				kul_echo "   dataset p${dwi_i} has ${ns_dwi[dwi_i]} as number of slices"
+				
+				((dwi_i++))
+			done
+
+			max=10000000
+			for i in "${ns_dwi[@]}"
+				do
+				# Update max if applicable
+				if [[ "$i" -lt "$max" ]]; then
+					max="$i"
+				fi
+			done
+
+			# echo "Max is: $max"
+			((max--))
+
+
+			# convert each file and make a mean b0
+			dwi_i=1
+			for dwi_file in $bids_dwi_found; do
+				dwi_base=${dwi_file%%.*}
+				#echo "dwi_base: $dwi_base"
+				
+				kul_echo "   converting ${dwi_base}.nii.gz to mif"
+				mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
+				-json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} \
+				-force -clear_property comments -nthreads $ncpu
+
+				((dwi_i++))
+			done
+
+			# dwicat the files together
+			kul_echo "   performing dwicat"
+			dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif #-nocleanup 
+
+		fi
+
 	else
 
-		kul_echo "   found $number_of_bids_dwi_found dwi datasets, checking number_of slices (and adjusting), scaling & catting"
-
-		### find number of slices of the multiple datasets and correct if necessary
-		dwi_i=1
-		for dwi_file in $bids_dwi_found; do
-			dwi_base=${dwi_file%%.*}
-
-			# read the number of slices
-			ns_dwi[dwi_i]=$(mrinfo ${dwi_base}.nii.gz -size | awk '{print $(NF-1)}')
-			kul_echo "   dataset p${dwi_i} has ${ns_dwi[dwi_i]} as number of slices"
-			 
-			((dwi_i++))
-		done
-
-		max=10000000
-		for i in "${ns_dwi[@]}"
-			do
-			# Update max if applicable
-			if [[ "$i" -lt "$max" ]]; then
-				max="$i"
-			fi
-		done
-
-		# echo "Max is: $max"
-		((max--))
-
-
-		# convert each file and make a mean b0
-		dwi_i=1
-		for dwi_file in $bids_dwi_found; do
-			dwi_base=${dwi_file%%.*}
-			#echo "dwi_base: $dwi_base"
-			
-			kul_echo "   converting ${dwi_base}.nii.gz to mif"
-			mrconvert ${dwi_base}.nii.gz -fslgrad ${dwi_base}.bvec ${dwi_base}.bval \
-			-json_import ${dwi_base}.json ${raw}/dwi_p${dwi_i}.mif -strides 1:3 -coord 2 0:${max} \
-			-force -clear_property comments -nthreads $ncpu
-
-			((dwi_i++))
-		done
-
-		# dwicat the files together
-		kul_echo "   performing dwicat"
-		dwicat ${raw}/dwi_p?.mif ${preproc}/dwi_orig.mif #-nocleanup 
-
-	fi
-
-else
-
-	kul_echo " Conversion has been done already... skipping to next step"
+		kul_echo " Conversion has been done already... skipping to next step"
 
 fi
+}
+
+function KUL_dwiprep_seam {
+	# screening gate + correction of the MB=2 dark seam slice (see share/dwiprep/KUL_dwiprep_seam.py);
+	# the uncorrected series is kept as dwi/degibbs_preseam.mif, nothing is deleted
+	mkdir -p qa/seam
+	local dry_opt=""
+	[ "$seam" = "check" ] && dry_opt="--dry"   # check: screen + QC only, nothing is written or replaced
+	python3 ${kul_main_dir}/share/dwiprep/KUL_dwiprep_seam.py dwi/degibbs.mif dwi/degibbs_seam.mif qa/seam $dry_opt \
+		> qa/seam/seam_stdout.txt 2>&1 || { cat qa/seam/seam_stdout.txt; return 1; }
+	cat qa/seam/seam_stdout.txt
+	if [ "$seam" = "check" ]; then
+		kul_echo "seam check mode: data left unchanged (SEAM_RESULT=corrected above means -z auto WOULD correct it)"
+	elif grep -q '^SEAM_RESULT=corrected' qa/seam/seam_stdout.txt; then
+		mv -f dwi/degibbs.mif dwi/degibbs_preseam.mif && mv -f dwi/degibbs_seam.mif dwi/degibbs.mif
+	fi
 }
 
 function kul_dwi2mask {
@@ -287,8 +363,8 @@ function kul_dwi2mask {
 			task_in2="dwi2mask hdbet \
 				dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
 		elif [ $dwi2mask_method -eq 2 ];then
-			task_in2="dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
-				${kul_main_dir}/atlasses/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
+			task_in2="dwi2mask b02template -software antsfull -template ${kul_main_dir}/atlases/Temp_4_KUL_dwiprep/UKBB_fMRI_mod.nii.gz \
+				${kul_main_dir}/atlases/Temp_4_KUL_dwiprep/UKBB_fMRI_mod_brain_mask.nii.gz \
 				dwi/rearranged_dwis.mif ${dwi2mask_mask_out} -nthreads $ncpu -force"
 		elif [ $dwi2mask_method -eq 3 ];then
 			task_in2="dwi2mask legacy \
@@ -319,6 +395,16 @@ function kul_mrview_figure {
 	echo $cmd
 	eval $cmd
 
+}
+
+activate_conda_env () {
+    # make 'conda activate' available inside this non-interactive script
+    source "$(conda info --base)/etc/profile.d/conda.sh"
+    conda activate "$1" || { echo "ERROR: failed to activate conda env '$1'"; exit 1; }
+}
+
+deactivate_conda_env () {
+    conda deactivate
 }
 
 # --- MAIN ----------------
@@ -357,7 +443,11 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 	echo "bids_participant: $bids_participant"
 
 	# Create the Directory to write preprocessed data in
-	preproc=${cwd}/dwiprep/sub-${participant}/$(basename $bids_participant)
+	if [ ! $preproc ]; then
+		preproc=${cwd}/dwiprep/sub-${participant}/$(basename $bids_participant)
+	else 
+		mkdir -p ${preproc}
+	fi
 	echo "preproc: $preproc"
 
 	# Directory to put raw mif data in
@@ -465,6 +555,28 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			rm dwi/denoise.mif"
 		KUL_task_exec $verbose_level "kul_dwiprep part 2: mrdegibbs" "2_mrdegibbs"
 
+		# dwigradcheck: scanner/conversion gradient-table conventions (axis order,
+		# polarity) vary and silently produce wrong bvecs -- verify/correct here on
+		# the denoised+degibbs'd data (cleaner signal for its test-tractography-based
+		# coherence check than the raw data, and gradients are untouched by
+		# denoise/degibbs so this result is equivalent to checking pre-denoise),
+		# before the expensive motion/distortion correction step below gets run on
+		# a wrong gradient table.
+		kul_echo "dwigradcheck (pre-eddy)..."
+		task_in="dwigradcheck dwi/degibbs.mif -mask dwi/dwi_orig_mask.nii.gz \
+				-export_grad_mrtrix dwi/degibbs_grad_checked.b -force \
+			&& mrconvert dwi/degibbs.mif dwi/degibbs_gradchecked.mif -grad dwi/degibbs_grad_checked.b -nthreads $ncpu -force \
+			&& mv -f dwi/degibbs_gradchecked.mif dwi/degibbs.mif"
+		KUL_task_exec $verbose_level "kul_dwiprep part 2: dwigradcheck" "2_dwigradcheck"
+
+		# MB=2 band-seam: after denoise/degibbs (the seam gain does not scale the noise, so rescaling after
+		# denoising does not inflate the noise MP-PCA sees) and before topup/eddy resample the data (-z check|auto)
+		if [ "$seam" != "off" ]; then
+			kul_echo "MB=2 seam screening/correction..."
+			task_in="KUL_dwiprep_seam"
+			KUL_task_exec $verbose_level "kul_dwiprep part 2: MB=2 seam screening/correction" "2_seam"
+		fi
+
 	else
 
 		kul_echo "part 1 of preprocessing has been done already... skipping to next step"
@@ -496,6 +608,40 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		# prepare eddy_options
 		#echo "eddy_options: $eddy_options"
 		full_eddy_options="--cnr_maps --residuals "${eddy_options}
+		# Explicit --nthr for the CPU eddy path: eddy_cpu (FSL >=6.0.6, formerly
+		# eddy_openmp) defaults to single-threaded as of FSL 6.0.7.8 and does not
+		# honour OMP_NUM_THREADS (confirmed by FSL's own maintainers on Neurostars)
+		# -- without this, eddy silently runs on a single core on any machine
+		# without a working CUDA eddy_cuda -- and also when eddy_cuda is installed
+		# but fails at run time (e.g. out of GPU memory because another process
+		# holds it), since dwifslpreproc then falls back to the CPU binary with
+		# the very same options. That fallback once ran single-threaded for 25 h.
+		#
+		# dwifslpreproc applies this one -eddy_options string to whichever binary
+		# it ends up running, so add --nthr only if every candidate accepts it:
+		# each eddy_cuda* on PATH plus the CPU binary it would fall back to. FSL
+		# 6.0.7's eddy_cuda does (it lists --nthr and ignores it on the GPU);
+		# older eddy_openmp / eddy_cuda builds may not, and an unknown option
+		# makes eddy print its usage and exit. Mirrors the capability probe used
+		# for topup below. Skipped if the user already passed --nthr via -e.
+		if [[ "$full_eddy_options" != *"--nthr="* ]]; then
+			eddy_cpu_bin=""
+			compgen -c eddy_cpu >/dev/null 2>&1 && eddy_cpu_bin="eddy_cpu"
+			[[ -z "$eddy_cpu_bin" ]] && compgen -c eddy_openmp >/dev/null 2>&1 && eddy_cpu_bin="eddy_openmp"
+			eddy_nthr_ok=1
+			eddy_nthr_blocker=""
+			for eddy_bin in $(compgen -c eddy_cuda 2>/dev/null | sort -u) $eddy_cpu_bin; do
+				if ! "$eddy_bin" --help 2>&1 | grep -q -- '--nthr'; then
+					eddy_nthr_ok=0
+					eddy_nthr_blocker="$eddy_bin"
+				fi
+			done
+			if [[ -n "$eddy_cpu_bin" ]] && [ $eddy_nthr_ok -eq 1 ]; then
+				full_eddy_options="$full_eddy_options --nthr=$ncpu"
+			else
+				kul_echo "eddy binary (${eddy_nthr_blocker:-none found}) on this FSL install does not advertise --nthr support; running without an explicit thread count"
+			fi
+		fi
 		#echo "full_eddy_options: $full_eddy_options"
 
 
@@ -563,11 +709,18 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
 				fi
 
+				fsl_topup_nthr_opt=""
+				if topup --help 2>&1 | grep -q -- '--nthr'; then
+					fsl_topup_nthr_opt=" --nthr=$ncpu"
+				else
+					kul_echo "topup on this FSL install does not advertise --nthr support; running without an explicit thread count"
+				fi
+
 				task_in="topup --imain=shard/topup_in.nii \
 					--datain=shard/topup_datain.txt \
 					--out=shard/field \
 					--fout=shard/fieldmap.nii.gz \
-					--config=$topup_cfg --nthr=$ncpu --verbose"
+					--config=$topup_cfg${fsl_topup_nthr_opt} --verbose"
 				#	--subsamp=1,1,1,1,1,1,1,1,1 \
             	#	--miter=10,10,10,10,10,20,20,30,30 \
             	#	--lambda=0.00033,0.000067,0.0000067,0.000001,0.00000033,0.000000033,0.0000000033,0.000000000033,0.00000000000067"
@@ -608,7 +761,8 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			else
 				dwifslprep_ses=""
 			fi
-			dwifslpreproc_option="-topup_files ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${dwifslprep_ses}synb0/topup_"
+			dwifslpreproc_option="-topup_files ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${dwifslprep_ses}synb0/topup_ \
+				-topup_field ${cwd}/BIDS/derivatives/KUL_compute/sub-${participant}/${dwifslprep_ses}synb0/topup_fieldmap.nii.gz"
 		
 		elif [ $synb0 -eq 0 ] && [ $shard -eq 0 ] && [ $n_pe -gt 1 ]; then
 		
@@ -634,7 +788,63 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		# note: maybe add -eddy_mask
 
 		if [ $shard -eq 1 ]; then
-			
+
+			# --- shard-recon compatibility --------------------------------
+			# shard-recon targets the MRtrix3 3.0.x python API: its scripts end
+			# in mrtrix3.execute(). The dev branch moved that entry point into
+			# mrtrix3.app._execute(usage, execute), so on a current MRtrix3
+			# every shard-recon command dies immediately with
+			#   AttributeError: module 'mrtrix3' has no attribute 'execute'
+			# Fail here with an explanation rather than after denoise, degibbs
+			# and topup have already run.
+			if ! dwimotioncorrect --help > /dev/null 2>&1; then
+				echo ""
+				echo "  ERROR: dwimotioncorrect is not runnable."
+				echo ""
+				echo "  If it fails with \"module 'mrtrix3' has no attribute 'execute'\","
+				echo "  shard-recon is built against an incompatible MRtrix3. It targets"
+				echo "  the 3.0.x python API; the dev/CMake branch replaced mrtrix3.execute()"
+				echo "  with mrtrix3.app._execute(usage, execute)."
+				echo "  Installed MRtrix3: $(mrconvert -version 2>/dev/null | head -1)"
+				echo ""
+				echo "  Fix: build a classic (non-CMake) MRtrix3 3.0.x and rebuild"
+				echo "  shard-recon against it, then put its bin/ first on PATH."
+				echo "  shard-recon's own build needs that classic tree anyway -- it has"
+				echo "  no CMake equivalent."
+				echo ""
+				echo "  Or drop -c / set shard_recon: 0 to use eddy instead."
+				echo ""
+				exit 1
+			fi
+
+			# --- multiband factor -----------------------------------------
+			# Only shard needs it. Prefer -M, else the dwi BIDS sidecar. Never
+			# guess: the factor says which slices were acquired simultaneously,
+			# so a wrong one yields a plausible-looking but wrong correction.
+			if [ -z "$mb" ]; then
+				_dwi_json=$(find ${cwd}/BIDS/sub-${participant} -name "*_dwi.json" -type f 2>/dev/null | sort | head -1)
+				if [ -n "$_dwi_json" ]; then
+					mb=$(python3 -c "
+import json,sys
+try: v=json.load(open('$_dwi_json')).get('MultibandAccelerationFactor')
+except Exception: sys.exit(0)
+if isinstance(v,(int,float)) and v>=1: print(int(v))
+" 2>/dev/null)
+				fi
+			fi
+			if [ -z "$mb" ]; then
+				echo ""
+				echo "  ERROR: could not determine the multiband factor for shard-recon."
+				echo "  Looked for MultibandAccelerationFactor in ${_dwi_json:-<no dwi json found>}"
+				echo "  Pass it explicitly with -M <factor>."
+				echo ""
+				echo "  Not defaulting on purpose: a wrong multiband factor does not fail,"
+				echo "  it silently produces a wrong motion correction."
+				echo ""
+				exit 1
+			fi
+			kul_echo "  shard-recon multiband factor: ${mb}"
+
 			mkdir -p shard
 
 			task_in1="mrinfo dwi/degibbs.mif -export_grad_mrtrix shard/grad.b -force"
@@ -696,6 +906,17 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		dwi2mask_logfile="3_mask"
 		kul_dwi2mask
 
+		# dwigradcheck again, post-eddy: eddy rotates the per-volume gradient
+		# directions to compensate for estimated head motion, so re-verify the
+		# table that will actually be used for tensor fitting/tractography from
+		# here on, not just the pre-correction one checked in part 2.
+		kul_echo "dwigradcheck (post-eddy)..."
+		task_in="dwigradcheck dwi/geomcorr.mif -mask dwi/dwi_intermediate_mask.nii.gz \
+				-export_grad_mrtrix dwi/geomcorr_grad_checked.b -force \
+			&& mrconvert dwi/geomcorr.mif dwi/geomcorr_gradchecked.mif -grad dwi/geomcorr_grad_checked.b -nthreads $ncpu -force \
+			&& mv -f dwi/geomcorr_gradchecked.mif dwi/geomcorr.mif"
+		KUL_task_exec $verbose_level "kul_dwiprep part 3: dwigradcheck" "3_dwigradcheck"
+
 		temp_dir=$(ls -d *dwifslpreproc*/dwi_post_eddy.nii.gz 2>/dev/null | head -1 | xargs dirname)
 
 		if [ ! command -v eddy_quad &> /dev/null ]; then
@@ -729,8 +950,31 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 	fi
 
 
+	# A dwi_preproced.mif built with and without -u are indistinguishable by name, so a
+	# subject processed once, then re-run with the flag flipped, would silently reuse the
+	# wrong-resolution volume -- and every grid downstream (dwi_mask, the reg2T1w tensor,
+	# qa/fa_reg2T1w.nii.gz, KUL_FWT's whole VOI space) would follow the stale file rather
+	# than the requested setting. Check the actual voxel size, not just existence.
+	if [ -f dwi_preproced.mif ]; then
+		_dwip_vox=$(mrinfo -spacing dwi_preproced.mif 2>/dev/null | awk '{printf "%.2f", $1}')
+		if [ $use_upsampled -eq 1 ]; then
+			_dwip_want="1.30"
+		else
+			_dwip_want=$(mrinfo -spacing dwi/biascorr.mif 2>/dev/null | awk '{printf "%.2f", $1}')
+		fi
+		if [ -n "$_dwip_vox" ] && [ -n "$_dwip_want" ] && [ "$_dwip_vox" != "$_dwip_want" ]; then
+			kul_echo "WARNING: existing dwi_preproced.mif is ${_dwip_vox}mm but this run wants ${_dwip_want}mm"
+			kul_echo "  (use_native_dwi/-u was changed since it was made); rebuilding it"
+			rm -f dwi_preproced.mif dwi_mask.nii.gz
+		fi
+	fi
+
 	# check if next 4 steps of dwi preprocessing are done
-	if [ ! -f dwi_preproced.mif ]; then
+	# (check both outputs: dwi/biascorr.mif -- the input used downstream when
+	#  use_upsampled=0 -- is only produced inside this same block, so a leftover/stale
+	#  dwi_preproced.mif from an earlier interrupted run must not mask a missing
+	#  biascorr.mif)
+	if [ ! -f dwi_preproced.mif ] || [ ! -f dwi/biascorr.mif ]; then
 
 		kul_echo "Start part 3 of preprocessing: dwibiascorrect, upsampling & creation of a final dwi_mask"
 
@@ -740,18 +984,47 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			-bias dwi/biasfield.mif -nthreads $ncpu -force -mask dwi/dwi_intermediate_mask.nii.gz"
 		KUL_task_exec $verbose_level "kul_dwiprep part 4: dwibiascorrect" "4_dwibiascorrect"
 
-		
-		# upsample the images
-		kul_echo "    upsampling resolution..."
-		task_in="mrgrid -nthreads $ncpu -force -axis 1 5,5 dwi/biascorr.mif crop - | mrgrid -axis 1 5,5 -force - pad - | mrgrid -voxel 1.3 -force - regrid dwi/upsampled.mif"
-		KUL_task_exec $verbose_level "kul_dwiprep part 5: upsampling resolution" "5_upsample"
-	
 
-		# copy to main directory for subsequent processing
-		kul_echo "    saving..."
-		task_in="mrconvert dwi/upsampled.mif dwi_preproced.mif -set_property comments \"Preprocessed dMRI data.\" -nthreads $ncpu -force"
-		KUL_task_exec $verbose_level "kul_dwiprep part 5: saving" "5_saving"
-		rm dwi/upsampled.mif
+		# dwi_preproced.mif is the canonical preprocessed output and always exists.
+		# What changes with -u is its RESOLUTION.
+		#
+		# The upsampling to 1.3mm is the MRtrix fixel-based-analysis recommendation:
+		# estimate FODs on upsampled data rather than interpolating them afterwards.
+		# It used to run unconditionally, with -u only deciding whether *estimation*
+		# read the result -- which meant everything derived from dwi_preproced.mif
+		# stayed at 1.3mm no matter what the user asked for: the final dwi_mask, the
+		# rigid-registered dwi_preproced_reg2T1w, the tensor built from it, and hence
+		# qa/fa_reg2T1w.nii.gz, which is the space KUL_FWT builds every VOI in.
+		#
+		# That left native-mode runs with FODs at the acquired resolution and an FA at
+		# 1.3mm. Nothing complained, because tckgen interpolates its mask and
+		# mrtransform -linear (no -template) only rewrites the header -- but
+		# voxel2fixel does neither, so KUL_FWT's tractometry died on every bundle with
+		# a dimension mismatch, and the LoRE DEC needed a resampled copy of the ODF
+		# purely to match a mask that should not have been upsampled in the first place.
+		#
+		# Honouring -u here makes both modes internally consistent end to end, rather
+		# than patching each consumer that trips over the difference.
+		if [ $use_upsampled -eq 1 ]; then
+
+			# upsample the images
+			kul_echo "    upsampling resolution..."
+			task_in="mrgrid -nthreads $ncpu -force -axis 1 5,5 dwi/biascorr.mif crop - | mrgrid -axis 1 5,5 -force - pad - | mrgrid -voxel 1.3 -force - regrid dwi/upsampled.mif"
+			KUL_task_exec $verbose_level "kul_dwiprep part 5: upsampling resolution" "5_upsample"
+
+			# copy to main directory for subsequent processing
+			kul_echo "    saving..."
+			task_in="mrconvert dwi/upsampled.mif dwi_preproced.mif -set_property comments \"Preprocessed dMRI data.\" -nthreads $ncpu -force"
+			KUL_task_exec $verbose_level "kul_dwiprep part 5: saving" "5_saving"
+			rm dwi/upsampled.mif
+
+		else
+
+			kul_echo "    keeping native resolution (use_native_dwi/-u is set); not upsampling"
+			task_in="mrconvert dwi/biascorr.mif dwi_preproced.mif -set_property comments \"Preprocessed dMRI data (native resolution, not upsampled).\" -nthreads $ncpu -force"
+			KUL_task_exec $verbose_level "kul_dwiprep part 5: saving (native resolution)" "5_saving"
+
+		fi
 
 
 		# create a final mask of the dwi data
@@ -854,27 +1127,24 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 	fi
 
 	if [[ $dwipreproc_options == *"lore_sd"* ]]; then
+
+		activate_conda_env "$loresd_env"
 		mkdir -p response/lore_sd
 
 		if [ ! -f response/lore_sd/response.mif ]; then
 			kul_echo "Calculating lore_sd decomposition (response + ODF)..."
 			task_in="lore_dwi2decomposition ${dwi_input} response/lore_sd/ \
-			--mask ${dwi_mask_input} --cores $ncpu"
+			 --cores $ncpu" #--mask ${dwi_mask_input}
 			KUL_task_exec $verbose_level "kul_dwiprep part 6-7: lore_sd decomposition" "6_lore_sd_decomposition"
 		else
 			kul_echo " lore_sd decomposition already done, skipping..."
 		fi
 
-		if [ $use_upsampled -eq 0 ]; then
-			if [ ! -f response/lore_sd/odf_resampled.mif ]; then
-				kul_echo "Resampling lore_sd ODF to 1.3mm isotropic..."
-				task_in="mrgrid response/lore_sd/odf.mif regrid -template dwi_preproced.mif \
-				response/lore_sd/odf_resampled.mif -force -nthreads $ncpu"
-				KUL_task_exec $verbose_level "kul_dwiprep part 7: lore_sd resample odf" "7_lore_sd_resample_odf"
-			else
-				kul_echo " lore_sd ODF resampling already done, skipping..."
-			fi
-		fi
+		# (The ODF used to be resampled to dwi_preproced.mif's grid here when -u was
+		#  set. That only existed because dwi_preproced.mif -- and therefore
+		#  dwi_mask.nii.gz -- was upsampled unconditionally, so a native-resolution ODF
+		#  could not be masked for the DEC below. dwi_preproced.mif now honours -u, so
+		#  odf.mif and the mask always share a grid and the copy is unnecessary.)
 
 		if [ ! -f response/lore_sd_contrasts/rfa.mif ]; then
 			kul_echo "Calculating lore_sd contrasts..."
@@ -884,6 +1154,21 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 			KUL_task_exec $verbose_level "kul_dwiprep part 7: lore_sd contrasts" "7_lore_sd_contrasts"
 		else
 			kul_echo " lore_sd contrasts already done, skipping..."
+		fi
+
+		# Experimental: rfa-modulated FOD (odf .* rfa), a first attempt at using the
+		# rfa contrast to suppress FOD amplitude in low-rfa (e.g. edematous/infiltrated)
+		# tissue, aimed at improving tractography specificity through pathology.
+		# Computed unconditionally on the native odf.mif/rfa.mif pair (same grid that
+		# KUL_dwiprep_anat.sh registers odf.mif from) so it can be registered to T1w
+		# the same way. Not used by anything unless explicitly opted into downstream.
+		if [ ! -f response/lore_sd/rfa_modulated_fod.mif ]; then
+			kul_echo "Calculating rfa-modulated lore_sd FOD (experimental)..."
+			task_in="mrcalc response/lore_sd/odf.mif response/lore_sd_contrasts/rfa.mif -mult \
+			response/lore_sd/rfa_modulated_fod.mif -force -nthreads $ncpu"
+			KUL_task_exec $verbose_level "kul_dwiprep part 7: lore_sd rfa-modulated FOD" "7_lore_sd_rfa_modulated_fod"
+		else
+			kul_echo " lore_sd rfa-modulated FOD already done, skipping..."
 		fi
 
 		if [ $use_upsampled -eq 0 ]; then
@@ -902,6 +1187,9 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 				kul_echo " lore_sd contrast resampling already done, skipping..."
 			fi
 		fi
+
+		deactivate_conda_env
+
 	fi
 
 	# STEP 4 - DO QA ---------------------------------------------
@@ -935,12 +1223,13 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 		KUL_task_exec $verbose_level "kul_dwiprep part 8: dhollander DEC" "8_qa_dhollander_dec"
 	fi
 
+	# Uses odf.mif and ${dwi_mask_input} in both modes, like the dhollander/tax/tournier
+	# DECs above. The -u branch here used to read response/lore_sd/odf_resampled.mif
+	# against a hardcoded dwi_mask.nii.gz: the mask was 1.3mm even in native mode, so the
+	# ODF had to be upsampled to be maskable. Both the ODF and the mask now follow -u, so
+	# they always share a grid and odf_resampled.mif is neither produced nor needed.
 	if [[ $dwipreproc_options == *"lore_sd"* ]] && [ ! -f qa/lore_sd_dec.mif ]; then
-		if [ $use_upsampled -eq 0 ]; then
-			task_in="fod2dec response/lore_sd/odf_resampled.mif qa/lore_sd_dec.mif -force -mask dwi_mask.nii.gz"
-		else
-			task_in="fod2dec response/lore_sd/odf.mif qa/lore_sd_dec.mif -force -mask ${dwi_mask_input}"
-		fi
+		task_in="fod2dec response/lore_sd/odf.mif qa/lore_sd_dec.mif -force -mask ${dwi_mask_input}"
 		KUL_task_exec $verbose_level "kul_dwiprep part 8: lore_sd DEC" "8_qa_lore_sd_dec"
 	fi
 

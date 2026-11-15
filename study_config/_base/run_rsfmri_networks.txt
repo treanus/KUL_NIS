@@ -1,0 +1,9 @@
+# KUL_Neuro_Imaging_Tools
+#  config file for KUL_run_rsfMRI_networks.sh (presurgical/eloquent-cortex
+#  resting-state network mapping), as run by KUL_clinical_fmridti.sh.
+
+#  off by default -- it is an add-on to the standard clinical work-up
+do_rsfmri_networks: 0
+
+#  -P: condition profile, from share/rsfmri_pipeline/config/profiles.yaml
+rsfmri_profile: Presurgical

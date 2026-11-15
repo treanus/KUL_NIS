@@ -148,20 +148,67 @@ function KUL_compute_melodic {
     #    str_silent_melodic=" >> KUL_LOG/sub-${participant}_melodic.log"
     #fi
 
-    tasks=( $(find $fmriprepdir -name "*${searchtask}.gz" -type f) )
+    # NOTE: searchtask has no res- token (fMRIPrep inserts "_res-2_" between
+    # _space-... and _desc-... when a :res-2 output-space modifier is used) —
+    # the * wildcards on either side of searchtask absorb that, same style as
+    # KUL_fmri_denoise.sh's own find pattern.
+    tasks=( $(find $fmriprepdir -name "*${searchtask}*.gz" -type f) )
+    if [ ${#tasks[@]} -eq 0 ]; then
+        echo "  ERROR: no BOLD files matched '*${searchtask}*.gz' under $fmriprepdir — melodic.done will NOT be created"
+        return 1
+    fi
+    denoiseddir="$computedir/denoised"
     # we loop over the found tasks
     for task in ${tasks[@]}; do
-        d1=${task#*_task-}
-        shorttask=${d1%_space*}
+        taskbase=$(basename $task)
+        d1=${taskbase#*_task-}
+        shorttask=${d1%%_space-*}
         #echo "$task -- $shorttask"
+
+        # Resting-state is KUL_run_rsfMRI_networks.sh's job -- it runs its own
+        # melodic (masked ICA, step3) on the same data with a profile-driven
+        # setup, so doing it here as well was the same decomposition computed
+        # twice. Task runs stay here: this is the task-fMRI melodic path.
+        if [[ $shorttask == *"rest"* ]]; then
+            echo " Skipping rest run $shorttask — handled by KUL_run_rsfMRI_networks.sh"
+            continue
+        fi
         echo " Analysing task $shorttask"
-        fmrifile="${shorttask}${searchtask}"
-        cp $fmriprepdir/*$fmrifile.gz $fmridatadir
-        gunzip $fmridatadir/*$fmrifile.gz
+
+        # Denoise via KUL_fmri_denoise.sh (SUSAN smoothing runs as its last step,
+        # so no separate smoothing block here).
+        #
+        # Task runs get --no-confounds: confound regression before ICA destroys
+        # the very signal melodic is being asked to find. The nuisance regressors
+        # are routinely collinear with a block paradigm -- on this study's
+        # 30s-on/30s-off language run the 6 motion parameters alone carried 27.4%
+        # of the design's variance and aCompCor another 23.2% -- so regressing
+        # them out took ~58% of the task with it and melodic's best component
+        # correlated only 0.27 with the paradigm. With regression skipped it finds
+        # the task at 0.65, and that component's spatial map correlates 0.57 with
+        # the subject's own GLM z-map. Separating task from artifact is what the
+        # ICA is for; doing it beforehand is what broke it.
+        # --lp 0 leaves the low-pass off too, matching FSL's FEAT/MELODIC input.
+        #
+        # Only task runs reach here (rest is skipped above), so this is
+        # unconditional.
+        _dn_opts="--no-confounds --lp 0"
+        # Variant-keyed so this product cannot be confused with the differently
+        # denoised one KUL_run_rsfMRI_networks.sh builds, and so an identical
+        # recipe produced elsewhere is reused rather than recomputed.
+        _dn_out="$denoiseddir/melodic_task"
+        task_in="$kul_main_dir/KUL_fmri_denoise.sh --fmriprep ${cwd}/fmriprep --out $_dn_out --method nilearn --space MNI152NLin2009cAsym --sub sub-${participant} --task $shorttask $_dn_opts"
+        KUL_task_exec $verbose_level "Denoising task $shorttask ($_dn_variant)" "0_denoise_$shorttask"
+
+        run_label="${taskbase%_desc-preproc_bold.nii.gz}"
+        melodic_in_1="$_dn_out/sub-${participant}/func/${run_label}_postproc_nilearn/${run_label}_desc-denoised_bold.nii.gz"
+        if [ ! -f "$melodic_in_1" ]; then
+            echo "  ERROR: expected denoised output not found, skipping task $shorttask: $melodic_in_1"
+            continue
+        fi
+
         fmriresults="$computedir/stats_$shorttask"
         mkdir -p $fmriresults
-        # edited by AR 04/11/2022
-        melodic_in_1="$fmridatadir/sub-${participant}_task-$fmrifile"
         # find the TR
         # edited by AR 04/11/2022
         tr=$(mrinfo $melodic_in_1 -spacing | cut -d " " -f 4)
@@ -169,41 +216,83 @@ function KUL_compute_melodic {
         # edited by AR 04/11/2022
         dyn=$(mrinfo $melodic_in_1 -size | cut -d " " -f 4)
         t_glm_con="$kul_main_dir/share/FSL/fsl_glm.con"
-        t_glm_mat="$kul_main_dir/share/FSL/fsl_glm_${dyn}dyn.mat"        
-        # set dimensionality and model for rs-/a-fMRI
-        if [[ $shorttask == *"rest"* ]]; then
-            dim="--dim=15"
+        t_glm_mat="$kul_main_dir/share/FSL/fsl_glm_${dyn}dyn.mat"
+        # Task runs only (rest is skipped above and handled by
+        # KUL_run_rsfMRI_networks.sh), so always the task setup: automatic
+        # dimensionality plus the paradigm design/contrast, which is what lets
+        # melodic's report rank components against the task.
+        dim=""
+        model="--Tdes=$t_glm_mat --Tcon=$t_glm_con"
+        if [ ! -f "$t_glm_mat" ]; then
+            echo "  WARNING: no design matrix for ${dyn} dynamics ($t_glm_mat) — running melodic without a task model"
             model=""
+        fi
+
+        # Re-use an existing decomposition rather than recomputing it. The ICA is
+        # the expensive part and it lives in BIDS/derivatives, which survives
+        # anything done to RESULTS/; the network matching and the warp into
+        # RESULTS/.../Melodic below are cheap. Without this, repopulating
+        # RESULTS/Melodic meant re-running melodic from the denoised BOLD even
+        # though its output was sitting untouched in the derivative.
+        # KUL_MELODIC_FORCE=1 recomputes anyway.
+        if [ "${KUL_MELODIC_FORCE:-0}" != "1" ] && \
+           [ -n "$(ls -A "$fmriresults/stats/"thresh_zstat*.nii.gz 2>/dev/null)" ]; then
+            echo "  re-using the existing melodic decomposition in $fmriresults"
+            echo "  (set KUL_MELODIC_FORCE=1 to recompute it from the denoised BOLD)"
         else
-            dim=""
-            model="--Tdes=$t_glm_mat --Tcon=$t_glm_con"
+            # Explicit fMRIPrep brain mask: melodic's default is BET on the mean
+            # image, an intensity-derived mask that a receive-coil bias distorts.
+            melodic_mask="${task%_desc-preproc_bold.nii.gz}_desc-brain_mask.nii.gz"
+            if [ -f "$melodic_mask" ]; then
+                melodic_mask_opt="-m $melodic_mask --nobet"
+            else
+                echo "  WARNING: no fMRIPrep brain mask for $shorttask ($melodic_mask) — melodic falls back to BET"
+                melodic_mask_opt=""
+            fi
+            task_in="melodic -i $melodic_in_1 -o $fmriresults --report --tr=$tr --Oall $melodic_mask_opt $model $dim"
+            KUL_task_exec $verbose_level "Running melodic on $melodic_in_1" "1_melodic"
         fi
-
-        # edited by AR 04/11/2022
-        melodic_in_2="$(dirname ${melodic_in_1})/$(basename ${melodic_in_1} .nii.gz)_smooth_3mm.nii.gz"
-
-        # edited by AR 04/11/2022
-        # temporary smoothing solution for now, better to use FSL susan
-        if [[ ! -f "${melodic_in_2}" ]]; then
-            fslmaths ${melodic_in_1} -s 3 ${melodic_in_2}
-        fi
-        
-        # edited by AR 04/11/2022
-        #melodic -i Melodic/sub-Croes/fmridata/sub-Croes_task-LIP_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii -o test/ --report --Tdes=glm.mat --Tcon=glm.con
-        task_in="melodic -i $melodic_in_2 -o $fmriresults --report --tr=$tr --Oall $model $dim"
-        KUL_task_exec $verbose_level "Running melodic on $melodic_in_2" "1_melodic"
 
         # edited by AR 04/11/2022
         # now we compare to known networks
+        # KUL_NIT_networks.nii.gz is on the classic FSL-standard MNI152 2mm
+        # grid (91x109x91); melodic_IC.nii.gz is on fMRIPrep's actual
+        # MNI152NLin2009cAsym:res-2 grid (97x115x97) -- different template,
+        # fslcc requires matching grids and errors out ("Mismatch in image
+        # dimensions") otherwise. Use the pre-resampled NLin2009cAsym-space
+        # copy instead (see KUL_NIT_networks_space-MNI152NLin2009cAsym_res-2.nii.gz's
+        # generation -- mrgrid regrid -interp nearest, a one-off, not
+        # per-subject, same as the shared-atlas-resample pattern
+        # step0_synthseg.sh already uses).
         mkdir -p $fmriresults/kul
-        task_in="fslcc --noabs -p 3 -t .204 $kul_main_dir/atlasses/Local/Sunaert2021/KUL_NIT_networks.nii.gz \
+        # fslcc requires identical grids. The shipped copy is pre-resampled to
+        # fMRIPrep's MNI152NLin2009cAsym:res-2 grid (97x115x97), which is only
+        # correct when the run actually used --output-spaces ...:res-2 -- any
+        # other output resolution and this errors out with "Mismatch in image
+        # dimensions". Resample to whatever grid melodic actually produced, and
+        # cache it per grid so this stays a one-off rather than per-subject work.
+        _nit_src="$kul_main_dir/atlases/Local/Sunaert2021/KUL_NIT_networks_space-MNI152NLin2009cAsym_res-2.nii.gz"
+        _ic_dims=$(mrinfo "$fmriresults/melodic_IC.nii.gz" -size 2>/dev/null | tr ' ' 'x' | cut -d'x' -f1-3)
+        _nit_dims=$(mrinfo "$_nit_src" -size 2>/dev/null | tr ' ' 'x' | cut -d'x' -f1-3)
+        _nit_use="$_nit_src"
+        if [ -n "$_ic_dims" ] && [ "$_ic_dims" != "$_nit_dims" ]; then
+            _nit_use="$kulderivativesdir/atlases/KUL_NIT_networks_grid-${_ic_dims}.nii.gz"
+            if [ ! -f "$_nit_use" ]; then
+                echo "  melodic grid ($_ic_dims) differs from the shipped atlas ($_nit_dims) — resampling atlas once"
+                mkdir -p "$(dirname "$_nit_use")"
+                # nearest keeps the network labels/maps unblended across the regrid
+                mrgrid "$_nit_src" regrid -template "$fmriresults/melodic_IC.nii.gz" \
+                    -interp nearest "$_nit_use" -force -quiet || _nit_use="$_nit_src"
+            fi
+        fi
+        task_in="fslcc --noabs -p 3 -t .204 $_nit_use \
             $fmriresults/melodic_IC.nii.gz > $fmriresults/kul/kul_networks.txt"
-        KUL_task_exec $verbose_level "Running fslcc for $melodic_in_2" "2_fslcc"
+        KUL_task_exec $verbose_level "Running fslcc for $melodic_in_1" "2_fslcc"
 
 
         while IFS=$' ' read network ic stat; do
             #echo $network
-            network_name=$(sed "${network}q;d" $kul_main_dir/atlasses/Local/Sunaert2021/KUL_NIT_networks.txt)
+            network_name=$(sed "${network}q;d" $kul_main_dir/atlases/Local/Sunaert2021/KUL_NIT_networks.txt)
             #echo $network_name
             icfile="$fmriresults/stats/thresh_zstat${ic}.nii.gz"
             network_file="$fmriresults/kul/melodic_${network_name}_ic${ic}.nii.gz"
@@ -214,7 +303,7 @@ function KUL_compute_melodic {
             # since Melodic analysis was in MNI space, we transform back in native space
             input=$network_file
             output=$globalresultsdir/rsfMRI_${shorttask}_${network_name}_ic${ic}.nii
-            transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin6Asym_to-T1w_mode-image_xfm.h5
+            transform=${cwd}/fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
             find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
             reference=${find_T1w[0]}
             KUL_antsApply_Transform $str_silent_melodic
@@ -232,20 +321,17 @@ KUL_check_participant
 #  setup variables
 kulderivativesdir=$cwd/BIDS/derivatives/KUL_compute
 computedir="$kulderivativesdir/sub-$participant/FSL_melodic"
-fmridatadir="$computedir/fmridata"
 scriptsdir="$computedir/scripts"
 fmriprepdir="fmriprep/sub-$participant/func"
 globalresultsdir="$cwd/RESULTS/sub-$participant/Melodic"
-searchtask="_space-MNI152NLin6Asym_desc-smoothAROMAnonaggr_bold.nii"
+searchtask="_space-MNI152NLin2009cAsym*_desc-preproc_bold.nii"
 
-if [ $KUL_DEBUG -gt 0 ]; then 
+if [ $KUL_DEBUG -gt 0 ]; then
     echo "kulderivativesdir: $kulderivativesdir"
-    echo "fmridatadir: $fmridatadir"
     echo "fmriprepdir: $fmriprepdir"
     echo "globalresultsdir: $globalresultsdir"
 fi
 
-mkdir -p $fmridatadir
 mkdir -p $scriptsdir
 mkdir -p $computedir/RESULTS
 mkdir -p $globalresultsdir
@@ -258,10 +344,23 @@ fi
 
 
 if [ ! -f KUL_LOG/sub-${participant}_melodic.done ]; then
-    
+
+    # KUL_compute_melodic's denoise step below calls KUL_fmri_denoise.sh
+    # --method nilearn -- unlike KUL_run_rsfMRI_networks.sh/
+    # KUL_fmriproc_nilearn_new.sh, this script never activated the conda
+    # env nilearn actually lives in, so it silently ran under whatever
+    # environment KUL_clinical_fmridti.sh itself happened to be in and
+    # failed with "nilearn not installed" (masked at the KUL_task_exec
+    # level by an unrelated near-instant-failure duration-formatting
+    # error, which is what actually shows up in the console).
+    if ! conda env list | awk '{print $1}' | grep -qx "$KUL_PYFMRI_ENV"; then
+        echo "ERROR: conda env '$KUL_PYFMRI_ENV' was not found (checked 'conda env list')." >&2
+        echo "  Run the KUL_NIS installer's env-pyfmri section." >&2
+        exit 1
+    fi
+    KUL_activate_conda_env "$KUL_PYFMRI_ENV"
+
     KUL_compute_melodic
-    # cleanup
-    rm -rf $fmridatadir
 
 else
     echo "Melodic analysis already done"

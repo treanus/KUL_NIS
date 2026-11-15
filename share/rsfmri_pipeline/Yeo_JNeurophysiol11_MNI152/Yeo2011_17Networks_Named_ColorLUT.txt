@@ -1,0 +1,25 @@
+# Yeo 2011 17-Network Parcellation - Color Lookup Table with RSN Names
+# Based on: Yeo et al. (2011) J Neurophysiol, 106:1125-1165
+# Color conventions from the Yeo Lab (https://github.com/ThomasYeoLab/CBIG)
+# Network names reflect subdivision of the 7-network parcellation
+#
+# Index   Label                               R    G    B    A
+
+  0       NONE                                0    0    0    0
+  1       Visual_A                          120   18  134    0
+  2       Visual_B                          255    0    0    0
+  3       SomatoMotor_A                      70  130  180    0
+  4       SomatoMotor_B                      42  204  164    0
+  5       DorsalAttention_A                  74  155   60    0
+  6       DorsalAttention_B                   0  118   14    0
+  7       Salience_VentralAttention_A       196   58  250    0
+  8       Salience_VentralAttention_B       255  152  213    0
+  9       Limbic_A                          220  248  164    0
+ 10       Limbic_B                          122  135   50    0
+ 11       Control_A                         119  140  176    0
+ 12       Control_B                         230  148   34    0
+ 13       Control_C                         135   50   74    0
+ 14       Default_A                          12   48  255    0
+ 15       Default_B                           0    0  130    0
+ 16       Default_C                         255  255    0    0
+ 17       TemporalParietal                  205   62   78    0

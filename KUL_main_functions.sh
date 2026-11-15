@@ -52,8 +52,6 @@ function KUL_task_exec {
         fi
     fi
 
-    #local pidsArray=${task_in_pid[@]} # pids to wait for, separated by semi-colon
-    #local procsArray=${task_in_name[@]} # name of procs to wait for, separated by semi-colon 
     local pidsArray=() # pids to wait for, separated by semi-colon
     local procsArray=() # name of procs to wait for, separated by semi-colon     
     local log_ttime=0 # local time instance for comparison
@@ -125,6 +123,15 @@ function KUL_task_exec {
             kul_errorlog_file[$local_n_tasks]="$local_main_logdir_participant/"${kul_log_files}.error.log""
             kul_log_command[$local_n_tasks]="$local_main_logdir_participant/"${kul_log_files}.command""
         fi
+
+        # Truncate this task's log/error-log before writing to them. Both the auto-generated
+        # and the explicit kul_log_files naming schemes are fixed names, not per-run/timestamped
+        # -- without this, a retried step (e.g. after fixing a bad input path) kept appending to
+        # the same file forever, leaving a previous failed attempt's error output sitting
+        # alongside/before the current attempt's, which reads as a contradiction (e.g. a
+        # "Success" from a later attempt next to a stale "exitcode 2" from an earlier one).
+        : > "${kul_log_file[$local_n_tasks]}"
+        : > "${kul_errorlog_file[$local_n_tasks]}"
 
         ### STEP 2 - execute the task_in
         if [ $kul_verbose_level -lt 2 ]; then 
@@ -248,13 +255,18 @@ function KUL_task_exec {
     done
 
     ### STEP 5 - return the status of execution
-    if [ $errorcount -eq 0 ]; then
-        if [ $kul_verbose_level -eq 2 ]; then
-            echo -e "Success" | tee -a ${kul_log_file}
+    # log the aggregate Success/Fail into every task's own log file, not just kul_log_file[0]
+    # (the array's implicit default index when used unindexed) -- otherwise only the first
+    # of several batched tasks ever got this line.
+    for (( c=0; c<local_n_tasks; c++ )); do
+        if [ $errorcount -eq 0 ]; then
+            if [ $kul_verbose_level -eq 2 ]; then
+                echo -e "Success" | tee -a ${kul_log_file[c]}
+            fi
+        else
+            echo -e "Fail" | tee -a ${kul_log_file[c]}
         fi
-    else
-        echo -e "Fail" | tee -a ${kul_log_file}
-    fi
+    done
 
     unset task_in
     unset task_participant
@@ -297,6 +309,43 @@ function is_conda_env_activated() {
     [[ "$CONDA_DEFAULT_ENV" == "$ENV_TO_ACTIVATE" ]]
 }
 
+# Make `conda activate` usable in this shell even when it was never initialised.
+#
+# This used to be `source activate <env>` -- the pre-4.4 form, which is a script
+# that only exists once conda's bin/ is on PATH. An interactive login shell with
+# the KUL_software_setup bashrc block has that; cron, nohup, `bash -c` and any
+# non-login shell do not, and there it failed with
+#     KUL_main_functions.sh: line NNN: activate: No such file or directory
+# after which the caller's own package check reported it as "missing required
+# packages" -- pointing at the env, which was complete and fine, instead of at
+# PATH. That misdiagnosis cost real debugging time.
+#
+# `conda activate` needs conda's shell *function*, not the binary, so bootstrap
+# it from conda.sh whenever that function is absent. Returns 1 if no conda can
+# be found at all.
+function KUL_conda_bootstrap {
+    # already usable: conda is a shell function, not merely a binary on PATH
+    [ "$(type -t conda)" = "function" ] && return 0
+
+    local _cand _bin _bases=()
+    # a conda/mamba already on PATH knows its own base; otherwise try the usual
+    # locations, $KUL_CONDA_BASE first so a non-standard install can be named.
+    _bin=$(command -v conda 2>/dev/null)
+    [ -n "$_bin" ] && _bases+=("$("$_bin" info --base 2>/dev/null)")
+    _bases+=("${KUL_CONDA_BASE:-}" "$HOME/miniforge3" "$HOME/miniconda3" \
+             "$HOME/anaconda3" "/opt/kul_software/miniforge3" "/opt/conda")
+
+    for _cand in "${_bases[@]}"; do
+        [ -n "$_cand" ] || continue
+        if [ -f "$_cand/etc/profile.d/conda.sh" ]; then
+            # shellcheck disable=SC1090,SC1091
+            source "$_cand/etc/profile.d/conda.sh"
+            [ "$(type -t conda)" = "function" ] && return 0
+        fi
+    done
+    return 1
+}
+
 function KUL_activate_conda_env {
     ENV_TO_ACTIVATE=$1
     # function to activate a certain conda env
@@ -307,22 +356,36 @@ function KUL_activate_conda_env {
     #conda info --envs
     echo "Conda asked to activate: $ENV_TO_ACTIVATE"
 
+    if ! KUL_conda_bootstrap; then
+        echo "ERROR: conda is not initialised in this shell and no installation was found." >&2
+        echo "       Looked for etc/profile.d/conda.sh under \$KUL_CONDA_BASE, \$HOME/miniforge3," >&2
+        echo "       \$HOME/miniconda3, \$HOME/anaconda3, /opt/kul_software/miniforge3, /opt/conda." >&2
+        echo "       Export KUL_CONDA_BASE=<conda root>, or run KUL_software_setup's bashrc section" >&2
+        echo "       (./setup_environment.sh --only bashrc) so every shell has it." >&2
+        return 1
+    fi
+
     # Check if the desired Conda environment is activated
     if ! is_conda_env_activated; then
         echo "Activating the Conda environment: $ENV_TO_ACTIVATE"
-        if [[ $ENV_TO_ACTIVATE == 'base' ]]; then 
+        if [[ $ENV_TO_ACTIVATE == 'base' ]]; then
             echo "Switching back to the base Conda environment: $ENV_TO_ACTIVATE"
             conda deactivate
         else
         # Activate the environment
-            source activate "$ENV_TO_ACTIVATE"
+            if ! conda activate "$ENV_TO_ACTIVATE"; then
+                echo "ERROR: conda env '$ENV_TO_ACTIVATE' could not be activated." >&2
+                echo "       This is an activation failure, not a missing package -- check the env" >&2
+                echo "       exists with 'conda env list'." >&2
+                return 1
+            fi
             ACTIVATED=true
         fi
     else
         echo "Conda environment $ENV_TO_ACTIVATE is already activated."
         ACTIVATED=false
     fi
-    
+
 }
 
 # MAIN FUNCTION - kul_echo ######################################################################################
@@ -337,7 +400,9 @@ function kul_echo {
     #if [ $silent -eq 0 ];then
     #    echo $1
     #fi
-    if [ $verbose_level -eq 1 ]; then
+    if [ $verbose_level -le 1 ]; then
+        # level 0 (silent terminal) still writes to the log file -- "quiet terminal"
+        # must never mean "no record exists"
         #echo "log: $log"
         echo ${info_to_log[@]} >> ${log}
     elif [ $verbose_level -eq 2 ]; then
@@ -360,8 +425,6 @@ function kul_e2cl {
     fi
     
     local old_elapsed_s=$elapsed_s
-    #local b=$(tput bold)
-    #local n=$(tput sgr0)
     local b=''
     local n=''
 
@@ -411,16 +474,43 @@ elif [ $KUL_DEBUG -gt 1 ]; then
     set -x
 fi
 
+# Single source of truth for the shared Python fMRI conda env name, used by
+# KUL_run_rsfMRI_networks.sh and KUL_fmriproc_nilearn_new.sh (created by
+# the KUL_software_setup installer's env-pyfmri section). Both scripts fail fast if this
+# env doesn't exist, rather than silently falling back to a bare 'python3'.
+# Override by exporting KUL_PYFMRI_ENV before running, or via
+# KUL_clinical_fmridti.sh's -y flag, if you need a differently-named env.
+if [[ -z "$KUL_PYFMRI_ENV" ]]; then
+    KUL_PYFMRI_ENV="pyfMRI"
+fi
+
+# Same idea, for the other fixed-name conda envs the installer creates:
+# 'scilpy' (KUL_clinical_fmridti.sh's -f flag / KUL_FWT) and 'lore_sd'
+# (loresd_env in the -D dwiprep config). Overridable via env var, or the
+# corresponding -f flag / config field, if you need a differently-named env.
+if [[ -z "$KUL_SCILPY_ENV" ]]; then
+    KUL_SCILPY_ENV="scilpy"
+fi
+if [[ -z "$KUL_LORESD_ENV" ]]; then
+    KUL_LORESD_ENV="lore_sd"
+fi
+
+# Python env for the DICOM-generation step (KUL_nii2dcm.py, driven by
+# KUL_clinical_fmridti.sh -R). Its deps (SimpleITK/Pillow/numpy) used to be
+# taken from whatever python3 happened to be on PATH -- normally miniforge
+# base, where the installer pip-installs them unpinned -- which is why the
+# PACS step could work on one machine and fail on another. Pinning it to a
+# named env makes that reproducible; see share/envs/KUL_dicom.yml.
+# Overridable by exporting KUL_DICOM_ENV, or via -m. Unlike the envs above
+# this one falls back to plain python3 with a warning rather than failing
+# hard, so hosts that never created it keep working as before.
+if [[ -z "$KUL_DICOM_ENV" ]]; then
+    KUL_DICOM_ENV="KUL_dicom"
+fi
+
 
 
 machine_type=$(uname)
-#echo $machine_type
-
-
-# -- Set global defaults --
-#silent=1
-#tmp=/tmp
-
 
 # -- Execute global startup --
 

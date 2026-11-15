@@ -39,7 +39,7 @@ Usage:
     BIDS_participant;EAD;dicom_zip;config_file;session
     P001;70386396;John_Lennon.zip;study_sequences_2parts.txt;tp01
     P002;60423284;Curt_Cobain.zip;study_sequences_3parts.txt;tp01
-    P003;77503712;Stefan_Sunaert.zip;study_sequences_3parts.txt;tp01
+    P003;12345678;Stefan_Sunaert.zip;study_sequences_3parts.txt;tp01
 
   explains that we scanned 3 subjects in this study. 
     BIDS_participant will be the anonymised participant name in the BIDS subfolder

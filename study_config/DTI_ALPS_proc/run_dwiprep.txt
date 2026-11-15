@@ -12,19 +12,38 @@ BIDS_participants:
 
 # dwiprep processing
 #  options: look at the our webpage (in most cases leaving empty is fine)
-#  synbzero_disco_instead_of_topup: 1 for using it (see webpage)
-#  rev_phase_for_topup_only: 1 for using the rev_phase images only for topup
 #  ncpu: numer of cpu's to use for each subject 
 #  simultaneous: defines how many subjects to process simultaneously
 do_dwiprep: 1
 dwiprep_options: dhollander
-synbzero_disco_instead_of_topup: 1
-rev_phase_for_topup_only: 0
+use_native_dwi: 1
+#  synbzero_disco_instead_of_topup / rev_phase_for_topup_only describe the
+#  ACQUISITION, not the processing type, so both default to "auto":
+#    one phase-encoding direction only  -> synb0=1, revonly=0  (no topup possible)
+#    both, reverse phase is b0-only     -> synb0=0, revonly=1  (topup, rev not data)
+#    both, reverse phase diffusion-wtd  -> synb0=0, revonly=0  (topup, rev is data)
+#  KUL_clinical_fmridti.sh resolves this from the BIDS dwi series after dcm2bids
+#  and writes the numbers into the copy in KUL_LOG/. Set 0 or 1 here to override;
+#  a standalone KUL_preproc_all.sh run needs explicit numbers, not "auto".
+synbzero_disco_instead_of_topup: auto
+rev_phase_for_topup_only: auto
 dwi2mask_method: 3
+#  shard_recon: 1 to use shard-recon (SHARD reconstruction) instead of eddy for motion/distortion correction (see KUL_dwiprep.sh -c); default 0 (use eddy)
+shard_recon: 0
+#  seam_correction: off | check | auto. MB=2 acquisitions can have a dark slice at N/2 (between the two bands) that biases FOD
+#  amplitude. check = screen and write QC (dwiprep qa/seam/) without changing data; auto = also correct where present
+#  (see KUL_dwiprep.sh -z). Needs MultibandAccelerationFactor=2 in the dwi sidecar. Default: off
+seam_correction: off
 eddy_options: --slm=linear --repol --niter=8
 dwiprep_ncpu: 20
 dwiprep_simultaneous: 1
 
+
+#  do_dwiprep_MNI: run KUL_dwiprep_MNI.sh, which warps T1w/FA/ADC/DEC into
+#  MNI152NLin2009cAsym under dwiprep/sub-*/MNI/. Nothing downstream in KUL_NIS
+#  reads those files -- DTI-ALPS included, contrary to what the pipeline used to
+#  claim -- so set this to 0 if you do not want the MNI-space maps themselves.
+do_dwiprep_MNI: 1
 
 # specify here if you want preproc_all to exit after doing mriqc, fmriprep, freesurfer and/or dwiprep
 #  i.e. before starting dwiprep_anat

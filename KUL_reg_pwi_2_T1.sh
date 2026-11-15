@@ -1,4 +1,4 @@
-#main_folder=/Users/xm52195/data/Laura
+#main_folder=/path/to/data
 #subject=STR_008
 dcm_folder=DICOM
 T1_ref=cT1_${1}.nii

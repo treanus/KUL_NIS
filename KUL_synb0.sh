@@ -149,7 +149,6 @@ for i in `seq 0 $(($num_sessions-1))`; do
 	# set up 
 	long_bids_subj=${search_sessions[$i]}
 	bids_subj=${long_bids_subj%dwi}
-	#echo $bids_subj
 
 	if [[ $bids_subj == *"ses-"* ]];then
 		ses=${bids_subj#*ses-}
@@ -161,10 +160,7 @@ for i in `seq 0 $(($num_sessions-1))`; do
 		sessuf1=""
 		sessuf2=""
 	fi
-	#echo $ses
-	#echo $sessuf1
-	#echo $sessuf2
-	
+
 
 	# run synb0
 
@@ -191,7 +187,6 @@ for i in `seq 0 $(($num_sessions-1))`; do
 		if [ $number_of_bids_T1_found -gt 1 ]; then
 			echo "   more than 1 T1 dataset, using first only for Synb0-disco" ${preproc}/${log}
 		fi
-		#echo $bids_T1_found
 		Synb0_T1=${bids_T1_found[0]}
 		echo "The used T1 for synb0-disco is $Synb0_T1"
 
@@ -203,7 +198,6 @@ for i in `seq 0 $(($num_sessions-1))`; do
 		if [ $number_of_bids_dmri_found -gt 1 ]; then
 			echo "   more than 1 dMRI b0 dataset, using first only for Synb0-disco" ${preproc}/${log}
 		fi
-		#echo $bids_dmri_found
 		Synb0_dmri=${bids_dmri_found[0]}
 		echo "The used dMRI for synb0-disco is $Synb0_dmri"
 		dwi_base=${Synb0_dmri%%.*}

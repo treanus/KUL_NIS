@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<atlas version="1.0">
+<header>
+<name>BIP</name>
+<type>Probabalistic</type>
+<images>
+<imagefile>/BIP/BIP_prob-2mm</imagefile>
+<summaryimagefile>/BIP/BIP_maxprob-thr25-2mm</summaryimagefile>
+</images>
+<images>
+<imagefile>/BIP/BIP_prob-1mm</imagefile>
+<summaryimagefile>/BIP/BIP_maxprob-thr25-1mm</summaryimagefile>
+</images>
+</header>
+<data>
+<label index="0" x="69" y="80" z="40">arc_ifg_l</label>
+<label index="1" x="19" y="70" z="36">arc_ifg_r</label>
+<label index="2" x="64" y="60" z="48">arc_l_tract</label>
+<label index="3" x="25" y="61" z="48">arc_r_tract</label>
+<label index="4" x="76" y="44" z="49">arc_spt_l</label>
+<label index="5" x="14" y="41" z="37">arc_spt_r</label>
+<label index="6" x="69" y="80" z="40">aslant_ifg_l</label>
+<label index="7" x="19" y="72" z="37">aslant_ifg_r</label>
+<label index="8" x="56" y="64" z="54">aslant_l_tract</label>
+<label index="9" x="33" y="65" z="54">aslant_r_tract</label>
+<label index="10" x="52" y="64" z="69">aslant_sma_l</label>
+<label index="11" x="41" y="58" z="66">aslant_sma_r</label>
+<label index="12" x="31" y="62" z="48">cc_ifg2ifg_tract</label>
+<label index="13" x="68" y="80" z="44">cc_ifg_l</label>
+<label index="14" x="19" y="71" z="36">cc_ifg_r</label>
+<label index="15" x="29" y="40" z="49">cc_spt2spt_tract</label>
+<label index="16" x="71" y="32" z="35">cc_spt_l</label>
+<label index="17" x="22" y="29" z="55">cc_spt_r</label>
+<label index="18" x="29" y="39" z="48">cc_vwfa2vwfa_tract</label>
+<label index="19" x="70" y="41" z="25">cc_vwfa_l</label>
+<label index="20" x="18" y="40" z="26">cc_vwfa_r</label>
+<label index="21" x="69" y="83" z="35">ec_ifg_l</label>
+<label index="22" x="21" y="84" z="31">ec_ifg_r</label>
+<label index="23" x="62" y="40" z="47">ec_l_tract</label>
+<label index="24" x="27" y="42" z="47">ec_r_tract</label>
+<label index="25" x="73" y="44" z="30">ec_spt_l</label>
+<label index="26" x="18" y="42" z="46">ec_spt_r</label>
+<label index="27" x="65" y="65" z="17">ilf_atl_l</label>
+<label index="28" x="15" y="54" z="25">ilf_atl_r</label>
+<label index="29" x="65" y="37" z="37">ilf_l_tract</label>
+<label index="30" x="24" y="39" z="36">ilf_r_tract</label>
+<label index="31" x="74" y="38" z="32">ilf_vwfa_l</label>
+<label index="32" x="24" y="47" z="25">ilf_vwfa_r</label>
+<label index="33" x="63" y="91" z="33">iof_fr_l</label>
+<label index="34" x="33" y="82" z="28">iof_fr_r</label>
+<label index="35" x="57" y="81" z="36">iof_l_tract</label>
+<label index="36" x="62" y="19" z="40">iof_occ_l</label>
+<label index="37" x="26" y="21" z="36">iof_occ_r</label>
+<label index="38" x="29" y="28" z="42">iof_r_tract</label>
+<label index="39" x="71" y="58" z="22">mdlf_atl_l</label>
+<label index="40" x="15" y="54" z="25">mdlf_atl_r</label>
+<label index="41" x="63" y="40" z="47">mdlf_l_tract</label>
+<label index="42" x="77" y="45" z="31">mdlf_ptl_l</label>
+<label index="43" x="13" y="41" z="37">mdlf_ptl_r</label>
+<label index="44" x="26" y="43" z="47">mdlf_r_tract</label>
+<label index="45" x="68" y="31" z="55">motor_x_spt_l</label>
+<label index="46" x="22" y="29" z="55">motor_x_spt_r</label>
+<label index="47" x="68" y="32" z="51">slf2_ag_l</label>
+<label index="48" x="20" y="32" z="57">slf2_ag_r</label>
+<label index="49" x="63" y="40" z="49">slf2_l_tract</label>
+<label index="50" x="69" y="74" z="54">slf2_mfg_l</label>
+<label index="51" x="27" y="66" z="55">slf2_mfg_r</label>
+<label index="52" x="27" y="40" z="50">slf2_r_tract</label>
+<label index="53" x="63" y="40" z="49">spt2motor_l_tract</label>
+<label index="54" x="27" y="41" z="50">spt2motor_r_tract</label>
+<label index="55" x="69" y="74" z="54">spt_x_motor_l</label>
+<label index="56" x="27" y="66" z="55">spt_x_motor_r</label>
+<label index="57" x="55" y="62" z="21">unc_atl_l</label>
+<label index="58" x="34" y="63" z="22">unc_atl_r</label>
+<label index="59" x="55" y="69" z="25">unc_fr_l</label>
+<label index="60" x="33" y="82" z="28">unc_fr_r</label>
+<label index="61" x="57" y="83" z="35">unc_l_tract</label>
+<label index="62" x="26" y="63" z="23">unc_r_tract</label>
+<label index="63" x="68" y="31" z="55">vof_angular_l</label>
+<label index="64" x="22" y="29" z="55">vof_angular_r</label>
+<label index="65" x="66" y="37" z="36">vof_l_tract</label>
+<label index="66" x="24" y="37" z="36">vof_r_tract</label>
+<label index="67" x="75" y="38" z="31">vof_vwfa_l</label>
+<label index="68" x="18" y="40" z="25">vof_vwfa_r</label>
+</data>
+</atlas>

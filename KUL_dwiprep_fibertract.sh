@@ -437,7 +437,7 @@ for current_session in `seq 0 $(($num_sessions-1))`; do
 
                     echo " creating the $space space $roi_name ROI from $from_atlas..." 
 
-                    input=${kul_main_dir}/atlasses/Local/${from_atlas}
+                    input=${kul_main_dir}/atlases/Local/${from_atlas}
                     input=${input//[[:blank:]]/}
                     output=roi/${roi_name}_tmp.nii.gz
                     transform="${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5"

@@ -1,0 +1,18 @@
+# KUL_Neuro_Imaging_Tools
+#  config file for KUL_dsc_perfusion.sh (DSC perfusion), as run by
+#  KUL_clinical_fmridti.sh. Runs only when a DSC series is found in BIDS --
+#  see the DSC rows in sequences.txt.
+
+do_dsc: 1
+
+#  rCBV integration window (method v2, see docs/KUL_dsc_perfusion):
+#    full      : from 2 frames before bolus arrival to the end of the series --
+#                the default; the BSW leakage correction handles the tail
+#    firstpass : stop at the end of the first pass (+3 frames); less sensitive
+#                to the tail, but can truncate a slow tumour bolus
+dsc_window: full
+
+#  FWHM (mm) of the light 3D smoothing applied to *extra* rCBV/rCBF maps named
+#  *_smooth (the unsmoothed maps are always written and are what the stats,
+#  PACS and Karawun use). 0 = do not write smoothed maps.
+dsc_smooth_fwhm: 3

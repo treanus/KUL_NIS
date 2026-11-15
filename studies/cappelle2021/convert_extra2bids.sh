@@ -10,8 +10,8 @@
 # STEP 1 - sort the dicoms
 # we use dicomsort.py from https://github.com/pieper/dicomsort
 # this will warn for some double files, probably beacuse IDE export both dicom classic and enhanced
-# The DICOMs from Ide are in /DATA/Data_MRI_Ide/DATA_RAW
-#dicomsort.py -k /Users/xm52195/data/Cappelle_MS_DATA_ide/DICOM_extra \
+# The DICOMs are in /path/to/DATA_RAW
+#dicomsort.py -k /path/to/DICOM_extra \
 # DICOM_extra_sorted/%PatientName/%StudyDate/%SeriesDescription-%SeriesNumber/%InstanceNumber.dcm
 
 # STEP 2 - clean the DICOM_sorted

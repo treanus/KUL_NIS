@@ -1,0 +1,10 @@
+# KUL_Neuro_Imaging_Tools
+#  config file for KUL_FS_multiparc.sh (multi-atlas parcellation), as run by
+#  KUL_clinical_fmridti.sh.
+#
+#  NOTE: *whether* multiparc runs is decided by KUL_clinical_fmridti.sh's -t
+#  (types 4, 5, 6). This file controls only how it runs.
+
+#  -X: use FastSurfer instead of plain recon-all for the reconstruction step
+#      (faster, requires a GPU; default is FreeSurfer 8.2.0 recon-all)
+use_fastsurfer: 0

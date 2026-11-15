@@ -561,13 +561,13 @@ function KUL_antsApply_Transform {
 #     # http://www.diedrichsenlab.org/imaging/suit_download.htm
 #     # fslmaths Cerebellum-SUIT.nii -thr 30 -uthr 30 Dentate_R
 #     # fslmaths Cerebellum-SUIT.nii -thr 29 -uthr 29 Dentate_L
-#     input=${kul_main_dir}/atlasses/Local/Dentate_R.nii.gz
+#     input=${kul_main_dir}/atlases/Local/Dentate_R.nii.gz
 #     output=roi/DENTATE_R.nii.gz
 #     transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
 #     reference=$ants_anat
 #     KUL_antsApply_Transform
 #
-#     input=${kul_main_dir}/atlasses/Local/Dentate_L.nii.gz
+#     input=${kul_main_dir}/atlases/Local/Dentate_L.nii.gz
 #     output=roi/DENTATE_L.nii.gz
 #     transform=${cwd}/fmriprep/sub-${subj}/anat/sub-${subj}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5
 #     reference=$ants_anat

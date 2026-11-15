@@ -1,0 +1,64 @@
+# KUL_Neuro_Imaging_Tools
+#  config file for KUL_FWT_make_VOIs.sh / KUL_FWT_make_TCKs.sh (automated
+#  bundle tractography), as run by KUL_clinical_fmridti.sh. Every key maps to
+#  one KUL_FWT flag -- see 'KUL_FWT_make_TCKs.sh -h' for the full meaning.
+#
+#  NOTE: *whether* FWT runs is decided by KUL_clinical_fmridti.sh's -t
+#  (types 1-6 run it, type 7 [DTI-ALPS] does not). This file controls only how.
+#
+#  The list of bundles to build, and the streamline count for each, lives in a
+#  separate file -- see fwt_tracks_list below.
+
+#  -c: bundle list, resolved relative to study_config/
+fwt_tracks_list: tracks_list.txt
+
+#  -T: tracking/segmentation approach
+#      1 = bundle-specific tckgen (default)
+#      2 = whole-brain tckgen + bundle segmentation
+#      3 = whole-brain tckgen with mrtrix3 freesurfer ACT
+#      4 = bundle-specific seeding from the grey-white matter interface
+#      5 = bundle-specific, seeds one voxel past the GM/WM interface
+fwt_tracking_approach: 1
+
+#  -a: tckgen algorithm (iFOD2, iFOD1, SD_STREAM, Tensor_Det, Tensor_Prob, FACT)
+fwt_algorithm: iFOD2
+
+#  -f: filtering approach -- how hard outlier rejection cuts
+#      0 = none
+#      1 = standard (score floor 0.40, at most 10% of a bundle dropped)
+#      2 = lenient  (score floor 0.30, at most  5% of a bundle dropped)
+#      3 = legacy strict (score floor 0.58, no ceiling) -- pre-2026-09
+#          behaviour, which stripped the cortical fan off fanning bundles
+#          (UF, CCing, ILF, TCing) on some subjects. Only for reproducing
+#          older runs; do not use for new work.
+#      Levels 1 and 2 used to be labelled "conservative" and "liberal", and
+#      level 1 used to mean what level 3 means now. A config that still says
+#      1 therefore gets the safer behaviour, not the old one.
+fwt_filtering: 1
+
+#  -X: explicit tckgen -cutoff (the FOD amplitude at which a streamline terminates;
+#      an FA threshold for the tensor/FACT algorithms). Leave blank to let
+#      KUL_FWT_make_TCKs.sh choose per reconstruction: MRtrix's own default for an
+#      ordinary CSD FOD, 0.05 for a LoRE-SD one, since the cutoff is an absolute
+#      amplitude and the two reconstructions are not on the same scale. Set a value
+#      here to pin one cutoff across every reconstruction and every tckgen in the
+#      run -- which is what you want when comparing reconstruction methods, and is
+#      also the knob for tracking further into the low-amplitude distal terminals of
+#      fanning bundles (lower = tracks further).
+fwt_cutoff:
+
+#  -S: take screenshots of each bundle
+fwt_screenshots: 1
+
+#  -Q: per-bundle tractometry (along-tract scalar profiles). Off by default --
+#      it adds substantial runtime.
+fwt_tractometry: 0
+
+#  -R: EXPERIMENTAL reordered filtering chain (smooth/RecoBundles before
+#      loop-detect/outlier-reject instead of after)
+fwt_reordered_filtering: 0
+
+#  -U: EXPERIMENTAL prefer the rfa-modulated lore_sd FOD
+#      (rfa_modulated_fod_reg2T1w.mif from KUL_dwiprep.sh) if present.
+#      Only meaningful when dwiprep actually ran lore_sd -- see run_dwiprep_lore_sd.txt.
+fwt_rfa_modulated_fod: 0

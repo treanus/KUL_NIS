@@ -130,11 +130,12 @@ reference_karawun=Karawun/sub-${participant}/T1w.nii.gz
 mask_reference=fmriprep/sub-${participant}/anat/sub-${participant}_desc-brain_mask.nii.gz
 mask=$outdir/T1w_mask.nii.gz
 transform=fmriprep/sub-${participant}/anat/sub-${participant}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5 
-atlas_CIT="/usr/local/KUL_apps/leaddbs/templates/space/MNI_ICBM_2009b_NLIN_ASYM/atlases/CIT168_Reinf_Learn (Pauli 2017) - imported from CIT168/mixed"
-atlas_ABGT_orig="/usr/local/KUL_apps/leaddbs/templates/space/MNI_ICBM_2009b_NLIN_ASYM/atlases/Atlas of the Basal Ganglia and Thalamus (He 2020)"
+leaddbs_home="${SOFTWARE_ROOT:-/usr/local/KUL_apps}/leaddbs"
+atlas_CIT="$leaddbs_home/templates/space/MNI_ICBM_2009b_NLIN_ASYM/atlases/CIT168_Reinf_Learn (Pauli 2017) - imported from CIT168/mixed"
+atlas_ABGT_orig="$leaddbs_home/templates/space/MNI_ICBM_2009b_NLIN_ASYM/atlases/Atlas of the Basal Ganglia and Thalamus (He 2020)"
 cp -R "$atlas_ABGT_orig"/* $outdir/tmp/ABGT
 atlas_ABGT=$outdir/tmp/ABGT
-atlas_JHU="/usr/local/fsl/data/atlases/JHU"
+atlas_JHU="${FSLDIR:-/usr/local/fsl}/data/atlases/JHU"
 atlas_fs_orig=BIDS/derivatives/freesurfer/sub-${participant}/mri/aparc+aseg.mgz
 atlas_fs=$outdir/FS-subject_aparc+aseg.nii.gz
 Hemi_L=BIDS/derivatives/KUL_compute/sub-${participant}/FWT/sub-${participant}_VOIs/custom_VOIs/Left_hemir_custom.nii.gz

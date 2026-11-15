@@ -66,8 +66,10 @@ matlabbatch{4}.spm.stats.fmri_spec.fact = struct('name', {}, 'levels', {});
 matlabbatch{4}.spm.stats.fmri_spec.bases.hrf.derivs = ###HRFDERIVS###;
 matlabbatch{4}.spm.stats.fmri_spec.volt = 1;
 matlabbatch{4}.spm.stats.fmri_spec.global = 'None';
-matlabbatch{4}.spm.stats.fmri_spec.mthresh = 0.8;
-matlabbatch{4}.spm.stats.fmri_spec.mask = {''};
+% Explicit fMRIPrep brain mask, no intensity threshold: with a dense receive
+% coil the EPI centre is far darker than cortex and mthresh=0.8 dropped it.
+matlabbatch{4}.spm.stats.fmri_spec.mthresh = -Inf;
+matlabbatch{4}.spm.stats.fmri_spec.mask = {'###MASK###,1'};
 matlabbatch{4}.spm.stats.fmri_spec.cvi = 'AR(1)';
 matlabbatch{5}.spm.stats.fmri_est.spmmat(1) = cfg_dep('fMRI model specification: SPM.mat File', substruct('.','val', '{}',{4}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','spmmat'));
 matlabbatch{5}.spm.stats.fmri_est.write_residuals = 0;

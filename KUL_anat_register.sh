@@ -191,6 +191,28 @@ elif [ $verbose_level -eq 2 ] ; then
     ants_verbose=1
 fi
 
+# Apply a transform to a WRAPPED phase image (-pi..pi, e.g. Philips SWIp).
+# Interpolating the phase itself, with any kernel, averages across the +-pi
+# jumps and paints false values along every wrap. So resample cos(phi) and
+# sin(phi) -- smooth, wrap-free -- and recombine them into an angle. mrcalc has
+# no atan2, but building the complex number and taking its phase is the same.
+function KUL_antsApply_Transform_phase {
+    local _tmp
+    _tmp=$(mktemp -d "${TMPDIR:-/tmp}/kul_phase_XXXXXX")
+    mrcalc "$input" -cos "$_tmp/cos.nii.gz" -force -quiet
+    mrcalc "$input" -sin "$_tmp/sin.nii.gz" -force -quiet
+    for _c in cos sin; do
+        antsApplyTransforms -d 3 --float 1 --verbose $ants_verbose \
+            -i "$_tmp/${_c}.nii.gz" -o "$_tmp/${_c}_reg.nii.gz" \
+            -r "$reference" -t "$transform" -n Linear
+    done
+    mrcalc "$_tmp/cos_reg.nii.gz" "$_tmp/sin_reg.nii.gz" -complex -phase \
+        "$output" -force -quiet
+    local _rc=$?
+    rm -rf "$_tmp"
+    return $_rc
+}
+
 function KUL_antsApply_Transform {
 
     echo "interpolation_type: $interpolation_type"
@@ -375,7 +397,6 @@ function KUL_rigid_register {
 
     warp_field="${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}"
     output_mri="${kulderivativesdir}/${source_mri_label}_reg2_${target_mri_label}.nii.gz"
-    #echo "Rigidly registering $source_mri to $target_mri"
     antsRegistration --verbose $ants_verbose --dimensionality 3 \
     --output [$warp_field,$output_mri] \
     --interpolation $interpolation_type \
@@ -385,7 +406,6 @@ function KUL_rigid_register {
     --metric MI[$target_mri2,$source_mri2,1,32,Regular,0.25] \
     --convergence [1000x500x250x100,1e-6,10] \
     --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
-    #echo "Done rigidly registering $source_mri to $target_mri"
     ConvertTransformFile 3 ${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}0GenericAffine.mat \
         ${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}0GenericAffine.txt
 }
@@ -394,7 +414,6 @@ function KUL_affine_register {
 
     warp_field="${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}"
     output_mri="${kulderivativesdir}/${source_mri_label}_reg2_${target_mri_label}.nii.gz"
-    #echo "Rigidly registering $source_mri to $target_mri"
     antsRegistration --verbose $ants_verbose --dimensionality 3 \
     --output [$warp_field,$output_mri] \
     --interpolation $interpolation_type \
@@ -404,7 +423,6 @@ function KUL_affine_register {
     --metric MI[$target_mri2,$source_mri2,1,32,Regular,0.25] \
     --convergence [1000x500x250x100,1e-6,10] \
     --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
-    #echo "Done rigidly registering $source_mri to $target_mri"
     ConvertTransformFile 3 ${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}0GenericAffine.mat \
         ${registeroutputdir}/${source_mri_label}_reg2_${target_mri_label}0GenericAffine.txt
 }
@@ -419,7 +437,6 @@ function KUL_warp2MNI {
     local its=10000x111110x11110
     local percentage=0.3
     local syn="100x100x50,-0.01,5"
-    #local nm=${D}${nm1}_fixed_${nm2}_moving_setting_is_${mysetting}   # construct output prefix
     local nm=$outputwarp
 
     my_cmd="antsRegistration -d $dim -r [ $f, $m ,1 ]  \
@@ -445,8 +462,6 @@ function KUL_warp2MNI {
                         -s 1x0.5x0vox  \
                         -f 4x2x1 -l 1 -u 1 -z 1 \
                        -o [ ${nm},${nm}_diff.nii.gz,${nm}_inv.nii.gz]"
-
-    #antsApplyTransforms -d $dim -i $m -r $f -n linear -t ${nm}1Warp.nii.gz -t ${nm}0GenericAffine.mat -o ${nm}_warped.nii.gz
 
     my_cmd="antsRegistrationSyN.sh -d 3 -f ${target_mri2} -m ${source_mri2} \
         -o ${outputwarp} -n ${ncpu} -j 1 -t s $fs_silent"
@@ -498,12 +513,20 @@ function KUL_register_anatomical_images {
         task_in="KUL_rigid_register"
         KUL_task_exec $verbose_level "Rigidly registering the $source_mri_label to the T1w" "anat_register_rigid"
 
-        input=$SWIp
-        transform="${registeroutputdir}/${source_mri_label}_reg2_T1w0GenericAffine.mat"
-        output="${kulderivativesdir}/${source_mri_label}_phase_reg2_T1w.nii.gz"
-        reference=$target_mri
-        task_in="KUL_antsApply_Transform"
-        KUL_task_exec $verbose_level "Applying the rigid registration of SWIm to SWIp too" "anat_register_rigid"
+        # The phase shares the magnitude's acquisition, so it takes the
+        # magnitude's transform. This step never ran before: reference was
+        # $target_mri (unset in this mode -- only target_mri2 is) and the
+        # transform had no -t, so antsApplyTransforms got "-r <the .mat>",
+        # segfaulted, and KUL_task_exec only warned. The output name matches the
+        # *reg2_T1w.nii.gz glob the clinical script copies into RESULTS/Anat.
+        if [ -n "$SWIp" ]; then
+            input=$SWIp
+            transform="${registeroutputdir}/${source_mri_label}_reg2_T1w0GenericAffine.mat"
+            output="${kulderivativesdir}/${source_mri_label}_phase_reg2_T1w.nii.gz"
+            reference=$target_mri2
+            task_in="KUL_antsApply_Transform_phase"
+            KUL_task_exec $verbose_level "Applying the rigid registration of SWIm to SWIp too" "anat_register_rigid"
+        fi
     fi
     if [ $nDIR -gt 0 ];then
         source_mri_label="DIR"
@@ -540,11 +563,9 @@ else
 
     source_mri_label_tmp=$(basename $source)
     source_mri_label=${source_mri_label_tmp%%.*}
-    #echo $source_mri_label
     source_mri=$source
     target_mri_label_tmp=$(basename $target)
     target_mri_label=${target_mri_label_tmp%%.*}
-    #echo $target_mri_label
     target_mri=$target
 
     kulderivativesdir=$(pwd)
@@ -599,9 +620,6 @@ else
     echo "reg_type: $reg_type"
     if [ $warp2mni -eq 1 ] || [ $reg_type -eq 3 ]; then
 
-        #outputwarp=${registeroutputdir}/${source_mri_label}_warp2_${target_mri_label}
-        #outputwarp_test="${outputwarp}Warped.nii.gz"
-        #echo $outputwarp_test
         if [ ! -f $outputwarp_test ]; then
 
             echo "Warping non-rigidly $source_mri_label to $target_mri_label (interpolation=$interpolation_type)"
@@ -640,7 +658,6 @@ else
             else
                 transform="-t ${warp_field}0GenericAffine.mat "
             fi
-            #echo  $transform
             reference=$target_mri
             KUL_antsApply_Transform
 

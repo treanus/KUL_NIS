@@ -12,7 +12,7 @@ script=$(basename "$0")
 source $kul_main_dir/KUL_main_functions.sh
 # $cwd & $log_dir is made in main_functions
 
-fix_im="$kul_main_dir/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii"
+fix_im="$kul_main_dir/atlases/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii"
 
 # FUNCTIONS --------------
 
@@ -199,7 +199,7 @@ for participant in ${participants[@]}; do
     fi
 
     KUL_anat_register.sh \
-        -t /usr/local/KUL_apps/KUL_NIS/atlasses/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
+        -t /usr/local/KUL_apps/KUL_NIS/atlases/Ganzetti2014/mni_icbm152_t1_tal_nlin_sym_09a.nii \
         -s $T1w \
         -d $wd \
         -w -m 1 -i 2 \

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<atlas version="1.0">
+  <header>
+    <name>HCP-MMP1 Cortex Labels</name>
+    <type>Label</type>
+    <images>
+      <imagefile>/HCP-MMP1_cortices/HCP-MMP1_cortices_1mm.nii.gz</imagefile>
+      <summaryimagefile>/HCP-MMP1_cortices/HCP-MMP1_cortices_1mm</summaryimagefile>
+    </images>
+    <images>
+      <imagefile>/HCP-MMP1_cortices/HCP-MMP1_cortices_2mm.nii.gz</imagefile>
+      <summaryimagefile>/HCP-MMP1_cortices/HCP-MMP1_cortices_2mm</summaryimagefile>
+    </images>
+    </header>
+  <data>
+    <label index="0" x="0" y="0" z="0">*.*.*.*.*</label>
+    <label index="1" x="100.491589" y="41.138901" z="71.637040">Primary_Visual_L</label>
+    <label index="2" x="108.243940" y="42.272626" z="74.306314">Early_Visual_L</label>
+    <label index="3" x="110.065949" y="41.957316" z="103.851567">Dorsal_Stream_Visual_L</label>
+    <label index="4" x="126.844935" y="66.775549" z="56.221348">Ventral_Stream_Visual_L</label>
+    <label index="5" x="136.227959" y="52.231464" z="74.102184">MT+_Complex_and_Neighboring_Visual_Areas_L</label>
+    <label index="6" x="127.332080" y="101.791025" z="125.085440">Somatosensory_and_Motor_L</label>
+    <label index="7" x="101.757892" y="112.636294" z="131.030992">Paracentral_Lobular_and_Mid_Cingulate_L</label>
+    <label index="8" x="132.332037" y="123.280545" z="117.081170">Premotor_L</label>
+    <label index="9" x="143.201995" y="114.130836" z="85.634601">Posterior_Opercular_L</label>
+    <label index="10" x="138.219855" y="99.709912" z="82.739741">Early_Auditory_L</label>
+    <label index="11" x="147.244567" y="113.682452" z="65.436931">Auditory_Association_L</label>
+    <label index="12" x="128.903367" y="131.255144" z="70.302689">Insular_and_Frontal_Opercular_L</label>
+    <label index="13" x="120.309266" y="105.453590" z="46.294371">Medial_Temporal_L</label>
+    <label index="14" x="142.789112" y="106.246031" z="47.395916">Lateral_Temporal_L</label>
+    <label index="15" x="147.035008" y="72.884019" z="89.916892">Temporo-Parieto-Occipital_Junction_L</label>
+    <label index="16" x="114.570717" y="68.675225" z="127.854112">Superior_Parietal_L</label>
+    <label index="17" x="139.113780" y="68.896587" z="107.682721">Inferior_Parietal_L</label>
+    <label index="18" x="98.673066" y="72.087496" z="103.065230">Posterior_Cingulate_L</label>
+    <label index="19" x="97.134593" y="162.088454" z="84.996493">Anterior_Cingulate_and_Medial_Prefrontal_L</label>
+    <label index="20" x="111.239169" y="172.168921" z="59.649350">Orbital_and_Polar_Frontal_L</label>
+    <label index="21" x="136.792604" y="155.947959" z="75.336025">Inferior_Frontal_L</label>
+    <label index="22" x="120.034367" y="158.704617" z="109.680798">Dorsolateral_Prefrontal_L</label>
+    <label index="101" x="78.060375" y="44.539286" z="74.333474">Primary_Visual_R</label>
+    <label index="102" x="71.330864" y="44.291736" z="76.126519">Early_Visual_R</label>
+    <label index="103" x="68.710308" y="45.224317" z="105.375130">Dorsal_Stream_Visual_R</label>
+    <label index="104" x="56.709584" y="69.788165" z="56.173885">Ventral_Stream_Visual_R</label>
+    <label index="105" x="42.650321" y="56.440220" z="73.040378">MT+_Complex_and_Neighboring_Visual_Areas_R</label>
+    <label index="106" x="53.408847" y="104.722033" z="124.655188">Somatosensory_and_Motor_R</label>
+    <label index="107" x="78.905156" y="109.800048" z="131.370911">Paracentral_Lobular_and_Mid_Cingulate_R</label>
+    <label index="108" x="47.081230" y="126.885986" z="113.349509">Premotor_R</label>
+    <label index="109" x="38.013917" y="119.489654" z="83.850394">Posterior_Opercular_R</label>
+    <label index="110" x="41.991451" y="103.120044" z="83.704620">Early_Auditory_R</label>
+    <label index="111" x="33.795776" y="116.041196" z="63.997206">Auditory_Association_R</label>
+    <label index="112" x="52.828111" y="132.813527" z="69.329433">Insular_and_Frontal_Opercular_R</label>
+    <label index="113" x="61.139891" y="106.564845" z="45.963934">Medial_Temporal_R</label>
+    <label index="114" x="40.162389" y="110.617024" z="44.614121">Lateral_Temporal_R</label>
+    <label index="115" x="33.143595" y="79.589975" z="89.011724">Temporo-Parieto-Occipital_Junction_R</label>
+    <label index="116" x="65.159163" y="69.390447" z="128.196896">Superior_Parietal_R</label>
+    <label index="117" x="40.029893" y="74.155330" z="108.925535">Inferior_Parietal_R</label>
+    <label index="118" x="81.524450" y="73.615696" z="103.006146">Posterior_Cingulate_R</label>
+    <label index="119" x="84.504070" y="160.685802" z="86.922586">Anterior_Cingulate_and_Medial_Prefrontal_R</label>
+    <label index="120" x="71.210664" y="173.265850" z="57.825048">Orbital_and_Polar_Frontal_R</label>
+    <label index="121" x="44.282125" y="159.791722" z="73.774194">Inferior_Frontal_R</label>
+    <label index="122" x="61.193239" y="161.305302" z="109.046979">Dorsolateral_Prefrontal_R</label>
+  </data>
+</atlas>

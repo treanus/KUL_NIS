@@ -1,0 +1,30 @@
+# KUL_Neuro_Imaging_Tools
+#  config file for KUL_VBG.sh (virtual brain grafting), as run by
+#  KUL_clinical_fmridti.sh. Every key maps to one KUL_VBG.sh flag -- see
+#  'KUL_VBG.sh -h' for the full meaning of each.
+#
+#  NOTE: *whether* VBG runs, and whether it runs in extra-axial mode, is decided
+#  by KUL_clinical_fmridti.sh's -t (type 1 = intra-axial, 2 = extra-axial,
+#  3 = manual mask, 4-7 = no VBG). This file controls only *how* it runs.
+
+#  -B: brain extraction (1 = SynthStrip [needs FreeSurfer >= 7.3], 2 = ANTs-BET)
+vbg_brain_extraction: 1
+
+#  -P: parcellation (1 = FreeSurfer recon-all, 2 = FastSurfer,
+#      3 = FastSurfer+FreeSurfer hybrid, 4 = SynthSeg [needs FreeSurfer >= 7.3])
+vbg_parcellation: 1
+
+#  -t: use the VBG template to derive the fill patch, alongside native tissue
+vbg_use_template_patch: 1
+
+#  -M: run multi-scale parcellation after recon-all (only with -P 1/2/3)
+vbg_multiscale_parc: 1
+
+#  -O: generate the lesion overlap report after each completed parcellation
+vbg_overlap_report: 1
+
+#  -H: EXPERIMENTAL hybrid donor blend (P95-calibrated stitch in the lesion core)
+vbg_hybrid_donor_blend: 1
+
+#  -z: space of the lesion mask (only T1 is supported by KUL_VBG.sh)
+vbg_lesion_space: T1
